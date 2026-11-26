@@ -30,9 +30,9 @@ function measure(scope) {
 
 async function main() {
   const pw = loadPlaywright();
-  if (!pw) { console.log("SKIP: ui_presence_dots.js needs playwright-core (npm ci, or playwright-cli on PATH)"); return 0; } // silent-skip-ok: a browser suite needs a local Playwright
+  if (!pw) { console.log("SKIP: ui_presence_dots.js needs playwright-core (npm ci, or playwright-cli on PATH)"); return 0; }
   let browser;
-  try { browser = await pw.chromium.launch(); } catch (e) { console.log(`SKIP: no Chromium to launch (${String(e.message).split("\n")[0]})`); return 0; } // silent-skip-ok: no browser binary
+  try { browser = await pw.chromium.launch(); } catch (e) { console.log(`SKIP: no Chromium to launch (${String(e.message).split("\n")[0]})`); return 0; }
   const s = suite("ui_presence_dots"), { ok } = s, rec = recorder(browser);
   const good = (what, rows) => {
     const bad = rows.filter(r => !(r.vsRing >= 3 && r.vsSurface >= 3 && r.ringIsSurface && r.hidden && r.hollow));

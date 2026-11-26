@@ -781,7 +781,7 @@ class TheGateAndAdmissionAgree(unittest.TestCase):
         source = RESOLVE_CONFIG.read_text(encoding="utf-8")
         fold = source[
             source.index("function eventsFrom(nodes) {") : source.index(
-                "// Open issues per issuesByStatus page."
+                "export const ISSUE_PAGE_SIZE = 25;"
             )
         ].replace("export async function", "async function")
         script = (

@@ -496,11 +496,6 @@ test("workflow_run: a PR on a non-default base stops with untrusted-base", async
   assert.deepEqual(await gate({ eventName: "workflow_run", event, github }), STOPPED("untrusted-base"));
 });
 
-// A layer of a native stack: its base is the layer below, and GitHub names the
-// stack's own base in pull_request.stack. The layer is trusted only when that
-// stack base is the default branch, and its base-sha is the stack base's SHA
-// (a default-branch commit), never the lower layer's unmerged head.
-
 const STACK_BASE_SHA = "3333333333333333333333333333333333333333";
 const asLayer = (pull, stackBase = "main") => {
   pull.base.ref = "feat/stack-parent";
@@ -759,8 +754,6 @@ test("dispatcher: a dispatcher run a listed human dispatched proceeds", async ()
   assert.deepEqual(await dispatched({ github }), PROCEED);
 });
 
-// A scheduled run's actor is whoever last edited the cron, so, as for push, it
-// is not checked.
 test("dispatcher: a scheduled dispatcher run on the default branch proceeds", async () => {
   const github = fakeGitHub(
     dispatcherRoutes({
@@ -1558,7 +1551,6 @@ test("intake: a malformed bot sender list stops with list-unreadable", async () 
   assert.deepEqual((await intake({ botSenderIds: "41898282,abc" })).outputs, STOPPED("list-unreadable"));
 });
 
-// An issues event: the sender is the account that applied the label.
 test("actor-only: an issues label from a listed human proceeds without a PR", async () => {
   const { outputs, calls } = await actorOnly({ eventName: "issues", requireKind: "human" });
   assert.deepEqual(outputs, ACTORS_OK);
@@ -2193,10 +2185,6 @@ test("a GITHUB_READ_STORE file that cannot be read, or names another URL, counts
   }
 });
 
-// A GET that GitHub answers 5xx, or that never gets an answer, is sent at most
-// 3 times, after a full-jitter wait (a random share of 2 s, then of 4 s), and
-// no client waits more than 60 s in all (runs 39786710017 and 39788855311 each
-// failed a lane on one 500 from GET /commits/{sha}/pulls).
 function flaky(answers) {
   const sent = [];
   const slept = [];
@@ -2230,8 +2218,6 @@ test("createGitHub's resend waits are full jitter: none when random is 0, the wh
   }
 });
 
-// GitHub Support's probe on 2026-10-22: GET /commits/{sha}/pulls
-// answered 200 with an empty body ("unexpected end of JSON input").
 test("createGitHub sends a GET answered 200 with an empty body again", async () => {
   const gh = flaky([{ status: 200, body: "" }, { status: 200, body: '[{"number":7}]' }]);
   const github = createGitHub({ ...gh.options, random: () => 0.5 });
@@ -2272,9 +2258,6 @@ test("createGitHub sends a 404, a 403 and a POST answered 500 once", async () =>
   assert.deepEqual(gh.slept, []);
 });
 
-// Runs 41814429466 and 41814435576: issue-field-values and blocked-by POSTs
-// answered 500 and 502 in a GitHub incident. A write marked resendOnce is sent
-// again once, 3 s later, on a 5xx or a dropped socket, and never on a 4xx.
 const FIELDS_PATH = "/repos/o/r/issues/7/issue-field-values";
 test("createGitHub sends a resendOnce write answered 500 again once and returns the next answer", async () => {
   const gh = flaky([{ status: 500 }, { status: 200, body: '[{"issue_field_id":1}]' }]);
@@ -2362,8 +2345,6 @@ test("createGitHub waits at most 60 s on 5xx answers across all its calls", asyn
   assert.equal(gh.sent.length, 10 * 3 + 1);
 });
 
-// A connection that never answers: undici would wait its own header timeout
-// per attempt, past a 3-minute gate step (pr-merge.yml's report-gate-checks).
 const hung = (sent) => async (url, init) => {
   sent.push(url);
   return new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason)));
@@ -2695,11 +2676,6 @@ test("commitPulls never logs the REST error's message when it falls back to Grap
   assert.ok(!lines[0].includes(FAKE_TOKEN));
 });
 
-// A dispatcher started by workflow_run when a review lane finished on the PR
-// (pr-dispatch-feedback.yml). Its run record reports the default branch and its
-// tip, as pr-merge.yml's workflow_run runs did (run 38779143370 after review run
-// 38779135732 on release/plugins).
-
 const RUN_DISPATCHER_WORKFLOW = ".github/workflows/pr-dispatch-feedback.yml";
 const REVIEW_WORKFLOW = ".github/workflows/pr-review-hosted.yml";
 const SECURITY_WORKFLOW = ".github/workflows/pr-review-security-hosted.yml";
@@ -2903,8 +2879,6 @@ test("workflow_run dispatcher: a review a listed human started proceeds", async 
   assert.deepEqual(await runDispatched({ github }), PROCEED);
 });
 
-// A listed human's review comment, relayed by pr-review-comment-relay.yml
-// (ADR 0088): the gate accepts that upstream by path, event and actor id.
 const RELAY_WORKFLOW = ".github/workflows/pr-review-comment-relay.yml";
 const RELAY = {
   path: RELAY_WORKFLOW,
@@ -3006,9 +2980,6 @@ test("workflow_run dispatcher: a relay re-run by github-actions[bot] stays refus
   assert.ok(!github.calls.includes(upstreamRecordRouteAt(2)));
 });
 
-// A pull_request_target run of the push dispatcher's workflow (ADR 0090): its
-// head_branch and head_sha are the PR's (run 42286186105), so the PR entry and
-// the record's commit stand in for the default-branch checks.
 const REFINE_WORKFLOW = ".github/workflows/pr-refine.yml";
 const PR_HEAD_COMPARE = `GET /repos/${REPOSITORY}/compare/${HEAD_SHA}...${TIP_SHA}`;
 const prEntry = (overrides = {}) => ({
@@ -3152,8 +3123,6 @@ for (const [label, routes, options] of [
 
 const GATED_SHA = "9".repeat(40);
 const afterRoute = `GET /repos/${REPOSITORY}/compare/${GATED_SHA}...${HEAD_SHA}`;
-// The shape of the lanes App's commits on #7493 and #7520: author the App,
-// committer web-flow, signature valid.
 const WEB_FLOW = { login: "web-flow", id: 19864447, type: "User" };
 const laneCommit = (overrides = {}) => ({
   sha: "8".repeat(40),
@@ -3215,9 +3184,6 @@ test("pushed commit: refused when it is not a SHA or rides without an expected u
   assert.deepEqual(await runDispatched({ github: fakeGitHub(runDispatcherRoutes()), pushedCommit: HEAD_SHA }), STOPPED("untrusted-actor"));
 });
 
-// GET /pulls lags a push by minutes (run 39615724332 on #8870 gated the head
-// the model job had already moved past), so the gate re-reads it until it
-// agrees with the branch ref.
 const pullAt = (sha) => {
   const pull = fixture("api-pull-42.json");
   pull.head.sha = sha;
@@ -3337,10 +3303,6 @@ test("workflow_run dispatcher: a listed human's own dispatch is unchanged", asyn
   );
   assert.deepEqual(github.calls, [pullRoute, HEAD_REF_ROUTE, selfRoute]);
 });
-
-// The re-runner is read by id from this run's own record
-// (GET /actions/runs/{run_id}), never by login: a released login another
-// account registers stays untrusted.
 
 const prPaths = {
   pull_request: () => ({ eventName: "pull_request", event: fixture("event-pull-request.json") }),
@@ -3990,18 +3952,6 @@ test("reconciler record: no record does not vouch, after one re-read", async () 
   assert.equal(sleeps.length, 1);
 });
 
-// Outage posture element 6 (docs/conventions/pr-pipeline/README.md#outage-posture): the record listing's
-// re-read is a conditional request. GitHub answers 304 to an If-None-Match
-// naming the page's current ETag and, for an authorized request, does not count
-// it against the primary rate limit
-// (https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests).
-// The routes go through a real createGitHub, so the client's header and ETag
-// handling are what is tested. `listings` answers the record listing in turn:
-// `{ etag, body }` is a 304 to a request naming that ETag, else a 200 with the
-// body (and the ETag header, unless it is null); `{ status: 304 }` is a 304
-// whatever was sent. With `runFailsFirst`, the reconciler run's first read
-// answers 404, so a record listed at the first read vouches only when the
-// re-read gives it back and it is judged again.
 const RECORD_LISTING = listing(rerunRecord({ name: rerunRecordAt(2) }));
 function conditionalClient(listings, { runFailsFirst = true } = {}) {
   const routes = rerunRoutes();

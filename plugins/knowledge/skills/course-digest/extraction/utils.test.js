@@ -26,7 +26,7 @@ describe("lessonDirName", () => {
   it("should truncate long titles to 60 chars", () => {
     const longTitle = "A".repeat(80);
     const result = lessonDirName(1, longTitle);
-    expect(result.length).toBeLessThanOrEqual(63); // 2 (pad) + 1 (-) + 60
+    expect(result.length).toBeLessThanOrEqual(63);
   });
 
   it("should strip special characters", () => {

@@ -3,6 +3,18 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.6] - 2026-11-26
+
+### Changed
+
+- `/firecrawl:firecrawl`'s JS-rendering row points at the tools reference's WebFetch section for how WebFetch reads a page, instead of describing WebFetch itself ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [0.9.5] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [0.9.4] - 2026-11-23
 
 ### Changed

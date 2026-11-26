@@ -38,9 +38,6 @@ assert_eq "linked" "true" "$(jq -r '.linked' <<<"$(lin_out)")"
 assert_contains "the child is the update subject" "$(lin_bodies)" '"id":"uuid-issue-20"'
 assert_contains "the parent is the value" "$(lin_bodies)" '"parentId":"uuid-issue-12"'
 
-# --- an immediate cycle is refused with a message about the cycle ---
-# Linear rejects it too, but catching it here keeps the diagnostic about the request
-# rather than about the provider's error text.
 lin_reset
 lin_data 'issueUpdate' '{"issueUpdate":{"success":true}}'
 lin_seed_issue 20 started

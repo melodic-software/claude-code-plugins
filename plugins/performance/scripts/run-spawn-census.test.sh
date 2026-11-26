@@ -44,7 +44,6 @@ assert_contains "the cold run is labeled separately" "cold  spawns=" "$RUN_OUT"
 assert_contains "stability is stated, not assumed" "both arms agreed" "$RUN_OUT"
 
 # discriminating-skip-required: this case is the only proof that the rule 1
-# agreement gate fires at all.
 run_driver --shim-dir "$SHIM" --tool sed \
   --before-label climbing --after-label unused \
   --before "bash '$WORK/climbing.sh' '$WORK/counter'" --after "bash '$WORK/stable.sh' 1"

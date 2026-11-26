@@ -100,8 +100,8 @@ class Hosting(enum.Enum):
 @dataclass(frozen=True)
 class Status:
     state: State
-    claim: tuple[str, str] | None = None  # (head sha, run id)
-    shown: str | None = None  # the commit the posted media show
+    claim: tuple[str, str] | None = None
+    shown: str | None = None
 
 
 @dataclass(frozen=True)
@@ -228,9 +228,9 @@ def clock(seconds: float) -> str:
 @dataclass(frozen=True)
 class Asset:
     source: Path
-    name: str  # the staged file name, which the section references as ./<name>
+    name: str
     label: str
-    sha256: str  # the digest the manifest binds the file to
+    sha256: str
 
 
 @dataclass(frozen=True)
@@ -239,9 +239,9 @@ class Media:
     videos: list[Asset]
     sheets: list[Asset]
     screenshots: list[Asset]
-    chapters: list[tuple[str, str]]  # (start time, title)
+    chapters: list[tuple[str, str]]
     unrendered: dict[str, str]
-    video_unhosted: str  # why the video cannot be attached, "" when it can
+    video_unhosted: str
 
     @property
     def assets(self) -> list[Asset]:

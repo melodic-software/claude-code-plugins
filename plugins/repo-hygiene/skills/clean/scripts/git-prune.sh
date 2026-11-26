@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154
-# Safe git prune operations for the clean git tier (§4.1).
-#
-# Usage:
-#   git-prune.sh [--dry-run] [--apply]
-# Default: --dry-run (print ops only). --apply runs GIT_PRUNE_OPS.
-#
 # Exit: 0 on success; 2 on usage error; 1 if not a git repo.
 set -uo pipefail
 

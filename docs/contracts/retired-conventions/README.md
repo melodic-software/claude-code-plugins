@@ -273,8 +273,9 @@ degrades when they cannot be, is in that skill's
 
 A `migrate` record's `successor` typically sends content to the consumer's convention home, and the
 home is bound by the pointer line the cascade doctrine defines. This contract does not own that
-grammar. The resolver is `plugins/harness-config/lib/resolve-convention-home.sh`; its header defines
-the region markers, the first-backticked-token rule, the path grammar, and the four outcomes (exit 0
+grammar: [config-cascade's pointer-region rules](../config-cascade/README.md#expression-doctrine-which-surfaces-are-files-and-which-are-convention-docs)
+define the region markers, the first-backticked-token rule and the path grammar. The resolver is
+`plugins/harness-config/lib/resolve-convention-home.sh`; its exit codes give the outcomes (exit 0
 resolved, 1 no pointer anywhere so the caller asks, 2 usage, 3 FAIL with a distinct message per
 failure: two pointers in one region, an unterminated region, an invalid path, a missing target).
 A `migrate` step that needs the home runs the resolver and follows its exit code; it never parses the

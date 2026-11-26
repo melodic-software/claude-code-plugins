@@ -3,6 +3,32 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.21.10] - 2026-11-26
+
+### Changed
+
+- `/source-control:worktree`, `/source-control:setup`, `/source-control:pull-request` and `/source-control:babysit-prs` point at the Claude Code worktree docs, Microsoft's long-path page and GitHub's `pull_request` event and `PullRequestReviewThread` references for the `EnterWorktree`/`ExitWorktree` behavior, the Windows path limit, CI on a conflicted PR and the thread-resolution field with no REST equivalent, instead of restating them ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [13.21.9] - 2026-11-26
+
+### Changed
+
+- `/source-control:babysit-loop` points at the scheduled-tasks docs for the delay range a self-paced loop allows, instead of stating the `ScheduleWakeup` clamp in seconds ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [13.21.8] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+- The babysit-prs scripts are reformatted by the pinned Ruff (import sort and format); no behavior change.
+
+## [13.21.7] - 2026-11-26
+
+### Fixed
+
+- The merge gate's approval carry (`babysit_merge_policy.carried_lifters`) carries at any pull request size, as `merge-holds.mjs` does: its compares are read with commits paged past 250 (`_whole_commits`), `exact_base_carry` judges merges and base ranges at 300 files on their two diffs, and `ungated_since` judges a push of 300 files or more on the files of its diff. A page or diff that does not read, or a diff naming fewer files than its listing, carries nothing.
+
 ## [13.21.6] - 2026-11-26
 
 ### Fixed

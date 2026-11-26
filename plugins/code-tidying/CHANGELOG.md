@@ -3,6 +3,18 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.2] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [1.0.1] - 2026-11-26
+
+### Fixed
+
+- The comment lint no longer judges a reworded full-line comment that adds no comment lines, so a stale prose comment can be corrected instead of deleted. In a hunk that adds as many lines as it removes, a changed comment run (consecutive comment lines with no code) passes when it has no more lines than the base run on the removed line at the same place. In any other hunk, the removed lines must touch one base run and the added lines one run, and the added lines must hold no more lines of their run than the removed lines hold of the base run. A new comment, a run that grew, a run with no base run in its hunk, and a comment that replaces code are still judged.
+
 ## [1.0.0] - 2026-11-26
 
 ### Changed

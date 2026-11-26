@@ -3,7 +3,6 @@ set -uo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../tests/lib.sh"
 
-# assert_help <script> — --help exits 0 with non-empty stdout.
 assert_help() {
   local script="$1" name out rc
   name="$(basename "$script")"
@@ -17,7 +16,6 @@ assert_help() {
   fi
 }
 
-# assert_usage_error <script> <args…> — the invocation exits 2 (usage).
 assert_usage_error() {
   local script="$1" name rc
   shift

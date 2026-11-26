@@ -505,8 +505,6 @@ class RunValidityTest(unittest.TestCase):
         )
 
     def test_a_zero_turn_run_whose_pre_computed_command_failed_is_invalid(self):
-        # The #12422 shape: a slash command's pre-computed line fails in the
-        # session's read-only tmp, and the session ends before its first turn.
         stderr = (
             "<local-command-stderr>Shell command failed for pattern \"!`echo ok`\":"
             " [stderr]\n/bin/bash: line 1: /tmp/claude-1000/cwd-6a70: Read-only"
@@ -861,8 +859,6 @@ class RunValidityTest(unittest.TestCase):
         return proc, proc.stdout.strip().splitlines()[-2:]
 
     def test_bash_ran_counts_every_run_whose_bash_call_got_a_result(self):
-        # The init line leaves Bash out, as runs offered tools allowed_tools never
-        # listed do; a Bash call that ran still counts.
         ran = self.tools_trace("ran.jsonl", ["Skill"], [(False, "README.md")])
         proc, tail = self.bash_count([ran] * 3, [ran] * 3)
         self.assertEqual(tail[0], "bash ran: with 3 of 3, without 3 of 3", proc.stdout)
@@ -939,8 +935,6 @@ class RunValidityTest(unittest.TestCase):
         )
 
     def test_a_bash_result_reporting_a_read_only_file_system_is_invalid(self):
-        # The #12422 positive control: a run with turns whose write to its own
-        # workspace or TMPDIR fails. The trace sits at <sandbox>/out/trace.jsonl.
         tmp = self.dir / "sb-tmp" / "tmp" / "claude-1000" / "t"
         for name, results in (
             ("sb-rel/out/trace.jsonl",
@@ -966,8 +960,6 @@ class RunValidityTest(unittest.TestCase):
             )
 
     def test_a_read_only_write_outside_the_run_sandbox_passes(self):
-        # The sandbox mounts paths outside the run read-only by design: a failed
-        # install into a system prefix is the skill's run, not a broken sandbox.
         for name, text in (
             ("sb-pip/out/trace.jsonl",
              "ERROR: Could not install packages due to an OSError: [Errno 30]"
@@ -1012,8 +1004,6 @@ class RunValidityTest(unittest.TestCase):
         return self.run_script(result, "--runs", "1")
 
     def test_a_failed_read_quoting_a_read_only_file_system_passes(self):
-        # A grep of a saved tool result prints the text it read; its last grep
-        # matching nothing makes the call fail.
         saved = self.dir.joinpath(
             "sb-q", "config", "projects", "p", "s", "tool-results", "abc.txt")
         for command, text in (
@@ -1031,8 +1021,6 @@ class RunValidityTest(unittest.TestCase):
         saved = self.dir.joinpath(
             "sb-w", "config", "projects", "p", "s", "tool-results", "abc.txt")
         text = "Exit code 1\ntouch: cannot touch 'out.txt': Read-only file system"
-        # Bash writes its cwd file to TMPDIR whatever the command, and a path under
-        # this run's sandbox, fresh per run, can only be this run's.
         cwd_file = ("Exit code 1\n/bin/bash: line 1: %s: Read-only file system"
                     % (self.dir / "sb-w" / "tmp" / "cwd-6a70"))
         for command, out in (
@@ -1112,10 +1100,6 @@ class RunValidityTest(unittest.TestCase):
         return trace
 
     def test_a_fired_run_whose_skill_call_failed_to_load_is_invalid(self):
-        # #16146: the Skill grader saw the call, so skill fired passed, but the
-        # load aborted on the skill's pre-computed command. Hand-written with the
-        # tool_use_error wrapper; traces/IF6xuu.jsonl holds a recorded run, whose
-        # result has no wrapper.
         trace = self.skill_load_trace(
             "skill-load.jsonl",
             "<tool_use_error>Shell command permission check failed for pattern"
@@ -1714,8 +1698,6 @@ class RunValidityTest(unittest.TestCase):
 
     def test_a_denial_missing_from_a_run_or_aimed_into_the_plugin_is_a_fail(self):
         inside = {"pattern": "*.md", "path": self.PLUGIN + "/skills"}
-        # A rooted pattern with no path searches where it points; so does one cut
-        # mid-name, whose literal directory is an ancestor of the plugin.
         pattern_inside = {"pattern": self.PLUGIN + "/skills/*.md"}
         pattern_above = {"pattern": self.PLUGIN[: -len("evals")] + "ev*/**/SKILL.md"}
         for with_input, without_input in (
@@ -1784,7 +1766,6 @@ class RunValidityTest(unittest.TestCase):
         for calls in (
             [("Read", {"file_path": lease})],
             [("Bash", {"command": "cat " + lease})],
-            # A redirect naming no file is not a cwd-relative path.
             [("Bash", {"command": "ls -la %s 2>&1" % lease})],
             [("Bash", {"command": "cat %s 2>/dev/null" % lease})],
             [("Bash", {"command": "cat %s > /dev/null" % lease})],
@@ -2184,7 +2165,6 @@ class RunValidityTest(unittest.TestCase):
             self.assertDenials(proc, "FAIL")
 
     def test_the_slice_c_bash_read_backs_read_valid(self):
-        # The two denials that left audit-prompting-postures one valid case of three.
         saved = self.own_results("tool-results", "toolu_01Example.txt")
         for context in ("40", "22"):
             command = 'grep -n -A%s "Balancing autonomy and safety" %s | head -60' % (
@@ -2216,13 +2196,11 @@ class RunValidityTest(unittest.TestCase):
             "grep \"$(rm %s)\" %s" % (saved, saved),
             "grep `id` " + saved,
             "grep --color=never x " + saved,
-            # An unquoted expansion adds operands, or bash quotes it differently.
             "grep {x,/etc/hosts} " + saved,
             "grep -h x /etc/* " + saved,
             "sed -n /a/p /etc/host? " + saved,
             "grep $'\\'' ;touch x; \\' " + saved,
             "grep a\\ b " + saved,
-            # A recursive grep with no operand reads the working directory.
             "cat %s | grep -r secret" % saved,
             "cat",
         ):
@@ -2275,7 +2253,6 @@ class RunValidityTest(unittest.TestCase):
     def test_a_denied_compound_call_whose_plugin_part_ran_alone_after_is_a_warning(self):
         lease = "%s lease classify --run-dir %s/runs/ap-1" % (self.RUN_STATE, self.DATA)
         for calls in (
-            # A trailing ls, then the plugin part alone, as in the #11564 run 2.
             [("bash %s; ls -la %s/runs" % (lease, self.DATA), True),
              ("bash " + lease, False)],
             [('S=%s; PD=%s; bash $S/run-state.sh paths --plugin-data "$PD";'
@@ -2297,7 +2274,6 @@ class RunValidityTest(unittest.TestCase):
         lease = "bash %s lease classify --run-dir %s/runs/ap-1" % (self.RUN_STATE, self.DATA)
         compound = "%s; ls -la %s/runs" % (lease, self.DATA)
         for calls in (
-            # Never retried, as in the #11564 run 1 and run 3.
             [(compound, True)],
             [(compound, True), (lease + "-2", False)],
             [(lease, False), (compound, True)],
@@ -2905,8 +2881,6 @@ class RunValidityTest(unittest.TestCase):
         return self.run_script(path, "--runs", "1")
 
     def test_a_probe_run_that_could_search_or_dispatch_warns_with_the_run_line(self):
-        # The tool list a probe run's init line recorded on Claude Code 2.1.316
-        # when the run left out the emitted README's --disallow-tools.
         proc = self.probe_with_tools(
             ["Task", "Glob", "Grep", "Read", "Skill", "TaskStop", "ToolSearch"]
         )
@@ -2919,8 +2893,6 @@ class RunValidityTest(unittest.TestCase):
         )
 
     def test_a_probe_run_with_only_skill_passes_probe_tools(self):
-        # The init tools a `--disallowed-tools Agent Read Glob Grep` session
-        # recorded on Claude Code 2.1.316, plus Skill.
         proc = self.probe_with_tools(["Bash", "Skill", "TaskStop", "ToolSearch"])
         self.assertVerdict(proc, "VALID", 0)
         self.assertIn("check probe tools: PASS", proc.stdout)

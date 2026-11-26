@@ -47,7 +47,7 @@ path_without() {
   NO_PATH="$dir"
 }
 
-page_lines() { # [<marker>]
+page_lines() {
   printf '# Widgets\n\n'
   printf '%s\n\n' "${1:-$MARKER}"
   printf '| Unit | Outcome |\n|---|---|\n'

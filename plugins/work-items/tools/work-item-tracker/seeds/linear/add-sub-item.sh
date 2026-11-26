@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# add-sub-item — Linear adapter. Links an existing issue as a child of --parent.
-#
-# Linear's parent link is native and single-valued (`Issue.parent`), so this is an
-# issueUpdate setting parentId — and re-parenting an issue that already has a parent
-# MOVES it rather than adding a second edge. That is the provider's own model, not a
-# lossy approximation, but it is worth knowing before batch-linking.
-#
-# Contract: tools/work-item-tracker/CONTRACT.md — "Verbs", "JSON output contract".
-#
 # shellcheck disable=SC2016  # single-quoted `$name` here is a GraphQL variable, not a shell one
 set -uo pipefail
 
@@ -47,9 +38,6 @@ CHILD_IDENTIFIER="$WIT_LINEAR_TEAM-$WIT_ID_NUMBER"
 wit_linear_require_scoped_id "$PARENT"
 wit_linear_fetch_issue "$WIT_LINEAR_TEAM" "$WIT_ID_NUMBER"
 PARENT_UUID="$(jq -r '.id' <<<"$WIT_LINEAR_ISSUE")"
-# A parent that is already this child's child would make a cycle. Linear rejects the
-# direct case, but catching the immediate one here gives a message about the request
-# rather than about the provider's error text.
 [[ "$(jq -r '.parent.identifier // ""' <<<"$WIT_LINEAR_ISSUE")" != "$CHILD_IDENTIFIER" ]] ||
   wit_usage_error "linking $ID under $PARENT would create a parent cycle: $PARENT is already a child of $ID"
 

@@ -464,7 +464,7 @@ def _fill_3(
     steer_count: int = 0,
     stated: bool = False,
 ) -> int:
-    from save_point import AMENDMENT_RE  # hop_chain put the scripts dir on sys.path
+    from save_point import AMENDMENT_RE
 
     final = _final(pred, hop)
     date = _when(pred, hop)[:10]

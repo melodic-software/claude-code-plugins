@@ -9,7 +9,7 @@ _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 source "$_HOOK_SELF/abort-boundary.sh"
 guard::abort_boundary block-convention-violation PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
-source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
+source "$_HOOK_SELF/hook-utils.sh" || exit 70
 
 start=${EPOCHREALTIME:-}
 
@@ -181,7 +181,7 @@ first_heredoc_subject() {
       delim="${delim%\"}"
       in_hd=1
     fi
-  done < <(printf '%s\n' "$cmd") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
+  done < <(printf '%s\n' "$cmd")
   return 0
 }
 
@@ -205,7 +205,7 @@ first_herestring_subject() {
       hs_quote="${line: -1}"
       in_hs=1
     fi
-  done < <(printf '%s\n' "$cmd") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
+  done < <(printf '%s\n' "$cmd")
   return 0
 }
 

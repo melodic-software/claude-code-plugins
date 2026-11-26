@@ -334,7 +334,7 @@ class ReadyStamp(unittest.TestCase):
             'python3.13=', 'python3.12=', f'python3={python3}', 'python='])
 
     def test_an_interpreter_only_the_launcher_listed_writes_no_stamp(self):
-        self.install_as(sys.executable)   # not on PATH, as a python.exe that only py -0p lists
+        self.install_as(sys.executable)
         self.assertEqual(len([p for p in (self.data / 'python').iterdir() if p.is_dir()]), 1)
         self.assertFalse(self.stamp.exists())
 

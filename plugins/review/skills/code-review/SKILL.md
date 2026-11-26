@@ -131,10 +131,15 @@ one runs, and folds security findings back into this lane where none does.
 When the prompt has a line starting `REVIEW CRITERIA:`, the file it names is
 those composed criteria: read it in place of the repository's `REVIEW.md`, and
 everything this skill says of `REVIEW.md` applies to it. A line starting
-`ORG STANDARDS:` names the organization's standards checkout: resolve a
-citation from the organization part of the criteria against it, and its
-standards index as the org layer. Without either line, read the repository's
-`REVIEW.md` as before.
+`ORG STANDARDS:` names the organization's standards folder. When it holds
+`citations.tsv`, open a criteria citation only from that file (each line the
+citation, a tab, then `<path>#<heading>`; read the path as written, and treat
+a citation it lacks as unresolved), never from the criteria text, and read its
+`docs/standards/README.md` as the org layer's printed index, following each
+row's `File` as written. Without `citations.tsv` the folder is the raw org
+checkout: resolve an organization citation against it, and find its index
+through its `.claude/standards.yaml`, else `docs/standards/README.md`.
+Without either line, read the repository's `REVIEW.md` as before.
 
 **Coding standards and contributing guides.** Read a root `CODING_STANDARDS.md`
 and `CONTRIBUTING.md` when present, as review criteria with the same standing
@@ -157,6 +162,11 @@ with no recorded reason to replace it, is an advisory finding that cites the
 entry. With
 no such row, report nothing about paved paths. A row whose file does not exist
 goes in the summary comment as an unresolved citation.
+
+**Adopted shipped concepts.** A standards file this lane reads that cites
+shipped concept ids follows the binding's "Adopted shipped concepts"
+paragraph, with `/engineering-concepts:lookup` (if enabled); otherwise apply
+each entry as written.
 
 **Closing issue.**
 

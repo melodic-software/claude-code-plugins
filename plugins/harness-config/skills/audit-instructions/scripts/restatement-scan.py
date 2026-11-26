@@ -67,7 +67,7 @@ SENTENCE_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z*\"'`])")
 @dataclass
 class Section:
     heading_norm: str
-    line: int  # 1-based heading line
+    line: int
     body: str
     units: list[tuple[int, str]] = field(default_factory=list)
 

@@ -273,8 +273,10 @@ still listed. Each entry carries:
 - `bytes` and `sha256` of the file.
 
 Which file kinds exist and when each loads is the memory page's to say:
-<https://code.claude.com/docs/en/memory>, the file table and "When Claude Code reads AGENTS.md".
-As of 2026-10-03. Recheck when the memory page's file table changes. The script encodes the default
+[choose where to put CLAUDE.md files](https://code.claude.com/docs/en/memory#choose-where-to-put-claude-md-files),
+[how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load) and
+[when Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md).
+The script encodes the default
 loading only: it does not expand `@path` imports, apply `claudeMdExcludes` or the Project
 instructions setting, or read directories above the git toplevel.
 
@@ -315,13 +317,17 @@ so read a remote plugin's SKILL.md files only after shortlisting it. A relative-
 loads in place from a marketplace added from a local path has no cached copy, so it reads
 `not-installed` here.
 
-Sources, read 2026-10-30: the
-[loading reference](https://code.claude.com/docs/en/plugins/loading.md) (cache layout, in-place
-plugins, `enabledPlugins` precedence), the
-[manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference.md)
-(`defaultEnabled`, the `skills` key, the entry's `defaultEnabled` overriding plugin.json's), and
-[skills](https://code.claude.com/docs/en/skills.md) (`when_to_use`, `skillOverrides` not affecting
-plugin skills). Recheck when the cache layout or `defaultEnabled` precedence changes.
+Sources: the loading reference's
+[find plugins on disk](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk),
+[in-place and copied plugins](https://code.claude.com/docs/en/plugins/loading#in-place-and-copied-plugins)
+and [find where a plugin is enabled](https://code.claude.com/docs/en/plugins/loading#find-where-a-plugin-is-enabled);
+the manifest reference's [`defaultEnabled`](https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled),
+[component path forms](https://code.claude.com/docs/en/plugins/manifest-reference#component-path-forms) (the `skills` key)
+and [how entry fields combine with `plugin.json`](https://code.claude.com/docs/en/plugins/manifest-reference#how-entry-fields-combine-with-plugin-json);
+and the skills page's [frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference)
+(`when_to_use`) and
+[override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings)
+(`skillOverrides`).
 
 ## MCP servers
 

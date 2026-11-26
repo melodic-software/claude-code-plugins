@@ -381,7 +381,7 @@ read_path_file() {
   value=$(
     cat "$file"
     printf x
-  ) # printf x defends the value's own trailing bytes from $( ) stripping
+  )
   value=${value%x}
   if [[ "$value" == *$'\n'* ]]; then
     printf '%s: %s %s contains a newline byte; the file holds the path verbatim and a path with a newline in it is malformed configuration, not a value to trim\n' \
@@ -631,10 +631,10 @@ parse_owner_repo() {
   repo=""
   path="$url"
   if [[ "$path" == *"://"* ]]; then
-    path="${path#*://}" # strip scheme://
-    path="${path#*/}"   # strip host[:port] up to the first '/'
+    path="${path#*://}"
+    path="${path#*/}"
   elif [[ "$path" == *:* ]]; then
-    path="${path#*:}" # scp-like git@host:owner/repo -> owner/repo
+    path="${path#*:}"
   fi
   path="${path%.git}"
   path="${path%/}"

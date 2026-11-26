@@ -1,14 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/planning/skills/*
-# repin-digests.sh computes the digest pins of interview-defenses.test.sh from the files alone
-# and runs nothing from the test file's checkout:
-#   - on a copy of the plugin, every real pin already matches what it computes, so it agrees
-#     with the test on all five pin kinds;
-#   - after a guarded section and a fixture change in that copy, it re-pins both and the
-#     copy's own test passes;
-#   - a planted test file that writes a marker file when run is never run, an argument that
-#     would run a command is refused, and so is a pin that reads a file outside the plugin.
-#
 # test-scope: plugins/planning/scripts/repin-digests.sh
 # test-scope: plugins/planning/scripts/lib/pin-digests.sh
 # test-scope: plugins/planning/tests/interview-defenses.test.sh

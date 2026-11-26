@@ -15,9 +15,9 @@ const tq = (id, text, extra = {}) => ({ id, text, alternatives: [], dependsOn: [
 
 async function main() {
   const pw = loadPlaywright();
-  if (!pw) { console.log("SKIP: ui_acceptance.js needs playwright-core (npm ci, or playwright-cli on PATH)"); return 0; } // silent-skip-ok: a browser suite needs a local Playwright
+  if (!pw) { console.log("SKIP: ui_acceptance.js needs playwright-core (npm ci, or playwright-cli on PATH)"); return 0; }
   let browser;
-  try { browser = await pw.chromium.launch(); } catch (e) { console.log(`SKIP: no Chromium to launch (${String(e.message).split("\n")[0]})`); return 0; } // silent-skip-ok: no browser binary
+  try { browser = await pw.chromium.launch(); } catch (e) { console.log(`SKIP: no Chromium to launch (${String(e.message).split("\n")[0]})`); return 0; }
   const s = suite("ui_acceptance"), { ok } = s, rec = recorder(browser);
   const railQ = (page, text) => page.locator(".vf-q", { hasText: text }).first();
   const qText = page => page.evaluate(() => document.querySelector(".vf-qtext")?.textContent || "");

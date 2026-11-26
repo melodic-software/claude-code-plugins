@@ -28,7 +28,7 @@ beside `lane-rules.json` and `effect-grants.json`, keyed by leaf
    `activity-rules.json:5-8`.
 3. The file is read from the action's own trusted checkout, never from the PR head, and the token
    broker reads it at the default-branch tip as one of its trust files. It is a trust-root path.
-   Basis: [`resolve-config.mjs:34-35,184-192`](../../.github/actions/resolve-config/resolve-config.mjs);
+   Basis: [`resolve-config.mjs:34-35,169-173`](../../.github/actions/resolve-config/resolve-config.mjs);
    `melodic-software/azure-iac` `src/lanes-token-broker/src/binding.mjs:7-26`;
    [pr-pipeline README, "Trust-root paths"](../conventions/pr-pipeline/README.md#trust-root-paths).
 

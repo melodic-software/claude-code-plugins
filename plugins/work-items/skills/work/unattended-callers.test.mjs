@@ -1,15 +1,5 @@
 // test-scope: plugins/debugging/skills/debug/SKILL.md plugins/discovery/skills/research/SKILL.md plugins/implementation/skills/implement-dispatch/SKILL.md
 // test-scope: plugins/source-control/skills/babysit-prs/SKILL.md plugins/source-control/skills/pull-request/SKILL.md plugins/testing/skills/fix-failing/SKILL.md
-// A skill treats a run as unattended only when its caller passes --unattended,
-// so a lane prompt or loop driver that calls such a skill
-// without the flag reaches an ask nobody answers. The lane config's args are
-// checked by .github/actions/resolve-config/live-config.test.mjs; this suite
-// checks the calls the skill bodies write themselves: this skill's CI mode
-// (reference/ci-mode.md, the work-resolve-issue lane's prompt) and its
-// autonomous invocation, and
-// the merge lane's driver, babysit-loop. A skill "takes --unattended" when its
-// argument-hint lists the flag. A span with arguments is a call; a bare
-// `/<plugin>:<skill>` span names the skill without calling it.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";

@@ -1,5 +1,4 @@
 # shellcheck shell=bash
-# Sourceable path registry for the clean scripts.
 # SSOT: reference/cleanup-config.md — drift detected by cleanup-paths.test.sh
 # shellcheck disable=SC2034
 
@@ -78,16 +77,6 @@ CLEAN_RETENTION_CLAUDE_DAYS="${CLEAN_RETENTION_CLAUDE_DAYS:-30}"
 CLEAN_RETENTION_PLAN_DAYS="${CLEAN_RETENTION_PLAN_DAYS:-90}"
 CLEAN_RETENTION_STRANDED_DAYS="${CLEAN_RETENTION_STRANDED_DAYS:-30}"
 
-# tree (git clean) preserve patterns — gitignore syntax for `git clean -e <pat>`.
-# SSOT for the `tree` tier's default-preserve set; aligned with the "Protected
-# paths" classes in reference/cleanup-config.md (drift-checked by
-# cleanup-paths.test.sh). Three tiers gate which patterns apply:
-#   SECRETS   — always preserved unless --include-secrets (unrecoverable)
-#   SKILLDATA — always preserved (user synthesis; no flag removes it)
-#   DEPS      — preserved unless --include-deps (rebuildable; keeping them makes
-#               the default clean junction-proof — git never descends into
-#               node_modules, so reparse-point traversal into tracked source
-#               cannot happen)
 CLEAN_TREE_PRESERVE_SECRETS=(
   '.env*'
   '*.local.json'

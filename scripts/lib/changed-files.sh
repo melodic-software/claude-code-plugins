@@ -25,16 +25,16 @@ changed_files::into() {
   local -a _cf_renames=()
   while (($# > 0)); do
     case "$1" in
-    --include-deleted) _cf_filter=() ;;
-    --no-renames | --find-renames) _cf_renames=("$1") ;;
-    --)
-      shift
-      break
-      ;;
-    *)
-      printf 'changed-files: unknown option %s\n' "$1" >&2
-      return 2
-      ;;
+      --include-deleted) _cf_filter=() ;;
+      --no-renames | --find-renames) _cf_renames=("$1") ;;
+      --)
+        shift
+        break
+        ;;
+      *)
+        printf 'changed-files: unknown option %s\n' "$1" >&2
+        return 2
+        ;;
     esac
     shift
   done

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Version-guard boundary for the native sub-issue/dependency surface: below
-# 2.94 is refused, 2.94 and above is accepted. Stub gh on PATH; no network.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

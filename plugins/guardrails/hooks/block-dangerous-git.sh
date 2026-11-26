@@ -9,9 +9,9 @@ _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 source "$_HOOK_SELF/abort-boundary.sh"
 guard::abort_boundary block-dangerous-git PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
-source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
+source "$_HOOK_SELF/hook-utils.sh" || exit 70
 # shellcheck source=refuse.sh
-source "$_HOOK_SELF/refuse.sh" || exit 70 # not a chosen status: the boundary reports it
+source "$_HOOK_SELF/refuse.sh" || exit 70
 
 start=${EPOCHREALTIME:-}
 
@@ -852,7 +852,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     _ps_rc=$?
   done
   case $_ps_rc in
-  1) exit 0 ;; # non-git PowerShell with an A2b-deferred construct
+  1) exit 0 ;;
   *) COMMAND="$PS_SAFE_COMMAND" ;;
   esac
 fi

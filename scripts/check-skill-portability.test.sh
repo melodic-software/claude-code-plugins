@@ -101,7 +101,7 @@ fi
 rm -f "$f"
 
 BAD_TOKENS="$(mktemp)"
-printf 'origin/(main\n' >"$BAD_TOKENS" # unmatched '(' — invalid ERE, awk faults
+printf 'origin/(main\n' >"$BAD_TOKENS"
 f="$(tmpfile 'diff against origin/main here')"
 SKILL_PORTABILITY_TOKENS="$BAD_TOKENS" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1
 if [[ "$?" -eq 2 ]]; then
@@ -544,7 +544,7 @@ fi
 rm -rf "$fx"
 
 fixture_tree::build fx --sut "$SCRIPT"
-quoted_name="$(printf 'quoted-\303\251.md')" # trailing U+00E9 byte — non-ASCII, triggers Git quoting
+quoted_name="$(printf 'quoted-\303\251.md')"
 out="$(
   cd "$fx" &&
     git_init_test_repo "$fx" &&

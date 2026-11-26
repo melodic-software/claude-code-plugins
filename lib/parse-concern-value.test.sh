@@ -190,7 +190,6 @@ assert_eq '--strict on a clean file prints the value' "merge" "$out"
 assert_eq '--strict on a missing file prints the fallback' ".x" \
   "$(bash "$SCRIPT" --strict "$TEST_TMPDIR/nope.yaml" memory_dir .x)"
 
-# --- --ref: validated before any git call; passed after --end-of-options ---
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 FAKE_BIN="$TEST_TMPDIR/fakebin"

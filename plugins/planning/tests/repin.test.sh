@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# repin.sh rewrites exactly the named digest pins of a copy of the test file: per pin, one sha
-# literal and one justification comment change, every other line stays byte-identical; an
-# unknown or ambiguous label is refused and a matching digest is a no-op, and with several
-# labels either refuses the whole call before any write. It runs with no terminal, as a lane
-# runs it. The copy is a stand-in test with the real call shape (label, then the sha256
-# literal alone on the last line) that fails a stale pin as the real test does, so the real
-# pins are never touched.
-#
 # test-scope: plugins/planning/tests/repin.sh
 # test-scope: plugins/planning/scripts/repin-digests.sh
 set -uo pipefail

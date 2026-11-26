@@ -1,10 +1,4 @@
 // test-scope: .github/actions/resolve-config/package.json .github/scripts/work-unblock/publish-lane-level.mjs .github/scripts/work-unblock/sweep-gap.mjs .github/scripts/work-unblock/sync-status.mjs
-// Expected values come from the work-unblock lane's rules: when an issue
-// closes, each issue it blocked gets `agent-ready` only when every blocker is
-// closed as completed, it is open, and it carries no hold label; the label
-// alone admits it to resolve-issue. Every fact is
-// read from the API when the run starts, never from the event payload. The
-// kill switch and a close by any bot sender stop the run before any API call.
 import assert from "node:assert/strict";
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -103,11 +97,6 @@ const issue = (
   closed_at: at,
   graphCloser,
 });
-// A fixture's `graphCloser` is the `closer` of the issue's last ClosedEvent
-// as GraphQL answers it. For an issue closed when an App merged a pull
-// request, it is that pull request: { __typename: "PullRequest", merged:
-// true, repository: { nameWithOwner: "melodic-software/claude-code-plugins" } }.
-// A plain close has none.
 const mergedPr = ({ repo = REPO, number = 900, merged = true } = {}) => ({
   __typename: "PullRequest",
   number,
@@ -364,7 +353,6 @@ function envFor(event = {}, extra = {}) {
   };
 }
 
-// The GraphQL closer read is a POST but writes nothing.
 const isRecordPost = (call) => /^POST \S+\/issues\/\d+\/comments /.test(call) && call.includes(`"body":${JSON.stringify(ADMISSION_RECORD_MARKER).slice(0, -1)}`);
 const writes = (calls) => calls.filter((call) => !call.startsWith("GET ") && !call.startsWith("POST /graphql ") && !isRecordPost(call));
 const closerReads = (calls, number) =>
@@ -510,8 +498,6 @@ test("a post-merge fix issue keeps agent-ready across its close, for its reopen 
   }
 });
 
-// A reopen fires no field change, so a closed issue left at Work status
-// agent-ready would read as queued work with no run behind it.
 test("a closed issue whose Work status is agent-ready moves to needs-triage; a reopened one and a post-merge fix issue do not", async () => {
   const agentReady = { 10: [{ issue_field_id: STATUS_CONFIG["field-id"], single_select_option: { id: OPTION["agent-ready"] } }] };
   const closed = world({ blocking: [], issues: { 10: issue(10, { state: "closed" }) }, fieldValues: agentReady });
@@ -768,7 +754,6 @@ test("the closer check answers proceed only when the closer and the re-runner ar
 });
 
 test("a listed human's login held by a different id is not that human: the closer check answers no", async () => {
-  // TRIGGERING_ACTOR is the login the runner would pass; it is never read.
   const actions = ownRun(IMPOSTOR);
   const env = { ACTOR_ID: String(OWNER.id), TRIGGERING_ACTOR: OWNER.login, TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_REPOSITORY: REPO, GITHUB_RUN_ID: RUN_ID, GITHUB_RUN_ATTEMPT: "1" };
   assert.equal(await checkCloser(env, actions), false);
@@ -776,7 +761,6 @@ test("a listed human's login held by a different id is not that human: the close
 });
 
 test("a failed or malformed read of this run's record answers no, and a close run stops before any issue read", async () => {
-  // A listed login in both triggering-actor variables: a login fallback on a failed read would admit.
   const logins = { GITHUB_TRIGGERING_ACTOR: OWNER.login, TRIGGERING_ACTOR: OWNER.login };
   const failing = Object.assign(async () => {
     throw new Error("HTTP 502");
@@ -973,7 +957,6 @@ const SWEEP_RUNS = `/repos/${REPO}/actions/workflows/work-unblock.yml/runs?event
 const ago = (minutes) => new Date(NOW - minutes * 60_000).toISOString();
 const SWEEP_JOB_ID = 9001;
 const SWEEP_LOG_PATH = `/repos/${REPO}/actions/jobs/${SWEEP_JOB_ID}/logs`;
-// A raw job log's line: the runner's stamp, one space, the line as printed.
 const LOG_STAMP = "2026-11-04T06:49:16.3392052Z ";
 const LISTED_LOG = `${LOG_STAMP}label-unblocked: read the closed-issue listing\n`;
 const sweptJobs = (conclusion = "success", extraSteps = []) => ({
@@ -1072,8 +1055,6 @@ test("a last sweep's log past the 1 MiB read cap is left unread and gives the fu
   assert.equal(await since(readerOf(1_048_577)), NOW - 360 * 60_000);
 });
 
-// What one sweep printed, as its raw job log shows it: the runner turns a
-// notice command into `##[notice]`.
 const rawLog = (lines) => `${lines.map((line) => LOG_STAMP + line.replace(/^::notice[^:]*::/, "##[notice]")).join("\n")}\n`;
 const HOUR = 3_600_000;
 async function sweepAfter(lines, { github, calls }, started = NOW) {
@@ -1214,9 +1195,6 @@ function twoDependents(fault) {
 const ISSUE_20 = `/repos/${REPO}/issues/20`;
 const readOf20 = (error) => (method, path) => (method === "GET" && path === ISSUE_20 ? error : null);
 
-// A 5xx or 429, a rate-guard stop or no answer on one issue's read is no
-// verdict on that issue (outage posture element 2): it is held with a notice,
-// the run stays green, and the other issues are still decided.
 test("a GitHub fault on one issue's read holds that issue with a notice, labels the others and exits 0", async (t) => {
   const faults = [
     new GitHubError(503, `GET ${ISSUE_20}`),
@@ -1280,9 +1258,6 @@ test("a GitHub fault on one issue's GraphQL closer query holds that issue with a
   assert.deepEqual(lines.filter((line) => line.startsWith("::error")), []);
 });
 
-// A GraphQL mutation is a write, whatever its path, so its fault is no hold.
-// No mutation goes through the sweep's injected client (the status mirror
-// takes its own), so the client is wrapped here as main wraps it.
 test("a GitHub fault on a GraphQL mutation is a failed write, not a hold", async (t) => {
   t.mock.method(console, "log", () => {});
   const github = markReads(async () => {
@@ -1330,7 +1305,6 @@ test("the sweep after a paced run reads back past it to the sweep before, up to 
     const listing = calls.find((call) => call.startsWith(`GET /repos/${REPO}/issues?state=closed&since=`));
     return (NOW - Date.parse(decodeURIComponent(/since=([^&]+)/.exec(listing)[1]))) / 60_000;
   };
-  // Listed out of id order, as a run stamped an hour ahead lists.
   assert.equal(await windowAfterPaced([{ id: 5, run_started_at: ago(200) }, { id: 6, run_started_at: ago(140) }]), 215);
   assert.equal(await windowAfterPaced([{ id: 6, run_started_at: ago(60) }, { id: 5, run_started_at: ago(120) }]), 135);
   assert.equal(await windowAfterPaced([{ id: 6, run_started_at: ago(140) }, { id: 5, run_started_at: ago(400) }]), 360);
@@ -1396,8 +1370,6 @@ test("a failed read of the last sweep falls back to 6 hours, and no earlier run 
   assert.equal((await windowOf({ workflow_runs: [] })).minutes, 180, "no earlier successful run");
 });
 
-// A green run proves nothing by itself: the kill switch and a lane the config
-// turns off each skip the labeling step and still end the job green.
 test("a last successful run that did not sweep falls back to 6 hours", async () => {
   const runs = { workflow_runs: [{ id: 5, run_started_at: ago(60) }] };
   const killed = sweptJobs("skipped", [{ name: "Report the kill switch", conclusion: "success" }]);
@@ -1588,9 +1560,6 @@ test("a sibling blocker closed by a listed human counts", async () => {
   assert.deepEqual(writes(calls), [labeled(20)]);
 });
 
-// A bot close counts only when GraphQL names a merged pull request or a commit
-// in this repository as the closer; a GITHUB_TOKEN close from any workflow
-// (github-actions[bot]) or an App close with no merge does not.
 const siblingClosed = (closer, graphCloser) =>
   world({
     blocking: [issue(20)],
@@ -1657,10 +1626,6 @@ test("the closer is read fresh: a blocked-by entry naming a listed closer does n
   assert.deepEqual(writes(calls), []);
 });
 
-// Another repository's blocker is read there: a listed human's close counts,
-// and an open one, an unlisted account's close or a failed read blocks. A
-// merge there counts for nothing: people this repository's list does not
-// cover merge in other repositories (the security review on #9814).
 test("a blocker in another repository counts once a listed human closed it there", async () => {
   const OTHER = "melodic-software/other";
   const closedThere = (closer, failOn, graphCloser = null) =>
@@ -2026,10 +1991,6 @@ test("the App's remove-and-re-add after a retry stop is a restart, not a stop", 
   assert.deepEqual(writes(calls), [labeled(20)]);
 });
 
-// A funding stop (ci-workflows#781): report-outcome keeps agent-ready and
-// leaves a funding marker with the regain date, if one was stated. The sweep
-// restarts the issue after that date, never before, and never without one;
-// funding stops count toward limits.limit-stops-per-issue, not turn-cap-restarts.
 const fundingNote = (resets, at, run = 7) => ({
   id: 34,
   body: `<!-- work-resolve-issue outcome=funding${resets ? ` resets=${resets}` : ""} run=${run} -->\nStopped on the lane's funding.`,
@@ -2122,8 +2083,6 @@ test("the resolved limits set the sweep's restarts per run, limit stops per issu
   assert.deepEqual(writes(later.calls), []);
 });
 
-// A failed restart is tried once more; a second failure is an ::error naming
-// the issue and fails the run.
 test("a failed restart is retried once, then reported", async (t) => {
   for (const [failures, code] of [[1, 0], [2, 1]]) {
     const { github, calls } = stopped();
@@ -2150,15 +2109,6 @@ test("a failed restart is retried once, then reported", async (t) => {
   }
 });
 
-// Re-fires after a failed run: a run that crashed before its report leaves no
-// marker (a rerun the token broker refuses as workflow-modified, since it
-// keeps its first event's workflow files, is a failed mint, below). The sweep
-// gives such an issue a fresh event: the App removes and re-adds agent-ready,
-// when its newest agent-ready label (a listed human's or the App's) has no
-// lanes-App marker after it and the work-resolve-issue run that label started
-// has failed. It records the re-fire in a comment first, and re-fires an issue
-// at most once per version of main's pr-run-activity-write.yml and
-// work-resolve-issue.yml.
 const WRITE_SHA = "1".repeat(40);
 const CALLER_SHA = "2".repeat(40);
 const KEY = `${WRITE_SHA}-${CALLER_SHA}`;
@@ -2315,21 +2265,6 @@ test("a re-fire record and the App's re-add in the same second, on unchanged wor
   assert.deepEqual(writes(calls), []);
 });
 
-// A lane PR the newest agent-ready label's run opened ends the run without a
-// marker. The owner's ruling on the issue: a PR merged with `Refs:` or one a
-// person closed unmerged hands the issue to triage (needs-triage on,
-// agent-ready off), and re-running is a person adding agent-ready again; an
-// open one waits on the needs-human report-outcome added for a Refs PR, which
-// only that PR merging lifts. Only a PR the lanes App opened from
-// the issue's lane branch (report-outcome's `work-resolve-issue/issue-<n>-
-// <run>-<attempt>`), with head and base in this repository, counts.
-// The pump: a run that minted no lane token did no work, either because its
-// `Request the lane token` step failed (GitHub's rate limit past the retry
-// budget, say), or broker-check's broker ask failed for any reason but the
-// kill switch, or because the WIP cap skipped resolve-issue. It is re-fired
-// with the usual record, past once per workflow version, an hour after the
-// run ended (the broker's Retry-After is at most an hour, so the reset has
-// passed) and only while the WIP cap check does not pause the issue lane.
 const pickSlot = { name: "Pick Slot", conclusion: "success", steps: [{ name: "Check the WIP cap", conclusion: "success" }] };
 const MINT_FAILED = [
   pickSlot,
@@ -2629,10 +2564,6 @@ test("a run that minted its token and failed later keeps the once-per-version re
   assert.deepEqual(writes(calls), []);
 });
 
-// #8965: a dimension skip (split-required and the rest) ran resolve-issue's
-// read runner, which mints nothing, and report-skip, whose failure leaves
-// agent-ready on with no marker. The sweep re-fires that run, the fresh run
-// skips again, and report-skip reports it, so the issue leaves the queued count.
 test("a dimension-skipped run whose report-skip failed is re-fired, so report-skip reports it again", async () => {
   const readRunner = { name: "Resolve Issue / Run", conclusion: "success", steps: [{ name: "Ask the broker whether the lane may run", conclusion: "success" }] };
   for (const [name, mint] of [
@@ -2646,9 +2577,6 @@ test("a dimension-skipped run whose report-skip failed is re-fired, so report-sk
   }
 });
 
-// #9095: run 39711139895 on #8087 ended cancelled when pick-slot hit its
-// timeout in the WIP cap step: admit succeeded, pick-slot was cancelled and
-// every later job skipped, so no lane branch and no outcome marker exist.
 const CANCELLED_AT_PICK_SLOT = [
   { name: "Admit", conclusion: "success", steps: [{ name: "Check the trigger", conclusion: "success" }] },
   { name: "Pick Slot", conclusion: "cancelled", steps: [{ name: "Check the WIP cap", conclusion: "cancelled" }, { name: "Pick the slot", conclusion: "skipped" }] },
@@ -2657,10 +2585,6 @@ const CANCELLED_AT_PICK_SLOT = [
   { name: "Report Outcome", conclusion: "skipped", steps: [] },
 ];
 
-// A resolve-issue job cancelled while it waited for its slot never got a
-// runner: run 39106011628's `resolve-issue / run` has started_at set, runner_id
-// 0 and no steps. resolve-issue calls pr-run-activity-read.yml, whose jobs
-// are broker-check (`Ask the broker whether the lane may run`) and run.
 const ADMITTED = { name: "Admit", conclusion: "success", runner_id: 11, steps: [{ name: "Check the trigger", conclusion: "success" }] };
 const CANCELLED_IN_SLOT_QUEUE = [
   ADMITTED,
@@ -2712,8 +2636,6 @@ test("a cancelled run admit did not pass, one whose resolve-issue started, or a 
   };
   const stepless = { name: "Resolve Issue / Run", conclusion: "cancelled", started_at: "2026-10-16T10:02:00Z", runner_id: 14 };
   for (const [name, jobs, labels] of [
-    // A newer agent-ready run for the issue replaced this one while it waited
-    // in the workflow's concurrency group, so none of its jobs ran.
     ["superseded before any job ran", [], []],
     ["superseded with its jobs cancelled unstarted", [{ name: "Admit", conclusion: "cancelled", steps: [] }, { name: "Pick Slot", conclusion: "cancelled", steps: [] }], []],
     ["cancelled after the broker allowed it and the model started", [ADMITTED, pickSlot, BROKER_ALLOWED, modelRun], []],
@@ -2786,7 +2708,6 @@ test("an in-slot re-check that let the run on is no blocker stop", async () => {
   assert.deepEqual(writes(pumped.calls), []);
 });
 
-// A run started before the rename lists each job by its id.
 test("a stalled run whose jobs are named by their ids is read as one named by display names", async () => {
   const stale = [
     { ...ADMITTED, name: "admit" },
@@ -2857,12 +2778,6 @@ test("a stale run whose report-outcome mint failed is re-fired at once, not as a
   assert.deepEqual(writes(ran.calls), []);
 });
 
-// A breaker trip: the token broker refused the run for the lanes kill switch,
-// which only the refused job's log names. Run 40127074215 failed at
-// broker-check's broker ask before any resolve-issue run job; run 40127093047
-// ran the model and was refused at its write runner's mint. Each denial line
-// is the failed step's last, just before `Process completed`. A broker-check
-// refusal for workflow-modified fails at the same step and is a failed mint.
 const denied = (mode, reason, { stamp = "2026-10-24T19:57:51.9466327Z " } = {}) =>
   [
     "2026-10-24T19:57:50.6158116Z ##[group]Run request-lane-token",
@@ -3017,13 +2932,6 @@ test("breaker trips at the mint never count toward the failed-mint bound", async
   assert.deepEqual(writes(calls), refired(30));
 });
 
-// With request-lane-token's kill-switch-ok, the same refusal ends the mint
-// step green with no token and a `lane-token-stopped` notice: every step that
-// keys on the token, `Stage the activity from the base` first, skips, and the
-// run ends green. Only that shape in the job listing earns a log read. The
-// log's shape is job 120970852314's: the composite's one step sits between a
-// start-action and an end-action marker, and the step's own output follows
-// its script group.
 const stoppedJob = (id, name) => ({
   id,
   name,
@@ -3557,14 +3465,6 @@ test("a later leg's broker-check refused or skipped for the kill switch is a bre
   }
 });
 
-// The run a start-gate budget stop leaves (pr-run-activity-read.yml): the
-// first call's broker-check ran its kill-switch step, its `Stop on a low
-// GITHUB_TOKEN budget until <reset>` step (named with the gate's reset
-// output), and skipped the broker ask and the lease, ending green with
-// skip-reason budget. That skip-reason skips the call's run job, so its
-// issue-fields, scan and summary jobs skip too, and report skips with no lease
-// held. No handoff, no scan output: work-resolve-issue's later calls,
-// apply-issue-patch and report-outcome all skip, and the run ends green.
 const epoch = (at) => Date.parse(at) / 1000;
 const budgetStep = (name = `Stop on a low GITHUB_TOKEN budget until ${epoch("2026-10-16T11:50:00Z")}`) => ({ name, conclusion: "success" });
 const skippedJob = (name) => ({ name, conclusion: "skipped", steps: [] });
@@ -3617,8 +3517,6 @@ test("a run its start gate stopped on the GITHUB_TOKEN budget re-fires once its 
     budgeted(after.calls);
     assert.deepEqual(logReads(after.calls), []);
   }
-  // A step name with no readable reset, bare or with its expression left
-  // unevaluated, is still a budget stop and waits an hour after the run ended.
   for (const name of ["Stop on a low GITHUB_TOKEN budget", "Stop on a low GITHUB_TOKEN budget until ${{ steps.kill.outputs.reset }}"]) {
     const unnamed = budgetStopped(budgetStep(name));
     const early = stalledRun({ jobs: unnamed, conclusion: "success", ended });
@@ -3799,11 +3697,6 @@ test("a green run whose kill-switch check did not run, or whose broker ask ran, 
   }
 });
 
-// broker-check passes kill-switch-ok, so a broker kill-switch refusal ends its
-// broker ask green with a `lane-check-stopped` notice, no allow, and the lease
-// step skipped; the run job skips and the run ends green. The log's shape is
-// saved run 41576258964's broker-check job, its composite step with id
-// broker.request.
 const checkStoppedLog = (line = "lane-check-stopped: the broker refused the check because a lanes kill switch is on, a designed stop; this run runs no lane and skips the rest") =>
   [
     "2026-11-03T04:35:21.1799019Z ##[group]Run ./.base/.github/actions/request-lane-token",
@@ -3886,12 +3779,6 @@ test("a broker-check breaker trip is not re-fired while the issue lane is paused
   }
 });
 
-// A GitHub API rate-limit stop before any model turn. Each line is a stop
-// line's shape as its writer prints it: rate-guard.mjs's hit-the-limit line
-// (run 42976925201's run-checks line, its reset moved to this test's day),
-// rate-guard.mjs's stop-floor line (rate-guard.test.mjs's stop-floor
-// expectation), and api-budget.bash's api_budget_refuse line, each the failed
-// step's last line.
 const LIMIT_ID = 120990000001;
 const RESET = "2026-10-16T12:30:00Z";
 const STOP_LINES = {
@@ -3972,11 +3859,6 @@ test("a run a GitHub rate-limit stop failed before any model turn is re-fired as
   }
 });
 
-// rate-guard.mjs's and api-budget.bash's lines for a server error hold (a 5xx
-// whose only signal was Retry-After): held like a rate limit, re-fired the
-// same way, and the record names the server error. A raw job log drops the
-// annotation's title: a titled notice shows as `##[notice]<message>` (run
-// 41101023654's enable-auto-merge job, the `title=api-calls` notice).
 const SERVER_HELD = [
   `GET https://api.github.com/repos/${REPO}/issues/30 got a GitHub server error, HTTP 503 with a Retry-After: no call to it before ${RESET} (retry-after); this step fails`,
   `'gh api repos/${REPO}/issues/30' got a GitHub server error, HTTP 503 with a Retry-After: no call to it before ${RESET} (retry-after); the call returns 1`,
@@ -4004,8 +3886,6 @@ test("a run a server error hold failed before any model turn is re-fired as a fa
   }
 });
 
-// A stop line logged as a workflow command, not as a job log's `##[error]`
-// line, is no stop: as on main, no rate-limit or server error record is made.
 test("a stop line not in the job log's ##[error] form is not read as a rate-limit stop", async () => {
   for (const line of [STOP_LINES["hit the limit"], SERVER_HELD[0]]) {
     const due = stalledRun({ jobs: PRE_MODEL_LIMITED.admit, logs: { [LIMIT_ID]: limitLog(line).replace("##[error]", "::error title=GitHub server error::") } });
@@ -4176,9 +4056,6 @@ test("a green run whose stale stop did not run, or a stop step outside resolve-i
   }
 });
 
-// The job ids and step names the sweep matches in a run's job listing. A job a
-// reusable workflow runs is listed as `<caller job id> / <called job id>` when
-// the called job sets no name.
 test("the job ids and step names the sweep matches exist in the lane workflows", () => {
   const workflow = (name) => readFileSync(join(HERE, "../../workflows", name), "utf8");
   const jobs = (text) => {
@@ -4580,9 +4457,6 @@ test("a run in the label's window whose title names no issue makes the sweep say
   assert.ok(other.mock.calls.some((call) => String(call.arguments[0]).includes("#30 not restarted: no lane run since agent-ready was added")));
 });
 
-// The workflow run listing as GitHub documents it: `created=a..b` keeps runs
-// created from a through b, both ends included (search syntax: `n..*` is
-// `>=n`), newest first in pages of `per_page`, with `total_count`.
 function runListing(runs) {
   const calls = [];
   const actions = async (method, path) => {
@@ -4629,9 +4503,6 @@ test("the shared run listing gives each issue the runs its own window lists, bou
   for (const [number, addedAt] of Object.entries(ADDED)) {
     assert.deepEqual(picked(await laneRuns(own.actions, REPO, Number(number), addedAt)), got[number], `#${number}`);
   }
-  // One listing of 156 runs (two pages) for #30 and #31, whose labels fall in
-  // the 10:00 hour, and one page for #32's 13:00 hour, where each issue on its
-  // own took 2, 2 and 1.
   assert.equal(shared.calls.length, 3, shared.calls.join("\n"));
   assert.equal(own.calls.length, 5, own.calls.join("\n"));
   assert.ok(shared.calls[0].includes(`created=${encodeURIComponent("2026-10-16T10:00:00Z..2026-10-16T11:10:00Z")}&per_page=100&page=1`), shared.calls[0]);
@@ -4687,12 +4558,6 @@ test("a label in a span's last second has its whole window from that span's one 
   assert.ok(shared.calls.every((call) => call.includes(`created=${encodeURIComponent("2026-10-16T10:00:00Z..2026-10-16T11:10:00Z")}`)), shared.calls.join("\n"));
 });
 
-// A red-main fix issue post-merge-file-demotion-issues.yml reopens on a repeat
-// failure keeps agent-ready, but the reopen ran on that workflow's
-// GITHUB_TOKEN, which starts no lane run. The sweep finds it by the issue's
-// first body line and the workflow's recurrence comment, both
-// github-actions[bot]'s, and has the App remove and re-add agent-ready, once
-// per recurrence comment, after a record naming that comment.
 const ALERT = { id: 41898282, login: "github-actions[bot]", type: "Bot" };
 const fixIssue = (n, { labels = [], user = ALERT, body = "<!-- post-merge-fix check=Lint / markdown -->\n\nThe check `Lint / markdown` started failing on main." } = {}) => ({
   ...ready(n, labels),
@@ -4889,12 +4754,6 @@ test("a sweep reads a fix issue's comments and events once when the recurrence c
   }
 });
 
-// Admission pacing (owner decision 2026-10-21, #8794): at or over the queued
-// cap, on or after wip.pause-from, work-unblock adds no new agent-ready. With
-// the default limits (factor 0.8, floor 1/h) and window (24 h), 24 merged
-// lane PRs in 24 h is 0.8/h, under the floor, so the cap is 1 x 24 = 24. A
-// deferred issue's Work status is deferred, which each sweep revisits
-// oldest first; restarts and re-fires of admitted issues are never paced.
 const deferredLabel = (n) => `SET ${n} deferred`;
 const readied = (n) => [labeled(n)];
 const undeferred = (n, state = "ready") => `SET ${n} ${state}`;
@@ -4915,8 +4774,6 @@ test("under the queued cap, or before pause-from, a newly unblocked issue is lab
   }
 });
 
-// A degraded search answers a false empty (total_count 0, incomplete_results
-// true): that admits nothing, with or without pause-from.
 test("an incomplete search answer defers a newly unblocked issue, with or without pause-from, and names why", async (t) => {
   const log = t.mock.method(console, "log", () => {});
   for (const config of [PAUSING, {}]) {
@@ -5414,9 +5271,6 @@ test("a parked issue stays parked for each reason the close does not send it to 
   }
 });
 
-// #14215: a trusted upstream-drift issue (github-actions[bot] wrote it,
-// nobody else last edited it, the filer's title and hex-pin lead line) is an
-// author intake admits, so a closed blocker unparks it like any other.
 test("a trusted upstream-drift issue parked on a blocker unparks once the blocker closes; a person-edited one stays", async (t) => {
   t.mock.method(console, "log", () => {});
   const ACTIONS = { id: 41898282, login: "github-actions[bot]", type: "Bot" };
@@ -5759,8 +5613,6 @@ test("a blocker's close admits a field-only ready a listed human or the App set,
   assert.ok(logs.some((line) => line === "label-unblocked: #20 not labeled: status: ready was added by neither a listed human nor the lanes App"), logs.join("\n"));
 });
 
-// The App's unpark is a field change off confirmed with no REST label event,
-// so only the field-merged history shows it.
 test("a blocker's close leaves an issue the App unparked on the field for intake, until ready is set again", async (t) => {
   const logs = [];
   t.mock.method(console, "log", (line) => logs.push(String(line)));
@@ -5923,8 +5775,6 @@ test("a person's hold set after the read of a ready issue stops its admission at
   assert.ok(logs.includes("label-unblocked: #20 held by a person, not admitted"), logs.join("\n"));
 });
 
-// A set to agent-ready over agent-ready changes nothing, so GitHub sends no
-// field_added and no run starts: a restart clears the field first.
 test("a limit-stopped issue's restart through the Work status writer clears the field, then sets agent-ready; a person's hold stops it", async (t) => {
   const logs = [];
   t.mock.method(console, "log", (line) => logs.push(String(line)));
@@ -5947,9 +5797,6 @@ test("a limit-stopped issue's restart through the Work status writer clears the 
   const cleared = `DELETE /repos/${REPO}/issues/30/issue-field-values/${STATUS_CONFIG["field-id"]}`;
   const set = `POST /repos/${REPO}/issues/30/issue-field-values ${JSON.stringify({ issue_field_values: [{ field_id: STATUS_CONFIG["field-id"], value: "agent-ready" }] })}`;
   assert.deepEqual(await restartOf("agent-ready", [fieldEvent(GRAPH_APP, "agent-ready", null, 1)]), [cleared, set], "the field is cleared, then set to agent-ready");
-  // #16000 and #16001: an issue form's needs-triage left beside the field's
-  // agent-ready made the token broker refuse every run; the re-fire takes it
-  // off first, so the run it starts gets its token (#16149).
   assert.deepEqual(
     await restartOf("agent-ready", [fieldEvent(GRAPH_APP, "agent-ready", null, 1)], ["needs-triage", "area: security"]),
     [`DELETE /repos/${REPO}/issues/30/labels/needs-triage`, cleared, set],
@@ -5965,8 +5812,6 @@ test("a limit-stopped issue's restart through the Work status writer clears the 
   assert.deepEqual(await restartOf("confirmed", [fieldEvent(GRAPH_OWNER, "confirmed", null, 1)]), [], "moved off agent-ready: no clear and no set");
 });
 
-// Owner decision Q85 (#9668): the work class gates nothing, so a class an
-// outsider added, a structural class or none at all still admits.
 test("a person's mark admits whatever work class the issue carries, except untrusted-provenance", async (t) => {
   t.mock.method(console, "log", () => {});
   const outsider = { id: 999999, login: "drive-by", type: "User" };
@@ -6170,10 +6015,6 @@ test("an issue with a recent lane run or label is left alone; past 3 hours it co
   assert.deepEqual(writes(withPr.calls), []);
 });
 
-// #13483's shape: a host-run session's own pull request, on no lane branch,
-// merged with `Refs:` on its body's second line under a session marker. The
-// work moved off the lane, so a stranded or failed run is not re-fired until a
-// listed human's `**Decision recorded.**` comment after that merge says what is left.
 const SESSION_REFS = (number) => `<!-- session: lane-3 -->\nRefs: #${number}\n\n## Summary`;
 const mergedRefsNode = ({ mergedAt = "2026-10-16T08:30:00Z", body = SESSION_REFS(30), comments = [] } = {}) => ({
   createdAt: "2026-10-01T00:00:00Z",
@@ -6365,12 +6206,6 @@ test("a split parent stays open, and a later sweep writes nothing, when a sub-is
   }
 });
 
-// #12456 class A: a parent split by hand whose own task list is its
-// done-when (no split record, so no split parent), parked by admission on
-// SIZE_SPLIT_DONE. Once every sub-issue is closed as completed by a trusted
-// close, status: confirmed comes off, so intake admits it for one
-// verified-done run. A not_planned sub-issue (class B) or any other park
-// keeps it parked.
 const ownCriteria = { ...issue(30, { labels: ["status: confirmed"] }), body: "## Done when\n\n- [ ] The guide names every flag.\n- [ ] The tests cover each flag." };
 const parkedOn = (reason) => ({ id: 88, user: LANES_BOT, body: `${ADMIT_MARKER}\n${refusalText(reason)}`, created_at: STAMP });
 const reenterWrites = [
@@ -6507,10 +6342,6 @@ test("with LANES_BOT_LOGIN set, that App's close of a split parent counts as don
   assert.deepEqual(writes(calls), [labeled(20)]);
 });
 
-// A split made by hand (#5901): no split record, but a listed human or the
-// App linked every sub-issue (the newest sub_issue_added naming it), the
-// parent is not `recurring`, and its body holds no open task-list item (the
-// admission rules' `- [ ] `), so its work is its sub-issues'.
 const linked = (number, actor = OWNER, repo = REPO) => ({
   event: "sub_issue_added",
   actor,
@@ -7128,8 +6959,6 @@ test("a failed admission-comment refresh on a sub-issue close is a warning, not 
   assert.ok(calls.some((call) => call.startsWith(`PATCH /repos/${REPO}/issues/comments/88 `)), "the refresh was tried");
 });
 
-// GitHub's sub_issues_summary leaves a duplicate close out of `completed`, so
-// the summary alone would keep this parent waiting with nothing open.
 test("a Size large parent whose every sub-issue is closed, one as a duplicate, is refused once by the rotation, with the split-done reason", async (t) => {
   t.mock.method(console, "log", () => {});
   const parent = (number) => readyIssue(number, { sub_issues_summary: { total: 2, completed: 1 }, issue_dependencies_summary: { blocked_by: 0 } });
@@ -7210,8 +7039,6 @@ test("a close runs the close path and lists no closed issues", async () => {
   assert.ok(!calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues?state=closed`)));
 });
 
-// A sweep waiting behind another (one pending run in the job's concurrency
-// group) sees what the first left.
 test("two back-to-back sweeps re-fire the issue the kill switch stopped at broker-check once", async () => {
   const first = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED });
   assert.equal(await sweep({ github: first.github, actions: first.actions }), 0);
@@ -7354,8 +7181,6 @@ test("fieldListing: an unreadable Work status on an issue in another state never
   const field = { fullDatabaseId: String(STATUS_CONFIG["field-id"]) };
   const other = { fullDatabaseId: "999999" };
   const statusEvent = (state) => ({ __typename: "IssueFieldChangedEvent", newValue: state, actor: { databaseId: OWNER.id }, issueField: field });
-  // #42 is `ready` with 100 newer events on another field and no Work status
-  // event in view, so its setter cannot be read (resolve-config.mjs:264-265).
   const timelines = {
     40: [statusEvent("agent-ready")],
     41: [statusEvent("deferred")],

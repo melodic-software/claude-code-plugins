@@ -171,7 +171,9 @@ def record_class(message: str) -> str | None:
         return None
     start = at + len(LANE_OUTCOME_MARKER)
     try:
-        value, _ = json.JSONDecoder().raw_decode(message[start : start + LANE_OUTCOME_MAX])
+        value, _ = json.JSONDecoder().raw_decode(
+            message[start : start + LANE_OUTCOME_MAX]
+        )
     except ValueError:
         return None
     if not isinstance(value, dict) or value.get("v") != 1:
@@ -181,7 +183,10 @@ def record_class(message: str) -> str | None:
 
 
 def _rate_limited(message: str) -> bool:
-    return record_class(message) == "rate-limit" or RATE_LIMIT_FAILURE_RE.search(message) is not None
+    return (
+        record_class(message) == "rate-limit"
+        or RATE_LIMIT_FAILURE_RE.search(message) is not None
+    )
 
 
 AUTH_FAILURE_RE = re.compile(r"(?P<lane>[\w-]+): failure-class=auth: ")

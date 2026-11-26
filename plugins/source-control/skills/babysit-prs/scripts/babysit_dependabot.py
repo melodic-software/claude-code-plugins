@@ -123,15 +123,15 @@ PUSH_TYPES = frozenset({"push", "force_push", "branch_creation"})
 @dataclass(frozen=True)
 class Update:
     name: str
-    major: bool | None  # None when unreadable
+    major: bool | None
     version: str | None = field(default=None, compare=False)
     first_major: bool | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True)
 class Classification:
-    tier: str  # AUTO or REVIEW
-    reasons: tuple[str, ...] = ()  # why REVIEW; empty for AUTO
+    tier: str
+    reasons: tuple[str, ...] = ()
     updates: tuple[Update, ...] = ()
     ecosystem: str = ""
     approved: str | None = None
@@ -428,7 +428,9 @@ def parse_title(title: str, body: str) -> list[Update] | None:
         return found if len(found) == int(group.group(1)) else None
     if single := _SINGLE.search(subject):
         old, new = single.group(2), single.group(3)
-        return [Update(single.group(1), is_major(old, new), new, is_first_major(old, new))]
+        return [
+            Update(single.group(1), is_major(old, new), new, is_first_major(old, new))
+        ]
     return None
 
 
@@ -478,8 +480,10 @@ def all_own(updates: Sequence[Update], globs: Sequence[str]) -> bool:
     request takes no `publisher:` reason, and a below-1.0 second-component
     move is not major for it; a first-component move still is."""
     patterns = [_own_regex(g) for g in globs]
-    return bool(updates) and bool(patterns) and all(
-        any(p.match(u.name) for p in patterns) for u in updates
+    return (
+        bool(updates)
+        and bool(patterns)
+        and all(any(p.match(u.name) for p in patterns) for u in updates)
     )
 
 
@@ -606,8 +610,8 @@ def _entry_covers(entry: dict[str, str], path: str) -> bool:
     )
 
 
-PROVENANCE_TIMEOUT = 10  # seconds per registry read
-PROVENANCE_CALL_CAP = 20  # registry reads per pull request
+PROVENANCE_TIMEOUT = 10
+PROVENANCE_CALL_CAP = 20
 _PROVENANCE_ECOSYSTEMS = {"npm_and_yarn": "npm", "pip": "pip"}
 NPM_REGISTRY = "https://registry.npmjs.org"
 PYPI = "https://pypi.org"
@@ -818,7 +822,7 @@ def provenance_reasons(
             if not update.version:
                 raise _Unreadable("no version")
             found = reason(update, counted)
-        except Exception:  # any failure to read is fail-closed, never a pass
+        except Exception:
             found = f"provenance-unreadable:{update.name}"
         if found:
             reasons.append(found)

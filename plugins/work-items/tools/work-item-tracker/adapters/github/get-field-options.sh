@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# get-field-options --field <name-or-id> [--repo <owner>/<repo>] — CONTRACT.md "Verbs (core public
-# surface)". Read-only. Lists the options of one single-select organization issue field, from the
-# same listing set-fields validates against (GET orgs/{org}/issue-fields). The field is matched by
-# its exact name or its numeric id. A field the organization does not have, or one with no options,
-# yields an empty list and exit 0, so a caller falls back to its own defaults.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -31,7 +26,6 @@ done
 [[ -z "$repo_override" || "$repo_override" =~ ^[^/]+/[^/]+$ ]] ||
   wit_usage_error "--repo must be <owner>/<repo> (got: $repo_override)"
 
-# $() swallows wit_run_gh's exit-on-error; propagate its code (see create-item.sh).
 target_repo="$(wit_resolve_repo "$repo_override")" || exit "$?"
 owner="${target_repo%%/*}"
 

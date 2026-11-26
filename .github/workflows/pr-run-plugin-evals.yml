@@ -176,10 +176,10 @@ jobs:
     timeout-minutes: 60
     cache-mode: read
     permissions:
-      contents: read # check out the repository; nothing in this job writes
-      pull-requests: read # check-trusted-trigger reads the pull request
+      contents: read
+      pull-requests: read
       issues: read # check-label-sender.sh reads https://docs.github.com/en/rest/issues/events
-      actions: read # check-trusted-trigger reads this run's re-runner
+      actions: read
     outputs:
       next-leg: ${{ steps.next.outputs.next-leg }}
       next-reason: ${{ steps.next.outputs.next-reason }}

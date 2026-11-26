@@ -43,6 +43,23 @@ note() { echo "            $*"; }
 
 http_status() { curl -sI -o /dev/null -w "%{http_code}" "$1" 2>/dev/null || echo "000"; }
 
+DL_DIR="${HOME}/Downloads"
+verify_sha() {
+  local path="$1" expected="$2" label="$3" actual
+  if [[ ! -f "${path}" ]]; then
+    note "  ${label}: not present at ${path}"
+    return
+  fi
+  actual=$(sha256sum "${path}" | awk '{print $1}')
+  if [[ "${actual}" == "${expected}" ]]; then
+    ok "${label} SHA matches"
+  else
+    stale "${label} SHA differs"
+    note "  expected: ${expected}"
+    note "  actual:   ${actual}"
+  fi
+}
+
 echo "=== kindle-dedrm: drift report ==="
 echo
 echo "Captured baselines from reference/versions.md (see each row's Captured date)."
@@ -99,22 +116,6 @@ esac
 echo
 
 echo "Local downloads (verify SHA256 if files present):"
-DL_DIR="${HOME}/Downloads"
-verify_sha() {
-  local path="$1" expected="$2" label="$3" actual
-  if [[ ! -f "${path}" ]]; then
-    note "  ${label}: not present at ${path}"
-    return
-  fi
-  actual=$(sha256sum "${path}" | awk '{print $1}')
-  if [[ "${actual}" == "${expected}" ]]; then
-    ok "${label} SHA matches"
-  else
-    stale "${label} SHA differs"
-    note "  expected: ${expected}"
-    note "  actual:   ${actual}"
-  fi
-}
 verify_sha "${DL_DIR}/$(basename "${PINNED_KFC_URL}")" "${PINNED_KFC_SHA}" "KindleForPC installer"
 KKF_MATCHES=("${DL_DIR}"/Kindle_Key_Finder_*.JH.zip)
 KKF_LOCAL="${KKF_MATCHES[0]}"

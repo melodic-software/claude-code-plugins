@@ -4,6 +4,7 @@
 # test-scope: plugins/session-flow/.claude-plugin/plugin.json
 # test-scope: plugins/session-flow/lib/python-probe.sh
 # test-scope: plugins/session-flow/skills/running-retro/scripts/fixtures/claude-p-result.json
+# test-scope: plugins/session-flow/hooks/session-attended.env plugins/session-flow/hooks/session-attended.sh
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

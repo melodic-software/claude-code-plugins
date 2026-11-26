@@ -6,28 +6,28 @@ _read_list::mode() {
   _rl_mode_out=""
   while (($# > 0)); do
     case "$1" in
-    --comments)
-      _rl_mode_out="${2-}"
-      # `shift 2` with one argument left shifts nothing and returns non-zero:
-      # https://www.gnu.org/software/bash/manual/html_node/Bourne-Shell-Builtins.html
-      shift $(($# > 1 ? 2 : 1))
-      ;;
-    *)
-      printf 'read-list: unknown option %s\n' "$1" >&2
-      return 2
-      ;;
+      --comments)
+        _rl_mode_out="${2-}"
+        # `shift 2` with one argument left shifts nothing and returns non-zero:
+        # https://www.gnu.org/software/bash/manual/html_node/Bourne-Shell-Builtins.html
+        shift $(($# > 1 ? 2 : 1))
+        ;;
+      *)
+        printf 'read-list: unknown option %s\n' "$1" >&2
+        return 2
+        ;;
     esac
   done
   case "$_rl_mode_out" in
-  inline | leading) return 0 ;;
-  "")
-    printf 'read-list: --comments is required (inline|leading); there is no default\n' >&2
-    return 2
-    ;;
-  *)
-    printf 'read-list: unknown --comments mode %s (want inline|leading)\n' "$_rl_mode_out" >&2
-    return 2
-    ;;
+    inline | leading) return 0 ;;
+    "")
+      printf 'read-list: --comments is required (inline|leading); there is no default\n' >&2
+      return 2
+      ;;
+    *)
+      printf 'read-list: unknown --comments mode %s (want inline|leading)\n' "$_rl_mode_out" >&2
+      return 2
+      ;;
   esac
 }
 

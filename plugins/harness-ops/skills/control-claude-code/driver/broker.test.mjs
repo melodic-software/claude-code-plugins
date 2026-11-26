@@ -191,7 +191,7 @@ test('the broker refuses to start on a driver inside a root, an empty key, or a 
   assert.throws(() => startAt(base, ''), /read from stdin, which was empty/);
   const open = join(b.top, 'open');
   mkdirSync(open);
-  chmodSync(open, 0o777); // mkdir's mode is masked by the umask
+  chmodSync(open, 0o777);
   assert.throws(() => startAt({ ...base, socket: join(open, 'broker.sock') }, KEY), /not a private directory/);
 });
 

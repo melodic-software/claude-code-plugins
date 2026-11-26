@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/planning/surface/schema/questions.schema.json
-# The shared session end to end, CI-safe: the fake cloudflared stands in for the tunnel.
-#   bash tracer.test.sh
-# ensure-running -> two guests join over HTTP -> apply an open-round -> both answer -> the owner
-# sends -> watch.sh prints round-sent -> apply ack-round plus the next open-round -> restart ->
-# the guest link, the people and the answers are intact -> stop leaves nothing running.
-# Credentials reach curl through header files (-H @file), never its command line.
 # test-scope: plugins/planning/.claude-plugin/plugin.json plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json plugins/planning/surface/schema/event.schema.json plugins/planning/surface/schema/ops.schema.json plugins/planning/surface/schema/responses.schema.json plugins/planning/surface/schema/visual.schema.json
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

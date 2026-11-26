@@ -1,20 +1,5 @@
 // GENERATED from lib/ui-feedback/relocate-note.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
-// Re-locate one note in a fresh page (docs/contracts/ui-feedback, "Re-locating a note").
-//
-//   node relocate-note.mjs --dir <run dir> --seq <n> --url <host url>
-//
-// Reads note <n> from <run dir>/actions.json, the notes bridge's log, checks it against
-// note.schema.json with note-model.mjs, and writes <run dir>/relocate-<n>.js: a playwright-cli
-// run-code script whose only input is one JSON literal. It prints {"script", "shot"}; run the
-// script with `playwright-cli run-code --filename <script>`. The script opens the host page at
-// <url> in a new page at the note's viewport size, color scheme and motion setting, restores
-// the note's variant, screen state and content set through the switcher's vs:show event, replays
-// its data log and sets its control values through the frame helper, scrolls the frame to the note's scroll position, runs the anchor ladder inside the sandboxed frame (test
-// id, role, path, then the text quote), and saves <run dir>/shots/<n>.png: the element, a
-// region's box, or the note's stored box when no rung finds it. File names come from the integer
-// seq only. It returns which rung matched and each rung's candidate count, never the mockup's text.
-
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -56,32 +41,27 @@ export async function relocate(page, input, decide) {
     const frame = p.frames().find((f) => f !== p.mainFrame());
     const fl = p.frameLocator("#page");
     const show = (d) => frame.evaluate((x) => document.dispatchEvent(new CustomEvent("vs:show", { detail: x })), d);
-    // The data log replays from the page as it loads, so content flips inside it run in order.
     const log = note.data?.log, flips = !!log?.some((s) => s.op === "content");
     await show({ variant: note.variant?.key, state: note.state?.key, content: flips ? undefined : note.content });
     if (log) {
-      // The frame helper presses each data control the log names; it returns how many it could not find.
       const missed = await frame.evaluate((l) => (window.uiFeedbackRelocate ? window.uiFeedbackRelocate.replay(l) : null), log);
       if (missed === UNMARKED) unmarked.push("data");
       else out.restored.data = missed === 0;
       if (flips) await show({ content: note.content });
     }
     if (note.controls) {
-      // The frame helper sets each control the note carries; it returns how many the page has no control for.
       const missed = await frame.evaluate((v) => (window.uiFeedbackRelocate ? window.uiFeedbackRelocate.setControls(v) : null), note.controls);
       if (missed === UNMARKED) unmarked.push("controls");
       else out.restored.controls = missed === 0;
     }
     if (unmarked.length) out.unmarked = unmarked;
     if (vp) {
-      // The person's scroll, once the view and data give the page its size; false when the page no longer scrolls that far.
       out.restored.scroll = await frame.evaluate((s) => {
         window.scrollTo(s.scrollX, s.scrollY);
         return Math.abs(window.scrollX - s.scrollX) < 1 && Math.abs(window.scrollY - s.scrollY) < 1;
       }, { scrollX: vp.scrollX, scrollY: vp.scrollY }) === true;
     }
 
-    // The scope, as the pin helper takes it: the screen state inside the variant, else the variant, else the page.
     let scope = fl.locator(":root"), scoped = true;
     for (const [part, attr] of [["variant", "data-variant"], ["state", "data-screen-state"]]) {
       if (!note[part]) continue;
@@ -135,12 +115,10 @@ export async function relocate(page, input, decide) {
       const { found: _f, ...to } = note.to?.anchor ? await ladder(note.to.anchor) : { rungs: [], matched: null, confirmed: false };
       out.to = { ...to, positionOnly: !to.matched };
     }
-    // A text note is about its text: an element found while the quote is not is unconfirmed.
     if (note.kind === "text" && out.rungs.at(-1).rung === "textQuote" && out.rungs.at(-1).broken) {
       out.quoteMissing = true;
       out.confirmed = false;
     }
-    // The quote must sit on or inside the element a stronger rung chose: found elsewhere, the structure now names another element.
     const quoted = found.textQuote, chosen = out.matched && out.matched !== "textQuote" ? found[out.matched] : null;
     if (note.kind === "text" && quoted && chosen
       && (await chosen.and(quoted).count()) + (await chosen.locator("[data-relocate-quote]").count()) === 0) {
@@ -149,10 +127,8 @@ export async function relocate(page, input, decide) {
     }
 
     let target = out.matched ? found[out.matched] : null;
-    // A region is the box the person drew: shoot that box once its anchor is found, else as position only.
     if (note.kind === "region" && note.rect) target = null;
     if (!target && note.rect) {
-      // A transparent box at the stored position, so the shot scrolls the frame there as it does for an element.
       await frame.evaluate((r) => {
         const root = document.documentElement, w = Math.max(root.scrollWidth, 1), h = Math.max(root.scrollHeight, 1);
         const m = document.createElement("div");
@@ -168,7 +144,6 @@ export async function relocate(page, input, decide) {
     if (target && !(await target.isVisible())) { out.hidden = true; target = null; }
     if (target) {
       await target.scrollIntoViewIfNeeded();
-      // The clip stays inside the frame's box, so no pixel of the host page's own chrome is in the shot.
       const f = await p.locator("#page").boundingBox(), b = await target.boundingBox();
       const x = Math.max(b.x, f.x), y = Math.max(b.y, f.y);
       const clip = { x, y, width: Math.min(b.x + b.width, f.x + f.width) - x, height: Math.min(b.y + b.height, f.y + f.height) - y };
