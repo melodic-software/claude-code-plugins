@@ -117,7 +117,7 @@ def _routing_free_tokens(text, plugins=frozenset()):
     change of form (`plugin:skill` to `/plugin:skill`) compares equal."""
 
     def cut(match):
-        routed = SKILL_TOKEN_RE.findall(match.group(0))[-1]
+        routed = re.findall(SKILL_TOKEN, match.group(0), re.IGNORECASE)[-1]
         return "" if _is_skill_token(routed, plugins) else match.group(0)
 
     def form(match):

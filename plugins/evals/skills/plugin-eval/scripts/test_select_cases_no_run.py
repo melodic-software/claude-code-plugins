@@ -224,6 +224,12 @@ class SelectCasesNoRunTest(unittest.TestCase):
         block = self._edit_and_select(path, "after /beta:runner.", "after /beta:sweeper.")
         self.assertNotIn("no-run-exempt", block, "only a token's form is exempt, not its skill")
 
+    def test_capitalized_token_ending_a_routing_segment_is_not_routing(self):
+        import no_run_text
+
+        old = "Run checks. Not for Python:Django, use alpha."
+        self.assertFalse(no_run_text.is_routing_only_change(old, "Run checks.", ()))
+
     def test_non_skill_colon_value_change_is_cut(self):
         path = self._set_base_description(
             "Run alpha one checks in mode:fast. Use when checking alpha items."
