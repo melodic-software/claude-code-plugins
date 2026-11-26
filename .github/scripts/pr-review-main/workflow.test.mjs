@@ -1319,7 +1319,9 @@ test("each leg copies the review criteria criteria.txt lists, REVIEW.md composed
       "plugins/review/reference/ref.md": "ref",
       "plugins/review/skills/quality-gate/context/loosened-check.md": "criterion",
       "plugins/review/skills/quality-gate/context/code.md": "not copied",
-      "REVIEW.md": "review\n",
+      "REVIEW.md": "review, see `docs/review/local.md#local-rule` and `CONTRIBUTING.md#x`\n",
+      "docs/review/local.md": "# local-rule\n",
+      "CONTRIBUTING.md": "# x\n",
       "docs/standards/s.md": "standard",
       ".claude/rules/r.md": "rule",
     };
@@ -1355,6 +1357,7 @@ test("each leg copies the review criteria criteria.txt lists, REVIEW.md composed
       "review/skills/code-review/SKILL.md",
       "review/skills/quality-gate/context/loosened-check.md",
       "standards/REVIEW.md",
+      "standards/review/local.md",
       "standards/rules/r.md",
       "standards/standards/s.md",
     ]);
@@ -1366,15 +1369,20 @@ test("each leg copies the review criteria criteria.txt lists, REVIEW.md composed
     );
     assert.equal(
       readFileSync(path.join(orgCopy, "citations.tsv"), "utf8"),
-      `standards/review/x.md#rule\t${orgCopy}/standards/review/x.md#rule\n`,
-      "the citations the reader lists, each pointing at its copy in the review data",
+      `standards/review/x.md#rule\t${orgCopy}/standards/review/x.md#rule\ndocs/review/local.md#local-rule\t${data}/standards/review/local.md#local-rule\n`,
+      "the citations the reader lists, the organization's and the repository's, each pointing at its copy in the review data; one the lane receives no copy of is left out",
     );
     const composed = () => readFileSync(path.join(data, "standards", "REVIEW.md"), "utf8");
-    assert.match(composed(), /^org review, see `standards\/review\/x\.md#rule`\n\n<!-- The repository REVIEW\.md follows[^\n]*-->\n\nreview\n$/, "extend: main's REVIEW.md follows the org's");
+    assert.match(composed(), /^org review, see `standards\/review\/x\.md#rule`\n\n<!-- The repository REVIEW\.md follows[^\n]*-->\n\nreview, see `docs\/review\/local\.md#local-rule` and `CONTRIBUTING\.md#x`\n$/, "extend: main's REVIEW.md follows the org's");
     rmSync(data, { recursive: true, force: true });
-    writeFileSync(path.join(dir, ".base", "REVIEW.md"), "<!-- review-base: replace -->\nown\n");
+    writeFileSync(path.join(dir, ".base", "REVIEW.md"), "<!-- review-base: replace -->\nown, see `docs/review/local.md#local-rule`\n");
     assert.equal(copy().status, 0);
-    assert.equal(composed(), "<!-- review-base: replace -->\nown\n", "override: the marker keeps main's alone");
+    assert.equal(composed(), "<!-- review-base: replace -->\nown, see `docs/review/local.md#local-rule`\n", "override: the marker keeps main's alone");
+    assert.equal(
+      readFileSync(path.join(orgCopy, "citations.tsv"), "utf8"),
+      `docs/review/local.md#local-rule\t${data}/standards/review/local.md#local-rule\n`,
+      "override: the repository's own citations are still listed, pointing at the lane's copies",
+    );
     rmSync(data, { recursive: true, force: true });
     rmSync(path.join(dir, ".base", "REVIEW.md"));
     assert.equal(copy().status, 0, "a main with no REVIEW.md still copies");
