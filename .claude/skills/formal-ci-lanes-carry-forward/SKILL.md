@@ -17,7 +17,7 @@ results step. `REPORT` runs `aggregate-results` at that same commit.
 
 | Rule | Plain sentence | Source |
 |---|---|---|
-| `NoStaleCarry` | A contract-only run that passes carries no success a full run in flight is about to replace: every full-run attempt in flight when it passes wrote that success, or started after the run's last listing of the runs. | `WF`, the mark-lanes comment: "A FULL RUN MARKS ITS SHA IN FLIGHT AT ONCE. A contract-only run on this SHA reads the newest bot-written `ci-lanes` status once and passes only on `success`, so this `pending` makes it fail at once instead of carrying forward a verdict this run is about to replace"; `RUN`, the yield block: "This closes the gap `record-pending` alone leaves: a full run that is queued, or whose first job has not yet written its `pending` marker, would otherwise let this run carry an older `success` forward across it." |
+| `NoStaleCarry` | A contract-only run that passes carries no success a full run in flight is about to replace: every full-run attempt in flight when it passes wrote that success, or started after the run's last listing of the runs. | `WF`, the mark-lanes comment at [22a3301e3c](https://github.com/melodic-software/claude-code-plugins/blob/22a3301e3c2852228fc17b9b147f0cd1f72bf7ee/.github/workflows/pr-require-checks.yml#L220-L228): "A FULL RUN MARKS ITS SHA IN FLIGHT AT ONCE. A contract-only run on this SHA reads the newest bot-written `ci-lanes` status once and passes only on `success`, so this `pending` makes it fail at once instead of carrying forward a verdict this run is about to replace"; `RUN`, the yield block: "This closes the gap `record-pending` alone leaves: a full run that is queued, or whose first job has not yet written its `pending` marker, would otherwise let this run carry an older `success` forward across it." |
 | `HeldPassIsNewer` | A run that held for full runs passes only on a success created after each of them started. | `ACTION`, `yield-wait-seconds`: "passes only on a `success` created at or after their latest start. An older `success` does not pass" |
 | `PassCarriesSuccess` | A contract-only run passes only on a success whose writer it verified. | `RUN` header: "A `success` passes only when its writer run is a full run of this same workflow on this SHA whose aggregate step succeeded" |
 
@@ -89,7 +89,8 @@ through an installed-plugin invocation of `/formal-verification:specify`.
 ## Not covered
 
 - Fork pull requests (they write no status), `merge_group`, `workflow_dispatch` and schedule runs:
-  they write `ci-lanes` on a SHA no contract-only run reads (`WF`, the comment on `merge_group`).
+  they write `ci-lanes` on a SHA no contract-only run reads (`WF`, the comment on `merge_group` at
+  [22a3301e3c](https://github.com/melodic-software/claude-code-plugins/blob/22a3301e3c2852228fc17b9b147f0cd1f72bf7ee/.github/workflows/pr-require-checks.yml#L52-L68)).
 - A forged status: another workflow, a person or a token writing `ci-lanes`, which the creator,
   workflow and run checks in `read_newest_entry` and `verify_carried_writer` guard.
 - Two contract-only runs on one SHA, the full run's wait for in-flight siblings before it re-runs

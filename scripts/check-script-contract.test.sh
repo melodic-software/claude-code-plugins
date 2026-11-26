@@ -1,47 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: docs/upstream/*.md
-# Contract suite for the scripts/check-*.sh family: the part a CALLER must know
-# is the same for every member, and this is what holds it.
-#
-#   bash scripts/check-script-contract.test.sh
-#
-# The contract itself is stated once, in scripts/README.md, "The check-script contract":
-# exit 0 clean, 1 findings, 2 environment or usage, findings on stderr. Each
-# script's header points at that statement rather than restating it; this suite
-# is what makes the statement true rather than aspirational. Nothing here judges
-# what a member checks or how well; the members' own co-located suites own that.
-#
-# THREE DIMENSIONS, and why they are split the way they are:
-#
-#   ENVIRONMENT  For every member that declares a prerequisite, the prerequisite
-#                is taken away and the run must exit 2 with a diagnostic on
-#                stderr and NOTHING on stdout. This is the dimension a reader
-#                cannot settle by inspection, and the one that costs the most
-#                when it drifts: an exit 1 for a missing tool makes "your tree is
-#                wrong" and "I could not look" one signal to every lane that
-#                reads only the code.
-#
-#   CLEAN        A clean corpus exits 0 with its statement on stdout.
-#
-#   VIOLATION    A seeded violation exits 1 with the finding on stderr, and the
-#                finding does NOT also appear on stdout.
-#
-# The clean and violation dimensions run against a FIXTURE, never the live tree:
-# a family suite that read the checkout would report another change in flight as
-# a contract breach. Fixtures cost a seeding recipe per member, so those two
-# dimensions cover the members whose recipe is written below; the environment
-# dimension needs no recipe and covers every member that declares a prerequisite.
-# A member with neither is registered with `-` in both columns and is held to the
-# contract only by its own suite until a recipe is written for it.
-#
-# THE REGISTRY IS THE STOPPING RULE. Every scripts/check-*.sh must have a row: a
-# new member fails as UNREGISTERED rather than being silently uncovered, and a
-# row naming a script that no longer exists fails as stale. Registering by
-# basename is also what routes a member's changes back here, since
-# scripts/affected-tests.sh selects any suite that NAMES the changed file.
 set -uo pipefail
-# Members read CHECK_DATA_ROOT in place of the tree they are run in, so a
-# caller's value would point every fixture run at that caller's tree.
 unset CHECK_DATA_ROOT
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -56,17 +15,6 @@ REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)" || exit 2
 # declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
-# --- the registry ------------------------------------------------------------
-# <basename> | <prerequisite to remove> | <argv> | <fixture recipe>
-#
-# Prerequisite forms: a bare tool name is hidden from PATH; NAME=VALUE is an
-# environment override that points the member at a tool that is not there. `-`
-# means the member declares no prerequisite of its own, so there is nothing to
-# take away.
-#
-# Argv is what it takes to REACH the prerequisite check, nothing more; a member
-# that reads its mode first needs that mode here or it would exit 2 for usage
-# and the run would prove the wrong thing.
 REGISTRY=(
   "check-adr-numbers.sh|-|-|adr_numbers"
   "check-affected.sh|-|-|-"
@@ -140,8 +88,6 @@ CAP_RC=0
 CAP_OUT=""
 CAP_ERR=""
 
-# run_in <dir> <command...> — a subshell rather than `env -C`, whose --chdir is a
-# GNU extension this repo cannot assume on every host it runs on.
 run_in() {
   local dir="$1"
   shift
@@ -160,22 +106,6 @@ capture() {
   return 0
 }
 
-# hidden_path <tool> — sets HIDDEN_PATH to this host's PATH with one tool missing.
-# Entries without the tool pass through untouched. Each entry that holds it is
-# replaced, in place so precedence holds, by a directory of per-file symlinks to
-# everything in it but the tool: dropping the entry would starve the member of
-# the coreutils it shares a directory with (awk and sed both live in /usr/bin),
-# and the exit code would stop meaning what the assertion reads it as.
-#
-# Only regular files are linked, and MSYS is forced to native symlinks: Git
-# Bash's default `ln -s` deep-copies its target, which once copied C:\WINDOWS into
-# $TMPDIR on every run. Where native links are not allowed, `ln` fails and the
-# suite reports it rather than copying.
-#
-# The answer comes back through a global rather than stdout because the cache and
-# the cleanup root must survive the call: `$(hidden_path jq)` would run this in a
-# subshell, so every caller would rebuild the mirrors and every mirror would
-# outlive the run in $TMPDIR.
 declare -A HIDDEN_PATHS=()
 HIDDEN_PATH=""
 HIDDEN_ROOT=""
