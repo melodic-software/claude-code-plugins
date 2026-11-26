@@ -1131,6 +1131,17 @@ test("a main-run review with a failed job cut after setup is held and carried", 
   assert.deepEqual(records(outputs), ["", "", ""]);
 });
 
+test("a fresh main-run review with truncated steps is read again, not carried", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const fresh = new Date(NOW - 60_000).toISOString().replace(".000Z", "Z");
+  const run = mainReviewRun(301, { created: fresh, updated: fresh }, truncatedReviewJobs());
+  const { code, reruns, settled } = await reconcile({ pulls: [], runs: [run], carry: null });
+  assert.equal(code, 1);
+  assert.deepEqual(reruns, []);
+  assert.deepEqual(settled.runs, []);
+  assert.match(log.mock.calls.map((call) => call.arguments[0]).join("\n"), /a job's steps did not list in full, so which steps ran is unknown/);
+});
+
 test("a main-run review with truncated steps and a short job listing fails the pass", async (t) => {
   const log = t.mock.method(console, "log", () => {});
   const jobs = truncatedReviewJobs();

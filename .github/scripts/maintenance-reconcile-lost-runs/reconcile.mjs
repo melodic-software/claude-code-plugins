@@ -947,7 +947,7 @@ async function holdReason(call, repo, run, { judge, write }, settled, carry = ne
   const jobs = await withAnnotations(call, repo, listing.jobs);
   const cut = jobs.filter((job) => !stepsKnown(job));
   if (!cut.every((job) => job?.conclusion === "failure" && (lostRunnerNoted(job) || setupFailed(job)))) {
-    if (current && wholeListing(listing)) {
+    if (current && settled && wholeListing(listing)) {
       return { reason: TRUNCATED_STEPS, settle: true };
     }
     throw new Error("a job's steps did not list in full, so which steps ran is unknown");
