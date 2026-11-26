@@ -1,5 +1,5 @@
 ---
-standards-contract: 1.3.0
+standards-contract: 1.3.1
 ---
 
 # Standards Convention
@@ -508,6 +508,16 @@ its own index when present, else glob, and read the subscribed layers
 see Personal subscriptions) and
 applies them per Layers and precedence. Matching a team index row never substitutes for this step; a
 denied or absent personal layer simply contributes nothing.
+
+**Adopted shipped concepts (every layer):** an adopted standards file
+names each shipped concept it adopts by its id in backticks and holds none
+of that concept's counterweights or conflicts. When a loaded standards
+file cites such ids and the engineering-concepts plugin is enabled, run
+its lookup, `/engineering-concepts:lookup` (if enabled), with
+`--counterweights-of <id>,<id>` in place of a term, and keep each printed
+line (one per counterweight or conflict) beside the entry its `of` names,
+so neither is applied alone. Without the plugin, apply each entry as
+written.
 
 **Review-criteria index (planning and implementing):** a skill that plans
 or implements a change also reads the repository's review-criteria index,
