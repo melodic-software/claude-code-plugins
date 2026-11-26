@@ -86,8 +86,13 @@ check "the first top-level line decides" 1 "" -- demo demo_enabled true
 repo "demo_enabled: false"
 check "security: a repository false is ignored" 0 "" -- --security demo demo_enabled true
 repo "demo_enabled: true"
-check "security: the user's false turns the guard off" 1 "" "$option=false" -- --security demo demo_enabled true
+check "security: an environment false is ignored; the guard stays on" 0 "" "$option=false" -- --security demo demo_enabled true
 check "security: a repository true turns the guard on" 0 "" -- --security demo demo_enabled false
+check "security: an environment true turns the guard on" 0 "" "$option=true" -- --security demo demo_enabled false
+repo "demo_enabled: false"
+check "security: an environment false and a repository false still leave the guard on" 0 "" "$option=false" -- --security demo demo_enabled true
+repo
+check "security: an environment false falls to a plugin default of false" 1 "" "$option=false" -- --security demo demo_enabled false
 repo "demo_enabled: false"
 check "security: an invalid option falls past the ignored repository false" 0 "$(dropped 1 "$option")" "$option=1" -- --security demo demo_enabled true
 

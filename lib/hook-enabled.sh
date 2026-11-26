@@ -119,7 +119,7 @@ hook_enabled::resolve() {
   case "$user" in
     "") ;;
     true) return 0 ;;
-    false) return 1 ;;
+    false) ((security)) || return 1 ;;
     *) hook_enabled::_drop "$key" "$user" "$option" ;;
   esac
 
