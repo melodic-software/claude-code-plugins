@@ -16,7 +16,7 @@ fail() {
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-sql_path() { # path safe to embed in a SQL string (native duckdb.exe cannot read MSYS paths)
+sql_path() {
   if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s\n' "$1"; fi
 }
 HAS_DUCKDB=false

@@ -44,7 +44,7 @@ printf 'export const seed = 1;\n' >"$R/a.ts"
 git -C "$R" add -A
 git -C "$R" commit -q -m seed
 
-stop() { # <stop_hook_active> [env...] -> "<rc>|<stderr>"
+stop() {
   local active="$1" err rc
   shift
   err="$(cd "$R" && printf '{"session_id":"s","hook_event_name":"Stop","stop_hook_active":%s,"cwd":"%s"}' "$active" "$R" |

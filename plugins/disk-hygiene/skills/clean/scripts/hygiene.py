@@ -5259,24 +5259,24 @@ class _RecycleProgressSink:
 
         slots = (
             (hr, (ptr, ctypes.POINTER(ptr)), query_interface),
-            (u32, (), reference_count),  # AddRef
-            (u32, (), reference_count),  # Release
-            (hr, (), proceed),  # StartOperations
-            (hr, (hr,), proceed),  # FinishOperations
-            (hr, (u32, ptr, ptr), proceed),  # PreRenameItem
-            (hr, (u32, ptr, ptr, hr, ptr), proceed),  # PostRenameItem
-            (hr, (u32, ptr, ptr, ptr), proceed),  # PreMoveItem
-            (hr, (u32, ptr, ptr, ptr, hr, ptr), proceed),  # PostMoveItem
-            (hr, (u32, ptr, ptr, ptr), proceed),  # PreCopyItem
-            (hr, (u32, ptr, ptr, ptr, hr, ptr), proceed),  # PostCopyItem
+            (u32, (), reference_count),
+            (u32, (), reference_count),
+            (hr, (), proceed),
+            (hr, (hr,), proceed),
+            (hr, (u32, ptr, ptr), proceed),
+            (hr, (u32, ptr, ptr, hr, ptr), proceed),
+            (hr, (u32, ptr, ptr, ptr), proceed),
+            (hr, (u32, ptr, ptr, ptr, hr, ptr), proceed),
+            (hr, (u32, ptr, ptr, ptr), proceed),
+            (hr, (u32, ptr, ptr, ptr, hr, ptr), proceed),
             (hr, (u32, ptr), pre_delete),
             (hr, (u32, ptr, hr, ptr), post_delete),
-            (hr, (u32, ptr, ptr), proceed),  # PreNewItem
-            (hr, (u32, ptr, ptr, ptr, u32, hr, ptr), proceed),  # PostNewItem
-            (hr, (u32, u32), proceed),  # UpdateProgress
-            (hr, (), proceed),  # ResetTimer
-            (hr, (), proceed),  # PauseTimer
-            (hr, (), proceed),  # ResumeTimer
+            (hr, (u32, ptr, ptr), proceed),
+            (hr, (u32, ptr, ptr, ptr, u32, hr, ptr), proceed),
+            (hr, (u32, u32), proceed),
+            (hr, (), proceed),
+            (hr, (), proceed),
+            (hr, (), proceed),
         )
         self._callbacks = [
             ctypes.WINFUNCTYPE(restype, ptr, *argtypes)(function)

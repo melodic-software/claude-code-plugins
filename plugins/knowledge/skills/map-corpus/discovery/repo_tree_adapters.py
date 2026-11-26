@@ -40,7 +40,7 @@ class GitHubTreeAdapter:
             path, kind = entry.get("path"), entry.get("type")
             if not isinstance(path, str) or not path or not isinstance(kind, str):
                 raise ListingError(f"tree[{index}] has no string 'path' and 'type'.")
-            if kind == "blob":  # 'tree' is a directory, 'commit' a submodule
+            if kind == "blob":
                 paths.append(path)
         return paths
 

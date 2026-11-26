@@ -50,7 +50,7 @@ def export_plan(spec):
             continue
         lo, hi = min(slots), max(slots)
         if sorted(slots) != list(range(lo, hi + 1)):
-            split.append(name)   # an Aseprite tag is one from/to range; the caller falls back to native
+            split.append(name)
             continue
         tags.append({"name": name, "from": lo, "to": hi})
     columns = spec.get("sheet", {}).get("columns") or len(order)

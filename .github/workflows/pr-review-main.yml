@@ -33,10 +33,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: read # check out main
-      pull-requests: read # the PR and its files
-      actions: read # the upstream run the trigger gate reads; the verdicts already uploaded
-      checks: read # the report-review-counts job's check runs on the head
+      contents: read
+      pull-requests: read
+      actions: read
+      checks: read
     outputs:
       run-attempt: ${{ github.run_attempt }}
       proceed: ${{ steps.gate.outputs.proceed }}
@@ -355,7 +355,7 @@ jobs:
     timeout-minutes: 10
     cache-mode: none
     permissions:
-      actions: read # this repository's credit-stop marker artifacts
+      actions: read
     outputs:
       next-leg: ${{ steps.gate.outputs.next-leg }}
       next-reason: ${{ steps.gate.outputs.next-reason }}
@@ -454,8 +454,8 @@ jobs:
     timeout-minutes: 10
     continue-on-error: true
     permissions:
-      contents: read # check out main
-      pull-requests: read # the PR, its comments and reviews
+      contents: read
+      pull-requests: read
     outputs:
       run-attempt: ${{ github.run_attempt }}
       sha256: ${{ steps.hash.outputs.sha256 }}
@@ -605,9 +605,9 @@ jobs:
     timeout-minutes: 197
     cache-mode: read
     permissions:
-      contents: read # check out main; read the PR's commits for the diff
-      pull-requests: read # the PR, its files, comments and reviews
-      actions: read # the upstream run the trigger gate reads
+      contents: read
+      pull-requests: read
+      actions: read
     outputs:
       claude-review: ${{ steps.handoff.outputs.claude-review }}
       claude-security-review: ${{ steps.handoff.outputs.claude-security-review }}
@@ -1301,9 +1301,9 @@ jobs:
     timeout-minutes: 197
     cache-mode: read
     permissions:
-      contents: read # check out main; read the PR's commits for the diff
-      pull-requests: read # the PR, its files, comments and reviews
-      actions: read # the upstream run the trigger gate reads
+      contents: read
+      pull-requests: read
+      actions: read
     outputs:
       claude-review: ${{ steps.handoff.outputs.claude-review }}
       claude-security-review: ${{ steps.handoff.outputs.claude-security-review }}
@@ -1969,9 +1969,9 @@ jobs:
     timeout-minutes: 197
     cache-mode: read
     permissions:
-      contents: read # check out main; read the PR's commits for the diff
-      pull-requests: read # the PR, its files, comments and reviews
-      actions: read # the upstream run the trigger gate reads
+      contents: read
+      pull-requests: read
+      actions: read
     outputs:
       claude-review-stop: ${{ steps.diff.outputs.claude-review-stop || steps.chunk-stop.outputs.claude-review-stop }}
       claude-security-review-stop: ${{ steps.diff.outputs.claude-security-review-stop || steps.chunk-stop.outputs.claude-security-review-stop }}
@@ -2568,7 +2568,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      checks: write # the per-lane count check run on the reviewed head
+      checks: write
     steps:
       - name: Record the stops
         env:

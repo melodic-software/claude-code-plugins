@@ -147,7 +147,7 @@ real_path() {
     tail="/${p##*/}$tail"
     p="${p%/*}"
   done
-  [[ "$tail/" != */../* ]] || return 0 # unresolvable: prints nothing, which no root contains
+  [[ "$tail/" != */../* ]] || return 0
   p="$(cd "${p:-/}" && pwd -P)"
   if command -v cygpath >/dev/null 2>&1; then p="$(cygpath -aml "$p")"; fi
   printf '%s%s\n' "${p%/}" "$tail"

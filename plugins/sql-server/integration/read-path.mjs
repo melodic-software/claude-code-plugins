@@ -61,7 +61,7 @@ const SESSION_PROBE = `SELECT s.transaction_isolation_level AS isolation, s.lock
 FROM sys.dm_exec_sessions AS s WHERE s.session_id = @@SPID`;
 
 const EXPECTED_SESSION = {
-  isolation: 2, // READ COMMITTED
+  isolation: 2,
   lockTimeout: LOCK_TIMEOUT_MS,
   openTransactions: 0,
   xactAbort: 16384,

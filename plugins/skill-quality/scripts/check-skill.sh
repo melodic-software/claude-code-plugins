@@ -1751,7 +1751,7 @@ else
 fi
 
 SETTINGS_TOKEN_BASELINE="${CHECK_SKILL_SETTINGS_TOKEN_BASELINE:-$SCRIPT_DIR/settings-token-baseline.txt}"
-settings_token_hits() { # one .md file; prints "<line>\t<key>" per hit
+settings_token_hits() {
   awk '
     function mask(t, re,   out, r) {
       out = ""
@@ -1854,7 +1854,7 @@ settings_token_hits() { # one .md file; prints "<line>\t<key>" per hit
     }
     END { flush() }' "$1"
 }
-settings_token_row_count() { # baseline file, repo-relative path; prints the count or nothing
+settings_token_row_count() {
   awk -v want="$2" '{ sub(/#.*/, "") } NF >= 2 && $1 == want { print $2; exit }' "$1"
 }
 ST_LABEL="$SETTINGS_TOKEN_BASELINE"

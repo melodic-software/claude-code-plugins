@@ -15,7 +15,7 @@ export PATH="$bin_dir:$PATH"
 
 shellcheck_pin="v0.11.0"
 shellcheck_sha="8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
-actionlint_pin="1.17.0" # the kjanat/actionlint fork CI runs (ci-workflows actionlint/action.yml `version`); its numbers overlap upstream's, so the SHA-256 is the anchor
+actionlint_pin="1.17.0"
 actionlint_sha="620abd485a12b6ab1125b844a876414e1d5bd2af8a3125b27f82b01d0d9d6e5a"
 typos_pin="v1.42.1"
 typos_sha="fe1492d6c1079c328ef66de2094b7a3a4569987ec972ab56002c5db4746a8d1b"

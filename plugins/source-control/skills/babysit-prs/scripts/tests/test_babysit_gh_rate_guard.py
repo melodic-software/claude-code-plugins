@@ -713,7 +713,7 @@ class TheProcessExitsRed(unittest.TestCase):
             raise gh.RateLimitExhausted("core", 1792863330, "x-ratelimit-reset reset")
             """
         )
-        self.assertEqual(proc.returncode, 75)  # the code pr-merge.yml stops on
+        self.assertEqual(proc.returncode, 75)
         errors = [
             line for line in proc.stderr.splitlines() if line.startswith("::error")
         ]

@@ -138,7 +138,7 @@ def remove_tree(path: Path) -> None:
         for name in dirs:
             child = os.path.join(top, name)
             if os.path.islink(child):
-                continue  # never change a link's target outside the tree
+                continue
             with contextlib.suppress(OSError):
                 os.chmod(child, 0o700)
     shutil.rmtree(path, ignore_errors=True)
