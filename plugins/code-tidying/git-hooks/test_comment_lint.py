@@ -701,7 +701,7 @@ class MoreDirectives(unittest.TestCase):
                 self.assertIsNotNone(lint.DIRECTIVE.search(text))
 
     def test_spellchecker_ignore_next_line_passes(self):
-        text = "# spellchecker:ignore-next-line\nx = 'Win32_PnPSignedDriver'\n"
+        text = "# spellchecker:ignore-next-line\nx = 'Win32_SignedDriver'\n"
         self.assertEqual(flagged("t.py", text), [])
 
     def test_portability_ok_passes(self):
