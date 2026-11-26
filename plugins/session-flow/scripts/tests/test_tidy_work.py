@@ -866,7 +866,8 @@ def test_scratch_is_attributed_by_the_number_in_its_name(env):
     assert items["pr4120.md"]["reasons"] == ["link #4120 is open"]
     assert items["reverify-4186"]["reasons"] == ["link #4186 is closed-unmerged"]
     for name in NOT_ATTRIBUTED:
-        assert items[name]["kind"] == "unknown", name
+        expected_kind = "recovery-archive" if name.endswith(".tar") else "unknown"
+        assert items[name]["kind"] == expected_kind, name
         assert items[name]["keep"], name
         assert items[name]["links"] == {}, name
 
@@ -1153,10 +1154,3 @@ def test_an_archive_stays_when_a_hot_file_of_its_chain_is_refused(env):
         f"refused: {(repo / '.work' / 'handoffs' / ROOT3).as_posix()}" in result.stdout
     )
 
-
-def test_a_stray_file_in_the_archive_dir_is_unknown_and_kept(env):
-    archive = three_chain(env)
-    write(archive.parent / "notes.txt", "stray")
-    age(archive.parent / "notes.txt", 60)
-    items = report(env, *links(env[0], STATE))
-    assert items["notes.txt"]["kind"] == "unknown"

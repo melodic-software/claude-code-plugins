@@ -6,6 +6,12 @@ import sys
 import time
 from pathlib import Path
 
+for _git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
+    os.environ.pop(_git_var, None)
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
+del _git_var
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import plugin_paths  # noqa: E402
 
@@ -81,3 +87,84 @@ def test_run_git_reports_failure_as_none(tmp_path, monkeypatch):
 
     monkeypatch.setattr(plugin_paths.subprocess, "run", slow)
     assert plugin_paths.run_git(tmp_path, "status", timeout=1) is None
+
+
+def test_git_toplevel_and_default_memory_dir(tmp_path):
+    repo = tmp_path / "repo"
+    sub = repo / "a" / "b"
+    sub.mkdir(parents=True)
+    subprocess.run(["git", "-c", "init.defaultBranch=main", "init", "-q", str(repo)], check=True)
+    assert plugin_paths.git_toplevel(sub) == repo.resolve()
+    assert plugin_paths.git_toplevel(sub / "nonexistent" / "leaf") == repo.resolve()
+    assert plugin_paths.default_memory_dir(sub, {}, None) == Path(".work")
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    assert plugin_paths.git_toplevel(outside) is None
+    assert plugin_paths.default_memory_dir(outside, {}, None) is None
+    assert (
+        plugin_paths.default_memory_dir(
+            outside, {"CLAUDE_PLUGIN_DATA": str(tmp_path / "session-flow")}, None
+        )
+        == tmp_path / "session-flow" / "artifacts"
+    )
+
+
+def test_is_self_ignored_accepts_star_and_doublestar(tmp_path):
+    assert plugin_paths.is_self_ignored(tmp_path) is False
+    gi = tmp_path / ".gitignore"
+    gi.write_text("# comment only\n*.log\n", encoding="utf-8")
+    assert plugin_paths.is_self_ignored(tmp_path) is False
+    gi.write_text("*\n", encoding="utf-8")
+    assert plugin_paths.is_self_ignored(tmp_path) is True
+    gi.write_text("# header\n**\n", encoding="utf-8")
+    assert plugin_paths.is_self_ignored(tmp_path) is True
+
+
+def test_validate_memory_root_rejects_repo_root_and_unguarded_outside_root(tmp_path):
+    import pytest
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "-c", "init.defaultBranch=main", "init", "-q", str(repo)], check=True)
+    with pytest.raises(ValueError, match="repository root"):
+        plugin_paths.validate_memory_root(repo, repo)
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    with pytest.raises(ValueError, match="self-ignore guard"):
+        plugin_paths.validate_memory_root(outside, repo)
+
+    (outside / ".gitignore").write_text("**\n", encoding="utf-8")
+    assert plugin_paths.validate_memory_root(outside, repo) == outside.resolve()
+
+    absent = tmp_path / "absent"
+    assert plugin_paths.validate_memory_root(absent, repo) == absent.resolve()
+
+
+def test_read_session_flow_yaml_reads_extra_concern_dirs_from_convention_home(tmp_path):
+    repo = tmp_path / "repo"
+    home = tmp_path / "home"
+    home.mkdir()
+    (repo / "docs" / "conventions").mkdir(parents=True)
+    (repo / "docs" / "conventions" / "session-flow.yaml").write_text(
+        "extra_concern_dirs:\n  - team-scratch\n  - custom_cache\n",
+        encoding="utf-8",
+    )
+    cfg = plugin_paths.read_session_flow_yaml(repo, home)
+    assert cfg.get("extra_concern_dirs") == ["team-scratch", "custom_cache"]
+
+    custom = tmp_path / "custom-repo"
+    (custom / "team" / "rules").mkdir(parents=True)
+    (custom / "AGENTS.md").write_text(
+        "<!-- BEGIN GENERATED: convention-home -->\n"
+        "Conventions live in `team/rules`.\n"
+        "<!-- END GENERATED: convention-home -->\n",
+        encoding="utf-8",
+    )
+    (custom / "team" / "rules" / "session-flow.yaml").write_text(
+        "extra_concern_dirs: [bench, artifacts]\n",
+        encoding="utf-8",
+    )
+    cfg2 = plugin_paths.read_session_flow_yaml(custom, home)
+    assert cfg2.get("extra_concern_dirs") == ["bench", "artifacts"]

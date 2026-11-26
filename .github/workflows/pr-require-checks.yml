@@ -4043,7 +4043,6 @@ jobs:
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
         env:
           TEXT: ${{ github.event.merge_group.head_commit.message || github.event.pull_request.body }}
-          # Bash measures ${#line} in characters only under a UTF-8 locale.
           LC_ALL: C.UTF-8
         run: |
           text=${TEXT//$'\r'/}
@@ -4202,6 +4201,7 @@ jobs:
             /.github/scripts/lib/trusted-actors.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
             /.github/actions/check-kill-switch/budget-policy.mjs
+            /.github/actions/check-kill-switch/stop-record.mjs
             /.github/actions/check-kill-switch/projection.mjs
             /.github/actions/log-api-budget/rate-guard.mjs
             /.github/actions/log-api-budget/rate-limits.json
@@ -4319,6 +4319,7 @@ jobs:
             /.github/scripts/lib/trusted-actors.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
             /.github/actions/check-kill-switch/budget-policy.mjs
+            /.github/actions/check-kill-switch/stop-record.mjs
             /.github/actions/check-kill-switch/projection.mjs
             /.github/actions/log-api-budget/rate-guard.mjs
             /.github/actions/log-api-budget/rate-limits.json

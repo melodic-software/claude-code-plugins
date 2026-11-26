@@ -235,6 +235,59 @@ class ProbeTests(unittest.TestCase):
         self.assertTrue(os.path.isabs(str(result["hook_python"])))
         self.assertIn("data_root", result)
 
+    def test_managed_settings_disable_overrides_user_enable(self) -> None:
+        self.write_toggle(True)
+        managed = Path(self.tmp.name) / "managed-settings.json"
+        managed.write_text(
+            json.dumps(
+                {
+                    "pluginConfigs": {
+                        "disk-hygiene@melodic-software": {
+                            "options": {"disk_hygiene_enabled": False}
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        with mock.patch.object(
+            probe.killswitch_config, "managed_settings_path", return_value=managed
+        ):
+            result = self.run_probe()
+        self.assertFalse(result["effective"])
+        self.assertEqual("configured", result["source"])
+        self.assertEqual(str(managed), result["settings_path"])
+
+    def test_cache_install_narrows_probe_by_plugin_id(self) -> None:
+        self.write_settings(
+            {
+                "pluginConfigs": {
+                    "disk-hygiene@acme": {"options": {"disk_hygiene_enabled": False}},
+                    "disk-hygiene@other": {"options": {"disk_hygiene_enabled": True}},
+                }
+            }
+        )
+        cache_root = (
+            Path(self.tmp.name)
+            / "plugins"
+            / "cache"
+            / "acme"
+            / "disk-hygiene"
+            / "1.0.0"
+        )
+        with (
+            mock.patch.object(probe, "_PLUGIN_ROOT", cache_root),
+            mock.patch.object(
+                probe.killswitch_config,
+                "managed_settings_path",
+                return_value=Path(self.tmp.name) / "absent-managed.json",
+            ),
+        ):
+            result = self.run_probe()
+        self.assertFalse(result["effective"])
+        self.assertEqual("configured", result["source"])
+        self.assertFalse(result["degraded"])
+
 
 class LaunchDisclosureParityTests(unittest.TestCase):
     """The probe reports the interpreter the belt's denial names and the data

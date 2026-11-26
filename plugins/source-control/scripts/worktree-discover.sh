@@ -180,6 +180,10 @@ machine_key=""
 while IFS= read -r line; do
   machine_key="${line%$'\r'}"
 done < <(git config --global --includes --type=path --get-all worktreeroot.path 2>/dev/null)
+while IFS= read -r line; do
+  line="${line%$'\r'}"
+  [[ -n "$line" ]] && add_root "$line" git-config
+done < <(worktree_root_list_all)
 rest_of_chain() {
   if [[ -n "$fallback_root" ]]; then
     add_root "$fallback_root" plugin-option
@@ -187,7 +191,7 @@ rest_of_chain() {
     add_root "$data_root/worktrees" plugin-data
   fi
 }
-if [[ -n "$machine_key" ]]; then add_root "$machine_key" git-config; else rest_of_chain; fi
+[[ -n "$machine_key" ]] || rest_of_chain
 
 wt_rows=""
 wt_seen=$'\n'

@@ -577,7 +577,7 @@
     function dictBtn(f, label) {
       const b = ibtn("vf-btn vf-btn-ghost vf-btn-sm vf-dictate", "mic", label);
       b._label = label; b.hidden = true; b.setAttribute("aria-pressed", "false");
-      b.onpointerdown = e => e.preventDefault(); // the box keeps focus, so a phone's composer stays open
+      b.onpointerdown = e => e.preventDefault();
       b.onclick = () => {
         const was = SPEECH.btn === b && !!SPEECH.rec;
         stopDictation();
@@ -2283,7 +2283,7 @@
     }
     function openLb(kind, qid, i, from, items = null, meta = "") {
       Object.assign(LB, { kind, qid, i: Math.max(0, i), from, vKey: null, cur: ui.cur, items, meta });
-      lbImg._src = null; // each opening starts a GIF still (WCAG 2.2.2); a repaint while open keeps it playing
+      lbImg._src = null;
       lb.hidden = false; lbZoomTo(1); paintLb();
       lbClose.focus({ preventScroll: true });
     }
@@ -2361,7 +2361,7 @@
     let pinch = null, drag = null, lastTap = 0;
     on(lbStage, "pointerdown", e => {
       if (e.target.closest(".vf-lb-nav") || (e.pointerType === "mouse" && e.button !== 0)) return;
-      try { lbStage.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+      try { lbStage.setPointerCapture(e.pointerId); } catch {}
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, s: LB.s }; drag = null; }
       else if (ptrs.size === 1) drag = { x: e.clientX, y: e.clientY, tx: LB.x, ty: LB.y, t: Date.now() };
@@ -2388,7 +2388,7 @@
     };
     on(lbStage, "pointerup", lbUp); on(lbStage, "pointercancel", lbUp);
     on(lbStage, "wheel", e => {
-      if (e.ctrlKey) lbZoomTo(LB.s * Math.exp(-e.deltaY / 100), ...fromCenter(e.clientX, e.clientY)); // trackpad pinch
+      if (e.ctrlKey) lbZoomTo(LB.s * Math.exp(-e.deltaY / 100), ...fromCenter(e.clientX, e.clientY));
       else if (LB.s > 1) { LB.x -= e.deltaX; LB.y -= e.deltaY; lbApply(); }
       else return;
       e.preventDefault();
@@ -2450,7 +2450,7 @@
       const cls = ui.bumped ? "vf-badge-pop" : "vf-bump";
       ui.bumped = true;
       fab.classList.remove("vf-bump", "vf-badge-pop");
-      void fab.offsetWidth; // restart the animation
+      void fab.offsetWidth;
       fab.classList.add(cls);
     }
     async function sendChat() {
@@ -3282,7 +3282,7 @@
     function gifWalk(b) {
       if (!/^GIF8[79]a$/.test(String.fromCharCode(...b.subarray(0, 6)))) return null;
       const table = flags => (flags & 0x80 ? 3 << ((flags & 7) + 1) : 0);
-      const subs = j => { while (j < b.length && b[j]) j += b[j] + 1; return j + 1; }; // data sub-blocks end at a zero length
+      const subs = j => { while (j < b.length && b[j]) j += b[j] + 1; return j + 1; };
       let i = 13 + table(b[10]), frames = 0;
       const parts = [b.subarray(0, i)];
       while (i < b.length) {
@@ -3672,7 +3672,7 @@
       }
       const fmt = mask => {
         const d = mask; let r = d; for (let i = 0; i < 10; i++) r = (r << 1) ^ ((r >>> 9) * 0x537);
-        const b = ((d << 10) | r) ^ 0x5412, bit = i => ((b >>> i) & 1) === 1; // M is 00
+        const b = ((d << 10) | r) ^ 0x5412, bit = i => ((b >>> i) & 1) === 1;
         for (let i = 0; i <= 5; i++) set(8, i, bit(i));
         set(8, 7, bit(6)); set(8, 8, bit(7)); set(7, 8, bit(8));
         for (let i = 9; i < 15; i++) set(14 - i, 8, bit(i));
@@ -3698,7 +3698,7 @@
         (x, y) => (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0, (x, y) => (x * y) % 2 + (x * y) % 3 === 0,
         (x, y) => ((x * y) % 2 + (x * y) % 3) % 2 === 0, (x, y) => ((x + y) % 2 + (x * y) % 3) % 2 === 0];
       const apply = m => { for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (!F[y][x] && MASKS[m](x, y)) M[y][x] = !M[y][x]; };
-      const penalty = () => { // runs of five or more, 2x2 blocks, dark balance
+      const penalty = () => {
         let p = 0, dark = 0;
         for (let a = 0; a < size; a++) for (const row of [0, 1]) {
           let run = 1;
@@ -6111,7 +6111,7 @@
         if ((e.pointerType === "mouse" && e.button !== 0) || grip.disabled) return;
         e.preventDefault();
         FMT.drag = { id: li._id, pointer: e.pointerId, moved: false };
-        try { rankList.setPointerCapture(e.pointerId); } catch { /* the pointer is gone */ }
+        try { rankList.setPointerCapture(e.pointerId); } catch {}
         li.classList.add("vf-dragging");
       };
       return li;
@@ -6146,7 +6146,7 @@
     const endDrag = e => {
       const dr = FMT.drag; if (!dr || e.pointerId !== dr.pointer) return;
       FMT.drag = null;
-      try { rankList.releasePointerCapture(e.pointerId); } catch { /* released */ }
+      try { rankList.releasePointerCapture(e.pointerId); } catch {}
       const li = rankList._map?.get(dr.id);
       li?.classList.remove("vf-dragging");
       if (dr.moved) { const q = qById(ui.cur); announce(`Moved to position ${draftOf(q).indexOf(dr.id) + 1}. Save your ranking when it is right.`); }
@@ -7281,7 +7281,7 @@
         const atBottom = mStick || mGap() < 40;
         const rows = msgs.flatMap((m, i) => (m.gapAbove ? [{ id: i ? "gap:" + m.id : "gap-top", gap: m.id }, m] : [m]));
         const added = rows.filter(r => !mList._map?.has(r.id)).length;
-        if (added > 1) { mList.setAttribute("aria-busy", "true"); requestAnimationFrame(() => mList.removeAttribute("aria-busy")); } // a batch is not read out
+        if (added > 1) { mList.setAttribute("aria-busy", "true"); requestAnimationFrame(() => mList.removeAttribute("aria-busy")); }
         sync(mList, rows, m => m.id, m => {
           if (m.gap) {
             const li = E("li", "vf-mgap"), b = btn("vf-btn vf-btn-ghost vf-btn-sm", "Load earlier messages");

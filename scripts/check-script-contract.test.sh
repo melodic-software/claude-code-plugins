@@ -11,8 +11,6 @@ REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)" || exit 2
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh" || exit 2
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
 REGISTRY=(
@@ -226,8 +224,7 @@ recipe::hook_slow_shapes() {
   mkdir -p "$f/plugins/alpha/hooks" "$f/.github"
   cp "$REPO_ROOT/.github/requirements-ci.txt" "$f/.github/requirements-ci.txt"
   printf '#!/usr/bin/env bash\nexit 0\n' >"$f/plugins/alpha/hooks/x.sh"
-  # The command goes in on stdin: Git Bash rewrites a `.../hooks/x.sh` argument
-  # into a Windows path before a native jq sees it.
+  # Git Bash converts path-like arguments to Windows paths: https://www.msys2.org/docs/filesystem-paths/
   printf '%s' "$cmd" | jq -Rs '{hooks:{Stop:[{hooks:[{type:"command",command:.}]}]}}' \
     >"$f/plugins/alpha/hooks/hooks.json"
   capture run_in "$f" bash scripts/check-hook-slow-shapes.sh

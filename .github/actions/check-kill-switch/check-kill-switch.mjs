@@ -4,6 +4,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { budgetPolicy, clean, gateDecision, show } from "./budget-policy.mjs";
+import { stopRecordLine } from "./stop-record.mjs";
 
 export { budgetStops, deferGate, projectionGate, startGateShare } from "./budget-policy.mjs";
 
@@ -148,6 +149,13 @@ export async function main(
     }
   }
   writeOutputs(result, env.GITHUB_OUTPUT);
+  if (result.proceed === "false") {
+    try {
+      log(stopRecordLine({ pool: result.reset ? "core" : null, cause: result.cause, reset: result.reset ? Number(result.reset) : null }));
+    } catch (error) {
+      log(`::warning title=stop-record::the stop was not recorded (${clean(error?.message ?? error)}); its outputs stand`);
+    }
+  }
   log(`check-kill-switch: proceed=${result.proceed} reason=${result.reason} cause=${result.cause}${result.reset ? ` reset=${result.reset}` : ""}`);
 }
 

@@ -246,7 +246,7 @@ The last reply of a run that creates or changes a skill has three parts, in this
 
 ## Skill-tool composition (Melodic Software addition)
 
-Each Skill tool call loads exactly one skill, so a step that uses two skills makes two calls. For a
+A step that uses two skills makes two Skill tool calls, one per skill. For a
 skill with `disable-model-invocation: true`, tell the user to run `/plugin:skill` instead of
 attempting the call. **Pointer**: when deciding whether Claude may invoke a skill itself, fetch
 [Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill)

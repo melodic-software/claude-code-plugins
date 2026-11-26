@@ -13,12 +13,13 @@ from pathlib import Path
 from unittest import mock
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
+CLEAN_SCRIPTS = SCRIPT_DIR.parents[1] / "clean" / "scripts"
+for _path in (SCRIPT_DIR, CLEAN_SCRIPTS):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
+import hygiene  # noqa: E402  (path set above; integration test only)
 import policy_migration  # noqa: E402  (path set above)
-
-hygiene = policy_migration.hygiene
 
 HINT = {
     "id": "team-hint",

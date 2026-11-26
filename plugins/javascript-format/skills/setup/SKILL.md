@@ -70,7 +70,9 @@ pre-computed `jq` row, run the remaining probes via Bash, and report a PASS/FAIL
 table with one remediation line per FAIL. Do not modify anything.
 Run every numbered step below and give each one that applies its own row in that table, also when
 the request adds questions of its own; answer those beside the table.
-Read each option value from this text; never put a `${user_config.*}` string in a shell command.
+Read each option value from this text, where Claude Code substitutes it
+([reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value));
+never put a `${user_config.*}` string in a shell command.
 Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 An installed plugin runs from a deeply nested cache path, and a search passed that path can fail
 to start on some hosts because the path is too long, while reading a named file still works.

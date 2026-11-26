@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [14.0.0] - 2026-11-26
+
+### Changed
+
+- **The shared view resolver takes `--producer`, not `--lane`.** "Lane" now means only a worker
+  that serves one pipeline stage, so a skill or plugin registered with the resolver is a producer:
+  run `view-settings.mjs resolve --producer <id>` (`--lane` is gone, with no alias). The registry
+  exports `PRODUCERS` and `producerOf`, `resolveMedium` takes `producer`, and the view builder's
+  `render` takes a producer id.
+
 ## [13.21.10] - 2026-11-26
 
 ### Changed
@@ -119,7 +129,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
-- New keys `pr_body_loosened_checks_heading`, `pr_body_loosened_checks_record_pattern` and `pr_body_loosened_checks_verbatim_marker` in `docs/conventions/source-control.yaml` and its personal override, read by the guardrails plugin to refuse a Loosened checks section that no linked issue authorizes.
+- New keys for the Loosened checks heading, record pattern and verbatim marker in `docs/conventions/source-control.yaml` and its personal override, read by the guardrails plugin to refuse a Loosened checks section that no linked issue authorizes.
 
 ## [13.18.0] - 2026-11-24
 

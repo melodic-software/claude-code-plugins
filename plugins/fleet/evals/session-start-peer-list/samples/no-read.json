@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [] },
+    { "answer": [ { "tool": "Glob", "input": { "pattern": "**/*" } } ], "why": "an allowed search tool" }
+  ],
+  "fail": [
+    { "answer": [ { "tool": "Read", "input": { "file_path": ".config/fleet/fleet.json" } } ], "why": "read the manifest itself" }
+  ]
+}

@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import { budgetStops, checkBudget, checkKillSwitch, deferGate, main, projectionGate, startGateShare, writeOutputs } from "./check-kill-switch.mjs";
 import { readOutputs } from "./fixtures/read-outputs.mjs";
+import { deferResets } from "./stop-record.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { WAIT_BUDGET_SECONDS } from "../log-api-budget/rate-guard.mjs";
 
@@ -359,6 +360,30 @@ test("a window projected to run short before the job ends defers it, with cause 
   );
   assert.ok(lines.includes(`check-kill-switch: proceed=false reason=kill-switch cause=defer reset=${NOW_S + 1800}`));
   assert.ok(!lines.some((line) => line.includes("start-gate")), "no start-gate label on the defer path");
+});
+
+const recordsOf = (lines) => lines.filter((line) => line.startsWith("::notice title=stop-record::")).map((line) => line.slice("::notice title=stop-record::".length));
+
+test("every stop logs one stop record of its cause and reset, and a go logs none", async () => {
+  const cases = [
+    ["switch", { ...OFF, KILL_SWITCH_VALUE: "true" }, empty, ['{"pool":null,"cause":"switch","reset":null}']],
+    ["budget", START, rateLimitResponse({ headers: headersOf(5000, 499, RESET) }), [`{"pool":"core","cause":"budget","reset":${RESET}}`]],
+    ["defer", DEFER, reading(2000, 1800), [`{"pool":"core","cause":"defer","reset":${NOW_S + 1800}}`]],
+    ["go", START, rateLimitResponse({ headers: headersOf(5000, 500, RESET) }), []],
+  ];
+  for (const [label, env, answer, records] of cases) {
+    const { lines } = await runMain(env, answer);
+    assert.deepEqual(recordsOf(lines), records, label);
+  }
+});
+
+test("a deferred hosted review's record and its stop notice name the same reset to the reconciler's reader", async () => {
+  const { lines, outputs } = await runMain(DEFER, reading(2000, 1800));
+  const hosted = readFileSync(new URL("../../workflows/pr-review-hosted.yml", import.meta.url), "utf8");
+  const notice = /echo "::notice::(a kill switch stops this review \(.*\))"$/m.exec(hosted)[1].replace("${REASON:-unreadable}", outputs.reason).replace("${CAUSE:-unreadable}", outputs.cause).replace("${RESET:-none}", outputs.reset).replace("${LANE_SWITCH:-unset}", "unset");
+  const [record] = recordsOf(lines);
+  assert.deepEqual(deferResets([{ title: "stop-record", message: record }]), [NOW_S + 1800], "the record");
+  assert.deepEqual(deferResets([{ title: null, message: notice }]), [NOW_S + 1800], "the human notice beside it");
 });
 
 test("a quiet window lets a deferrable job go", async () => {
@@ -873,7 +898,7 @@ test("CLI start gate in a checkout without log-api-budget warns, reads no budget
     const script = path.join(dir, "check-kill-switch", "check-kill-switch.mjs");
     mkdirSync(path.dirname(script));
     copyFileSync(SCRIPT, script);
-    for (const name of ["budget-policy.mjs", "projection.mjs"]) copyFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), path.join(dir, "check-kill-switch", name));
+    for (const name of ["budget-policy.mjs", "projection.mjs", "stop-record.mjs"]) copyFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), path.join(dir, "check-kill-switch", name));
     const { status, stdout, outputs } = runCli({ ...START, BUDGET_TOKEN: "t" }, script);
     assert.equal(status, 0);
     assert.match(stdout, /::warning title=start-gate::rate-limits\.json gave no start-gate share \(ENOENT\)/);

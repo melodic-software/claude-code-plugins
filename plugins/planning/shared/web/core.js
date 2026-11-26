@@ -863,10 +863,10 @@
     return true;
   }
 
-  const cut = (text, n) => Array.from(String(text)).slice(0, n).join(""); // by code point, as the server counts
-  const recentErrors = []; // the last few this page saw, which a problem report carries
-  const LAT_EDGES = [100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000]; // ms, upper bucket edges; share.py LAT_EDGES
-  const SUMMARY_MAX = 500; // the server's message limit: what does not fit waits for the next summary
+  const cut = (text, n) => Array.from(String(text)).slice(0, n).join("");
+  const recentErrors = [];
+  const LAT_EDGES = [100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000];
+  const SUMMARY_MAX = 500;
   const tel = {
     seen: new Set(), lat: new Map(), rb: new Map(), gaps: [], layout: new Set(), use: new Map(), rage: new Map(), dead: new Map(),
     pv: hex(4),
@@ -1364,7 +1364,7 @@
   };
   document.addEventListener("visibilitychange", catchUp);
   window.addEventListener("pageshow", catchUp);
-  document.addEventListener("resume", catchUp); // Page Lifecycle: a frozen tab thawed (Chrome on Android)
+  document.addEventListener("resume", catchUp); // Page Lifecycle resume event: https://developer.chrome.com/docs/web-platform/page-lifecycle-api
   window.addEventListener("focus", catchUp);
 
   function askSwitch(other) {

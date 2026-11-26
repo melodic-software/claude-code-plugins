@@ -708,6 +708,15 @@ lib/plugin_cache_versions.py
 # duplication audit: the root canonical and the copies.
 lib/plugin_cache_versions.py -> plugins/*/lib/plugin_cache_versions.py
 
+# Dedicated check: scripts/sync-shared-copies.sh --check. The Claude projects
+# slug encoder, resolver and orphan detector shared by session-flow,
+# harness-ops and disk-hygiene.
+lib/claude_projects.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/claude_projects.py -> plugins/*/lib/claude_projects.py
+
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/view-builder.mjs. The review, planning, debugging, discovery and architecture plugins carry the generated
 # copies, which stay byte-identical to each other.
@@ -953,3 +962,11 @@ hooks/session-attended.env
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/session-attended.env -> plugins/*/hooks/session-attended.env
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/session-attended.mjs, the predicate's node reader.
+hooks/session-attended.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/session-attended.mjs -> plugins/*/hooks/session-attended.mjs

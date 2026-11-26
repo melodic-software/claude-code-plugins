@@ -7,7 +7,8 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../lib/github-client.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CI_WORKFLOWS, DEFER_MAX, DEFER_NOTE, DEFER_STEP, RECORD_SLOTS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_JOB_PREFIXES, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, reviewStopped, reviewStopsAmidGateNotes, SETTLED_VERSION, TOO_OLD_DAYS, TRUNCATED_STEPS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { deferResets, stopRecordLine } from "../../actions/check-kill-switch/stop-record.mjs";
+import { CI_WORKFLOWS, DEFER_MAX, DEFER_STEP, RECORD_SLOTS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_JOB_PREFIXES, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, reviewStopped, reviewStopsAmidGateNotes, SETTLED_VERSION, TOO_OLD_DAYS, TRUNCATED_STEPS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { listCommits } from "../lib/trusted-actors.fixtures.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -919,9 +920,6 @@ test("a verify run with a final job listing and unknown steps is held and carrie
   }
 });
 
-// A runner that dies cuts its job's list at the running step, with no
-// "Complete job"; GitHub's runner-loss annotation on the job's check run tells
-// that cut from one the API made.
 test("a verify run whose job lost its runner is re-run when its cut list stops before the judge step, from the job's annotations", async () => {
   const lostAt = (running) => ({
     id: 88,
@@ -3051,6 +3049,41 @@ test("a deferred verify run waits until RATE_RESET_GRACE_MS past the reset its n
   assert.deepEqual(carried.reruns, [371]);
 });
 
+const recordNote = (stop) => ({ annotation_level: "notice", title: "stop-record", message: stopRecordLine(stop).slice("::notice title=stop-record::".length) });
+const NOTE_FORMS = {
+  record: (reset) => [recordNote({ pool: "core", cause: "defer", reset })],
+  both: (reset) => [recordNote({ pool: "core", cause: "defer", reset }), ...deferNote(reset)],
+};
+const verifyNoted = (id, notes) => {
+  const deferred = deferredVerify(id);
+  deferred.jobs[0].notes = notes;
+  return deferred;
+};
+const reviewsNoted = (n, notes) => [redChecks(100 + n, sha(n)), ...[{}, { path: SECURITY_REVIEW }].map((opts, i) => stoppedRun((2 + i) * 100 + n, sha(n), opts, stoppedJobs().map((job) => (job.id === 312 ? { ...job, notes } : job))))];
+
+test("a stop record decides a deferral as the older notice text does, alone or beside it, with the same reads", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const pass = async (notes, now) => {
+    const { code, reruns, calls, outputs } = await reconcile({ pulls: [pr(1)], runs: [...reviewsNoted(1, notes), verifyNoted(371, notes.map((note) => (note.title === "stop-record" ? note : { ...note, title: "pr-verify" })))], env: SWITCHES_OFF, carry: null, now });
+    return { code, reruns, calls, outputs };
+  };
+  for (const now of [RESET_S * 1000 + 60_000, RESET_S * 1000 + 61_000]) {
+    const text = await pass(deferNote(RESET_S), now);
+    for (const [form, notes] of Object.entries(NOTE_FORMS)) {
+      assert.deepEqual(await pass(notes(RESET_S), now), text, `${form} at ${now - RESET_S * 1000} ms past the reset`);
+    }
+  }
+  assert.deepEqual((await pass(deferNote(RESET_S), RESET_S * 1000 + 60_000)).reruns, [], "the pin holds a wait inside the grace");
+  assert.deepEqual((await pass(deferNote(RESET_S), RESET_S * 1000 + 61_000)).reruns.sort(), [201, 301, 371], "and a re-run past it");
+});
+
+test("a switch stop's record names no deferral, so the stopped review re-runs now as an unnoted stop does", async () => {
+  const unnoted = await reconcile({ pulls: [pr(1)], runs: reviewsNoted(1, [{ annotation_level: "notice", message: "api calls: 12" }]), env: SWITCHES_OFF });
+  const switched = await reconcile({ pulls: [pr(1)], runs: reviewsNoted(1, [recordNote({ cause: "switch" })]), env: SWITCHES_OFF });
+  assert.deepEqual(switched.reruns, unnoted.reruns);
+  assert.deepEqual(switched.reruns, [201, 301]);
+});
+
 test("a deferred verify run whose notice names no reset is read again next pass, not re-run", async () => {
   const unnoted = deferredVerify(372);
   unnoted.jobs[0].notes = [{ annotation_level: "notice", message: "api calls: 12" }];
@@ -3089,7 +3122,7 @@ test("pr-verify's deferral step prints the notice the reconciler reads, and runs
   assert.match(step, /^ {8}if: steps\.defer\.outputs\.cause == 'defer'$/m);
   assert.match(step, /^ {10}RESET: \$\{\{ steps\.defer\.outputs\.reset \}\}$/m);
   const line = /echo "(::notice title=pr-verify::.*)"$/m.exec(step)?.[1];
-  assert.equal(DEFER_NOTE.exec(line.replace("${RESET}", "1800000000"))?.[1], "1800000000");
+  assert.deepEqual(deferResets([{ title: "pr-verify", message: line.replace("${RESET}", "1800000000") }]), [1800000000]);
   assert.doesNotMatch(line, /::held: /, "a deferral is not a GitHub fault's hold");
 });
 
@@ -3114,7 +3147,7 @@ test("the hosted callers print the gate's cause and reset in the stop notice the
     const line = /echo "::notice::a kill switch stops this (?:security )?review \(.*"$/m.exec(text)?.[0];
     assert.ok(line, file);
     const shown = line.replace("${CAUSE:-unreadable}", "defer").replace("${RESET:-none}", "1800000000");
-    assert.equal(DEFER_NOTE.exec(shown)?.[1], "1800000000", file);
+    assert.deepEqual(deferResets([{ title: null, message: shown }]), [1800000000], file);
     assert.match(text, /^ {10}RESET: \$\{\{ steps\.kill\.outputs\.reset \}\}$/m, file);
   }
 });

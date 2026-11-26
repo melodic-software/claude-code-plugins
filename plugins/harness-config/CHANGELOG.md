@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.12.1] - 2026-11-26
+
+### Changed
+
+- Shared `enforcement-ladder.md` copy synced where this plugin carries it: citations of retired ADRs repointed or unlinked; no other change to this plugin.
+
 ## [5.12.0] - 2026-11-26
 
 ### Added

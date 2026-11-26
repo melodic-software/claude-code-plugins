@@ -1,4 +1,5 @@
 # test-scope: plugins/session-flow/scripts/save_point.py plugins/session-flow/scripts/tests/fixtures/*
+# test-scope: plugins/session-flow/scripts/dialect.py plugins/session-flow/scripts/handoff_chain.py plugins/session-flow/scripts/handoff_fit.py plugins/session-flow/scripts/io_streams.py plugins/session-flow/scripts/plugin_paths.py
 """Contract tests for the `id_reuse` check (PLAN.md AC2): a handoff file stamped
 `checks: 3` or higher that reuses an id retired anywhere earlier in its chain for a
 different entry fails `validate`. Expected values come from AC2's wording and the

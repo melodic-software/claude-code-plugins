@@ -536,7 +536,7 @@ REC_SEP=$'\x1f'
 mapfile -t REF_RECORDS < <(git -C "$REPO_ROOT" for-each-ref refs/heads/ \
   --format='%(refname)%1f%(refname:short)%1f%(objectname)%1f%(objecttype)%1f%(committerdate:unix)%1f%(upstream)%1f%(upstream:short)%1f%(upstream:track)' 2>/dev/null | tr -d '\r')
 
-bulk_record_ok() { # <refname> <short name> <object type>
+bulk_record_ok() {
   [[ "$1" == "refs/heads/$2" && "$3" == commit ]]
 }
 

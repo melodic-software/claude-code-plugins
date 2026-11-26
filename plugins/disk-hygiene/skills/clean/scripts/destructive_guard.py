@@ -56,15 +56,16 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import NamedTuple
 
 _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+import data_root_state  # noqa: E402  (path set above; plugin-bundled module)
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
 import guard_decision_log  # noqa: E402  (path set above; plugin-bundled module)
 import hook_telemetry  # noqa: E402  (path set above; plugin-bundled module)
+import install_authority  # noqa: E402  (path set above; plugin-bundled module)
 import killswitch_config  # noqa: E402  (path set above; plugin-bundled module)
 
 
@@ -174,11 +175,7 @@ def _is_current_python(value: str) -> bool:
 
 
 def _display_python() -> str:
-    try:
-        runtime = Path(sys.executable).resolve(strict=True)
-    except OSError:
-        runtime = Path(sys.executable).absolute()
-    return _display_path(runtime)
+    return install_authority.display_python()
 
 
 def _literal_shell_words(
@@ -238,226 +235,32 @@ def _data_root_key(value: str) -> str:
     return os.path.normcase(os.fspath(Path(value).expanduser().resolve(strict=False)))
 
 
-_AUTHORIZED_DATA_ROOT_FLAG = "--authorized-data-root"
-_CLAUDE_PLUGIN_DATA_ENV = "CLAUDE_PLUGIN_DATA"
-_AUTHORIZED_DATA_ROOT_PLACEHOLDER = f"${{{_CLAUDE_PLUGIN_DATA_ENV}}}"
+_AUTHORIZED_DATA_ROOT_FLAG = install_authority.AUTHORIZED_DATA_ROOT_FLAG
+_CLAUDE_PLUGIN_DATA_ENV = install_authority.CLAUDE_PLUGIN_DATA_ENV
+_AUTHORIZED_DATA_ROOT_PLACEHOLDER = install_authority.AUTHORIZED_DATA_ROOT_PLACEHOLDER
 
-_PLUGIN_ROOT_FLAG = "--plugin-root"
-_PLUGIN_ROOT_PLACEHOLDER = "${CLAUDE_PLUGIN_ROOT}"
-_PLUGIN_CACHE_DIRNAME = "cache"
-_PLUGINS_DIRNAME = "plugins"
-_PLUGIN_DATA_DIRNAME = "data"
-_PLUGIN_ID_DISALLOWED = re.compile(r"[^A-Za-z0-9_-]")
+_PLUGIN_ROOT_FLAG = install_authority.PLUGIN_ROOT_FLAG
+_PLUGIN_ROOT_PLACEHOLDER = install_authority.PLUGIN_ROOT_PLACEHOLDER
 
-
-def _plugins_cache_index(parts: tuple[str, ...]) -> int | None:
-    for index in range(1, len(parts)):
-        if (
-            parts[index].casefold() == _PLUGIN_CACHE_DIRNAME
-            and parts[index - 1].casefold() == _PLUGINS_DIRNAME
-        ):
-            return index
-    return None
-
-
-def _cache_install_segments(parts: tuple[str, ...]) -> tuple[int, str, str] | None:
-    index = _plugins_cache_index(parts)
-    if index is None or index + 2 >= len(parts):
-        return None
-    marketplace, name = parts[index + 1], parts[index + 2]
-    if not marketplace or not name:
-        return None
-    return index, marketplace, name
-
-
-def _sanitized_plugin_id(name: str, marketplace: str) -> str:
-    return _PLUGIN_ID_DISALLOWED.sub("-", f"{name}@{marketplace}")
-
-
-def _plugin_data_root_from_root(plugin_root: str) -> str | None:
-    parts = Path(plugin_root).parts
-    segments = _cache_install_segments(parts)
-    if segments is None:
-        return None
-    index, marketplace, name = segments
-    plugins_dir = Path(*parts[:index])
-    return os.fspath(
-        plugins_dir / _PLUGIN_DATA_DIRNAME / _sanitized_plugin_id(name, marketplace)
-    )
-
-
-_KNOWN_MARKETPLACES_FILENAME = "known_marketplaces.json"
-_MANIFEST_DIRNAME = ".claude-plugin"
-_DIRECTORY_SOURCE = "directory"
-_FOLDERID_PROFILE = "5E6C858F-0E22-4760-9AFE-EA3317B67173"
-
-
-def _account_home() -> Path:
-    if os.name != "nt":
-        import pwd
-
-        return Path(pwd.getpwuid(os.geteuid()).pw_dir)
-    import ctypes
-    import uuid
-
-    guid = (ctypes.c_ubyte * 16).from_buffer_copy(uuid.UUID(_FOLDERID_PROFILE).bytes_le)
-    shell32 = ctypes.WinDLL("shell32")
-    ole32 = ctypes.WinDLL("ole32")
-    known_folder_path = shell32.SHGetKnownFolderPath
-    known_folder_path.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_uint32,
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_void_p),
-    ]
-    known_folder_path.restype = ctypes.c_long
-    ole32.CoTaskMemFree.argtypes = [ctypes.c_void_p]
-    ole32.CoTaskMemFree.restype = None
-    buffer = ctypes.c_void_p()
-    try:
-        if known_folder_path(ctypes.byref(guid), 0, None, ctypes.byref(buffer)) != 0:
-            raise OSError("SHGetKnownFolderPath(FOLDERID_Profile) failed")
-        return Path(ctypes.wstring_at(buffer.value))
-    finally:
-        ole32.CoTaskMemFree(buffer)
+_plugins_cache_index = install_authority.plugins_cache_index
+_cache_install_segments = install_authority.cache_install_segments
+_sanitized_plugin_id = install_authority.sanitized_plugin_id
+_plugin_data_root_from_root = install_authority.plugin_data_root_from_root
+_account_home = install_authority.account_home
+_DirectoryInstall = install_authority.DirectoryInstall
+_same_or_within = install_authority._same_or_within
 
 
 def _trusted_config_dir() -> Path | None:
-    try:
-        home = _account_home()
-    except Exception:  # noqa: BLE001 - any failure means no trusted anchor
-        return None
-    if not home.is_absolute():
-        return None
-    return home / ".claude"
-
-
-class _DirectoryInstall(NamedTuple):
-    """What the directory-marketplace channel proves about this install."""
-
-    config_dir: Path
-    data_root: str
-
-
-def _read_json_object(path: Path) -> dict | None:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError, RecursionError):
-        return None
-    return value if isinstance(value, dict) else None
-
-
-def _strict_resolve(path: Path) -> Path | None:
-    try:
-        return path.resolve(strict=True)
-    except (OSError, ValueError, RuntimeError):
-        return None
-
-
-def _same_or_within(path: Path, directory: Path) -> bool:
-    child = os.path.normcase(os.fspath(path))
-    parent = os.path.normcase(os.fspath(directory))
-    try:
-        return os.path.commonpath([child, parent]) == parent
-    except ValueError:
-        return False
-
-
-def _marketplace_entry_root(
-    source: object, location: Path, plugin_base: object
-) -> Path | None:
-    if not isinstance(source, str) or not source or Path(source).anchor:
-        return None
-    if source.startswith("./"):
-        candidate = location / source
-    elif isinstance(plugin_base, str) and not Path(plugin_base).anchor:
-        candidate = location / plugin_base / source
-    else:
-        return None
-    resolved = _strict_resolve(candidate)
-    if resolved is None or not _same_or_within(resolved, location):
-        return None
-    return resolved
+    return install_authority.trusted_config_dir(account_home_fn=_account_home)
 
 
 @functools.lru_cache(maxsize=8)
 def _directory_marketplace_install(plugin_root: str) -> _DirectoryInstall | None:
-    """Prove this plugin is loaded in place from a local-directory marketplace.
-
-    Claude Code loads a relative-path plugin from a marketplace added from a
-    local directory in place, so its ``${CLAUDE_PLUGIN_ROOT}`` is the source
-    checkout and carries no ``plugins/cache`` marker, while
-    ``${CLAUDE_PLUGIN_DATA}`` is still ``<config>/plugins/data/<id>`` (plugins
-    reference, "Persistent data directory"). This recovers ``<id>`` from the
-    trusted config dir's ``plugins/known_marketplaces.json`` (an undocumented
-    file) and the marketplace's own manifest, and every unproven step fails
-    closed to None:
-
-    - exactly one ``directory``-source entry whose ``installLocation``
-      strict-resolves to a directory containing the plugin root;
-    - that marketplace's ``.claude-plugin/marketplace.json`` is named for the
-      same key;
-    - exactly one plugin entry whose relative string ``source`` strict-resolves
-      to the plugin root, whose ``name`` is ``disk-hygiene`` and matches the
-      root's own ``.claude-plugin/plugin.json``.
-
-    The data root is built ONLY from the trusted config dir and the sanitized
-    ``<name>@<marketplace>`` id, never from a path read out of either file.
-    Memoized per process: the guard runs once per tool call.
-    """
-    config_dir = _trusted_config_dir()
-    root = _strict_resolve(Path(plugin_root))
-    if config_dir is None or root is None:
-        return None
-    known = _read_json_object(
-        config_dir / _PLUGINS_DIRNAME / _KNOWN_MARKETPLACES_FILENAME
+    """Thin memoized shim delegating to ``install_authority`` for test compatibility."""
+    return install_authority.directory_marketplace_install(
+        plugin_root, config_dir=_trusted_config_dir()
     )
-    if known is None:
-        return None
-    candidates: list[tuple[str, Path]] = []
-    for key, entry in known.items():
-        if not isinstance(entry, dict):
-            continue
-        source = entry.get("source")
-        location = entry.get("installLocation")
-        if not (
-            isinstance(source, dict)
-            and source.get("source") == _DIRECTORY_SOURCE
-            and isinstance(location, str)
-            and location
-        ):
-            continue
-        resolved = _strict_resolve(Path(location))
-        if resolved is not None and _same_or_within(root, resolved):
-            candidates.append((key, resolved))
-    if len(candidates) != 1:
-        return None
-    marketplace, location = candidates[0]
-    manifest = _read_json_object(location / _MANIFEST_DIRNAME / "marketplace.json")
-    if manifest is None or manifest.get("name") != marketplace:
-        return None
-    plugins = manifest.get("plugins")
-    if not isinstance(plugins, list):
-        return None
-    metadata = manifest.get("metadata")
-    plugin_base = metadata.get("pluginRoot") if isinstance(metadata, dict) else None
-    root_key = os.path.normcase(os.fspath(root))
-    names = []
-    for entry in plugins:
-        if not isinstance(entry, dict):
-            continue
-        entry_root = _marketplace_entry_root(entry.get("source"), location, plugin_base)
-        if entry_root and os.path.normcase(os.fspath(entry_root)) == root_key:
-            names.append(entry.get("name"))
-    name = killswitch_config.PLUGIN_NAME
-    if names != [name]:
-        return None
-    own = _read_json_object(root / _MANIFEST_DIRNAME / "plugin.json")
-    if own is None or own.get("name") != name:
-        return None
-    plugin_id = _sanitized_plugin_id(name, marketplace)
-    data_root = config_dir / _PLUGINS_DIRNAME / _PLUGIN_DATA_DIRNAME / plugin_id
-    return _DirectoryInstall(config_dir, os.fspath(data_root))
 
 
 def _directory_install_for(plugin_root: str) -> _DirectoryInstall | None:
@@ -963,68 +766,39 @@ def resolve_mode() -> str:
     return value if value in {_MODE_BELT, _MODE_ENGINE_GATE} else _MODE_BELT
 
 
-def _argv_flag_value(argv: list[str], flag: str) -> str | None:
-    prefix = f"{flag}="
-    for index, token in enumerate(argv):
-        if token == flag and index + 1 < len(argv):
-            return argv[index + 1]
-        if token.startswith(prefix):
-            return token[len(prefix) :]
-    return None
+_argv_flag_value = install_authority.argv_flag_value
 
 
 def _argv_authorized_data_root(argv: list[str]) -> str | None:
-    return _argv_flag_value(argv, _AUTHORIZED_DATA_ROOT_FLAG)
+    return install_authority.argv_flag_value(argv, _AUTHORIZED_DATA_ROOT_FLAG)
 
 
 def _plugin_root_argument() -> str | None:
-    value = _argv_flag_value(sys.argv[1:], _PLUGIN_ROOT_FLAG)
-    return value if value and value != _PLUGIN_ROOT_PLACEHOLDER else None
+    return install_authority.parse_plugin_root_arg(sys.argv[1:])
 
 
 def resolve_authorized_data_root() -> str | None:
-    """Resolve the authoritative data root a skill-frontmatter hook can supply.
-
-    Precedence, highest first:
-
-    1. ``--authorized-data-root`` — a direct path, for a host that can substitute
-       ``${CLAUDE_PLUGIN_DATA}`` itself (a plugin ``hooks.json`` hook can; a skill
-       hook cannot).
-    2. ``--plugin-root ${CLAUDE_PLUGIN_ROOT}`` — the only substitution a skill hook
-       receives; the data root is derived from its ``plugins/cache`` layout. This
-       is the channel the bundled ``clean`` skill uses.
-    3. The same ``--plugin-root`` when it has no cache layout: a plugin loaded in
-       place from a local-directory marketplace, proven against the trusted
-       config dir's ``known_marketplaces.json`` (``_directory_marketplace_install``).
-
-    The ``CLAUDE_PLUGIN_DATA`` environment variable is never a channel: a repo
-    ``settings.json`` ``env`` block can set it, so it carries no provenance. A
-    literal, unsubstituted placeholder is treated as absent. Absent every
-    channel the guard has no authority and every engine call fails closed.
-    """
+    """Resolve the authoritative data root a skill-frontmatter hook can supply."""
     return resolve_authorized_data_root_channel()[0]
 
 
-DATA_ROOT_CHANNEL_DIRECT = "--authorized-data-root argument"
-DATA_ROOT_CHANNEL_CACHE = "plugin-cache layout"
-DATA_ROOT_CHANNEL_DIRECTORY = "local-directory marketplace install"
+DATA_ROOT_CHANNEL_DIRECT = install_authority.DATA_ROOT_CHANNEL_DIRECT
+DATA_ROOT_CHANNEL_CACHE = install_authority.DATA_ROOT_CHANNEL_CACHE
+DATA_ROOT_CHANNEL_DIRECTORY = install_authority.DATA_ROOT_CHANNEL_DIRECTORY
 
 
 def resolve_authorized_data_root_channel() -> tuple[str | None, str | None]:
     """``resolve_authorized_data_root`` plus the name of the channel that won."""
-    direct = _argv_authorized_data_root(sys.argv[1:])
-    if direct and direct != _AUTHORIZED_DATA_ROOT_PLACEHOLDER:
-        return direct, DATA_ROOT_CHANNEL_DIRECT
-    return data_root_channel_for_plugin_root(_plugin_root_argument())
+    auth = install_authority.resolve_install_authority(
+        plugin_root=_plugin_root_argument(),
+        authorized_data_root=_argv_authorized_data_root(sys.argv[1:]),
+        directory_install_fn=_directory_install_for,
+    )
+    return auth.data_root, auth.channel
 
 
 def data_root_for_plugin_root(plugin_root: str | None) -> str | None:
-    """Steps 2-3 of ``resolve_authorized_data_root`` for a given install root.
-
-    The skill-frontmatter belt reaches its authority here with the substituted
-    ``--plugin-root``; the kill-switch probe reaches it with its own install
-    root, so the ``--data-root`` it reports is the one the belt will admit.
-    """
+    """Steps 2-3 of ``resolve_authorized_data_root`` for a given install root."""
     return data_root_channel_for_plugin_root(plugin_root)[0]
 
 
@@ -1032,79 +806,26 @@ def data_root_channel_for_plugin_root(
     plugin_root: str | None,
 ) -> tuple[str | None, str | None]:
     """``data_root_for_plugin_root`` plus the name of the channel that won."""
-    if plugin_root:
-        derived = _plugin_data_root_from_root(plugin_root)
-        if derived:
-            return derived, DATA_ROOT_CHANNEL_CACHE
-        install = _directory_install_for(plugin_root)
-        if install:
-            return install.data_root, DATA_ROOT_CHANNEL_DIRECTORY
-    return None, None
+    auth = install_authority.resolve_install_authority(
+        plugin_root=plugin_root,
+        directory_install_fn=_directory_install_for,
+    )
+    return auth.data_root, auth.channel
 
 
-def _user_settings_path_from_root(plugin_root: str) -> str | None:
-    parts = Path(plugin_root).parts
-    index = _plugins_cache_index(parts)
-    if index is None:
-        return None
-    plugins_dir = Path(*parts[:index])
-    return os.fspath(plugins_dir.parent / "settings.json")
-
-
-def _plugin_id_from_root(plugin_root: str) -> str | None:
-    segments = _cache_install_segments(Path(plugin_root).parts)
-    if segments is None:
-        return None
-    _, marketplace, name = segments
-    return f"{name}@{marketplace}"
+_user_settings_path_from_root = install_authority.user_settings_path_from_root
+_plugin_id_from_root = install_authority.plugin_id_from_root
 
 
 def _resolve_user_settings_path() -> Path | None:
-    plugin_root = _plugin_root_argument()
-    if plugin_root:
-        derived = _user_settings_path_from_root(plugin_root)
-        if derived:
-            return Path(derived)
-        install = _directory_install_for(plugin_root)
-        if install:
-            return install.config_dir / "settings.json"
-    return None
+    return install_authority.resolve_install_authority(
+        plugin_root=_plugin_root_argument(),
+        directory_install_fn=_directory_install_for,
+    ).user_settings_path
 
 
 def resolve_disk_hygiene_enabled() -> bool:
-    """Resolve the execution kill switch by reading user-scope ``pluginConfigs``.
-
-    The kill switch is a safety control: ``false`` is audit-only mode and must
-    prevent every deletion lane. The guard reads ``disk_hygiene_enabled`` straight
-    out of the ``settings.json`` files (``lib/killswitch_config.py``, the single
-    reader it shares with the report-only probe) — never the process environment.
-    The key is read only from the scopes a project or local ``settings.json``
-    cannot write (https://code.claude.com/docs/en/settings-reference#pluginconfigs,
-    as of 2026-10-11; recheck when that section changes which scopes the key is
-    read from), so a hostile repo cannot flip the switch. The guard reads managed
-    settings so an organization can enforce audit-only mode there
-    (https://code.claude.com/docs/en/managed-settings#deploy-a-managed-settings-file,
-    as of 2026-10-11; recheck when that section moves a platform's
-    managed-settings path or stops describing the file as an enforced policy). The ``--settings`` file is a session CLI flag a hook
-    cannot observe, the one honored source not read here (see
-    ``killswitch_config.managed_settings_path`` for the full residual list). The
-    environment is rejected on purpose: a repo ``settings.json`` ``env`` block
-    reaches hook subprocesses and carries no provenance a hook could check, so an
-    env-borne toggle (or an env-borne user-settings path) would reopen the hole
-    this closes — hence the user settings file is located from the tamper-resistant
-    ``--plugin-root`` first (see ``_resolve_user_settings_path``), and the managed
-    file from its fixed system path. A local-directory marketplace
-    install passes no exact ``<name>@<marketplace>`` id, so both reads match
-    any ``disk-hygiene`` key, as broad as before that install's user settings
-    were read at all: the channel can only add a deny.
-
-    Every absent, unreadable, or ambiguous read fails **closed to enabled**: the
-    guard stays active and gates every mutation behind the final human prompt even
-    when it cannot confirm a configured value. Both registration surfaces reach
-    this one resolver — the plugin-level engine gate and the skill-frontmatter belt
-    both run ``main()``, and both receive ``--plugin-root ${CLAUDE_PLUGIN_ROOT}`` —
-    so the belt needs no environment channel it does not have.
-    """
+    """Resolve the execution kill switch by reading managed + user ``pluginConfigs``."""
     plugin_root = _plugin_root_argument()
     plugin_id = _plugin_id_from_root(plugin_root) if plugin_root else None
     return killswitch_config.resolve_effective(
@@ -1119,16 +840,9 @@ def _is_authorized_data_root(value: str, authority: str | None) -> bool:
 
 
 def _is_authorized_data_root_file(value: str, authority: str | None) -> bool:
-    if not authority or not os.path.isabs(value):
+    if not authority:
         return False
-    try:
-        path = os.path.normcase(os.path.realpath(value))
-        root = os.path.normcase(os.path.realpath(authority))
-        return os.path.commonpath(
-            [path, root]
-        ) == root and not engine_grammar.is_engine_owned(os.path.relpath(path, root))
-    except (OSError, ValueError):
-        return False
+    return data_root_state.DataRoot(authority).is_authorized_file(value)
 
 
 def _engine_external_checks(authority: str | None) -> dict[str, object]:
@@ -1142,23 +856,15 @@ def _engine_external_checks(authority: str | None) -> dict[str, object]:
     }
 
 
-def _display_data_root(authority: str | None) -> str | None:
-    if not authority:
-        return None
-    return _display_path(Path(authority).expanduser().resolve(strict=False))
+_display_data_root = install_authority.display_data_root
 
 
 def launch_disclosure(plugin_root: str | None) -> dict[str, str | None]:
-    """The interpreter and ``--data-root`` the denial guidance names, as data.
-
-    Spelled by the same helpers ``engine_context`` uses, so the kill-switch
-    probe and the guard-values note cannot disagree. ``data_root`` is ``None``
-    exactly when the guard resolved no authority.
-    """
-    return {
-        "hook_python": _display_python(),
-        "data_root": _display_data_root(data_root_for_plugin_root(plugin_root)),
-    }
+    """The interpreter and ``--data-root`` the denial guidance names, as data."""
+    return install_authority.launch_disclosure(
+        plugin_root,
+        directory_install_fn=_directory_install_for,
+    )
 
 
 def classify_exact_engine_command(command: str, authority: str | None) -> str | None:
@@ -1807,11 +1513,7 @@ def _engine_mismatch_reason(command: str, authority: str | None) -> str:
     )
 
 
-_NO_DATA_ROOT_REASON = (
-    "No authorized data root resolved, so every engine call is denied. "
-    "Recovery: run this plugin from a marketplace install, or register its "
-    "checkout with claude plugin marketplace add <checkout>."
-)
+_NO_DATA_ROOT_REASON = install_authority.NO_DATA_ROOT_REASON
 
 
 def _bash_denial_reason(command: str | None, authority: str | None) -> str:
@@ -1853,16 +1555,12 @@ def _bash_denial_guidance(
     )
 
 
-_RUN_MARKER_DIRNAME = engine_grammar.RUN_MARKER_DIRNAME
-_RUN_IDLE_TIMEOUT_SECONDS = engine_grammar.RUN_IDLE_TIMEOUT_SECONDS
+_RUN_MARKER_DIRNAME = data_root_state.RUN_MARKER_DIRNAME
+_RUN_IDLE_TIMEOUT_SECONDS = data_root_state.RUN_IDLE_TIMEOUT_SECONDS
 
 
 def _run_marker_path(authority: str, session_id: str) -> Path:
-    return (
-        Path(authority)
-        / _RUN_MARKER_DIRNAME
-        / engine_grammar.run_marker_filename(session_id)
-    )
+    return data_root_state.CleanRunStore(authority).marker_path(session_id)
 
 
 def _preview_plan_file(words: list[str]) -> str | None:
@@ -1880,7 +1578,9 @@ def _record_run_step(
     if not authority or not session_id:
         return
     try:
-        marker = _run_marker_path(authority, session_id)
+        store = data_root_state.CleanRunStore(
+            authority, idle_timeout_seconds=_RUN_IDLE_TIMEOUT_SECONDS
+        )
         words = _literal_shell_words(command) or []
         ends_with: str | None
         if command_kind == "preview" or command_kind in _MUTATING_ENGINE_SUBCOMMANDS:
@@ -1892,21 +1592,17 @@ def _record_run_step(
             if not ends_with:
                 return
             ends_with = os.path.abspath(os.path.expanduser(ends_with))
-        elif command_kind == "handoff-verify":
-            ends_with = None
-        else:
-            if _run_open(authority, session_id):
-                os.utime(marker)
-            return
-        with engine_grammar.run_marker_lock(marker.parent):
-            if ends_with is not None and _manual_lane_open(
-                marker, authority, session_id
-            ):
-                os.utime(marker)
-                return
-            marker.write_text(
-                json.dumps({"version": 1, "ends_with": ends_with}), encoding="utf-8"
+            store.record_step(
+                session_id,
+                ends_with,
+                manual_lane_check=lambda marker: _manual_lane_open(
+                    marker, authority, session_id
+                ),
             )
+        elif command_kind == "handoff-verify":
+            store.record_step(session_id, None)
+        else:
+            store.record_step(session_id, None, touch_only=True)
     except Exception:  # noqa: BLE001 - run bookkeeping never changes a verdict
         pass
 
@@ -1923,13 +1619,9 @@ def _manual_lane_open(marker: Path, authority: str, session_id: str) -> bool:
 def _run_open(authority: str | None, session_id: str | None) -> bool:
     if not authority or not session_id:
         return True
-    try:
-        written = _run_marker_path(authority, session_id).stat().st_mtime
-    except FileNotFoundError:
-        return False
-    except Exception:  # noqa: BLE001 - an unreadable marker holds the belt
-        return True
-    return time.time() - written < _RUN_IDLE_TIMEOUT_SECONDS
+    return data_root_state.CleanRunStore(
+        authority, idle_timeout_seconds=_RUN_IDLE_TIMEOUT_SECONDS
+    ).is_open(session_id)
 
 
 def _belt_released(

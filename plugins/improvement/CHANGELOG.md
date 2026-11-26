@@ -3,6 +3,12 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.1] - 2026-11-26
+
+### Changed
+
+- `/improvement:find` and `/improvement:setup` point at the plugin reference's saved-value section and the `plugin configure` CLI reference for `${user_config.*}` substitution, the headless command's flags and when a saved value applies, instead of stating them ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
 ## [0.12.0] - 2026-11-26
 
 ### Added

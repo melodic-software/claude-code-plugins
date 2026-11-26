@@ -1,0 +1,17 @@
+{
+  "claim": "After /compact, SessionStart fires again with source compact and its additionalContext reaches the model before the next prompt.",
+  "tags": ["SessionStart", "additionalContext", "/compact", "hooks"],
+  "docs": ["https://code.claude.com/docs/en/hooks#sessionstart"],
+  "permission_mode": "auto",
+  "model": "claude-haiku-5-5",
+  "max_turns": 4,
+  "max_budget_usd": 1.0,
+  "timeout": 400,
+  "turns": ["Say OK.", "/compact"],
+  "target": {
+    "reply_match": "probe-nonce-compact-<session8>",
+    "example": "probe-nonce-compact-0d0d0d0d"
+  },
+  "outcome": "reply",
+  "control": "session-start/startup-delivers-hook-context"
+}

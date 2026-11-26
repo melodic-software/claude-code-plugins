@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node \"${PROBE_CASE_DIR}/../../lib/session-start-nonce.mjs\"" }
+        ]
+      }
+    ]
+  }
+}
