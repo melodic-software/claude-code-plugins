@@ -380,8 +380,9 @@ whatever gate they run, or runs it by hand.
 Any claim about what Claude Code itself ships must come from the raw markdown endpoint. Run
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --max-age 0 --out <dir> skills`, then
 search `<dir>/skills.md` locally. `--max-age 0` asks the server every time, so the claim rests on
-fresh bytes; treat a page `<dir>/manifest.json` reports `unread` as no evidence. A summarizing fetch returns a small model's answer *about* the page, so absence from
-that answer is not evidence of absence. A `200` is also not proof you got the page you asked for:
+fresh bytes; treat a page `<dir>/manifest.json` reports `unread` as no evidence. Never rest an absence claim on
+a summarizing fetch; what one returns is read live from
+[tools reference: WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior). A `200` is also not proof you got the page you asked for:
 retired slugs are silently aliased, so the fetcher confirms the slug against the docs index
 (`llms.txt`); still read the body's own first heading before citing it.
 

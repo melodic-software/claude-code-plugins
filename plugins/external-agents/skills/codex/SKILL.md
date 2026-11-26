@@ -65,7 +65,8 @@ or commit inside its sandbox: tell it to leave Git to you, and stage and commit 
 ## Background runs
 
 Run every `run` and `review` with the Bash tool's `run_in_background`: a run can last up to
-`codex.timeout_seconds`, longer than a foreground Bash call may wait, and a call cut off by its own
+`codex.timeout_seconds`, which can outlast a foreground Bash call (how long one may wait:
+[timeout and output limits](https://code.claude.com/docs/en/tools-reference#timeout-and-output-limits)), and a call cut off by its own
 timeout leaves the job without its result. You are notified when it exits, so do not poll. The job id prints only at the end, so while it runs, find it with bare
 `external-agents status`. Stop a run with `external-agents cancel <job>`, which stops Codex's whole
 process tree; stopping the background Bash task alone may leave Codex running.

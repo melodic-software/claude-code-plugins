@@ -195,8 +195,10 @@ entry-diff summary allow_before=<n> dropped=<n> suspended=<n> kept=<n>
 - **The diff covers allow rules only.** We treat deny and ask as evaluated before the classifier
   in every mode, so they are not part of this diff. Do not report them as "surviving".
 - **Neither label is permanent.** `dropped` and `suspended` both describe what is in force while auto
-  mode is active; the rules are restored when the session leaves it, and nothing edits a settings
-  file. The two labels are kept apart because the remedies differ: a `dropped` rule is fixable by
+  mode is active, and this skill edits no settings file. What Claude Code does with those rules
+  when the session leaves auto mode:
+  [how auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions).
+  The two labels are kept apart because the remedies differ: a `dropped` rule is fixable by
   narrowing that rule, while `suspended` is a global switch no rule edit reaches.
 - **`class` names the reason**: `blanket`, `interpreter-wildcard`, `wrapper-wildcard`,
   `leading-wildcard`, `path-wildcard`, `package-manager-run`, `agent`, or `monitor`. The six shell
