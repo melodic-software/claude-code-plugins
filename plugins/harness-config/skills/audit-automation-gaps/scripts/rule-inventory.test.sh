@@ -172,7 +172,11 @@ assert_no "S: no row cites the org checkout's absolute path" "$rows" "$TMP/org"
 assert_line "S: the org standards files read are named, a listed file that is missing among them" \
   "$(STANDARDS_DIR="$TMP/org" bash "$GEN" --root "$R")" \
   "- review: 1 org standards file(s) read from the org layer's printed index (org-standards.sh index); unreadable: docs/standards/gone.md"
-rm -r "$TMP/org/docs"
+ln -s "$TMP/org" "$TMP/org-link"
+rows="$(STANDARDS_DIR="$TMP/org-link" bash "$GEN" --root "$R" --rows)"
+assert_line "S: through a symbolic link to the org checkout, the row is still labeled by its path in the checkout" "$rows" \
+  "$(printf 'Name each test for the behavior it checks.\torg standards docs/standards/testing.md:1\tautomated-review\t4')"
+rm -r "$TMP/org/docs" "$TMP/org-link"
 
 U="$TMP/org-unreachable"
 new_repo "$U"

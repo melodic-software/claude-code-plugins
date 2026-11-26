@@ -334,7 +334,8 @@ while IFS=$'\t' read -r layer _; do
   [[ -z "$layer" ]] || note "review: the personal standards subscription $layer is present, not counted: it is the user's, not this repository's"
 done < <(bash "$plugin_root/scripts/org-standards.sh" subscriptions --root "$root" 2>/dev/null || true)
 if org_index=$(bash "$plugin_root/scripts/org-standards.sh" index --root "$root" 2>/dev/null) &&
-  org_dir=$(bash "$plugin_root/scripts/org-standards.sh" dir --root "$root" 2>/dev/null); then
+  org_dir=$(bash "$plugin_root/scripts/org-standards.sh" dir --root "$root" 2>/dev/null) &&
+  org_dir=$(cd "$org_dir" && pwd -P); then
   org_n=0 org_missing=""
   while IFS= read -r f; do
     rel="${f#"$org_dir"/}"
