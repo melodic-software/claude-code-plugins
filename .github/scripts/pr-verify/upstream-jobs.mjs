@@ -11,8 +11,6 @@ const RUN_ID = /^[1-9][0-9]{0,19}$/;
 const PER_PAGE = 100;
 const MAX_PAGES = 10;
 
-// The resolver's jobs for run `runId`, or null when the file is missing, is
-// for another run, or is not a job list as shapeJobs writes it.
 export function keptJobs(env, runId) {
   const file = keptJobsPath(env);
   let kept;
@@ -55,9 +53,6 @@ export async function upstreamJobs(github, repository, run) {
   throw new Error(`the jobs of run ${runId} have more than ${MAX_PAGES} pages`);
 }
 
-// Each *.test.js, .mjs or .cjs whose <stem>.test.sh is also in `paths`, where
-// <stem> is the path before its last `.test.` (plan-test-lanes.sh's
-// `${s%.test.*}.test.sh`).
 export function wrappedNodeSuites(paths) {
   const tree = new Set(paths);
   return paths
@@ -66,8 +61,6 @@ export function wrappedNodeSuites(paths) {
     .filter(({ wrapper }) => tree.has(wrapper));
 }
 
-// JOBS_FILE's content: the run's jobs, and the wrapped Node suites of a tree
-// listed NUL-separated, as `git ls-tree -z` lists it.
 export function jobsFile(listed, treeListing) {
   return { ...listed, wrapped_node_suites: wrappedNodeSuites(treeListing.split("\0").filter(Boolean)) };
 }

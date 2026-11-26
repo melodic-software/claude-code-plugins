@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# claim: offline contract tests for the lease protocol's acquisition half.
-#
-# The cases that matter are the refusals. A claim that wrongly SUCCEEDS hands two
-# sessions the same item and neither finds out; a claim that wrongly fails only costs a
-# retry. So every case here that asserts exit 7 is asserting the expensive direction.
 set -uo pipefail
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/claim.sh"
 D="$(dirname "$S")"
@@ -42,8 +37,6 @@ rc="$(lin_run "$S" "linear:acme/ENG#12" --session-id "sess-1")"
 assert_eq "claim on an unclaimed item → exit 0" "0" "$rc"
 assert_eq "schema_version" "1.0" "$(jq -r '.schema_version' <<<"$(lin_out)")"
 assert_eq "id" "linear:acme/ENG#12" "$(jq -r '.id' <<<"$(lin_out)")"
-# The holder is the AUTHENTICATED user, never a caller-supplied name — a claim must not
-# be attributable to someone who did not make it.
 assert_eq "holder is the authenticated viewer" "kyle" "$(jq -r '.holder' <<<"$(lin_out)")"
 assert_eq "session_id is carried through" "sess-1" "$(jq -r '.session_id' <<<"$(lin_out)")"
 assert_eq "ttl_hours defaults from the binding" "24" "$(jq -r '.ttl_hours' <<<"$(lin_out)")"
@@ -82,19 +75,6 @@ seed_claim_ok "$TTL_ZERO"
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "ttl-0 lease is not live" "0" "$rc"
 
-# --- the race that only step 4 can catch ---
-#
-# This is the case Linear's SINGLE assignee field makes invisible: the rival assigned
-# itself, we overwrote it, and re-reading the assignee shows only us. The rival's lease
-# comment lands between our pre-check and our arbitration re-read — so the pre-check
-# sees an unclaimed item and only the re-read reveals the collision.
-#
-# Modeled by seeding the comments query TWICE: empty first, then both leases. A single
-# static response could not express it, and a "race" test written against one is really
-# testing the pre-check a second time.
-#
-# Our comment is createdAt 12:00:00.500. Handles are epoch milliseconds, so the rival's
-# one-second-earlier comment has a strictly lower handle and wins.
 # portability-ok: GNU-first rung of a dual-dialect ladder; the BSD `-j -f` spelling is the `||` fallback
 MINE_S="$(date -u -d '2026-08-20T12:00:00Z' +%s 2>/dev/null || date -u -j -f '%Y-%m-%dT%H:%M:%SZ' '2026-08-20T12:00:00Z' +%s)"
 MINE_HANDLE="$((MINE_S * 1000 + 500))"
@@ -139,11 +119,6 @@ seed_race "$(jq -cn --argjson mine "$MINE_NODE" \
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "the same tie decided from the other side → exit 0" "0" "$rc"
 
-# --- a live foreign lease with a MALFORMED handle is still refused ---
-# `lease_comment_id` is consumer-writable in practice: hand-edited markers, or another
-# tool writing the same v1 shape, so a non-numeric handle is reachable input rather than
-# a theoretical one. Built directly rather than via lin_lease_body, which types the
-# handle as a number — a STRING handle is precisely the shape under test.
 MALFORMED_MARKER="$(jq -cn --arg t "$NOW" \
   '{schema_version: "1.0", holder: "someone-else", acquired_at: $t, renewed_at: $t,
     ttl_hours: 24, ttl_minutes: 0, lease_comment_id: "abc"}')"
@@ -171,12 +146,6 @@ assert_eq "a failed lease write reports the failure" "1" "$rc"
 assert_eq "…and the assignment is rolled back, leaving no assigned-with-no-lease item" \
   "1" "$(lin_bodies | grep -c '"assigneeId":null')"
 
-# The rollback must not fire blind. The trap stays armed across the update-comment
-# write and the arbitration read, both of which exit on failure — so a concurrent
-# session can legitimately win the claim inside that window, posting its own lease and
-# overwriting Linear's SINGLE assignee field. Clearing unconditionally on our way out
-# would strip that live claim: the same defect reclaim.sh was fixed for, reintroduced
-# from the rollback path.
 lin_reset
 lin_data 'viewer' '{"viewer":{"id":"uuid-user-kyle","displayName":"kyle","email":"kyle@example.invalid"}}'
 lin_seed 'commentUpdate' 200 '{"errors":[{"message":"rate limited"}]}'

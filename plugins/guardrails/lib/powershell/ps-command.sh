@@ -91,25 +91,25 @@ ps::_gsub_to() {
 }
 
 PS_TOKEN_SEPARATING_SPACES=(
-  $'\xc2\x85'     # U+0085 NEXT LINE
-  $'\xc2\xa0'     # U+00A0 NO-BREAK SPACE
-  $'\xe1\x9a\x80' # U+1680 OGHAM SPACE MARK
-  $'\xe2\x80\x80' # U+2000 EN QUAD
-  $'\xe2\x80\x81' # U+2001 EM QUAD
-  $'\xe2\x80\x82' # U+2002 EN SPACE
-  $'\xe2\x80\x83' # U+2003 EM SPACE
-  $'\xe2\x80\x84' # U+2004 THREE-PER-EM SPACE
-  $'\xe2\x80\x85' # U+2005 FOUR-PER-EM SPACE
-  $'\xe2\x80\x86' # U+2006 SIX-PER-EM SPACE
-  $'\xe2\x80\x87' # U+2007 FIGURE SPACE
-  $'\xe2\x80\x88' # U+2008 PUNCTUATION SPACE
-  $'\xe2\x80\x89' # U+2009 THIN SPACE
-  $'\xe2\x80\x8a' # U+200A HAIR SPACE
-  $'\xe2\x80\xa8' # U+2028 LINE SEPARATOR
-  $'\xe2\x80\xa9' # U+2029 PARAGRAPH SEPARATOR
-  $'\xe2\x80\xaf' # U+202F NARROW NO-BREAK SPACE
-  $'\xe2\x81\x9f' # U+205F MEDIUM MATHEMATICAL SPACE
-  $'\xe3\x80\x80' # U+3000 IDEOGRAPHIC SPACE
+  $'\xc2\x85'
+  $'\xc2\xa0'
+  $'\xe1\x9a\x80'
+  $'\xe2\x80\x80'
+  $'\xe2\x80\x81'
+  $'\xe2\x80\x82'
+  $'\xe2\x80\x83'
+  $'\xe2\x80\x84'
+  $'\xe2\x80\x85'
+  $'\xe2\x80\x86'
+  $'\xe2\x80\x87'
+  $'\xe2\x80\x88'
+  $'\xe2\x80\x89'
+  $'\xe2\x80\x8a'
+  $'\xe2\x80\xa8'
+  $'\xe2\x80\xa9'
+  $'\xe2\x80\xaf'
+  $'\xe2\x81\x9f'
+  $'\xe3\x80\x80'
 )
 
 PS_NORMALIZED=""

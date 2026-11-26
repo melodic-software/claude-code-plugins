@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# list-items — adapter contract (CONTRACT.md "Adapter contract"). Raw candidates
-# with explicit pagination: emits up to limits.list_items_max items (ascending by
-# number). --repo is accepted for interface parity but each item carries its own
-# stored id, so the store is single-namespace and the flag does not re-target.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"

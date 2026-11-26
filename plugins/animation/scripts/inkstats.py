@@ -232,7 +232,7 @@ def texture(g, ink):
     f = np.hypot(np.fft.rfftfreq(g.shape[1])[None, :], np.fft.fftfreq(g.shape[0])[:, None])
     ring = np.round(f * max(g.shape)).astype(int)
     level = (np.bincount(ring.ravel(), p.ravel()) / np.maximum(np.bincount(ring.ravel()), 1))[ring]
-    ok = (f > 1 / 24) & (f < 0.35) & (level > 0)   # pitch 3-24 px: clear of the cutoff and the 2 px codec grid
+    ok = (f > 1 / 24) & (f < 0.35) & (level > 0)
     return grain, float((p[ok] / level[ok]).max() / np.log(core.sum())) if ok.any() else None
 
 

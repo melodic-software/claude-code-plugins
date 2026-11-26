@@ -1,45 +1,4 @@
 #!/usr/bin/env bash
-# Guarded removal of an orphaned repo clone or leftover directory under the
-# ghq root — the whole-directory deletion the selective tiers never perform
-# (they remove artifacts inside a repo; this removes the repo/dir itself,
-# e.g. a local clone whose upstream repository was deleted).
-#
-# Usage:
-#   remove-path.sh <target> [--dry-run] [--apply] [--allow-unpushed]
-#                  [--include-secrets] [--root <dir>]
-# Default: --dry-run
-#
-# Guards (all evaluated before any mutation):
-#   - target must be an existing directory strictly inside the resolved root
-#     (ghq root by default; --root overrides), never the root itself; both sides
-#     resolve symlinked components physically (pwd -P) so a symlinked/junction
-#     ancestor under the root cannot slip an outside target past the containment
-#     check, and the target must share the root's filesystem device so an
-#     ancestor bind mount to another filesystem cannot escape it either. Residual
-#     (out of the path-based model): a same-device bind mount is not detectable
-#     here.
-#   - symlink / reparse-point targets are refused (bash -L plus a Windows
-#     fsutil reparse query — deletion would traverse)
-#   - a linked-worktree target (.git file) is refused — `git worktree remove`
-#     owns that lifecycle
-#   - a plain-dir target still holding nested git repos — a normal clone, a
-#     submodule/linked worktree, or a bare mirror — is refused; each child owns
-#     its own removal and state inspection
-#   - a repo target (normal or bare) is refused while it has: uncommitted
-#     changes, stash entries, registered linked worktrees, or ignored files in
-#     the SECRETS preserve class (CLEAN_TREE_PRESERVE_SECRETS — override with
-#     --include-secrets); a plain-dir target is scanned for the same SECRETS
-#     class. Git state that cannot be inspected (corrupt index, unreadable
-#     object store) fails closed to a refusal rather than reading as clean
-#   - a target holding ignored skill-owned data/ (CLEAN_TREE_PRESERVE_SKILLDATA —
-#     irreplaceable user synthesis) is refused with no override, matching the
-#     clean skill's "always preserved; no flag removes it" policy — move the data
-#     out first (tracked or non-ignored skill data is caught as recoverable or
-#     dirty and needs no separate scan)
-#   - unpushed work (branch or local tag ahead of or missing its upstream,
-#     unresolvable upstream, or a detached HEAD) blocks the apply unless
-#     --allow-unpushed
-#
 # Exit: 0 success; 1 target does not exist; 2 usage/validation error;
 #       3 blocked (dirty / stash / worktrees / secrets); 4 unpushed work.
 set -uo pipefail
@@ -129,10 +88,6 @@ if [[ -z "$ROOT" ]]; then
   exit 2
 fi
 
-# Normalize both sides to forward-slash absolute paths for containment checks.
-# pwd -P resolves symlinked intermediate components physically on BOTH sides, so
-# a symlinked ancestor under the root (e.g. $root/link -> /outside) cannot slip a
-# target past containment while rm -rf would still traverse the link outside.
 norm() {
   local p
   p="$(cd "$1" 2>/dev/null && pwd -P)" || return 1
@@ -163,14 +118,6 @@ if [[ "$TARGET_ABS" != "$ROOT_ABS"/* ]]; then
   exit 2
 fi
 
-# Physical resolution above defeats symlinked/junction ancestors, but a bind
-# mount (Linux `mount --bind`) is not a symlink — pwd -P cannot see through it,
-# so $root/external -> a bind mount of /outside would still pass the path check
-# while rm -rf traverses to the outside filesystem. Require the target to sit on
-# the same filesystem device as the root; a differing device is a mount crossing
-# the root boundary. Residual, out of the path-based containment model: a
-# SAME-device bind mount shares the root's device and is not caught here. Skipped
-# when stat cannot report a device (the pwd -P + path check still apply).
 dev_of() { stat -c '%d' "$1" 2>/dev/null || stat -f '%d' "$1" 2>/dev/null; }
 root_dev="$(dev_of "$ROOT_ABS")"
 target_dev="$(dev_of "$TARGET_ABS")"
@@ -197,9 +144,6 @@ count_preserve_classes() {
   clean_path_matches_skilldata "$1" && SKILLDATA_COUNT=$((SKILLDATA_COUNT + 1))
 }
 
-# Structural bare-repo detection (HEAD + objects/ + refs/ at the top level) —
-# deliberately not `rev-parse --is-bare-repository`, which walks upward and
-# would misclassify a plain subdirectory of some enclosing repo.
 if [[ -f "$TARGET_ABS/HEAD" && -d "$TARGET_ABS/objects" && -d "$TARGET_ABS/refs" ]]; then
   KIND=bare-repo
 elif [[ -d "$TARGET_ABS/.git" ]]; then
@@ -207,11 +151,7 @@ elif [[ -d "$TARGET_ABS/.git" ]]; then
 fi
 
 if [[ "$KIND" == dir ]]; then
-  # Normal repos + submodules/linked worktrees: any descendant named .git
-  # (a repo's .git directory, or a submodule/worktree's .git file).
   nested="$(find "$TARGET_ABS" -mindepth 2 -name .git -print -quit 2>/dev/null)"
-  # Bare repos leave no .git entry, so detect them structurally the same way
-  # KIND detection does: a descendant dir holding HEAD + objects/ + refs/.
   if [[ -z "$nested" ]]; then
     while IFS= read -r -d '' head_file; do
       d="${head_file%/HEAD}"
@@ -229,15 +169,6 @@ fi
 
 if [[ "$KIND" != dir ]]; then
   if [[ "$KIND" == repo ]]; then
-    # Fail closed: a working tree or stash that cannot be inspected (corrupt
-    # index, unreadable object store) must block, never read as clean. Capture
-    # first and check the exit status — a `| wc -l` pipeline would swallow the
-    # non-zero exit and return 0. printf '%s\n' re-adds the single trailing
-    # newline that command substitution stripped so the line count is exact.
-    # --untracked-files=all forces untracked enumeration so a repo/global
-    # status.showUntrackedFiles=no cannot hide untracked local data and let a
-    # "clean" pushed clone be deleted (ignored files stay excluded — the secret
-    # and skill-data scans below own those).
     if ! dirty_out="$(git -C "$TARGET_ABS" status --porcelain --untracked-files=all 2>/dev/null)"; then
       echo "remove-path.sh: cannot inspect repo state — refusing" >&2
       exit 2
@@ -249,30 +180,18 @@ if [[ "$KIND" != dir ]]; then
     fi
     [[ -n "$stash_out" ]] && STASH_COUNT="$(printf '%s\n' "$stash_out" | wc -l | tr -d ' ')"
 
-    # Ignored files only: tracked content is recoverable from git and untracked
-    # (non-ignored) content already counts as dirty above. Ignored secret-class
-    # files (unrecoverable) and ignored skill-owned data/ (irreplaceable) are the
-    # loss the removal would cause silently.
     while IFS= read -r ignored; do
       [[ -z "$ignored" ]] && continue
       count_preserve_classes "$ignored"
     done < <(git -C "$TARGET_ABS" ls-files --others --ignored --exclude-standard 2>/dev/null | tr -d '\r')
   fi
 
-  # Count beyond the main entry: any linked worktree must be removed first.
-  # Fail closed like the status/stash checks above: an uninspectable worktree
-  # list (corrupt worktree state) must block, not read as 0 and let rm -rf
-  # strand the linked worktrees.
   if ! wt_out="$(git -C "$TARGET_ABS" worktree list --porcelain 2>/dev/null)"; then
     echo "remove-path.sh: cannot inspect worktree state — refusing" >&2
     exit 2
   fi
   WORKTREE_COUNT="$(printf '%s\n' "$wt_out" | grep -c '^worktree ' || true)"
 
-  # refs/tags is scanned alongside refs/heads: a local-only tag (never pushed)
-  # has no upstream, so the [[ -z "$upstream" ]] branch below counts it. Offline
-  # local state cannot prove a tag was pushed, so any local tag fails closed as
-  # unpushed — --allow-unpushed is the escape hatch.
   while IFS=' ' read -r ref upstream; do
     [[ -z "$ref" ]] && continue
     if [[ -z "$upstream" ]]; then
@@ -295,11 +214,6 @@ if [[ "$KIND" != dir ]]; then
     UNPUSHED_REFS=$((UNPUSHED_REFS + 1))
   fi
 else
-  # Plain leftover directory: none of the repo guards above run, but this
-  # script deletes such dirs, so a leftover secret-class file or skill-owned
-  # data/ would otherwise be discarded silently. Walk descendants and gate on the
-  # same SECRETS and SKILLDATA classes, passing target-relative paths so the
-  # dir-prefix patterns (.aws/, .vscode/, .claude/skills/*/data/…) match too.
   while IFS= read -r -d '' f; do
     count_preserve_classes "${f#"$TARGET_ABS"/}"
   done < <(find "$TARGET_ABS" -mindepth 1 -print0 2>/dev/null)
@@ -348,12 +262,6 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   exit 0
 fi
 
-# Defense in depth beyond the device check above: stop rm from crossing into a
-# descendant mount point during the recursive delete. GNU coreutils (Linux,
-# MSYS) spells this --one-file-system; BSD/macOS rm spells it -x. Detect GNU via
-# --version, else probe -x on a nonexistent path (accepted only by BSD rm; -f
-# makes the missing path a no-op). A shell whose rm supports neither falls back
-# to plain rm -rf — the device and path checks still bound the target itself.
 rm_flags=(-rf)
 if grep -qi coreutils < <(rm --version 2>/dev/null); then
   rm_flags+=(--one-file-system)

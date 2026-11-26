@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by sourced tests/lib.sh
-# End-to-end lifecycle probe against a live GitHub sandbox: every seam verb through the
-# core CLI, plus closed-blocker graduation. On-demand only.
-# Usage: e2e-probe.sh [--evidence <file>]   (target required: WIT_CONFORMANCE_GITHUB_REPO=owner/name)
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,7 +11,6 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   exit 0
 fi
 
-# usage_error — the one spelling of the usage line every arg-parsing failure exits on.
 usage_error() {
   echo "usage: e2e-probe.sh [--evidence <file>]" >&2
   exit 2
@@ -120,8 +116,6 @@ assert_eq "renew keeps holder" "$(jq -r '.holder' <<<"$CLAIM")" "$(jq -r '.holde
 
 gh issue close "${ITEM1_ID##*#}" -R "$REPO" --comment "e2e: resolved" >/dev/null
 
-# 7. Graduation: item1's closure (gh's default reason, completed) unblocks item2
-# (blocker count, not blockedBy.totalCount — closed blockers linger there).
 FRONTIER2="$(wit list-frontier --repo "$REPO")"
 record "frontier after item1 closed" "$FRONTIER2"
 IDS2="$(ids "$FRONTIER2")"

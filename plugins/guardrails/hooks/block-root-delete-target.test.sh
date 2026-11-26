@@ -643,7 +643,7 @@ expect_both 'partial expansion: mktemp value allowed' 0 "${RDT_CWD[@]}" --comman
 expect_both 'partial expansion: loop variable allowed' 0 "${RDT_CWD[@]}" --command 'for d in a b; do rm -rf "/tmp/rdt-pin/$d"; done'
 expect_both 'partial expansion: value set after another command allowed' 0 "${RDT_CWD[@]}" --command 'mkdir -p out && S=/tmp/rdt-pin; rm -rf "$S/x"'
 
-rdt_nul_pl() { # <command> <field>: a payload whose <field> holds a NUL byte
+rdt_nul_pl() {
   MSYS_NO_PATHCONV=1 jq -n --arg c "$1" --arg d "$RDT_TOP" --arg f "$2" \
     '{tool_name:"Bash",tool_input:{command:$c},cwd:$d} + {($f): ($d + "\u0000x")}'
 }

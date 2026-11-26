@@ -238,7 +238,7 @@ let the sync carry it here, and record why.
 The owner's [2026-10-24 direction](https://github.com/melodic-software/claude-code-plugins/pull/9595#issuecomment-6380383362) makes the review lanes the gate that decides whether a pull request is mergeable
 or needs a person, and the [2026-10-25 decision record](https://github.com/melodic-software/claude-code-plugins/issues/7642#issuecomment-6402548080) amends this record to match. No ruleset requires a review check,
 but `ci-status` fails a non-draft pull request unless both lanes reviewed its head, and fails while
-a lane's hold label stands until a trusted person lifts it, with the exceptions the last step's comment lists (`.github/workflows/pr-require-checks.yml`,
+a lane's hold label stands until a trusted person lifts it, with the exceptions the last step's comment listed at [22a3301e3c](https://github.com/melodic-software/claude-code-plugins/blob/22a3301e3c2852228fc17b9b147f0cd1f72bf7ee/.github/workflows/pr-require-checks.yml#L6038-L6066) (`.github/workflows/pr-require-checks.yml`,
 the `Require both review lanes on this head`, `Fail a pull request carrying the human-gated label`
 and `Fail a review-lane hold an untrusted account lifted` steps). [ADR 0002's 2026-10-30
 addendum](0002-default-on-ai-review-advisory-with-earned-promotion.md#addendum-2026-10-30-the-review-lanes-gate-merges-through-ci-status)

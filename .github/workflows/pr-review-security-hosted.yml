@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      contents: read # check out the default branch for the kill-switch action
+      contents: read
     outputs:
       proceed: ${{ steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true' && vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true' && 'true' || 'false' }}
     env:

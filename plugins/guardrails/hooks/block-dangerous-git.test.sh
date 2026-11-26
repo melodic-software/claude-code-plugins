@@ -1096,7 +1096,7 @@ run_pwsh "PS: nested pwsh with a read-only git group (blocked)" \
 run_pwsh "PS: launcher alone still blocked" \
   "Start-Process git -ArgumentList status" 2
 
-PS_NBSP=$'\xc2\xa0' # U+00A0 NO-BREAK SPACE
+PS_NBSP=$'\xc2\xa0'
 run_pwsh "PS: U+00A0 between --force and its remote (blocked — #2928)" \
   "git push --force${PS_NBSP}origin main" 2
 run_pwsh "PS: U+00A0 between git and its subcommand (blocked — #2928)" \

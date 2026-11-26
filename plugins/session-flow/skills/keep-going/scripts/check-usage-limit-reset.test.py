@@ -177,7 +177,6 @@ class CheckUsageLimitResetTests(unittest.TestCase):
             VENDOR_ZIP.is_file(),
             "expected vendored tzdata zip next to the script",
         )
-        # Empty PYTHONTZPATH hides the system zoneinfo tree (Windows-like).
         result = self.invoke(
             "You've hit your session limit - resets 7:10pm (America/New_York)",
             "--now",
@@ -289,6 +288,14 @@ class BundledTzdataDegradationTests(unittest.TestCase):
         mod = _load_module()
         with tempfile.TemporaryDirectory() as tmp:
             self.assertTrue(mod._cache_is_trusted(Path(tmp)))
+
+    @unittest.skipUnless(hasattr(os, "getuid"), "uid ownership is POSIX-only")
+    def test_directory_owned_by_another_user_is_not_trusted(self) -> None:
+        mod = _load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            owner = os.stat(tmp).st_uid
+            with mock.patch.object(mod.os, "getuid", return_value=owner + 1):
+                self.assertFalse(mod._cache_is_trusted(Path(tmp)))
 
 
 if __name__ == "__main__":

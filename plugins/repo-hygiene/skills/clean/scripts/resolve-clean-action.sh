@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Map clean-skill user tokens to canonical action names (Tier-0 fact emission).
-#
-# Output: Action: <scan|caches|build|git|stash|tree|tree-batch|scan-batch|caches-batch|build-batch|git-batch|all-batch|all|menu>
-#   plus an optional `Note: <trailing free text>` when a leading action token is
-#   followed by advisory context (a question or a live-session constraint).
 # Exit: 0 always.
 set -u
 

@@ -125,8 +125,8 @@ read_worktrees() {
   common_dir="$(git -C "$REPO" rev-parse --git-common-dir 2>/dev/null | tr -d '\r')"
   if [[ -n "$common_dir" ]]; then
     case "$common_dir" in
-    /* | [A-Za-z]:[\\/]*) : ;;           # already absolute (POSIX or Windows drive)
-    *) common_dir="$REPO/$common_dir" ;; # relative → anchor to the repo root
+    /* | [A-Za-z]:[\\/]*) : ;;
+    *) common_dir="$REPO/$common_dir" ;;
     esac
     case "$common_dir" in
     */.git) CLONE_PATH="${common_dir%/.git}" ;;
@@ -147,7 +147,7 @@ read_worktrees() {
         path="" branch=""
       fi
       ;;
-    *) ;; # other porcelain fields (HEAD, bare, locked, …) are not needed here
+    *) ;;
     esac
   done <<<"$porcelain"$'\n'
 }

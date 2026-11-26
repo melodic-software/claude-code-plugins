@@ -19,8 +19,6 @@ assert_eq "unknown binding → exit 2" "2" "$?"
 err="$(bash "$S" --binding no-such-binding 2>&1 >/dev/null)"
 assert_contains "unknown binding names the search order" "$err" "consumer-local then plugin-bundled"
 
-# The name is interpolated into a path under a bindings root, so a traversing or
-# absolute name must be refused BEFORE any file is sourced.
 for bad in "../../etc/passwd" "/etc/passwd" "has space" "Upper" "" "."; do
   bash "$S" --binding "$bad" >/dev/null 2>&1
   assert_eq "invalid binding name ${bad:-<empty>} → exit 2" "2" "$?"

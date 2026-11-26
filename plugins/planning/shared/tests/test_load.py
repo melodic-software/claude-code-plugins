@@ -19,9 +19,9 @@ from support import call, tmpdir
 import server
 
 PEOPLE = 20
-WRITE_EVERY = 1.05  # just over the one-write-per-second-per-route limit (Contracts, "Body caps and limits")
-POLL_EVERY = 1.5  # the page's poll interval (Contracts, "Guest listener routes")
-P95_CEILING = 1.0  # judgment: far above the measured 1.7 ms p95, so it catches a regression, not noise
+WRITE_EVERY = 1.05
+POLL_EVERY = 1.5
+P95_CEILING = 1.0
 
 
 class TestLoad(unittest.TestCase):
@@ -58,7 +58,7 @@ class TestLoad(unittest.TestCase):
                     took = time.perf_counter() - t0
                     with lock:
                         (latencies if code == 200 else failures).append(took if code == 200 else ("answer", code, out))
-                    next_write = time.monotonic() + WRITE_EVERY  # from the answer, so a late write never lands under the limit
+                    next_write = time.monotonic() + WRITE_EVERY
                 time.sleep(0.01)
 
         threads = [threading.Thread(target=person, args=(i,)) for i in range(1, PEOPLE + 1)]

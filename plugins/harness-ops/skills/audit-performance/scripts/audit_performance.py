@@ -75,10 +75,10 @@ SUBPROCESS_TIMEOUT_S = 20
 SCOPE_PRECEDENCE = ("local", "project", "user")
 
 ALLOWLISTED_READS = (
-    "settings.json",  # install-root and project settings: sweep config, hooks, statusline, env
-    ".last-cleanup",  # retention-sweep sentinel (mtime only, but read as a file)
-    "hooks.json",  # a plugin's hook manifest: event, matcher, command
-    "installed_plugins.json",  # plugins/installed_plugins.json: where each plugin is installed
+    "settings.json",
+    ".last-cleanup",
+    "hooks.json",
+    "installed_plugins.json",
 )
 
 PROC_TEXT_READS = frozenset({"status", "stat"})
@@ -784,7 +784,7 @@ def _windows_process_table() -> list[dict]:
 
     th32cs_snapprocess = 0x00000002
     query_limited_information = 0x1000
-    epoch_offset_seconds = 11644473600  # 1601-01-01 to 1970-01-01
+    epoch_offset_seconds = 11644473600
 
     def process_times(pid: int) -> tuple[float | None, float | None]:
         handle = kernel32.OpenProcess(query_limited_information, False, pid)

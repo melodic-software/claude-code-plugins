@@ -1,38 +1,19 @@
 # shellcheck shell=bash
-# Self-contained assertion library for the seam's *.test.sh files, so they run
-# unchanged from a bundled or consumer-vendored copy.
-#
-# Source it from any seam test, CWD-independent, relative to the test's own
-# location (never via git toplevel — the host repo is not the seam's repo):
-#   source "$SCRIPT_DIR/../tests/lib.sh"
-#
-# Each test file owns its FAILED and CASE_NUM counters and ends with:
-#   [[ $FAILED -eq 0 ]] || exit 1
-#
-# Duplicated across plugins by design, not drift — see
-# docs/contracts/shell-test-helpers/README.md at the repo root.
 
 [[ -n "${_WIT_TESTS_LIB_LOADED:-}" ]] && return 0
 readonly _WIT_TESTS_LIB_LOADED=1
 
-# Strip inherited git-hook context (GIT_DIR, GIT_INDEX_FILE, ...) so a git fixture
-# can never resolve to the real repo instead of its throwaway dir.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
-# Defensive counter defaults so the first assertion in a test that forgot to
-# declare them does not trip `set -u`.
 : "${FAILED:=0}"
 : "${CASE_NUM:=0}"
 
-# pass <label> — print a PASS line, increment CASE_NUM. No exit.
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
 }
 
-# fail <label> <expected> <actual> — print a FAIL line to stderr, increment
-# FAILED + CASE_NUM. No exit (run-all-cases discipline; the final check exits).
 fail() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'FAIL: [%d] %s — expected %q got %q\n' \
@@ -40,14 +21,11 @@ fail() {
   FAILED=$((FAILED + 1))
 }
 
-# skip_suite <reason> — print a SKIP marker and exit 0. Use when a test cannot
-# run ANY of its cases (missing toolchain, wrong platform).
 skip_suite() {
   printf 'SKIP: %s\n' "$1" >&2
   exit 0
 }
 
-# assert_eq <label> <expected> <actual> — exact match.
 assert_eq() {
   local label="$1" expected="$2" actual="$3"
   if [[ "$actual" == "$expected" ]]; then
@@ -57,9 +35,6 @@ assert_eq() {
   fi
 }
 
-# assert_succeeds <label> <expected> <actual> <command...>: the command must exit 0.
-# Its stdout is discarded, its stderr left to reach the log. <expected>/<actual> are
-# the words the FAIL line reports.
 assert_succeeds() {
   local label="$1" expected="$2" actual="$3"
   shift 3
@@ -70,8 +45,6 @@ assert_succeeds() {
   fi
 }
 
-# assert_fails <label> <expected> <actual> <command...>: the command must exit
-# non-zero. Same stdout/stderr handling as assert_succeeds.
 assert_fails() {
   local label="$1" expected="$2" actual="$3"
   shift 3
@@ -82,7 +55,6 @@ assert_fails() {
   fi
 }
 
-# assert_contains <label> <haystack> <needle> — substring match.
 assert_contains() {
   local label="$1" haystack="$2" needle="$3"
   if [[ "$haystack" == *"$needle"* ]]; then
@@ -95,7 +67,6 @@ assert_contains() {
   fi
 }
 
-# assert_not_contains <label> <haystack> <needle> — substring absence.
 assert_not_contains() {
   local label="$1" haystack="$2" needle="$3"
   if [[ "$haystack" != *"$needle"* ]]; then
@@ -108,9 +79,6 @@ assert_not_contains() {
   fi
 }
 
-# write_blocking_network_shim <dir>: install gh and curl stubs in <dir> that print
-# a blocked notice on stderr and exit 1. Put <dir> first on PATH to prove a code
-# path never reaches for a network tool (no unshare -n on Git Bash).
 write_blocking_network_shim() {
   local dir="$1"
   # shellcheck disable=SC2016  # shim body is literal by design: $(basename) evaluates at shim runtime, not here

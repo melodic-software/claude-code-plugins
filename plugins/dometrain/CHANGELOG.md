@@ -3,6 +3,12 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.14] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [0.9.13] - 2026-11-21
 
 ### Changed

@@ -23,16 +23,16 @@ ghpost::read_to() {
 }
 
 ghpost::reset() {
-  GHPOST_POST=""      # the form of the first posting segment
-  GHPOST_TEXTS=()     # words of posting segments
-  GHPOST_ATTACH=()    # literal `--attach` operands of `gh pr|issue` segments
-  GHPOST_FILES=()     # body files of posting segments
-  GHPOST_STDIN=0      # a posting segment reads stdin
-  GHPOST_SUBST=0      # a posting word expands something (`$`, or a split `$(`)
-  GHPOST_WRITES=0     # the command writes a body file before posting it
-  GHPOST_WTARGETS=()  # files the command writes: redirects, and cp/mv/ln/tee runs
-  GHPOST_AUX_TEXTS=() # here-strings, read only when the whole command is
-  GHPOST_AUX_FILES=() # `cat` operands and `<` targets, likewise
+  GHPOST_POST=""
+  GHPOST_TEXTS=()
+  GHPOST_ATTACH=()
+  GHPOST_FILES=()
+  GHPOST_STDIN=0
+  GHPOST_SUBST=0
+  GHPOST_WRITES=0
+  GHPOST_WTARGETS=()
+  GHPOST_AUX_TEXTS=()
+  GHPOST_AUX_FILES=()
   GHPOST_BODY=()
   GHPOST_BODY_SRC=()
   GHPOST_BODY_KIND=()

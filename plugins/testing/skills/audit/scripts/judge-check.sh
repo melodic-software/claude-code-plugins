@@ -1,18 +1,4 @@
 #!/usr/bin/env bash
-# The deterministic checks /testing:audit's judge pass runs around each judge
-# dispatch, from the same judge-lib.sh functions the calibration harness uses.
-#
-#   judge-check.sh shape <model> <effort> <file> <ordinal> <start>-<end> <name>
-#     Prints the block's shape key: blocks with one key have the same body
-#     (the test's name taken out, whitespace runs collapsed), the same lines
-#     around it in their file, the same repository, judge class, effort and
-#     judge prompt, so the pass judges one of them and gives the rest its
-#     verdict. Prints nothing for a block that has no key (a whole-file block,
-#     a range the file does not hold, a file in no repository).
-#   judge-check.sh comment-only <file> <diff file>
-#     Exit 0 when every line the diff adds or removes is blank or a comment in
-#     the test file's language, 1 when one is code.
-#
 # Exit 2 on a usage error.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

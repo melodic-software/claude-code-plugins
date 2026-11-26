@@ -119,9 +119,6 @@ async function main() {
 
     await owner.locator(".vf-q", { hasText: T.d }).first().click();
     await owner.locator(".vf-forbtn").click();
-    // Each poll re-renders the list with the server's `for`, so a box a click ticks goes back to unticked until the
-    // server records it: wait for Bo's row to show, then click, not check(), which throws when a poll lands between
-    // its click and its read.
     await until(owner, () => [...document.querySelectorAll(".vf-forbox:not([hidden]) .vf-forlist label")].some(l => l.textContent === "Bo" && !l.querySelector("input").checked), null, 10000);
     await owner.locator(".vf-forlist label", { hasText: "Bo" }).locator("input").click();
     ok("the owner asks Bo for Q2: the server records it", await until(owner, pid => (window.Core.snapshot()?.questions || []).find(q => q.id === "Q2")?.for?.join() === pid, boPid, 10000));

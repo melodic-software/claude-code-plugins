@@ -52,7 +52,9 @@ the quality-requirement prompts, the variation-intent question's recommendation)
 standards through the "Resolution ladder" section of
 [`<plugin-root>/reference/standards-contract.md`](../../../reference/standards-contract.md) and read
 only the files whose `Applies when` matches the task's surfaces or its design and architecture
-concerns; a prototype reads only standards already in context. When a consumer standard
+concerns; a prototype reads only standards already in context. A loaded file that cites shipped
+concept ids follows the binding's "Adopted shipped concepts" paragraph, with
+`/engineering-concepts:lookup` (if enabled); otherwise apply each entry as written. When a consumer standard
 contradicts a bundled default, apply the standard and record, under `### Captured assumptions`, `- Overrides bundled default <principle> per <standards file>`.
 That line is required, word for word with the principle and the file's path filled in, whenever a
 standard decides a recommendation a bundled default would otherwise decide, the variation-intent

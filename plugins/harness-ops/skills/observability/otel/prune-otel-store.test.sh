@@ -109,7 +109,7 @@ dq_macro() {
   CC_OTEL_STORE="$TMP/no-store" duckdb -csv -noheader \
     -init "$(sql_path "$SCRIPT_DIR/cc-otel.sql")" -c "$1" 2>/dev/null | tr -d '\r'
 }
-sql_path() { # path safe to embed in a SQL string (native duckdb.exe cannot read MSYS paths)
+sql_path() {
   if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s\n' "$1"; fi
 }
 HAS_DUCKDB=false

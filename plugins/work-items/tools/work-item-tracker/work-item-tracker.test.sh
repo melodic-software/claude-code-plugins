@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/work-items/tools/work-item-tracker/seeds/*/capabilities.json
-# Tests for the core dispatcher: usage, binding resolution, capability gating, and
-# list-frontier derivation — all against a fake adapter (no network, no gh).
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/local-markdown/* plugins/work-items/tools/work-item-tracker/adapters/*/capabilities.json
 # test-scope: plugins/work-items/tools/work-item-tracker/lib/id.sh plugins/work-items/tools/work-item-tracker/lib/lease.sh
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/get-field-options.sh plugins/work-items/tools/work-item-tracker/adapters/github/common.sh
@@ -118,8 +116,6 @@ ERR="$(run_skew oldermajor capabilities 2>&1 >/dev/null)"
 assert_eq "older-major manifest → exit 3" "3" "$?"
 assert_contains "older-major error says regenerate the adapter" "$ERR" "update or regenerate the adapter"
 
-# Leading-zero components are read base-10: "08.0" is major 8 and must refuse, not
-# error as octal and wave the adapter through.
 make_skew_adapter "leadingzero" "\"schema_version\":\"08.0\","
 ERR="$(run_skew leadingzero capabilities 2>&1 >/dev/null)"
 assert_eq "leading-zero major manifest → exit 3" "3" "$?"
@@ -311,8 +307,6 @@ assert_eq "plugin-bundled adapter is the fallback" "local-markdown" "$(jq -r '.p
 OUT="$(WORK_ITEM_TRACKER_BINDING="$BINDING" WIT_ADAPTERS_DIR="$TEST_TMPDIR/adapters" CLAUDE_PROJECT_DIR="$PROJECT" bash "$DISPATCHER" capabilities 2>/dev/null)"
 assert_eq "WIT_ADAPTERS_DIR override wins over consumer-local" "fake" "$(jq -r '.provider' <<<"$OUT")"
 
-# --- consumer-local resolution in a bare shell (no CLAUDE_PROJECT_DIR) ---
-# The root anchors at the git toplevel, the same anchor the binding read uses (#2941).
 git init -q "$PROJECT"
 mkdir -p "$PROJECT/deep"
 OUT="$(cd "$PROJECT/deep" && env -u CLAUDE_PROJECT_DIR WORK_ITEM_TRACKER_BINDING="$ACME_BINDING" bash "$DISPATCHER" capabilities 2>/dev/null)"
@@ -339,9 +333,6 @@ assert_eq "a branch with no item reference → exit 5" "5" "$?"
 run_skew linkfake change-link --branch >/dev/null 2>&1
 assert_eq "--branch without a value → exit 2" "2" "$?"
 
-# --- create-item --body-file (core-side, #6929) ---
-# The dispatcher reads the file and hands the adapter --body <content>, so a caller needs
-# no "$(cat …)" command substitution, which worktree isolation refuses.
 make_skew_adapter "bodyfake" "\"schema_version\":\"1.0\","
 jq '.verbs["create-item"] = true' "$TEST_TMPDIR/adapters/bodyfake/capabilities.json" >"$TEST_TMPDIR/bodyfake.json"
 cp "$TEST_TMPDIR/bodyfake.json" "$TEST_TMPDIR/adapters/bodyfake/capabilities.json"
@@ -542,7 +533,6 @@ done
 GH_BINDING="$TEST_TMPDIR/github.json"
 printf '%s\n' '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24}}' >"$GH_BINDING"
 
-# Stub gh reporting a version BELOW the 2.94 minimum, first on PATH.
 STUB_BIN="$TEST_TMPDIR/stub-bin"
 mkdir -p "$STUB_BIN"
 cat >"$STUB_BIN/gh" <<'EOF'
@@ -557,7 +547,6 @@ run_gh_verb() {
   printf '%s\n' "$?"
 }
 
-# Verbs that never pass a native-surface flag dispatch on gh 2.45.
 for v in capabilities claim renew-lease release reclaim get-item; do
   assert_eq "old gh: $v dispatches (not gated)" "0" "$(run_gh_verb "$v" "github:o/r#1")"
 done
@@ -591,7 +580,6 @@ ERR="$(PATH="$STUB_BIN:$PATH" WORK_ITEM_TRACKER_BINDING="$GH_BINDING" \
   WIT_ADAPTERS_DIR="$GH_ADAPTERS" bash "$DISPATCHER" create-item --title t 2>&1 >/dev/null)"
 assert_not_contains "old gh: plain create-item does not quote the version floor" "$ERR" "2.94"
 
-# A conforming gh in a cloud session (CLAUDE_CODE_REMOTE=true) still gates the edge verbs.
 run_gh_verb_remote() {
   CLAUDE_CODE_REMOTE=true run_gh_verb "$@"
 }
@@ -633,12 +621,6 @@ RC="$(
 )"
 assert_eq "non-github provider is not version-gated" "0" "$RC"
 
-# --- gh ABSENT stays a clean exit 3 (CONTRACT.md "Degradation without gh") ---
-# Only capabilities, which never shells out, answers without the binary.
-# A PATH lacking gh: entries without gh pass through, and each entry that holds
-# it is replaced in place by a dir of native symlinks to its other files (Git
-# Bash's default `ln -s` copies). A non-executable stub fails (`command -v`
-# skips it), and dropping the entry loses jq and git, which can share it.
 NOGH_BIN=""
 IFS=: read -ra _path_dirs <<<"$PATH"
 for _d in "${_path_dirs[@]}"; do
@@ -654,8 +636,6 @@ for _d in "${_path_dirs[@]}"; do
   done
   NOGH_BIN+="${NOGH_BIN:+:}$_m"
 done
-# Guard only that gh does not resolve inside NOGH_BIN: requiring an ambient gh would
-# skip the block on the very runner these cases exist to cover.
 [[ -z "$(PATH="$NOGH_BIN" command -v gh 2>/dev/null)" ]] ||
   skip_suite "could not build a gh-free PATH for the presence-gate cases"
 

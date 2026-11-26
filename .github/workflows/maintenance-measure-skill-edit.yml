@@ -37,7 +37,7 @@ jobs:
     cache-mode: read
     permissions:
       contents: read
-      actions: read # check-trusted-trigger reads this run's re-runner
+      actions: read
     outputs:
       go: ${{ steps.stage.outputs.go }}
       plugin: ${{ steps.inputs.outputs.plugin }}
@@ -585,7 +585,7 @@ jobs:
           ref: ${{ needs.check-inputs.outputs.base-sha }}
           path: .base
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+          set-safe-directory: false
 
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
@@ -825,7 +825,7 @@ jobs:
     cache-mode: read
     permissions:
       contents: read
-      id-token: write # prove to the token broker which workflow this is
+      id-token: write
     env:
       GIT_CONFIG_GLOBAL: /dev/null
       GIT_CONFIG_NOSYSTEM: "1"
@@ -840,7 +840,7 @@ jobs:
           ref: ${{ needs.check-inputs.outputs.base-sha }}
           path: .base
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+          set-safe-directory: false
 
       - name: Download standards
         id: standards
@@ -904,7 +904,7 @@ jobs:
           ref: ${{ needs.check-inputs.outputs.base-sha }}
           path: .edit
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+          set-safe-directory: false
 
       - name: Request the lane token
         id: lane-token
@@ -972,7 +972,7 @@ jobs:
     cache-mode: read
     permissions:
       contents: read
-      id-token: write # prove to the token broker which workflow this is
+      id-token: write
     env:
       GIT_CONFIG_GLOBAL: /dev/null
       GIT_CONFIG_NOSYSTEM: "1"
@@ -983,7 +983,7 @@ jobs:
           ref: ${{ needs.check-inputs.outputs.base-sha }}
           path: .base
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+          set-safe-directory: false
 
       - name: Download standards
         id: standards

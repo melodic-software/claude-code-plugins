@@ -39,8 +39,6 @@ STATE_CHANGE_COMMAND_RE = re.compile(
     r"\bgit\s+push\b|\bgh\s+pr\s+(?:merge|ready|create|comment|review|close)\b"
     r"|\bgh\s+issue\s+(?:create|comment|close)\b"
 )
-# Tools no eval child may use: the network, and every route to a live session or a
-# scheduler on the operator's machine (probes.md P7 addendum).
 DISALLOWED_TOOLS = (
     "WebFetch",
     "WebSearch",
@@ -52,8 +50,6 @@ DISALLOWED_TOOLS = (
     "PushNotification",
     "ScheduleWakeup",
 )
-# Inherited variables that would let a child message the parent's peer sessions or
-# reach GitHub with the operator's credential.
 SCRUBBED_ENV = (
     "CLAUDE_CODE_MESSAGING_SOCKET",
     "CLAUDE_CODE_MESSAGING_TOKEN",
@@ -866,8 +862,6 @@ def exclusion_reason(
     if returncode != 0 and not events:
         return Kind.CLI_NO_OUTPUT, f"CLI exited {returncode}: {stderr.strip()[:200]}"
     result = _result_event(events)
-    # Only the CLI's own words count: stderr, an error result, or a tool error. Conversation
-    # text (a seeded lane history, a case prompt) may mention limits without hitting one.
     own = [stderr]
     if result is not None and result.get("is_error"):
         own.append(str(result.get("result") or ""))

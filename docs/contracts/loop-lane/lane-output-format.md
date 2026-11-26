@@ -95,7 +95,7 @@ run text beyond the verdict.
 **Structure**:
 
 - One `###` heading per job, naming the lane and activity. A job that appends several blocks
-  writes the heading once (`.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs:1834`
+  writes the heading once (`.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs:1475`
   writes one `###` heading per run).
 - The verdict line, then the bullets.
 - A table only for rows a person compares (one row per item); a long list in `<details>`.

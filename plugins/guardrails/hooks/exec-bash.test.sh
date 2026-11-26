@@ -206,7 +206,7 @@ done <<<"$rows"
 [[ "$workflow" -eq 1 ]] || fail "expected one workflow row, found $workflow"
 [[ "$node_guards" -eq 2 ]] || fail "expected the settings-write-ask and connected-page-gate node rows, found $node_guards"
 
-skips_on_blocking() { # <hooks.json> -> one line per offending row
+skips_on_blocking() {
   jq -r '.hooks | to_entries[] | .key as $event | .value[] | .hooks[]
     | select(.args != null)
     | select(any(.args[]; startswith("--skip-")))

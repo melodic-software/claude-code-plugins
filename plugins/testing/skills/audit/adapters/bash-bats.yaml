@@ -1,5 +1,3 @@
-# bats-core, with the bats-support, bats-assert and bats-file helpers.
-# Schema and YAML subset: scripts/adapter-load.awk. Every regex is a portable ERE.
 id: bash-bats
 language: bash
 block_model: brace
@@ -7,11 +5,9 @@ advisory: true
 files: ['*.bats']
 test_start:
   - '^[[:space:]]*@test[[:space:]]'
-# skip ends the test from inside its body.
 body_skip:
   - '(^|[[:space:];&|{])skip([[:space:];&|}]|$)'
 assertion:
-  # Tests run under set -e, so a failing test command fails the test.
   calls:
     - '(^|[^A-Za-z0-9_])(assert|refute)(_[A-Za-z0-9_]+)?([^A-Za-z0-9_]|$)'
     - '(^|[[:space:];&|!(])(\[\[?|test)[[:space:]]'

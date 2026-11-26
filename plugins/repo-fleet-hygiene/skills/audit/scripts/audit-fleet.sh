@@ -81,7 +81,7 @@ lower() {
   printf '%s' "$text"
 }
 
-capture_text() { # <out-var> <command> [args]...
+capture_text() {
   local __capture_out __capture_status
   __capture_out="$("${@:2}" 2>/dev/null)"
   __capture_status=$?
@@ -134,7 +134,7 @@ to_native_path() {
   printf '%s' "$text"
 }
 
-to_native_file_path() { # <out-var> <path>
+to_native_file_path() {
   local path="$2" native
   if [[ "$WINDOWS_PATH_DISPLAY" == "true" ]] && command -v cygpath >/dev/null 2>&1 &&
     native="$(cygpath -m -- "$path" 2>/dev/null)" && [[ -n "$native" ]]; then

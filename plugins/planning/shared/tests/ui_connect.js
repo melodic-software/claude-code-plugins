@@ -1,18 +1,4 @@
 #!/usr/bin/env node
-// Connect your Claude (Phase 8, R2-12, AC 70) in real browsers, against `share.sh ensure-running` with the fake
-// cloudflared: a guest asks for a request to run on their own Claude; the page offers the documented deep links
-// (Claude Code, Desktop's Code tab, Desktop chat), a copied prompt and a watcher key, takes the answer pasted back, and
-// holds it for the owner's Share, marked as from that guest's own Claude. The owner and other guests never see the
-// request, and nobody else can read or answer it. Desktop for Ann, a phone for Bo, where every Connect control sits
-// inside the viewport. Before the browsers: connect.js's data block against look-alike end markers.
-//   node plugins/planning/shared/tests/ui_connect.js
-// Needs playwright-core and a Chromium it can launch for the browser part; without them that part prints SKIP.
-// Expected values come from the Design (R2-12 routes, C18-C20), the Phase 8 security review (results wait for the
-// owner's Publish, PLAN.md Decisions h2; a watcher key that works only on /api/mine/requests; a random per-prompt
-// marker; the look-alike markers the reviewer listed), the upstream link formats recorded in README.md ("Connect your
-// Claude": claude-cli://open?q=, claude://code/new?q=, claude://claude.ai/new?q=), the untrusted-content spine
-// (docs/contracts/untrusted-content/README.md), the guest URL share.sh prints, the secret the server issued on join,
-// and the texts this suite types, never from the page's own prompt builder.
 "use strict";
 const path = require("node:path");
 const { loadPlaywright, suite, recorder, until, settled, snap, joinAs, openClaude } = require("./browser_harness");
@@ -159,7 +145,6 @@ async function main() {
     const item = ann.page.locator(".vf-apreq", { hasText: "Which step drops most?" });
     await item.locator(".vf-self-copy").click();
     await until(ann.page, () => /Prompt copied/.test(document.body.innerText));
-    // The Windows clipboard hands a copied LF back as CRLF.
     const copied = (await ann.page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n");
     const cb = block(copied);
     ok("the copied prompt quotes the question and the request inside its own marked data block",

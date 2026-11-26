@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# list-items — Gitea / Forgejo adapter (provider `gitea`).
-# Scaffolded by /work-items:onboard-adapter; the provider mapping below is written
-# against GET /repos/{owner}/{repo}/issues and the Gitea `Issue` struct.
-#
-# Contract: tools/work-item-tracker/CONTRACT.md — "Verbs", "Adapter contract",
-# "JSON output contract", "Exit codes".
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,9 +18,6 @@ while [[ $# -gt 0 ]]; do
     STATE="$2"
     shift 2
     ;;
-  # Gitea's `labels` parameter filters server-side, so the ceiling counts labeled issues.
-  # It splits on commas and drops a name the repository has no label for, so it can
-  # match more than asked; the core's exact-match filter after this read covers both.
   --label)
     [[ $# -ge 2 && -n "$2" ]] || wit_usage_error "--label needs a value"
     LABEL_QUERY="&labels=$(jq -rn --arg l "$2" '$l | @uri')"
@@ -53,20 +44,12 @@ if [[ -z "$REPO" ]]; then
   fi
   REPO="$(jq -r '.[0]' <<<"$WIT_GITEA_SCOPES")"
 fi
-# --repo is caller-supplied text that reaches a request path, so it is matched against
-# the same anchored allowlist the binding's own scopes were, then against the declared
-# scope list (the authorization boundary).
 [[ "$REPO" =~ $WIT_GITEA_SCOPE_RE ]] ||
   wit_usage_error "--repo must be <owner>/<repo>: $REPO"
 wit_gitea_scope_in_scope "$REPO" ||
   wit_usage_error "$REPO is not in config.gitea.scopes (the declared read scope)"
 wit_gitea_scope_parts "$REPO"
 
-# Gitea's `state` query parameter takes open|closed|all — the seam's own vocabulary, so
-# it passes through. STATE is already constrained to those three by the parse above.
-#
-# Rows travel through FILES, never a variable re-fed to jq: that is quadratic, and a
-# here-string past pipe capacity (65536 bytes) blocks Git Bash forever.
 if ! { ROWS="$(mktemp)" && COUNTS="$(mktemp)"; }; then
   printf 'list-items.sh: could not create temp files for the item walk\n' >&2
   exit "$EX_INTERNAL"
@@ -74,21 +57,9 @@ fi
 trap 'rm -f "$ROWS" "$COUNTS"' EXIT
 
 PAGE=1
-# SEEN counts raw rows returned so far, for comparison against gitea's own X-Total-Count.
-# `services/convert.ToCorrectPageSize` silently clamps `limit` to `[api] MAX_RESPONSE_ITEMS`
-# (stock 50), so on an instance whose cap is below config.gitea.page_size EVERY page comes
-# back short — "short page means last page" alone would end the loop after page 1 and return
-# a truncated list with nothing said, with the ceiling guard below never firing either.
-# This endpoint's handler calls ctx.SetTotalCountHeader, so when the header is present it is
-# the authoritative end-of-list signal and the clamp stops mattering. The short-page heuristic
-# stays as the fallback for anything that does not send one; it costs no extra request.
 SEEN=0
 TRUNCATED=false
 while :; do
-  # `type=issues` is a real query parameter on this endpoint (enum: issues|pulls). Without it
-  # gitea returns pull requests too, which are then dropped below — so PRs consumed the page
-  # budget and, worse, the declared ceiling counted rows rather than items, making a PR-heavy
-  # repo report "reached the declared ceiling of 1000 items" having collected far fewer.
   wit_gitea_http GET "/repos/$WIT_GITEA_OWNER/$WIT_GITEA_REPO/issues?state=$STATE&type=issues$LABEL_QUERY&page=$PAGE&limit=$WIT_GITEA_PAGE_SIZE"
   wit_gitea_require_ok "listing issues in $REPO"
   GOT="$(printf '%s' "$WIT_GITEA_BODY" | jq 'length' 2>/dev/null)" || {
@@ -103,9 +74,6 @@ while :; do
   SEEN=$((SEEN + GOT))
   ((GOT == 0)) && break
   if [[ -n "$WIT_GITEA_TOTAL_COUNT" ]]; then
-    # Authoritative: stop when gitea says we have them all. An EMPTY header is "no count was
-    # sent", never zero — hence the -n test rather than an arithmetic compare, which would
-    # read a missing header as "0 items" and end the listing on its first pass.
     ((SEEN >= WIT_GITEA_TOTAL_COUNT)) && break
   else
     ((GOT < WIT_GITEA_PAGE_SIZE)) && break
@@ -119,35 +87,15 @@ while :; do
   fi
 done
 
-# Open-blocker counts are one request per item: Gitea's Issue carries no dependency
-# data and there is no bulk dependency endpoint. Returning 0 instead would be worse
-# than slow — list-frontier filters on blocked_by_count == 0, so every blocked item
-# would surface as available work.
-#
-# The item numbers come out of the rows file in ONE jq pass, and each count is written
-# beside its number as a JSON line; the final pass below joins the two files by number.
-# So the per-item cost is the dependency request itself, not that plus three more jq
-# processes to re-read, normalize and re-accumulate the item.
 while IFS= read -r NUMBER; do
-  # The number reaches a request path, is interpolated unquoted into a JSON number
-  # literal in COUNTS, and is the join key below. A JSON number may not have a
-  # leading zero (RFC 8259 §6), so anything but a canonical integer is refused here
-  # before it can be interpolated or joined onto the wrong item.
   [[ "$NUMBER" =~ ^(0|[1-9][0-9]*)$ ]] || {
     printf 'list-items.sh: gitea returned an issue in %s without a numeric number: %s\n' "$REPO" "$NUMBER" >&2
     exit "$EX_INTERNAL"
   }
-  # The helper exits on transport/HTTP failure, but inside $( ) that only ends the
-  # subshell — propagate its code rather than continuing with "" and reporting a 401 or
-  # a 503 as this adapter's own internal error.
   BBC="$(wit_gitea_blocked_by_count "$WIT_GITEA_OWNER" "$WIT_GITEA_REPO" "$NUMBER")" || exit "$?"
   printf '{"number":%s,"blocked_by_count":%s}\n' "$NUMBER" "$BBC" >>"$COUNTS"
 done < <(jq -r '.number' "$ROWS")
 
-# One pass builds the envelope: slurp the rows, join each to its blocker count, normalize.
-# jq materializes the envelope before printing any of it, so a failure here (including a
-# row with no count, which `error` turns into one) emits nothing rather than a truncated
-# or partial envelope with a success status.
 jq -c -s --slurpfile counts "$COUNTS" --arg sv "$WIT_SCHEMA_VERSION" \
   --arg full "$WIT_GITEA_OWNER/$WIT_GITEA_REPO" --argjson truncated "$TRUNCATED" '
   ($counts | map({key: (.number | tostring), value: .blocked_by_count}) | from_entries) as $bbc_by_number

@@ -5,6 +5,18 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-11-26
+
+### Changed
+
+- The `plugin-quality:auditor` agent points at the tools reference's WebFetch section for how WebFetch reads a page, instead of describing its truncation ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [1.0.2] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [1.0.1] - 2026-11-25
 
 ### Changed

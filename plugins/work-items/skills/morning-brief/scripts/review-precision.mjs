@@ -1,26 +1,4 @@
 #!/usr/bin/env node
-// Review-lane precision series: how each claude-review and claude-security-review finding on
-// the pull requests merged in a closed window was answered, plus rounds-to-pass per PR.
-//
-//   review-precision.mjs [--since D] [--until D] [--repo owner/name] [--format json|md] [--save-snapshot FILE]
-//                                                      fetch, then compute
-//   review-precision.mjs fetch [--since D] [--until D] [--repo owner/name] --out FILE
-//                                                      write the snapshot only
-//   review-precision.mjs --snapshot FILE [--format json|md]
-//                                                      compute from a saved snapshot, no network
-//
-// D is a UTC date (YYYY-MM-DD) or ISO time. The window is [since, until); the default is the
-// 7 complete UTC days ending at today 00:00Z. Fetch reads with the operator's gh: one paged
-// GraphQL query for merged PRs with their review threads, comments and each comment's edit
-// history, from which each lane's reviewed heads are read. compute() is a pure function of the
-// snapshot: the same snapshot gives the same bytes. Fetch stops at the first rate-limit error
-// and says so. Any workflow's job token posts as github-actions, so fetch checks each
-// github-actions review comment with a lane footer against the run its binding names
-// (lib/lane-binding.mjs, reading that run and its comment-record artifacts): one that fails is
-// saved with `lane_bound: false` and read as having no footer; one that passes is saved without
-// its binding line.
-// Exit 0 done, 1 a read failed, 2 usage, 3 rate limited.
-
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -28,27 +6,13 @@ import { fileURLToPath } from "node:url";
 import { laneChecker, withoutBinding } from "../../../lib/lane-binding.mjs";
 
 export const LANES = Object.freeze(["claude-review", "claude-security-review"]);
-// The current lane format (the reviewed-head comment with its counts line, and the
-// `claude-lane:` footer) is ci-workflows pr-review-cli (ci-workflows 8778094736, #862, and
-// 83b739f625, #865, both 2026-10-23). This repository's security lane moved to it in 5f8c010cab
-// (#9307) and its code lane in 0aca16f268 (#9348), both 2026-10-23, so the first full UTC day
-// both lanes ran it is 2026-10-24.
 export const EARLIEST_SUPPORTED = "2026-10-24T00:00:00Z";
 const CAP_SOURCE = "docs/conventions/pr-pipeline.yaml loop.review-rounds";
 const CAP_DEFAULT = 3;
-// pr-unblock's round record (.github/scripts/pr-unblock/gate-source.mjs ROUND_MARKER).
 const ROUND_MARKER = "<!-- pr-unblock:address-feedback-round -->";
-// Each lane keeps one summary comment per PR, edited in place on every reviewed head; every
-// version opens with the reviewed-head marker and its counts line, so the comment's edit history
-// is the lane's review record: `<!-- claude-lane-reviewed-head lane=L sha=S -->` and
-// "**L** reviewed `S`: read ...; N finding(s), K as inline comments."
 const REVIEWED_HEAD = /<!-- claude-lane-reviewed-head lane=([\w-]+) sha=([0-9a-f]{40}) -->/;
 const COUNTS = /\b(\d{1,6}) finding\(s\), (\d{1,6}) as inline comments\b/;
-// A lane comment's last non-blank line (babysit_review_evidence.py LANE_TAG_RE).
 const FOOTER = /^\s*`?claude-lane: ([\w-]+)`?\s*$/;
-// The D5 labels (plugins/source-control/reference/review-discipline.md), uppercase and whole.
-// pr-unblock's reply opens with one of them (`**pr-unblock / address-feedback: VALID (defer), left
-// open**`, .github/scripts/pr-unblock/publish-feedback.mjs LABELS), so the first label wins there too.
 const LABEL = /\b(?:VALID\s*\((?:defer|deferred)\)|VALID-defer\b|VALID,? (?:filed|deferred)\b|VALID\b|INTENTIONAL\b|INCORRECT\b|UNCERTAIN\b)/;
 const FIX_SHA = /\b(?:Fixed in|Fix:)\s*`?[0-9a-f]{7,40}\b/;
 const SUMMARY_HEADER = /^(claude-review|claude-security-review) findings? *(?:\(`?([0-9a-f]{7,40})`?\))?$/;
@@ -64,13 +28,6 @@ export const BUCKETS = Object.freeze([
   "unanswered",
 ]);
 const LABELED = ["valid-fixed", "valid-follow-up", "intentional", "incorrect", "uncertain"];
-// Who wrote the answer an outcome came from, derived in compute() from each snapshot comment's
-// raw `author_type` (GraphQL's author `__typename`, the Actor interface; null with no author) and
-// its full body. A Bot is the lanes App or any other app. A User answer with a line opening with
-// the D5 label marker (`<!-- d5 finding=`, review-discipline.md) is `user-marked`; any other User
-// answer is `user-unmarked`: a person, or an agent answer posted before the marker existed (it
-// landed in aae9ecdbe3, #11812, on 2026-11-01). Anything else, or no recorded type, is unknown.
-// No kind is called "person" (the decision on #11841).
 export const AUTHOR_KINDS = Object.freeze(["bot", "user-marked", "user-unmarked", "unknown"]);
 const D5_MARKER = /^\s*<!-- d5 finding=/m;
 const ANSWERED = BUCKETS.filter((bucket) => bucket !== "unanswered");
@@ -101,8 +58,6 @@ function tables(text) {
 const verdictColumn = (header) => header.findIndex((cell) => /^(verdict|classification)$/i.test(cell));
 const rowText = (cells, col) => (col >= 0 ? `${cells[col]} | ${cells.join(" | ")}` : cells.join(" | "));
 
-// The label a piece of answer text carries, or null. A verdict column wins over the rest of the
-// row; prose counts only its uppercase D5 labels, never a paraphrase.
 export function labelOf(text) {
   const match = LABEL.exec(text);
   if (match) {
@@ -123,9 +78,6 @@ function citedItems(text, repo) {
   return out;
 }
 
-// One answer's bucket. A VALID (defer) counts as a follow-up only when it cites a tracker id
-// newer than the PR (issues and PRs share one numbering); a defer with no forward link is
-// answered but unlabeled, and says so.
 export function bucketOf(text, prNumber, repo = null) {
   const label = labelOf(text);
   if (label === null) return { bucket: "answered-unlabeled" };
@@ -300,8 +252,6 @@ function computePr(pr, until, repo, roundAuthor) {
     lanes[lane].heads_reviewed = list.length;
     finish(lanes[lane]);
   }
-  // A round is a comment whose first line is the marker, from the lanes App when the snapshot
-  // names it (address-feedback.mjs isRoundMarker); a quote of the marker elsewhere is not one.
   const isRound = (c) => String(c.body).split(/\r?\n/)[0].trim() === ROUND_MARKER && (!roundAuthor || botLogin(c.author) === botLogin(roundAuthor));
   const markers = comments.filter(isRound).length;
   return {
@@ -360,7 +310,6 @@ export function compute(snapshot) {
   };
 }
 
-// JSON with every object's keys sorted, so equal data is equal bytes.
 export function stableStringify(value) {
   const sort = (v) =>
     Array.isArray(v) ? v.map(sort) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sort(v[k])])) : v;
@@ -448,8 +397,6 @@ const PR_QUERY = `query($owner:String!, $name:String!, $endCursor:String) {
   }
 }`;
 
-// The lane reviews one comment records: its body when never edited, else each edit's full text
-// (the newest edit is the current body). One entry per version that carries the marker and counts.
 export function reviewsOf(comment) {
   const edits = comment.userContentEdits?.nodes ?? [];
   const versions = edits.length ? edits.map((e) => ({ at: e.editedAt, text: e.diff ?? "" })) : [{ at: comment.createdAt, text: comment.body ?? "" }];
@@ -462,9 +409,6 @@ export function reviewsOf(comment) {
   return out;
 }
 
-// Raw review-comment nodes with each github-actions one carrying a lane footer checked by
-// `check` (lane-binding.mjs laneChecker): a pass drops its binding line, a failure marks it
-// unbound. Other comments are not read. A failed read rejects.
 export async function bindComments(nodes, check) {
   return Promise.all(
     nodes.map(async (c) => {

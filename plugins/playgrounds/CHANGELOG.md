@@ -3,6 +3,12 @@
 All notable changes to the `playgrounds` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.10] - 2026-11-26
+
+### Changed
+
+- `/playgrounds:use` points at the tools reference's WebFetch section for how WebFetch reads a page, instead of describing what a summarizing fetch returns ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
 ## [0.2.9] - 2026-11-15
 
 ### Changed

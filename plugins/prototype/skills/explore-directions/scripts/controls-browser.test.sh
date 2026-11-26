@@ -30,7 +30,7 @@ page "--card-gap"
 browser_serve
 url="http://127.0.0.1:$port/"
 
-run() { # script label [want]
+run() {
   local n=0 line
   python3 -c '
 import json, sys

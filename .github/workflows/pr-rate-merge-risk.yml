@@ -31,9 +31,9 @@ jobs:
     timeout-minutes: 45
     cache-mode: read
     permissions:
-      contents: read # check out main; read the PR's commits for the diff
-      pull-requests: read # the PR, its comments and closing issues
-      actions: read # the upstream run, and ratings already uploaded
+      contents: read
+      pull-requests: read
+      actions: read
     outputs:
       next-leg: ${{ steps.next.outputs.next-leg }}
       next-reason: ${{ steps.next.outputs.next-reason }}
@@ -428,9 +428,9 @@ jobs:
     timeout-minutes: 45
     cache-mode: read
     permissions:
-      contents: read # check out main; read the PR's commits for the diff
-      pull-requests: read # the PR, its comments and closing issues
-      actions: read # the upstream run, and ratings already uploaded
+      contents: read
+      pull-requests: read
+      actions: read
     outputs:
       next-leg: ${{ steps.next.outputs.next-leg }}
       next-reason: ${{ steps.next.outputs.next-reason }}
@@ -769,9 +769,9 @@ jobs:
     timeout-minutes: 45
     cache-mode: read
     permissions:
-      contents: read # check out main; read the PR's commits for the diff
-      pull-requests: read # the PR, its comments and closing issues
-      actions: read # the upstream run, and ratings already uploaded
+      contents: read
+      pull-requests: read
+      actions: read
     steps:
       - name: Resolve main's tip
         id: tip

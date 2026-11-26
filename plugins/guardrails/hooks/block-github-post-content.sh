@@ -9,7 +9,7 @@ _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 source "$_HOOK_SELF/abort-boundary.sh"
 guard::abort_boundary block-github-post-content PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
-source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
+source "$_HOOK_SELF/hook-utils.sh" || exit 70
 _bgpc_lib="${CLAUDE_PLUGIN_ROOT:-$_HOOK_SELF/..}/lib"
 # shellcheck source=../lib/github-post/github-post-body.sh
 source "$_bgpc_lib/github-post/github-post-body.sh" || exit 70

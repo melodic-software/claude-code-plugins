@@ -112,14 +112,6 @@ def parse_timestamp(ts_str: str) -> datetime | None:
         return None
 
 
-# Tools whose `input.file_path` is a write target. Read/Grep/Glob also have
-# file_path inputs but should not count as "files modified".
-# MultiEdit stays listed on purpose: transcripts recorded by older Claude Code
-# versions carry MultiEdit calls, and they must still count as modifications.
-# Pointer: for where the permissions page names the legacy MultiEdit tool, see
-# https://code.claude.com/docs/en/permissions#read-and-edit
-# As of: 2026-10-02
-# Recheck trigger: that section stops naming MultiEdit, or moves.
 _FILE_MODIFYING_TOOLS = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
 
 _REJECTION_SNIPPET_LEN = 200
@@ -245,7 +237,6 @@ def parse_main_transcript(filepath: Path, lane_leg: bool = False) -> dict[str, A
         "plugin_skills": Counter(),
     }
     stats: dict[str, int] = {}
-    # Streaming writes one message as several records; the ledger counts its usage once.
     ledger = transcript_reader.UsageLedger()
     inline_subagents: dict[str, dict[str, Any]] = {}
     agent_spawns: dict[str, dict[str, Any]] = {}
@@ -297,8 +288,6 @@ def parse_main_transcript(filepath: Path, lane_leg: bool = False) -> dict[str, A
                 metrics["user_turns"] += 1
                 if transcript_reader.is_typed_turn(event):
                     metrics["human_messages"] += 1
-                # A typed /<plugin>:<skill> arrives as an injected command record, not a typed
-                # turn, so the plugin-usage scan runs over every user record.
                 content_raw = _as_dict(event.get("message")).get("content", [])
 
                 if isinstance(content_raw, str):
@@ -852,8 +841,6 @@ def _parse_legacy_or_argparse(argv: list[str]) -> argparse.Namespace:
     ns = parser.parse_args(argv)
     ns.session_id = None
     if ns.sessions:
-        # `nargs="+"` takes `--sessions a,b,c` as one token. A session id never
-        # contains a comma, so split on it and drop empty fragments.
         ns.sessions = [
             sid
             for token in ns.sessions
@@ -926,7 +913,6 @@ def main() -> None:
     result = parse_one_session(session_id, ns.base)
 
     if not result.get("transcript_present"):
-        # Warning vs error here is contract: see the module docstring's exit codes.
         if result.get("subagents"):
             _emit_and_exit(
                 "warning",

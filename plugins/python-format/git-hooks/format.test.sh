@@ -28,7 +28,7 @@ expect() {
 }
 
 n=0
-new_repo() { # [ruff.toml body; "NONE" for no config]
+new_repo() {
   n=$((n + 1))
   REPO="$WORK/r$n"
   git init -q -b main "$REPO"
@@ -48,7 +48,7 @@ record() {
   git -C "$REPO" commit -q -m record --no-verify
 }
 
-check() { # <repo> [args...] -> "<rc>|<stdout>|<stderr>"
+check() {
   local repo="$1" out rc
   shift
   out="$(cd "$repo" && PATH="$BIN:$PATH" bash "$CHECK" "$@" 2>"$WORK/stderr")"

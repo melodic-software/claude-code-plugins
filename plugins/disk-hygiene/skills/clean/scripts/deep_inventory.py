@@ -52,7 +52,7 @@ from plugin_cache_versions import (  # noqa: E402  (path set above; plugin-bundl
 
 try:
     import pwd
-except ImportError:  # Windows
+except ImportError:
     pwd = None
 
 ROW_COLUMNS = (

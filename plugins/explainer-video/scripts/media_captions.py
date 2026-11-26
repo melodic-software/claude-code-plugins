@@ -8,9 +8,9 @@ max_words words. The caller passes the limits (max_words, min_seconds, seconds_p
 import math
 
 SENTENCE_END = set('.!?…')
-CLOSERS = '"\'’”)]}»'            # may follow a sentence end: "Done." or finished.)
-MARGIN_V = 0.13                   # bottom margin as a share of the height: clears GitHub's player control bar
-TWO_LINE_BOX = 2.4                # a two-line cue's box height in font sizes (libass, DejaVu Sans, measured 2.26)
+CLOSERS = '"\'’”)]}»'
+MARGIN_V = 0.13
+TWO_LINE_BOX = 2.4
 
 
 def _sentences(run):

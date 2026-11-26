@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# add-sub-item <id> --parent <id> — CONTRACT.md "Verbs (core public surface)".
-# Records the parent as a frontmatter field; get-item is authoritative for linkage.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
