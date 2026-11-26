@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 work="$(mktemp -d)"
@@ -32,6 +34,7 @@ check() {
   # shellcheck disable=SC2016
   err="$(env -u "$option" HOME="$work/home" CLAUDE_PROJECT_DIR="$project" ${env[@]+"${env[@]}"} bash -c '
     . "$1" && shift || exit 2
+    [[ -z "${TEST_CWD-}" ]] || cd "$TEST_CWD" || exit 2
     hook_enabled::_managed_files() {
       local f
       _HOOK_ENABLED_MANAGED_FILES=()
@@ -169,6 +172,65 @@ check "a managed value is not read without --security" 1 "" "TEST_MANAGED=$manag
 lib="$HERE/hook-enabled.sh"
 rm -f "$settings" "$managed" "$dropin"
 
+clone="$work/clone"
+clone_conf="$clone/docs/conventions/demo.yaml"
+config="$work/claude"
+user_file="$config/settings.json"
+home_file="$work/home/.claude/settings.json"
+mkdir -p "$clone/docs/conventions" "$clone/sub/dir" "$config" "${home_file%/*}" "$work/nogit"
+git -c init.defaultBranch=main init -q "$clone"
+in_clone=("TEST_CWD=$clone/sub/dir" "CLAUDE_CONFIG_DIR=$config" "GIT_CEILING_DIRECTORIES=$work")
+from_user="pluginConfigs[\"demo@*\"] in $user_file"
+clone_repo() {
+  rm -f "$clone_conf"
+  (($# == 0)) || printf '%s\n' "$@" >"$clone_conf"
+}
+git_user() {
+  printf '{"pluginConfigs": {%s}}\n' "$1" >"$user_file"
+}
+repo "demo_enabled: true"
+clone_repo "demo_enabled: true"
+git_user '"demo@market": {"options": {"demo_enabled": false}}'
+check "git hook: the user's settings false over a repository true: off" 1 "" "${in_clone[@]}" -- --git-hook demo demo_enabled true
+clone_repo "demo_enabled: false"
+git_user '"demo@market": {"options": {"demo_enabled": true}}'
+check "git hook: the user's settings true over a repository false: on" 0 "" "${in_clone[@]}" -- --git-hook demo demo_enabled false
+rm -f "$user_file"
+check "git hook: no settings file leaves the user layer unset; the top-level repository file decides" 1 "" "${in_clone[@]}" -- --git-hook demo demo_enabled true
+clone_repo "demo_enabled: true"
+git_user '"other@market": {"options": {"demo_enabled": false}}'
+check "git hook: no entry for the plugin leaves the user layer unset" 0 "" "${in_clone[@]}" -- --git-hook demo demo_enabled false
+clone_repo
+repo "demo_enabled: false"
+check "git hook: both unset gives the plugin default; CLAUDE_PROJECT_DIR is not read" 0 "" "${in_clone[@]}" -- --git-hook demo demo_enabled true
+clone_repo "demo_enabled: false"
+git_user '"demo@market": {"options": {"demo_enabled": "no"}}'
+check "git hook: an invalid settings value is named and dropped" 1 "$(dropped no "$from_user")" "${in_clone[@]}" -- --git-hook demo demo_enabled true
+git_user '"demo@market": {"options": {"demo_enabled": 0}}'
+check "git hook: a number in settings is named and dropped" 1 "$(dropped 0 "$from_user")" "${in_clone[@]}" -- --git-hook demo demo_enabled true
+rm -f "$user_file"
+check "git hook: a relative GIT_DIR at the top level, as git runs a hook, finds the repository file" 1 "" "TEST_CWD=$clone" GIT_DIR=.git "CLAUDE_CONFIG_DIR=$config" -- --git-hook demo demo_enabled true
+clone_repo "demo_enabled: true"
+git_user '"demo@market": {"options": {"demo_enabled": false}}, "demo@other": {"options": {"demo_enabled": true}}'
+check "git hook: marketplaces that disagree are named and skipped" 0 "hook-enabled: demo_enabled: skipped $from_user; entries for more than one marketplace set different values" "${in_clone[@]}" -- --git-hook demo demo_enabled true
+git_user '"demo@market": {"options": {"demo_enabled": false}}, "demo@other": {"options": {"demo_enabled": false}}'
+check "git hook: marketplaces that agree set the user layer" 1 "" "${in_clone[@]}" -- --git-hook demo demo_enabled true
+rm -f "$user_file"
+check "git hook: CLAUDE_PLUGIN_OPTION is not the user layer" 0 "" "${in_clone[@]}" "$option=false" -- --git-hook demo demo_enabled false
+printf '{"pluginConfigs": {"demo@market": {"options": {"demo_enabled": false}}}}\n' >"$home_file"
+check "git hook: with no CLAUDE_CONFIG_DIR the settings come from HOME/.claude" 1 "" "TEST_CWD=$clone/sub/dir" CLAUDE_CONFIG_DIR= -- --git-hook demo demo_enabled true
+rm -f "$home_file"
+check "git hook: outside a repository no repository layer is read" 0 "" "TEST_CWD=$work/nogit" "CLAUDE_CONFIG_DIR=$config" "GIT_CEILING_DIRECTORIES=$work" -- --git-hook demo demo_enabled true
+clone_repo "demo_enabled: false"
+check "git hook security: a repository false is ignored" 0 "" "${in_clone[@]}" -- --security --git-hook demo demo_enabled true
+clone_repo "demo_enabled: true"
+git_user '"demo@market": {"options": {"demo_enabled": false}}'
+check "git hook security: the user's settings false turns the guard off" 1 "" "${in_clone[@]}" -- --security --git-hook demo demo_enabled true
+managed_setting "$managed" true
+check "git hook security: a managed true beats the user's settings false" 0 "" "${in_clone[@]}" "TEST_MANAGED=$managed" -- --security --git-hook demo demo_enabled false
+repo
+rm -f "$user_file" "$managed" "$clone_conf"
+
 repo
 printf 'demo_enabled: false\n' >"$project/settings/demo.yaml"
 check "--home names the convention home" 1 "" -- --home settings demo demo_enabled true
@@ -191,7 +253,7 @@ check "a symlinked repository file is named and skipped" 0 "hook-enabled: demo_e
 check "a key without _enabled is a usage error" 2 'hook-enabled: key "demo" is not a snake_case <name>_enabled key' -- demo demo true
 check "a default other than true or false is a usage error" 2 'hook-enabled: demo_enabled: plugin default "on" is not true or false' -- demo demo_enabled on
 check "a plugin name with a slash is a usage error" 2 'hook-enabled: plugin name "../demo" is not a plain name' -- ../demo demo_enabled true
-check "a missing argument is a usage error" 2 "hook-enabled: usage: hook_enabled::resolve [--security] [--root DIR] [--home DIR] <plugin> <key> <true|false>" -- demo demo_enabled
+check "a missing argument is a usage error" 2 "hook-enabled: usage: hook_enabled::resolve [--security] [--git-hook] [--root DIR] [--home DIR] <plugin> <key> <true|false>" -- demo demo_enabled
 check "--root with no value is a usage error" 2 "hook-enabled: --root requires a value" -- demo demo_enabled true --root
 
 exit "$fails"
