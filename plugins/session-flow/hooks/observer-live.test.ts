@@ -826,3 +826,37 @@ test('a gate finding is redacted before its row and its refusal note', GATE, asy
   expect(w.files[LIVE]).not.toContain('sk-abc123')
   expect(JSON.stringify(r)).toContain('<REDACTED: API key>')
 })
+
+const HARNESS = { options: { observer_harness_check: true, observer_step_check: false } }
+const HOOK_LOG = `${PROJECT}/.observability/claude/sessions/${SID}.jsonl`
+
+test('harness checks read the hook log at turn end and context from session.measure, call no model, and reach the ledger and band', HARNESS, async ($, on) => {
+  const w = world(on)
+  on('session.measure', ($: unknown, e: { changed: string[] }) => ({ changed: e.changed }))
+  on('session.info', () => ({ value: { platform: 'wsl' } }))
+  w.files[HOOK_LOG] = [100, 200, 300, 9000, 9400].map(ms => JSON.stringify({ source: 'envelope', hook: 'merge-guard', duration_ms: ms })).join('\n')
+  await start($)
+  await turn($, 't1')
+  await complete($, 't1')
+  expect(w.forks).toEqual([])
+  expect(live(w)).toContainEqual(expect.objectContaining({ harness: 'hook-latency' }))
+  const ledger = ledgerFiles(w).find(f => f.endsWith('.md'))!
+  expect(w.files[ledger]).toContain('(harness)')
+  expect(w.files[ledger]).toContain("Fix: profile and speed up the hook in a dedicated session: cd '/proj' && claude -n hook-merge-guard")
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /observer · harness \(hook-latency\) · Hook merge-guard is slow/ })).toBeDefined()
+  await ui.unmount()
+  await $.session.measure({ context: { tokens: 600_000, window: 1_000_000, percent: 60 }, rateLimits: [], changed: ['context'] })
+  await settle()
+  expect(live(w)).toContainEqual(expect.objectContaining({ harness: 'context' }))
+  expect(w.forks).toEqual([])
+})
+
+test('with harness checks off no harness hook reads the log or records a row', async ($, on) => {
+  const w = world(on)
+  w.files[HOOK_LOG] = [9000, 9000, 9000, 9000, 9000].map(ms => JSON.stringify({ source: 'envelope', hook: 'slow', duration_ms: ms })).join('\n')
+  await start($)
+  await turn($, 't1')
+  await complete($, 't1')
+  expect(live(w).some(r => 'harness' in r)).toBe(false)
+})
