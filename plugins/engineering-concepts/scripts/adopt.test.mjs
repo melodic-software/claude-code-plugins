@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
@@ -195,7 +195,7 @@ test("a missing or unknown layer, a surface that is not a kebab-case name, or an
     [["example-small-steps", "--layer", "personal", "--surface", "change-size", "--applies-when", "a \\| b"], "applies-when"],
     [["example-small-steps", "--layer", "personal", "--surface", "change-size", "--applies-when", ""], "applies-when"],
     [["example-small-steps", "--layer", "personal", "--surface", "change-size", "--applies-when", " \n "], "applies-when"],
-    [["example-small-steps", "--layer", "personal", "--surface", "change-size", "--force"], null],
+    [["example-small-steps", "--layer", "personal", "--surface", "change-size", "--force"], "force"],
     [["--layer", "personal", "--surface", "change-size"], "concepts"],
   ];
   for (const [args, option] of cases) {
@@ -359,16 +359,16 @@ test("the preview says so when the index or the surface file lacks a final line 
   }
 });
 
-test("a --user-config file that does not exist is refused with the plain reason 'file not found'", async () => {
+test("a --user-config file that does not exist is refused with the plain reason 'could not be read: file not found'", async () => {
   const { code, errors } = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--user-config", join(tree(), "missing.json")]);
   assert.equal(code, 2);
-  assert.deepEqual(errors.map((e) => [e.event, e.option, e.reason]), [["invalid option", "user-config", "file not found"]]);
+  assert.deepEqual(errors.map((e) => [e.event, e.option, e.reason]), [["invalid option", "user-config", "could not be read: file not found"]]);
 });
 
-test("a .claude/standards.yaml the parser rejects is reported with a plain lead-in before the parser's detail", async () => {
+test("a .claude/standards.yaml the parser rejects is reported as not valid, with a plain lead-in before the parser's detail", async () => {
   const project = repo({ ".claude/standards.yaml": "standards_dir: [docs\n", "docs/standards/README.md": INDEX });
   const { errors } = await run(["example-small-steps", "--layer", "team", "--surface", "change-size"], { project });
-  assert.match(errors[0].reason, /^the settings file could not be read: .*line 1/u);
+  assert.match(errors[0].reason, /^the settings file is not valid: .*line 1/u);
 });
 
 test("a concept refused by a setting names the layer in plain words, keeping the layer key", async () => {
@@ -395,20 +395,22 @@ test("a write the file system refuses names the target file and the reason in pl
     const { code, errors } = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home });
     assert.equal(code, 1);
     const target = personal(home, "change-size.md");
-    assert.deepEqual(errors.map((e) => [e.event, e.path, e.code]), [["write failed", target, "EACCES"]]);
+    const index = personal(home, "README.md");
+    assert.deepEqual(errors.map((e) => [e.event, e.path, e.code]), [["write refused", target, "EACCES"], ["write refused", index, "EACCES"]]);
     assert.equal(errors[0].message, `${target} could not be written: permission denied`);
+    assert.equal(readFileSync(index, "utf8"), INDEX);
   } finally {
     chmodSync(dir, 0o700);
   }
 });
 
-test("a --user-config that is a folder is refused with the plain reason 'is a folder, not a file'", async () => {
+test("a --user-config that is a folder is refused with the plain reason 'could not be read: it is a folder, not a file'", async () => {
   const { code, errors } = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--user-config", tree()]);
   assert.equal(code, 2);
-  assert.deepEqual(errors.map((e) => [e.event, e.option, e.reason]), [["invalid option", "user-config", "is a folder, not a file"]]);
+  assert.deepEqual(errors.map((e) => [e.event, e.option, e.reason]), [["invalid option", "user-config", "could not be read: it is a folder, not a file"]]);
 });
 
-test("a malformed plugin settings file stops adopt with a plain sentence naming the file and its layer, while the lookup only warns", async () => {
+test("a malformed plugin settings file stops adopt as not valid, in a plain sentence naming the file and its layer, while the lookup only warns", async () => {
   const cases = [
     [TEAM_SETTINGS, "team", "the repository's settings file"],
     ["docs/conventions/engineering-concepts.local.yaml", "local", "your personal settings file for this repository"],
@@ -419,8 +421,9 @@ test("a malformed plugin settings file stops adopt with a plain sentence naming 
     const path = join(project, file);
     const { code, errors } = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home, project });
     assert.equal(code, 1, layer);
-    assert.deepEqual(errors.map((e) => [e.level, e.event, e.layer, e.path]), [["error", "settings file unreadable", layer, path]], layer);
-    assert.ok(errors[0].reason.startsWith(`${plain}, ${path}, could not be read, so nothing is adopted until it is fixed: `), errors[0].reason);
+    assert.deepEqual(errors.map((e) => [e.level, e.event, e.layer, e.path]), [["error", "settings file invalid", layer, path]], layer);
+    assert.ok(errors[0].reason.startsWith(`${plain}, ${path}, is not valid, so nothing is adopted until it is fixed: `), errors[0].reason);
+    assert.match(errors[0].reason, /line 1/u, "the parser's line stays in the reason");
     assert.ok(!errors[0].reason.includes(`${layer} (`), errors[0].reason);
     assert.equal(existsSync(personal(home, "change-size.md")), false, layer);
     assert.equal(readFileSync(personal(home, "README.md"), "utf8"), INDEX, layer);
@@ -536,4 +539,191 @@ test("a symbolic link planted where the old temporary file name went is not foll
   assert.ok(lstatSync(planted).isSymbolicLink(), "the planted link is left in place");
   assert.equal(lstatSync(personal(home, "change-size.md")).isFile(), true);
   assert.match(readFileSync(personal(home, "change-size.md"), "utf8"), /^- Example Small Steps/mu);
+});
+
+const asRoot = process.getuid?.() === 0 && "root ignores file permissions";
+const modeOf = (path) => statSync(path).mode & 0o777;
+const ADOPT = ["example-small-steps", "--layer", "personal", "--surface", "change-size"];
+
+test("replacing the surface file and the index keeps each file's mode, and a new file gets the mode the umask gives", async () => {
+  const home = tree({ ".claude/standards/README.md": INDEX, ".claude/standards/change-size.md": "# Mine\n" });
+  chmodSync(personal(home, "README.md"), 0o640);
+  chmodSync(personal(home, "change-size.md"), 0o600);
+  assert.equal((await run([...ADOPT, "--yes"], { home })).code, 0);
+  assert.equal(modeOf(personal(home, "README.md")), 0o640, "the index keeps 0640");
+  assert.equal(modeOf(personal(home, "change-size.md")), 0o600, "the surface file keeps 0600");
+  assert.match(readFileSync(personal(home, "change-size.md"), "utf8"), /^- Example Small Steps/mu);
+
+  const fresh = personalHome();
+  assert.equal((await run([...ADOPT, "--yes"], { home: fresh })).code, 0);
+  assert.equal(modeOf(personal(fresh, "change-size.md")), 0o666 & ~process.umask(), "a new file gets 0666 less the umask");
+});
+
+test("a surface file or index the person cannot write is refused with a plain reason, and neither file is replaced", { skip: asRoot }, async () => {
+  for (const name of ["change-size.md", "README.md"]) {
+    const home = tree({ ".claude/standards/README.md": INDEX, ".claude/standards/change-size.md": "# Mine\n" });
+    chmodSync(personal(home, name), 0o444);
+    for (const extra of [[], ["--yes"]]) {
+      const { code, errors } = await run([...ADOPT, ...extra], { home });
+      assert.equal(code, 1, `${name} ${extra}`);
+      assert.deepEqual(errors.map((e) => [e.event, e.path, e.code]), [["write refused", personal(home, name), "EACCES"]], name);
+      assert.equal(errors[0].message, `${personal(home, name)} is not replaced: you have no write permission for it`, name);
+    }
+    assert.equal(modeOf(personal(home, name)), 0o444, `${name} keeps its mode`);
+    assert.equal(readFileSync(personal(home, "change-size.md"), "utf8"), "# Mine\n", name);
+    assert.equal(readFileSync(personal(home, "README.md"), "utf8"), INDEX, name);
+  }
+});
+
+test("a surface file that already cites every concept named but has no index row gets the row, in the preview and the write", async () => {
+  const cited = "# Mine\n\n- Example Small Steps (`example-small-steps`): https://example.com/small-steps\n";
+  const home = tree({ ".claude/standards/README.md": INDEX, ".claude/standards/change-size.md": cited });
+  const preview = await run(ADOPT, { home });
+  assert.equal(preview.code, 3);
+  assert.ok(preview.out.includes(`Would add this row to ${personal(home, "README.md")}:\n| change-size | change-size | change-size.md |`), preview.out);
+  assert.doesNotMatch(preview.out, /Would (create|append|fill)/u);
+  assert.equal((await run([...ADOPT, "--yes"], { home })).code, 0);
+  assert.deepEqual(rowsFor(readFileSync(personal(home, "README.md"), "utf8"), "change-size.md"), ["| change-size | change-size | change-size.md |"]);
+  assert.equal(readFileSync(personal(home, "change-size.md"), "utf8"), cited);
+  const again = await run([...ADOPT, "--yes"], { home });
+  assert.equal(again.code, 0);
+  assert.match(again.out, /Nothing to write/u);
+});
+
+test("for the team layer a concept cited only in a personal *.local.md file is still adopted into the team file", async () => {
+  const cited = "# Testing\n\n- Example Small Steps (`example-small-steps`): https://example.com/small-steps\n";
+  const project = repo({ "docs/standards/README.md": INDEX, "docs/standards/testing.local.md": cited });
+  const { code, out } = await run(["example-small-steps", "--layer", "team", "--surface", "change-size", "--yes"], { project });
+  assert.equal(code, 0);
+  assert.doesNotMatch(out, /already adopted/u);
+  assert.match(readFileSync(join(project, "docs", "standards", "change-size.md"), "utf8"), /^- Example Small Steps \(`example-small-steps`\)/mu);
+
+  const home = tree({ ".claude/standards/README.md": INDEX, ".claude/standards/testing.local.md": cited });
+  const mine = await run([...ADOPT, "--yes"], { home });
+  assert.equal(mine.code, 0);
+  assert.ok(mine.out.includes(personal(home, "testing.local.md")), "every file of the personal layer is personal");
+  assert.equal(existsSync(personal(home, "change-size.md")), false);
+});
+
+test("the already-adopted walk skips .git and node_modules", async () => {
+  const cited = "- Example Small Steps (`example-small-steps`): https://example.com/small-steps\n";
+  for (const folder of [".git", "node_modules"]) {
+    const home = tree({ ".claude/standards/README.md": INDEX, [`.claude/standards/${folder}/notes.md`]: cited });
+    const { code, out } = await run([...ADOPT, "--yes"], { home });
+    assert.equal(code, 0, folder);
+    assert.doesNotMatch(out, /already adopted/u, folder);
+    assert.match(readFileSync(personal(home, "change-size.md"), "utf8"), /^- Example Small Steps/mu, folder);
+  }
+});
+
+test("an index mixing CRLF and LF lines gets the row in its existing table, not a second table", async () => {
+  const lines = INDEX.split("\n");
+  const mixed = `${lines.slice(0, 3).join("\r\n")}\r\n${lines.slice(3).join("\n")}`;
+  const home = tree({ ".claude/standards/README.md": mixed });
+  assert.equal((await run([...ADOPT, "--yes"], { home })).code, 0);
+  const written = readFileSync(personal(home, "README.md"), "utf8");
+  assert.equal(written.match(/^\| Surface \|/gmu).length, 1, written);
+  assert.ok(written.includes("| paved-path | adding a service endpoint, a schema migration, or a queue consumer | paved-paths.md |\n| change-size | change-size | change-size.md |"), written);
+});
+
+test("an unknown option or an option missing its value is named, with what is wrong in plain words", async () => {
+  const cases = [
+    [["--force"], "force", /--force is not an option/u],
+    [["-x"], "x", /-x is not an option/u],
+    [["--applies-when"], "applies-when", /--applies-when needs a value/u],
+    [["--yes=no"], "yes", /--yes takes no value/u],
+  ];
+  for (const [extra, option, reason] of cases) {
+    const { code, errors } = await run([...ADOPT, ...extra]);
+    assert.equal(code, 2, extra.join(" "));
+    assert.deepEqual(errors.map((e) => [e.event, e.option]), [["invalid option", option]], extra.join(" "));
+    assert.match(errors[0].reason, reason);
+  }
+});
+
+test("a --user-config holding JSON null, or anything but an object, is refused as not valid; the lookup reads null as no options", async () => {
+  for (const text of ["null", "[]", "\"x\""]) {
+    const userConfig = join(tree({ "user-config.json": text }), "user-config.json");
+    const { code, errors } = await run([...ADOPT, "--user-config", userConfig]);
+    assert.equal(code, 2, text);
+    assert.deepEqual(errors.map((e) => [e.event, e.option]), [["invalid option", "user-config"]], text);
+    assert.match(errors[0].reason, /^is not valid: /u, text);
+  }
+  const nullConfig = join(tree({ "user-config.json": "null" }), "user-config.json");
+  const lookupCode = await lookup(["--data-dir", FIXTURES, "--home", tree(), "--project", repo(), "--user-config", nullConfig, "example-small-steps"], { out: () => {}, err: () => {} });
+  assert.equal(lookupCode, 0);
+});
+
+test("a plugin settings file that exists but cannot be read stops adopt with 'could not be read' and the plain reason, not the system text", { skip: asRoot }, async () => {
+  const project = repo({ [TEAM_SETTINGS]: "exclude: []\n" });
+  chmodSync(join(project, TEAM_SETTINGS), 0o000);
+  const { code, errors } = await run(ADOPT, { project });
+  assert.equal(code, 1);
+  assert.deepEqual(errors.map((e) => [e.event, e.layer]), [["settings file unreadable", "team"]]);
+  assert.equal(errors[0].reason, `the repository's settings file, ${join(project, TEAM_SETTINGS)}, could not be read, so nothing is adopted until it is fixed: permission denied`);
+});
+
+test("a layer file that cannot be read is refused with exit 1 and a plain reason naming it", { skip: asRoot }, async () => {
+  const unreadable = (home, name) => {
+    chmodSync(personal(home, name), 0o000);
+    return personal(home, name);
+  };
+  const cases = [
+    (home) => unreadable(home, "README.md"),
+    (home) => unreadable(home, "change-size.md"),
+    (home) => {
+      writeFileSync(personal(home, "testing.md"), "# Testing\n");
+      return unreadable(home, "testing.md");
+    },
+  ];
+  for (const make of cases) {
+    const home = tree({ ".claude/standards/README.md": INDEX, ".claude/standards/change-size.md": "# Mine\n" });
+    const path = make(home);
+    const { code, errors } = await run([...ADOPT, "--yes"], { home });
+    assert.equal(code, 1, path);
+    assert.deepEqual(errors.map((e) => [e.event, e.path, e.code]), [["file unreadable", path, "EACCES"]], path);
+    assert.equal(errors[0].reason, `${path} could not be read: permission denied`);
+  }
+});
+
+test("a folder named like the surface file or the index is refused with exit 1 and a plain reason", async () => {
+  for (const name of ["change-size.md", "README.md"]) {
+    const home = tree({ ".claude/standards/README.md": INDEX });
+    rmSync(personal(home, name), { force: true });
+    mkdirSync(personal(home, name));
+    const { code, errors } = await run([...ADOPT, "--yes"], { home });
+    assert.equal(code, 1, name);
+    assert.deepEqual(errors.map((e) => [e.event, e.path, e.code]), [["file unreadable", personal(home, name), "EISDIR"]], name);
+    assert.equal(errors[0].reason, `${personal(home, name)} could not be read: it is a folder, not a file`);
+  }
+});
+
+/** A folder on a read-only mount, or null when the machine has none this user can reach. */
+function readOnlyFolder() {
+  let info;
+  try {
+    info = readFileSync("/proc/self/mountinfo", "utf8");
+  } catch {
+    return null;
+  }
+  for (const line of info.split("\n")) {
+    const [, , , , target, options] = line.split(" ");
+    if (!options?.split(",").includes("ro")) continue;
+    try {
+      if (statSync(target).isDirectory() && !existsSync(join(target, ".claude"))) {
+        readdirSync(target);
+        return target;
+      }
+    } catch {}
+  }
+  return null;
+}
+
+test("a write on a read-only file system says the file system is read-only", { skip: !readOnlyFolder() && "no read-only mount on this machine" }, async () => {
+  const home = readOnlyFolder();
+  const { code, errors } = await run([...ADOPT, "--yes"], { home });
+  assert.equal(code, 1);
+  const target = personal(home, "change-size.md");
+  assert.deepEqual(errors.map((e) => [e.event, e.path, e.code]), [["write refused", target, "EROFS"]]);
+  assert.equal(errors[0].message, `${target} could not be written: the file system is read-only`);
 });

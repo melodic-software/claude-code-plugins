@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { randomBytes } from "node:crypto";
-import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { accessSync, closeSync, constants, existsSync, fchmodSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -47,10 +47,14 @@ source_bar setting drops is refused, as lookup.mjs leaves it out.
   -h, --help                show this help
 
 A concept already in the file, or in another standards file of the layer or its
-subfolders (symbolic links are not followed), is skipped and the file citing it
-is named; an existing row for the file is kept, and none is added when nothing
-is. A plugin settings file that cannot be read stops the run, so its exclude
-and source_bar are never ignored. Added lines keep the file's line endings.
+subfolders (symbolic links, .git and node_modules are not followed; for --layer
+team a personal *.local.md does not count), is skipped and the file citing it
+is named. An existing row for the file is kept; a file that already cites a
+concept named but has no row gets one; a file whose concepts are all cited
+elsewhere gets none. A plugin settings file that cannot be read or is not valid
+stops the run, so its exclude and source_bar are never ignored. A replaced file
+keeps its mode; one the person cannot write is refused, never replaced. Added
+lines keep the file's line endings.
 The preview prints the exact text the write adds: the whole file when it is new
 or empty, the appended lines otherwise, and the index row, or the table holding
 it when the index has none. When the file or the index does not end with a line
@@ -87,7 +91,7 @@ const eolOf = (text) => (text?.includes("\r\n") ? "\r\n" : "\n");
 
 const FS_REASONS = {
   ENOENT: "file not found",
-  EISDIR: "is a folder, not a file",
+  EISDIR: "it is a folder, not a file",
   ENOTDIR: "a folder in its path is a file",
   EACCES: "permission denied",
   EPERM: "permission denied",
@@ -95,7 +99,14 @@ const FS_REASONS = {
   EROFS: "the file system is read-only",
 };
 
-const plainReason = (e, fallback) => FS_REASONS[e.code] ?? (e instanceof SyntaxError ? `not valid JSON: ${e.message}` : fallback);
+const fsReason = (code) => FS_REASONS[code] ?? `the system reported ${code}`;
+
+/** A settings layer's error in plain words: a read failure, a refused file, or the parser's detail. */
+const settingsProblem = (detail) => {
+  const code = detail.match(/^(E[A-Z]+):/u)?.[1];
+  if (code) return { read: true, text: fsReason(code) };
+  return { read: false, text: detail };
+};
 
 const cites = (text, id) => text?.split("\n").some((line) => line.startsWith("- ") && line.includes(`(\`${id}\`)`));
 
@@ -107,25 +118,45 @@ const LAYER_NAMES = {
   local: "your personal settings file for this repository",
 };
 
-const read = (path) => (existsSync(path) ? readFileSync(path, "utf8") : null);
+class Unreadable extends Error {
+  constructor(path, cause) {
+    super(`${path} could not be read: ${fsReason(cause.code)}`, { cause });
+    this.path = path;
+    this.code = cause.code;
+  }
+}
+
+/** The file's text, null when it does not exist; any other failure throws `Unreadable`. */
+const read = (path) => {
+  try {
+    return readFileSync(path, "utf8");
+  } catch (e) {
+    if (e.code === "ENOENT") return null;
+    throw new Unreadable(path, e);
+  }
+};
 
 /**
  * `{text, added, table}`: the row inserted after the last row of the index table, or a table
  * holding it appended when there is none. `added` is the text inserted, apart from a line break
- * ending an index that lacked one.
+ * ending an index that lacked one. Lines keep their own endings, so a mixed index is read line by line.
  */
 function withRow(index, row) {
   const eol = eolOf(index);
-  const lines = index.replace(/\r?\n$/u, "").split(eol);
+  const lines = index.split(/(?<=\n)/u);
+  const ended = (text) => (text.endsWith("\n") ? text : `${text}${eol}`);
   const header = lines.findIndex((line) => /^\|\s*Surface\s*\|/u.test(line));
   if (header < 0) {
     const added = `${eol}| Surface | Applies when | File |${eol}|---|---|---|${eol}${row}${eol}`;
-    return { text: `${lines.join(eol)}${eol}${added}`, added, table: true };
+    return { text: `${ended(index)}${added}`, added, table: true };
   }
   let end = header;
   while (end + 1 < lines.length && lines[end + 1].startsWith("|")) end++;
-  lines.splice(end + 1, 0, row);
-  return { text: `${lines.join(eol)}${eol}`, added: `${row}${eol}`, table: false };
+  const lineEol = lines[end].match(/\r?\n$/u)?.[0] ?? eol;
+  lines[end] = ended(lines[end]);
+  const added = `${row}${lineEol}`;
+  lines.splice(end + 1, 0, added);
+  return { text: ended(lines.join("")), added, table: false };
 }
 
 const isLink = (path) => {
@@ -147,19 +178,44 @@ function teamRoot(project) {
   try {
     value = concern ? parse(concern)?.standards_dir : undefined;
   } catch (e) {
-    return { error: { file, reason: `the settings file could not be read: ${e.message}` } };
+    return { error: { file, reason: `the settings file is not valid: ${e.message}` } };
   }
   if (value !== undefined && typeof value !== "string") return { error: { file, reason: "standards_dir is not a path" } };
   return { dir: join(project, value || "docs/standards") };
 }
 
-/** A random name and an exclusive create, so a link planted at the temporary path is never followed. */
+/**
+ * The reason `path` cannot be written in place, or null: a file the person has no write permission
+ * for is never replaced, and a folder that does not exist yet is checked through its nearest existing
+ * ancestor, since a recursive create on a read-only file system reports a missing file instead.
+ */
+function unwritable(path) {
+  let folder = dirname(path);
+  while (!existsSync(folder) && dirname(folder) !== folder) folder = dirname(folder);
+  for (const [target, own] of [[path, true], [folder, false]]) {
+    if (own && !existsSync(target)) continue;
+    try {
+      accessSync(target, constants.W_OK);
+    } catch (e) {
+      const message = own && e.code === "EACCES" ? `${path} is not replaced: you have no write permission for it` : `${path} could not be written: ${fsReason(e.code)}`;
+      return { code: e.code, message };
+    }
+  }
+  return null;
+}
+
+/**
+ * A random name and an exclusive create, so a link planted at the temporary path is never followed;
+ * a replaced file keeps its mode, and a new one gets the mode the umask gives.
+ */
 function write(path, text) {
   mkdirSync(dirname(path), { recursive: true });
+  const mode = existsSync(path) ? statSync(path).mode & 0o7777 : null;
   const temp = `${path}.${randomBytes(8).toString("hex")}.tmp`;
   const fd = openSync(temp, "wx");
   try {
     writeFileSync(fd, text);
+    if (mode !== null) fchmodSync(fd, mode);
     closeSync(fd);
     renameSync(temp, path);
   } catch (e) {
@@ -168,38 +224,61 @@ function write(path, text) {
   }
 }
 
+const SKIPPED_FOLDERS = new Set([".git", "node_modules"]);
+
 /**
  * The layer's other standards files by path: `.md` files in it and its subfolders, as the standards
  * contract allows, regular files only, so a symbolic link never leads the walk out of the layer.
+ * `personal` drops `*.local.md`, the contract's personal override, from a team layer's walk.
  */
-function otherFiles(dir, skip, sub = "") {
+function otherFiles(dir, skip, personal, sub = "") {
   let names;
   try {
     names = readdirSync(join(dir, sub), { withFileTypes: true });
-  } catch {
-    return [];
+  } catch (e) {
+    if (e.code === "ENOENT") return [];
+    throw new Unreadable(join(dir, sub), e);
   }
   return names
     .flatMap((d) => {
       const rel = join(sub, d.name);
-      if (d.isDirectory()) return otherFiles(dir, skip, rel);
+      if (d.isDirectory()) return SKIPPED_FOLDERS.has(d.name) ? [] : otherFiles(dir, skip, personal, rel);
+      if (!personal && d.name.endsWith(".local.md")) return [];
       return d.isFile() && d.name.endsWith(".md") && rel !== INDEX_FILE && rel !== skip ? [join(dir, rel)] : [];
     })
     .sort();
 }
 
-export async function main(argv, { out = console.log, err = console.error, shippedDataDir = DATA_DIR } = {}) {
+/** `[option, value, reason]` for the first option adopt does not take, lacking its value, or given a value it does not take. */
+function optionProblem(tokens) {
+  for (const t of tokens) {
+    if (t.kind !== "option") continue;
+    const spec = OPTIONS[t.name];
+    if (!spec) return [t.name, null, `${t.rawName} is not an option of adopt; --help lists them`];
+    if (spec.type === "string" && typeof t.value !== "string") return [t.name, null, `${t.rawName} needs a value`];
+    if (spec.type === "boolean" && t.inlineValue) return [t.name, t.value, `${t.rawName} takes no value`];
+  }
+  return null;
+}
+
+export async function main(argv, io = {}) {
+  try {
+    return await adopt(argv, io);
+  } catch (e) {
+    if (!(e instanceof Unreadable)) throw e;
+    (io.err ?? console.error)(JSON.stringify({ level: "error", event: "file unreadable", path: e.path, code: e.code ?? null, reason: e.message }));
+    return 1;
+  }
+}
+
+async function adopt(argv, { out = console.log, err = console.error, shippedDataDir = DATA_DIR }) {
   const invalid = (option, value, allowed, reason) => {
     err(JSON.stringify({ level: "error", event: "invalid option", option, value, ...(allowed && { allowed }), ...(reason && { reason }) }));
     return 2;
   };
-  let parsed;
-  try {
-    parsed = parseArgs({ args: argv, allowPositionals: true, options: OPTIONS });
-  } catch (e) {
-    return invalid(null, e.message);
-  }
-  const { values: opts, positionals } = parsed;
+  const { values: opts, positionals, tokens } = parseArgs({ args: argv, allowPositionals: true, options: OPTIONS, strict: false, tokens: true });
+  const problem = optionProblem(tokens);
+  if (problem) return invalid(...problem.slice(0, 2), null, problem[2]);
   if (opts.help) {
     out(HELP);
     return 0;
@@ -223,7 +302,11 @@ export async function main(argv, { out = console.log, err = console.error, shipp
     try {
       userConfig = readUserConfig(opts["user-config"]);
     } catch (e) {
-      return invalid("user-config", opts["user-config"], null, plainReason(e, "the file could not be read"));
+      const reason = e instanceof SyntaxError ? `is not valid JSON: ${e.message}` : `could not be read: ${fsReason(e.code)}`;
+      return invalid("user-config", opts["user-config"], null, reason);
+    }
+    if (userConfig === null || typeof userConfig !== "object" || Array.isArray(userConfig)) {
+      return invalid("user-config", opts["user-config"], null, `is not valid: it holds ${JSON.stringify(userConfig)}, not an object of option values`);
     }
   }
   const project = resolvePath(opts.project ?? gitRoot(process.cwd()));
@@ -235,8 +318,11 @@ export async function main(argv, { out = console.log, err = console.error, shipp
     if (!(event === "setting rejected" && unreadable.has(layer))) err(line);
   }
   for (const { layer, path, detail } of settings.unreadable) {
-    const reason = `${LAYER_NAMES[layer] ?? layer}, ${path}, could not be read, so nothing is adopted until it is fixed: ${detail}`;
-    err(JSON.stringify({ level: "error", event: "settings file unreadable", layer, path, reason }));
+    const problems = detail.split("; ").map(settingsProblem);
+    const read = problems.some((p) => p.read);
+    const state = read ? "could not be read" : "is not valid";
+    const reason = `${LAYER_NAMES[layer] ?? layer}, ${path}, ${state}, so nothing is adopted until it is fixed: ${problems.map((p) => p.text).join("; ")}`;
+    err(JSON.stringify({ level: "error", event: read ? "settings file unreadable" : "settings file invalid", layer, path, reason }));
   }
   if (unreadable.size) return 1;
   const index = loadIndex(opts["data-dir"] ?? shippedDataDir, err, { shipped: opts["data-dir"] === undefined });
@@ -291,37 +377,48 @@ export async function main(argv, { out = console.log, err = console.error, shipp
     err(JSON.stringify({ level: "error", event: "no team index", index: indexPath, fix: "create the index with a standards setup skill first" }));
     return 1;
   }
-  const others = otherFiles(dir, file).map((path) => [path, read(path)]);
+  const others = otherFiles(dir, file, opts.layer === "personal").map((path) => [path, read(path)]);
   const unique = [...new Map(records.map((r) => [r.id, r])).values()];
   const fresh = [];
+  let citedHere = false;
   for (const r of unique) {
-    if (cites(current, r.id)) continue;
+    if (cites(current, r.id)) {
+      citedHere = true;
+      continue;
+    }
     const [elsewhere] = others.find(([, text]) => cites(text, r.id)) ?? [];
     if (elsewhere) out(`${r.name} (${r.id}) is already adopted in ${elsewhere}, so it is not added again.`);
     else fresh.push(r);
   }
-  if (!fresh.length) {
+  const hasRow = currentIndex?.split("\n").some((line) => line.startsWith("|") && line.split(/(?<!\\)\|/u)[3]?.trim() === file);
+  const needsRow = currentIndex !== null && !hasRow && (fresh.length > 0 || citedHere);
+  if (!fresh.length && !needsRow) {
     out(`Nothing to write: every concept named is already adopted.`);
     return 0;
   }
   const blank = !current?.trim();
-  const needsRow = currentIndex !== null && !currentIndex.split("\n").some((line) => line.startsWith("|") && line.split(/(?<!\\)\|/u)[3]?.trim() === file);
   const unindexed = currentIndex === null ? `No index at ${indexPath}: the standards folder is read file by file, so the file still loads.` : null;
   const eol = eolOf(current);
   const entries = fresh.map((r) => entry(r, eol)).join("");
   const breakNote = (path) => `A line break will also be added at the end of ${path}, which does not end with one.`;
-  const fileLacksBreak = !blank && !current.endsWith("\n");
+  const fileLacksBreak = fresh.length > 0 && !blank && !current.endsWith("\n");
   const next = blank ? `${HEADER(opts.surface).replaceAll("\n", eol)}${entries}` : `${current}${fileLacksBreak ? eol : ""}${entries}`;
   const lineCount = next.split("\n").length - 1;
-  if (lineCount > LINE_BUDGET) {
+  if (fresh.length && lineCount > LINE_BUDGET) {
     err(JSON.stringify({ level: "warn", event: "standards file over budget", file: filePath, lines: lineCount, budget: LINE_BUDGET, contract: BUDGET_RULE }));
   }
 
   const indexed = needsRow ? withRow(currentIndex, row) : null;
+  const writes = [...(fresh.length ? [[filePath, next]] : []), ...(indexed ? [[indexPath, indexed.text]] : [])];
+  const refusals = writes.map(([path]) => [path, unwritable(path)]).filter(([, refusal]) => refusal);
+  for (const [path, { code, message }] of refusals) err(JSON.stringify({ level: "error", event: "write refused", path, code, message }));
+  if (refusals.length) return 1;
 
   if (!opts.yes) {
-    const action = current === null ? "Would create" : blank ? "Would fill the empty file" : "Would append to";
-    out(`${action} ${filePath}:\n${blank ? next : entries}`);
+    if (fresh.length) {
+      const action = current === null ? "Would create" : blank ? "Would fill the empty file" : "Would append to";
+      out(`${action} ${filePath}:\n${blank ? next : entries}`);
+    }
     if (fileLacksBreak) out(breakNote(filePath));
     if (indexed) {
       out(`Would add ${indexed.table ? "a table holding this row" : "this row"} to ${indexPath}:\n${indexed.added}`);
@@ -331,16 +428,16 @@ export async function main(argv, { out = console.log, err = console.error, shipp
     out("Re-run with --yes to write.");
     return 3;
   }
-  for (const [path, text] of [[filePath, next], ...(indexed ? [[indexPath, indexed.text]] : [])]) {
+  for (const [path, text] of writes) {
     try {
       write(path, text);
     } catch (e) {
-      const message = `${path} could not be written: ${plainReason(e, "the file system refused the write")}`;
+      const message = `${path} could not be written: ${fsReason(e.code)}`;
       err(JSON.stringify({ level: "error", event: "write failed", path, code: e.code ?? null, message }));
       return 1;
     }
   }
-  out(`Adopted ${fresh.length} concept(s) into ${filePath}.`);
+  out(fresh.length ? `Adopted ${fresh.length} concept(s) into ${filePath}.` : `Added the missing row for ${file} to ${indexPath}.`);
   if (unindexed) out(unindexed);
   return 0;
 }

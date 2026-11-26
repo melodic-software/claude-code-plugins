@@ -37,7 +37,7 @@ function conventionHome(projectRoot) {
 export function resolveSettings({ projectRoot, userConfig = {}, userHome, err }) {
   const schema = readJson(join(ROOT, "schemas", `${PLUGIN}.schema.json`));
   const manifest = readJson(join(ROOT, ".claude-plugin", "plugin.json")).userConfig;
-  const { exclude: userExclude, ...cascadeUserConfig } = userConfig;
+  const { exclude: userExclude, ...cascadeUserConfig } = userConfig ?? {};
   const located = conventionHome(projectRoot);
   if (located.error) err(JSON.stringify({ level: "warn", event: "convention home unresolved", project: projectRoot, error: located.error }));
   const scratch = located.home === null ? mkdtempSync(join(tmpdir(), `${PLUGIN}-no-home-`)) : null;

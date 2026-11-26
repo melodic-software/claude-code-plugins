@@ -73,7 +73,9 @@ time. The shipped concepts hold no positions; adopting is the step that takes on
 Exit codes and error-output events (one JSON record per line):
 
 - 0 with "already adopted": every concept is in the file, or in another standards file of the
-  layer that the output names; nothing written, no index row added.
+  layer that the output names; nothing written. When the file itself cites a concept named but the
+  index has no row for it, the row is added (the preview shows it); when every concept is cited
+  only in other files, no row is added.
 - 1 `concept not found`: name the term; nothing written.
 - 1 `concept excluded`: the `exclude` or `source_bar` setting named in `setting` drops the concept,
   as the lookup does; report the `reason`, which names the layer, and the `path` of its file when
@@ -84,11 +86,16 @@ Exit codes and error-output events (one JSON record per line):
   instead of writing one here.
 - 1 `standards config unreadable` or `standards root outside the repository`: report the file
   named; nothing written.
-- 1 `settings file unreadable`: the plugin settings file at `path` could not be read, so its
-  `exclude` and `source_bar` cannot be honored; report the `reason` and stop until it is fixed.
-  The lookup only warns about the same file.
-- 1 `write failed`: report the `message`, which names the file and why; `code` keeps the system
-  code.
+- 1 `settings file unreadable` or `settings file invalid`: the plugin settings file at `path`
+  could not be read, or was read but is not valid, so its `exclude` and `source_bar` cannot be
+  honored; report the `reason` and stop until it is fixed. The lookup only warns about the same
+  file.
+- 1 `file unreadable`: the index, the surface file or another standards file of the layer at
+  `path` could not be read (the `reason` says why, such as a folder in its place); nothing written.
+- 1 `write refused` or `write failed`: report the `message`, which names the file and why (no
+  write permission for the file, a read-only file system); `code` keeps the system code. A refusal
+  comes before anything is written, in the preview too; a file is never replaced without write
+  permission for it.
 - 2 `invalid option`: fix the named option (its `reason` says what is wrong) and run the preview
   again.
 - A `standards file over budget` warning: the file passed the contract's soft budget of roughly
@@ -114,7 +121,9 @@ Exit codes and error-output events (one JSON record per line):
 - An entry already in the file is skipped and an existing row is kept, so re-running is safe; it
   never edits a row's `Applies when`. A concept another standards file of the layer already cites,
   subfolders included, is skipped too, and the output names that file: report it rather than
-  moving the entry. A symbolic link inside the layer is not followed.
+  moving the entry. A symbolic link, `.git` or `node_modules` inside the layer is not followed.
+  For `team`, a concept cited only in a personal `*.local.md` file is still adopted, since that
+  file is personal.
 - The file holds no counterweight or conflict lines, so they never go stale against the shipped
   data. A consuming stage that loads an adopted standards file runs the lookup on the ids the file
   cites and keeps one line per counterweight or conflict beside each entry:
