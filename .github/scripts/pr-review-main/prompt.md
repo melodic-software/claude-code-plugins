@@ -22,9 +22,10 @@ denied, and a denied read voids the review:
   (`standards/`), its per-concern review rules (`review/`, when present; its `README.md` indexes
   them, so read the ones whose concern the diff touches) and its `.claude/rules/` files (`rules/`),
   also from the default branch, which the lane's instructions may name. `STANDARDS_DIR/../org`
-  holds the organization's standards checkout: its `REVIEW.md`, its `standards/` prose that the
-  organization's criteria cite (resolve such a citation there) and its standards index under
-  `docs/standards/` when present, the org layer the repository's standards add to. The review plugin's shared `reference/` sits two levels above
+  holds the organization's checked standards: `citations.tsv`, the only organization citations to
+  open, each line naming its copied file, and, when present, `docs/standards/README.md`, the
+  printed index of the org layer the repository's standards add to, whose rows name the copied
+  files. The review plugin's shared `reference/` sits two levels above
   `CRITERIA_DIR`, where the lane's relative links point.
 - The pull request's diff, from its base to the reviewed head, split into these parts in order.
   Read every part whole, each with one Read call and no `offset` or `limit`: a review that skips
