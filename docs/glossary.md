@@ -504,6 +504,15 @@ name, aliases, tags and a link to the concept's official source, with no definit
 
 Avoid: built-in catalog, concept index
 
+**adopted standards**
+
+Shipped concepts a person or team chose and wrote into a standards file
+([engineering-concepts](../plugins/engineering-concepts/README.md#adopt-script)).
+
+Actions: adopt (Avoid: pick)
+
+Avoid: your picks
+
 ### Planning
 
 **Brief**
