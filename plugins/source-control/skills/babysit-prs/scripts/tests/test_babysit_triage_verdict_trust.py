@@ -1,7 +1,7 @@
 # test-scope: .github/scripts/intake-triage/admit.mjs .github/scripts/intake-triage/issue-spec.mjs .github/scripts/intake-triage/apply-verdict.mjs .github/scripts/intake-triage/size-split.mjs
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/*.py
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_own_agent_spec_trust.py
-# test-scope: .github/actions/check-kill-switch/check-kill-switch.mjs .github/actions/check-kill-switch/projection.mjs
+# test-scope: .github/actions/check-kill-switch/*.mjs
 # test-scope: .github/actions/check-trusted-trigger/check-trusted-trigger.mjs .github/scripts/lib/github-client.mjs .github/scripts/lib/trusted-actors.mjs .github/actions/log-api-budget/rate-guard.mjs
 # test-scope: .github/actions/resolve-config/read-status.mjs .github/actions/resolve-config/write-status.mjs
 # test-scope: .github/actions/select-trusted-text/select-trusted-text.mjs
