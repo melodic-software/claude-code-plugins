@@ -313,7 +313,7 @@ Then apply the Step 4.7 outcome-gate criteria (under Planning Process, above) an
 
 ## Plan Mode Integration
 
-Built-in plan mode enforces read-only work during planning:
+We use built-in plan mode to keep planning from editing (what it permits: [Analyze before you edit with plan mode](https://code.claude.com/docs/en/permission-modes#analyze-before-you-edit-with-plan-mode)):
 
 - **During formulation (Steps 1-2):** if already in plan mode when this skill triggers, stay in it
 - **During stress-test (Step 4):** plan mode is appropriate
