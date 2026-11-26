@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: scripts/fixtures/engineering-concepts/**
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
