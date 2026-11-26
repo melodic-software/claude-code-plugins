@@ -1,0 +1,27 @@
+{"id":"fx-v1","name":"Valid One","aliases":["v-one"],"concern":"c","kind":"practice","stage":"build","reversibility":"two-way","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":"fx-v2","name":"Valid Two","concern":"c","kind":"principle","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","confirming_sources":["https://example.org/s"],"counterweights":["fx-v1"],"conflicts_with":[],"owner":"https://example.com/owner"}
+{"id":"fx-broken",
+[1,2]
+"a string"
+null
+{"id":"p24\n","name":"N3","concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":"fx-r8","name":"N4","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":"fx-r9","name":"N5","concern":"c","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":"fx-r10","name":"N6","concern":"c","kind":"practice","stage":"someday","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":"fx-r11","name":"N7","concern":"c","kind":"practice","stage":"any","reversibility":"maybe","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":"fx-r12","name":"N8","concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"http://example.com/s","owner":"fx:real"}
+{"id":"fx-r13","name":"N9","concern":"c","kind":"practice","stage":"any","reversibility":"unrated","owner":"fx:real"}
+{"id":"fx-r14","name":"N10","aliases":"x","concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":"fx-r15","name":"N11","aliases":[""],"concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":"fx-r16","name":"N12","aliases":[1],"concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":"fx-r17","name":"N13","aliases":[null],"concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":"fx-r18","concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":"fx-r19","name":"","concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":"fx-r20","name":5,"concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":"fx-r21","name":"N14","counterweights":"x","concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":"fx-r22","name":"N15","confirming_sources":"x","concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":"fx-r23","name":"N16","conflicts_with":"x","concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":"fx-r24","name":"N17","concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"not a skill"}
+
+{"id":"fx-v3","name":"Valid Three","aliases":[],"concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"/fx:real"}
+{"id":"FX-UPPER","name":"N18","concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}
