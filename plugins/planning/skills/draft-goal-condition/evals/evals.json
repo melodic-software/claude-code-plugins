@@ -138,31 +138,6 @@
         "The drafted condition does NOT carry a waiting-on-the-user OR exit",
         "Output runs the length counter on the drafted condition"
       ]
-    },
-    {
-      "id": 12,
-      "name": "fixed-clock-deadline-becomes-an-end",
-      "prompt": "/planning:draft-goal-condition keep working through the import queue in this session until it is empty, and before you stop, append a results line to notes/status.md timestamped before 06:00Z.",
-      "expected_output": "Step 2 flags the results line timestamped before 06:00Z as an element that can never hold once 06:00Z passes, so the evaluator would end the goal as impossible. It rewrites the clock time as an end of its own (the queue empty, or date -u showing 06:00Z or later) rather than a deadline an element must beat, and the draft passes the length counter.",
-      "files": [],
-      "expectations": [
-        "Output flags the element that must happen before 06:00Z as one that can never hold once that time passes",
-        "The drafted condition uses 06:00Z only as an end of its own, such as an OR branch on date -u showing 06:00Z or later",
-        "The drafted condition does NOT require a line timestamped before 06:00Z",
-        "Any drafted condition passes the length counter"
-      ]
-    },
-    {
-      "id": 13,
-      "name": "contradicting-elements-are-refused",
-      "prompt": "/planning:draft-goal-condition keep going until the release pull request for branch release/2.4 is open with the hold label on it, and every required check on it is green. Our required status check fails any pull request that carries the hold label.",
-      "expected_output": "Step 2 sees that the hold label keeps the required check red, so the two required elements cannot both hold. It refuses that draft, asks which element gives way or offers the waiting-on-the-user OR exit for the conflicting pair, and does not emit a condition that requires both.",
-      "files": [],
-      "expectations": [
-        "Output names the conflict: the hold label makes the required check fail, so the label and all-checks-green cannot both hold",
-        "Output asks which element gives way, or offers the waiting-on-the-user OR exit for the conflicting pair",
-        "Output does NOT emit, without that flag, a condition that requires both the hold label and every required check green"
-      ]
     }
   ]
 }

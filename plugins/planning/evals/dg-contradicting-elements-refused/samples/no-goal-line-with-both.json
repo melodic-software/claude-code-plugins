@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "I can't draft this as written: the hold label makes the required check fail, so both cannot hold. Which one gives way?", "why": "refuses, no paste region"},
+    {"answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe release pull request for release/2.4 is open with every required check green, shown by gh pr checks in this conversation.\n──────────────────────────────────────────────────────────\n", "why": "the user chose to drop the hold label; condition has checks only"}
+  ],
+  "fail": [
+    {"answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe release pull request for release/2.4 is open with the hold label on it and every required check green, shown by gh pr view and gh pr checks in this conversation.\n──────────────────────────────────────────────────────────\n", "why": "requires both contradicting elements"},
+    {"answer": "Type `/goal ` (with a trailing space), then paste this:\n\n```text\nThe release pull request carries the hold label and all required checks pass.\n```\n", "why": "fenced region requiring both"}
+  ]
+}
