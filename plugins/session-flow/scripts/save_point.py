@@ -3099,25 +3099,44 @@ def _markdown_prompt(lines: list[str]) -> list[str]:
 def _mobile_prompt(lines: list[str]) -> list[str]:
     kept = [line for line in lines if not line.startswith(REOPEN_PREFIX)]
     wrapped: list[str] = []
-    inside = headlines = False
+    region: list[str] | None = None
     for line in kept:
-        if RAIL_RE.match(line):
-            inside, headlines = not inside, False
-            wrapped.append(line)
+        if not RAIL_RE.match(line):
+            (wrapped if region is None else region).append(line)
             continue
-        headlines = headlines or (inside and line == "Next:")
-        wrapped += _mobile_wrap(line) if inside and not headlines else [line]
+        if region is None:
+            region = []
+        else:
+            wrapped += _mobile_region(region)
+            region = None
+        wrapped.append(line)
+    wrapped += region or []
     out: list[str] = []
     confirm_pending = False
+    fence: str | None = None
     for line in _markdown_prompt(wrapped):
         if line == MD_GOAL_COPY_LINE:
             out.append(MD_GOAL_LEAD)
             confirm_pending = True
             continue
         out.append(line)
-        if confirm_pending and len(out) > 2 and re.fullmatch(r"`{3,}", line):
+        if confirm_pending and fence is None and re.fullmatch(r"`{3,}text", line):
+            fence = line[: -len("text")]
+        elif fence is not None and line == fence:
             out += ["", f"{MD_GOAL_CONFIRM}."]
-            confirm_pending = False
+            confirm_pending, fence = False, None
+    return out
+
+
+def _mobile_region(lines: list[str]) -> list[str]:
+    body = [line for line in lines if line.strip()]
+    closing = body[-1] if body and body[-1].startswith("Read @") else None
+    out: list[str] = []
+    headlines = False
+    for line in lines:
+        headlines = headlines or line == "Next:"
+        whole = headlines or line is closing
+        out += [line] if whole else _mobile_wrap(line)
     return out
 
 
@@ -3125,11 +3144,11 @@ def _mobile_wrap(line: str) -> list[str]:
     if "://" in line or line.startswith(("Prior session:", "Handoff origin:")):
         return [line]
     head: list[str] = []
-    ref = re.search(r"@\S+", line)
-    if ref:
-        head, line = [line[: ref.end()]], line[ref.end() :].strip()
-        if not line:
-            return head
+    if line.startswith("Read @") and "," in line:
+        cut = line.index(",") + 1
+        head, line = [line[:cut]], line[cut:].strip()
+    if not line:
+        return head
     parts = textwrap.wrap(
         line, MOBILE_WIDTH, break_long_words=False, break_on_hyphens=False
     )

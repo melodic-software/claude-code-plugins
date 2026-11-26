@@ -430,7 +430,7 @@ the panel, the checklist and the prompt as it says, in this same order.
   region), and the rails are still emitted from the file's `## Resume prompt` section (engine
   doc, full-path block). Never green-silent, never a withheld prompt
 - [ ] Resume prompt is the `save_point.py emit <file>` output (with the `--format` the surface
-  file names) pasted verbatim, copy line through the below-rail `claude --resume` line, never retyped
+  file names) pasted verbatim, copy line through the below-rail `claude --resume` line (none on mobile), never retyped
   or regenerated. Include the launch command above the copy instructions when present. `Next:` holds 1 to 5 plain
   headlines from `Remaining actions, in order` (or, for a closing handoff, the `next` value
   `Next: none (closed)` exactly, which `fill` moves onto the `Next:` line), with `Then: /<skill>`

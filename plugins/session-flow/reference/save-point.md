@@ -833,7 +833,7 @@ prompt with the matching `emit` format, pasted verbatim:
 |---|---|---|
 | terminal | no flag | nothing: the rails |
 | desktop, web | `--format markdown` | each rail pair prints as a fenced `text` block (a fence longer than any backtick run inside it); the resume copy line reads ``Run `/clear`, then paste this:`` and the goal line reads ``then paste this.`` before its confirm sentence; every line between the rails and everything outside them prints unchanged |
-| mobile | `--format mobile` | the markdown form, plus: prose lines above `Next:` inside a block wrap at word boundaries to 38 characters; a line's `@` path, any line holding a URL, `Prior session:` or `Handoff origin:`, and each `Next:` headline stay whole; the goal's confirm sentence moves below its block, and the below-rail `claude --resume` note is dropped |
+| mobile | `--format mobile` | the markdown form, plus: prose lines above `Next:` inside a block wrap at word boundaries to 38 characters; a `Read @` line keeps everything through its first comma on its first line, the `Read @` line that ends a goal block stays whole (the resume hook reads both), and any line holding a URL, `Prior session:` or `Handoff origin:`, and each `Next:` headline stay whole; the goal's confirm sentence moves below its block, and the below-rail `claude --resume` note is dropped |
 
 `amend` takes the same `--format` values. **The file is untouched**: it still stores the rails, so
 `emit` with no flag, recovery from the file, and `continue-in-background`'s launch read the same
