@@ -1,6 +1,7 @@
 # test-scope: plugins/planning/surface/tests/fixtures/*.json
 # test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/shared/schema/question-shape.schema.json plugins/planning/.claude-plugin/plugin.json
 # test-scope: plugins/planning/shared/schema/event.schema.json
+# test-scope: plugins/planning/skills/interview/templates/checklist.md
 
 from __future__ import annotations
 
