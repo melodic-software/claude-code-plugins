@@ -156,7 +156,7 @@ test('the field cap, Send note and feedback-row life are options', () => {
   const req = { trigger: 'step' as const, turnId: 't1', step: 6, gen: 0, open: null }
   const reply = { isAnswered: true as const, text: 'finding: A finding longer than ten.\ncategory: process\nrule: R1\nevidence: e' }
   const r = step({ ...initial(), on: true }, { kind: 'check-replied', req, reply, paused: false, seen: [], disputed: [] }, options)
-  expect(r.effects).toContainEqual({ kind: 'finish', req, outcome: 'parse_failed' })
+  expect(r.effects).toContainEqual({ kind: 'finish', req, outcome: 'parse_failed', detail: { reason: 'field_too_long:finding', lengths: { finding: 26, rule: 2, evidence: 1 } } })
   expect(readOptions({ observer_field_max: 0 }).invalid).toEqual(['observer_field_max'])
 })
 
