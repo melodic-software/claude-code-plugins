@@ -1,32 +1,24 @@
 #!/usr/bin/env bash
-# prep-warnings.sh — Prep's advisory warnings before the first push: a cut to an
-# existing SKILL.md or agent body with no eval change, and a changed path the
-# guarded merge holds for a person. Reads the working tree against the merge
-# base of --base and HEAD; prep_warnings.py states each rule.
-#
-# Usage:
-#   prep-warnings.sh --base <ref> [--dir <checkout>]
-#
-# Output, one line per finding, nothing when none:
-#   skill-cut <path>: <detail>
-#   protected-path <path>: <detail>
-#   note: <detail>
-#
-# merge.diff-check.denied-paths is read from docs/conventions/pr-pipeline.yaml
-# at --base, where the guarded merge reads it.
-#
-# Exit codes:
-#   0  read, whatever it found
-#   1  invalid argument
-#   2  git could not read the base or the diff
-#   3  no Python 3.11+ on PATH
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-  sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+prep-warnings.sh: print prep's advisory warnings (skill-cut, protected-path) before the first push.
+
+Usage:
+  prep-warnings.sh --base <ref> [--dir <checkout>]
+
+  --base  the base ref; the diff is read against its merge base with HEAD
+  --dir   the checkout to read (default: the current directory)
+
+Exit codes:
+  0  read, whatever it found
+  1  invalid argument
+  2  git could not read the base or the diff
+  3  no Python 3.11+ on PATH
+EOF
   exit 0
 }
 

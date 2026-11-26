@@ -187,7 +187,6 @@ class UnconfiguredIsInert(SettleHarness):
 
 class HoldFiresWhileAReviewIsDue(SettleHarness):
     def test_young_head_with_no_current_head_review_blocks(self) -> None:
-        # #1594's exact shape: head 4m40s old, reviewer's round landed 26s later.
         result = self._evaluate(reviews=[_review(STALE)])
         self.assertFalse(result["ready"])
         blockers = self._settle_blockers(result)
@@ -216,8 +215,6 @@ class HoldClearsWithoutAddedLatency(SettleHarness):
         self.assertEqual(result["_commit_reads"], [])
 
     def test_inline_review_comment_on_this_head_also_clears_it(self) -> None:
-        # Codex posts its findings as inline review comments; those carry the
-        # commit id too and are evidence the reviewer saw this head.
         inline = [
             {
                 "id": 7,
@@ -267,11 +264,6 @@ class ServerClockIsPreferredOverCommitMetadata(SettleHarness):
         self.assertEqual(result["_commit_reads"], [])
 
     def test_a_head_returning_to_a_checked_sha_still_holds(self) -> None:
-        # Force-push A -> B -> A, with no review of A at all. Check runs live on
-        # the SHA, so A's original runs are still in the rollup even though the
-        # re-push draws a fresh review. Reading the oldest of them would call a
-        # brand-new head settled and merge straight through the window. This is
-        # the reason the clock takes the newest timestamp rather than the oldest.
         result = self._evaluate(
             reviews=[],
             check_starts=["2026-07-26T18:00:00Z", "2026-07-26T21:45:00Z"],
@@ -316,7 +308,6 @@ class ServerClockIsPreferredOverCommitMetadata(SettleHarness):
         self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 220)
 
     def test_a_status_context_contributes_its_created_at(self) -> None:
-        # StatusContext rollup entries carry `createdAt`, not `startedAt`.
         result = self._evaluate(
             reviews=[],
             pr=_pr(
@@ -398,10 +389,6 @@ class ARestoredHeadIsNotItsOwnEarlierReview(SettleHarness):
         self.assertEqual(result["reviewSettle"]["state"], "settling")
 
     def test_no_check_starts_leaves_no_floor_which_is_the_stated_residual(self) -> None:
-        # When the restored head mints no fresh runs there is no server-observed
-        # bound to compare against, so the earlier review still clears the hold.
-        # safety.md scopes exactly this case; the test pins it so the residual
-        # is a decision on record rather than an accident.
         result = self._evaluate(
             reviews=[_review(HEAD, submitted_at="2001-01-01T00:00:00Z")],
             check_starts=[],
@@ -532,9 +519,6 @@ class PairedConfigurationIsFailClosed(unittest.TestCase):
         self.assertIn("must be non-empty", out)
 
     def test_nonpositive_and_nonnumeric_windows_are_refused(self) -> None:
-        # `-inf` is passed `=`-joined: argparse reads a bare `-inf` as an option
-        # token and exits before the gate's own validation runs, so the joined
-        # form is what actually exercises the check under test.
         for value in ("0", "-5", "abc", "nan", "inf"):
             with self.subTest(value=value):
                 code, out = self._run(

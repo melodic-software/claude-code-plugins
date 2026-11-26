@@ -111,7 +111,6 @@ class World:
         self.events: dict[int, list[dict[str, Any]]] = {PR: [], ISSUE: []}
         self.writes: list[list[str]] = []
         self.fail_once: set[str] = set()
-        # What a Work status POST answers: the issue's field value rows.
         self.field_rows: Any = None
 
     def paginated(self, endpoint: str, label: str) -> list[dict[str, Any]]:
@@ -198,7 +197,6 @@ class ClosesForAFreshAttempt(unittest.TestCase):
             f"<!-- verify-capped-close pr={PR} heads={heads} attempt=1 of=1 -->",
         )
         self.assertIn("fresh attempt 1 of 1", issue)
-        # The findings, quoted as data: one fence, none of the model's own.
         self.assertIn("summary: misses the error path", issue)
         self.assertIn("a.py:3 '''rm -rf'''", issue)
         self.assertIn("unreadable: artifact x of run 12", issue)
@@ -267,7 +265,6 @@ class ClosesForAFreshAttempt(unittest.TestCase):
             world.run()
         world.comments[PR] = [comment(world.body(0))]
         world.comments[ISSUE] = [comment(world.body(1))]
-        # Its removal landed in the record's second (1 s resolution).
         world.events[ISSUE] = [event("unlabeled", BOT, RECORDED)]
         world.writes.clear()
         result = world.run()
@@ -521,9 +518,6 @@ class LeavesItAlone(unittest.TestCase):
             self.assertEqual(world.writes, [])
 
     def test_a_link_the_pr_merge_lane_does_not_take_keeps_it_open(self) -> None:
-        # One closing issue (or the `Refs:` one) clearing the trust hold, as
-        # the arm path reads it (`Reader.link_refusal`): no issue, two
-        # issues, or an untrusted-provenance label refuses.
         for link in ("linked-issues:0", "linked-issues:2", "untrusted-provenance"):
             with self.subTest(link):
                 world = World()

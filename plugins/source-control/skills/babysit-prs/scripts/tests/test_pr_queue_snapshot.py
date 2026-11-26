@@ -147,9 +147,6 @@ class ResolveSelfLoginsTests(unittest.TestCase):
             self.assertEqual(snapshot.resolve_self_logins("", None), [])
 
     def test_unresolvable_authenticated_login_raises(self) -> None:
-        # In production `resolve_author("@me")` raises on broken auth rather than
-        # returning None, so the raise propagates (fail-loud, exit 2). This is the
-        # one edge where snapshot behavior diverges from the gate's degrade — #881.
         with (
             mock.patch.object(
                 gh, "resolve_author", side_effect=RuntimeError("no login")
@@ -162,12 +159,6 @@ class ResolveSelfLoginsTests(unittest.TestCase):
 HEAD = "a" * 40
 OBS = "2026-07-19T16:10:00Z"
 
-# Faithful abbreviation of the claude[bot] issue-comment review captured from
-# workflow run 29694104425: an explicit **Approve** verdict whose only findings
-# are two 🟡 nits, each self-deprioritized, and no CRITICAL/IMPORTANT/P-severity
-# marker anywhere. The load-bearing tokens are the descriptive occurrences of
-# the word "blocking" ("blocking criteria", "blocking checks", "No blocking
-# issues") that made the old text heuristic misfire.
 APPROVE_WITH_NITS_BODY = (
     "**Claude finished @kyle-sexton's task** —— [View job](run/29694104425)\n\n"
     "### PR Review\n\n"
@@ -285,9 +276,6 @@ class BuildConfigSelfLoginsTests(unittest.TestCase):
         self.assertEqual(config.self_logins, frozenset({"kyle-sexton"}))
 
     def test_resolved_authors_are_ignored_for_self_logins(self) -> None:
-        # There is no author->self precedence path anymore (#511): build_config
-        # never reads resolved_authors, so a stray one with no resolved_self_logins
-        # yields an empty self set, never the authors.
         args = argparse.Namespace(
             owners="melodic-software",
             resolved_authors=["alice"],
@@ -296,9 +284,6 @@ class BuildConfigSelfLoginsTests(unittest.TestCase):
         self.assertEqual(config.self_logins, frozenset())
 
     def test_missing_resolved_self_logins_yields_empty_not_author(self) -> None:
-        # build_config never derives the self set from --author (#511): a
-        # Namespace without resolved_self_logins yields an empty set, not the
-        # discovery authors.
         args = argparse.Namespace(
             owners="melodic-software",
             author="@me,alice",

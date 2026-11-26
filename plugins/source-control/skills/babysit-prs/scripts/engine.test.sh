@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Test entry for the babysit-prs engine: runs part a of the stdlib-unittest
-# suite under tests/ (the modules not named test_babysit_*.py; engine-run.sh
-# assigns the parts, and engine-b.test.sh to engine-d.test.sh run the rest), an
-# optional ruff lint pass, and a bash-level check of
-# the guarded wrappers (whose --allow-unpinned-head rejection is a shell
-# concern, not a Python one). SKIPs (exit 0) when Python 3.11+ is unavailable, matching the
-# repo test-runner convention for optional toolchains.
 # test-scope: plugins/source-control/*.md plugins/source-control/scripts/babysit-*.sh lib/cdn-pins/sync.mjs lib/merge-hold-labels.json
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/*.py plugins/source-control/skills/babysit-prs/scripts/babysit-python.sh plugins/source-control/skills/babysit-prs/scripts/engine-run.sh ruff.toml
 # test-scope: plugins/*/hooks/* docs/conventions/source-control.yaml docs/conventions/pr-pipeline.yaml .github/actions/check-kill-switch/check-kill-switch.mjs .github/actions/check-trusted-trigger/check-trusted-trigger.mjs .github/scripts/lib/github-client.mjs .github/scripts/lib/trusted-actors.mjs .github/scripts/pr-merge/carry-run-cache.mjs .github/scripts/pr-merge/head-ref-map.mjs .github/scripts/pr-merge/rotation.mjs .github/scripts/pr-verify/resolve-pr.mjs plugins/source-control/lib/parse-concern-value.sh plugins/source-control/lib/yaml-subset.awk plugins/source-control/skills/babysit-loop/scripts/*.mjs plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/*/*.json plugins/work-items/reference/escalation-marker.md
@@ -14,9 +7,6 @@
 # test-scope: .github/source-control-settings.json lib/cli-version-check.mjs plugins/formal-verification/lib/config-cascade.mjs plugins/formal-verification/lib/yaml-subset.mjs plugins/formal-verification/scripts/check.mjs plugins/formal-verification/scripts/settings.mjs plugins/source-control/.claude-plugin/plugin.json scripts/check-read-caller-keys.mjs scripts/upstream-drift-vendored-report.sh scripts/credential-legs/* .github/lane-registry.json scripts/sync-credential-legs.mjs
 set -uo pipefail
 
-# Resolve before the cd: BASH_SOURCE is the path as invoked, so re-deriving it
-# afterwards resolves a relative invocation against the NEW cwd and silently
-# lands somewhere else.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 1
 cd "$SCRIPT_DIR" || exit 1
 
@@ -40,9 +30,6 @@ if ! bash "$SCRIPT_DIR/engine-run.sh" a; then
   FAILED=1
 fi
 
-# Lint through the repo's CI pin (.github/requirements-ci.txt) rather than a
-# bare PATH ruff: a workstation global that auto-upgraded past the pin false-
-# reds a clean tree with findings CI does not report (#1856).
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
 RUN_RUFF="$REPO_ROOT/scripts/run-ruff.sh"
 if [[ -f "$RUN_RUFF" ]]; then
@@ -75,13 +62,6 @@ check_exit() {
   fi
 }
 
-# Exit 2 on this path is overloaded: it is both the wrapper's own refusal AND
-# argparse's usage/unrecognized-argument error for the CLI it wraps. A
-# code-only assertion cannot distinguish "the wrapper held the boundary" from
-# "the wrapper let it through and argparse happened to also reject it" -- the
-# --allow-unpinned-head=true spelling is exactly that trap (#1522). This
-# helper asserts on the wrapper's own refusal text on stderr, not just the
-# exit code.
 check_wrapper_refusal() {
   local label="$1"
   shift
@@ -96,17 +76,10 @@ check_wrapper_refusal() {
   fi
 }
 
-# The wrapper refuses the interactive unpinned override so no allow-rule-covered
-# invocation can merge an unvetted head.
 check_wrapper_refusal "merge wrapper rejects --allow-unpinned-head" \
   "owner/repo#1" --merge --allow-unpinned-head
-# The wrapper refuses a long-option prefix too (allow_abbrev on the CLI would
-# otherwise resolve it to the guarded flag behind the wrapper's back).
 check_wrapper_refusal "merge wrapper rejects --allow-unpinned-hea (prefix spelling)" \
   "owner/repo#1" --merge --allow-unpinned-hea
-# The wrapper refuses the =value spelling of the flag and of a prefix of it --
-# the prefix comparison alone missed this because "--allow-unpinned-head=true"
-# is not itself a prefix of "--allow-unpinned-head" (#1522).
 check_wrapper_refusal "merge wrapper rejects --allow-unpinned-head=true (=value spelling)" \
   "owner/repo#1" --merge --allow-unpinned-head=true
 check_wrapper_refusal "merge wrapper rejects --allow-unpinned=1 (=value prefix spelling)" \
@@ -123,14 +96,8 @@ check_exit "merge wrapper reaches fail-closed CLI (no allowlist)" 3 \
   bash "$MERGE_WRAPPER" "owner/repo#1"
 check_exit "resolve wrapper reaches fail-closed CLI (no allowlist)" 3 \
   bash "$RESOLVE_WRAPPER" "owner/repo#1"
-# The autopilot merge tier is fail-closed at the wrapper: the umbrella flag
-# without its three required sets refuses before any network access.
 check_exit "merge wrapper rejects --autopilot-merge-tier without required sets" 3 \
   bash "$MERGE_WRAPPER" "owner/repo#1" --allowed-owners owner --autopilot-merge-tier
-# The unattended merge path fails closed: --unattended --merge refuses at exit
-# 10 before any write when its policy cannot be read. The policy read goes
-# through gh, so a gh that fails every call stands first on PATH: the check
-# needs no network.
 failing_gh="$(mktemp -d)" || exit 1
 trap 'rm -rf "$failing_gh"' EXIT
 printf '#!/usr/bin/env bash\necho "gh: offline in engine.test.sh" >&2\nexit 1\n' >"$failing_gh/gh"

@@ -1,29 +1,4 @@
 #!/usr/bin/env bash
-# Reads the signals branch-update-method.sh decides from, for one pull request
-# or one branch, and prints them as one JSON object.
-#
-#   branch-update-signals.sh --pr <n> [--repo <owner/repo>] [--dir <checkout>] [flags]
-#   branch-update-signals.sh --branch <b> --base <b> [--repo <owner/repo>] [--dir <checkout>] [flags]
-#
-#   --dir                 the checkout every git read runs in, its repository
-#                         resolved with the pull-request skill's target-repo.sh
-#                         (which honors GH_REPO); --repo wins. Default: the
-#                         current directory, the repository gh's
-#                         {owner}/{repo} placeholders name there
-#   --allow-rewrite       a pushed head may be rewritten; only attended create,
-#                         ready and reassess --act pass it
-#   --base-fixed-failure  the caller knows a failure on the head was fixed on
-#                         the base, so base_change_needed is yes
-#
-# The overlap read diffs HEAD against the base, so it runs only when HEAD is the
-# head being asked about; otherwise overlap is unknown.
-#
-# A read that fails is `unknown` (`blocked` for rewrite, `auto` for the setting,
-# the literal `unknown` for head_sha). GitHub facts behind each read:
-# ../reference/providers/github/branch-update-signals.md
-#
-# Exit: 0 signals printed, whatever failed to read; 2 usage error (--dir naming
-# no directory included) or jq missing.
 set -uo pipefail
 
 # portability-scope: every signal reads the pull request, its repository or its rules through gh.
@@ -37,7 +12,6 @@ source "$SCRIPT_DIR/../lib/base-file.sh"
 # shellcheck source=../lib/github-remote.sh
 source "$SCRIPT_DIR/../lib/github-remote.sh"
 readonly DEPENDENCY_MANAGERS='dependabot dependabot-preview renovate renovate-bot'
-# The login normalization babysit_classify.py applies to a dependency manager.
 readonly NORM='def norm: ascii_downcase | sub("^app/"; "") | sub("\\[bot\\]$"; "");'
 
 usage() {
@@ -82,7 +56,6 @@ command -v jq >/dev/null 2>&1 || {
 
 notice() { printf 'branch-update-signals: %s\n' "${1//[[:cntrl:]]/ }" >&2; }
 uri() { jq -rn --arg v "$1" '$v | @uri'; }
-# gh prints an error's JSON body on stdout, so a failed call answers nothing.
 api() {
   local out
   out=$(gh api "$@" 2>/dev/null) || return 1
@@ -101,7 +74,6 @@ count_answer() {
 }
 
 load() {
-  # gh api's placeholders follow GH_REPO; gh repo view with no argument ignores it.
   if [[ -z "$REPO" && -n "$CHECKOUT" ]]; then
     REPO=$(bash "$TARGET_REPO" --dir . | tr -d '\r')
   elif [[ -z "$REPO" ]]; then
@@ -123,7 +95,6 @@ load() {
     DEFAULT_BRANCH=$(jq -r '.defaultBranchRef.name // empty' <<<"$META" 2>/dev/null | tr -d '\r')
   fi
   CHECKOUT_HEAD=$(git rev-parse -q --verify 'HEAD^{commit}' 2>/dev/null)
-  # A pull request's objects are only certain to be here when it is checked out.
   { [[ -z "$PR" ]] || [[ -n "$HEAD_SHA" && "$CHECKOUT_HEAD" == "$HEAD_SHA" ]]; } || return 0
   local remote
   remote=$(remote_of_repo "$REPO")

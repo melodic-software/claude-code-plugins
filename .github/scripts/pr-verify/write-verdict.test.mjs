@@ -1250,10 +1250,11 @@ test("a fail a later chunk left before another handed off stands: checkLaterChun
   assert.equal(readFileSync(clean.env.GITHUB_OUTPUT, "utf8"), "fail=false\n", "a clean handoff still hands off");
 });
 
-test("a later chunk that failed with a lane class, or with no class list, left no output; one with an empty class is a withheld fail", () => {
+test("a later chunk that failed with a lane class, or with no class list, left no output; one with class credential-stop or an empty class is a withheld fail", () => {
   const failedThird = (k) => (k === 3 ? "failure" : "success");
   for (const [label, classOf, drop] of [
     ["max-turns", (k) => (k === 3 ? "max-turns" : ""), undefined],
+    ["other", (k) => (k === 3 ? "other" : ""), undefined],
     ["credit-stop", (k) => (k === 3 ? "credit-stop" : ""), undefined],
     ["no class list", () => "", "CHUNK_CLASSES"],
     ["a short class list", () => "", "short"],
@@ -1271,6 +1272,11 @@ test("a later chunk that failed with a lane class, or with no class list, left n
   const scanStop = laterChunks(4, () => CHUNK_PASS, failedThird);
   checkLaterChunks(scanStop.env);
   assert.equal(readFileSync(scanStop.env.GITHUB_OUTPUT, "utf8"), "fail=true\n", "the credential scan stop still counts");
+  const credentialStop = laterChunks(4, () => CHUNK_PASS, failedThird, (k) => (k === 3 ? "credential-stop" : ""));
+  checkLaterChunks(credentialStop.env);
+  assert.equal(readFileSync(credentialStop.env.GITHUB_OUTPUT, "utf8"), "fail=true\n", "class credential-stop is a scan stop");
+  writeChunkResults(credentialStop.env);
+  assert.equal(readFileSync(credentialStop.env.GITHUB_OUTPUT, "utf8"), "fail=true\nfail=true\n", "the chunk results write its withheld fail");
   const failedSecond = (k) => (k === 2 ? "failure" : "success");
   for (const [label, value] of [["unset", undefined], ["empty", ""]]) {
     const lone = laterChunks(2, () => CHUNK_PASS, failedSecond);

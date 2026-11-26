@@ -35,11 +35,6 @@ linkage::gate_file_to() {
     printf '%s: %s is not a valid POSIX ERE; the gate is off.\n' "$__pls_hook" "$_PLS_KEY" >&2
     return 0
   fi
-  # An unmatched glob stays literal and is skipped here, so `shopt -s nullglob` does not leak
-  # into the sourcing hook. Both reads in this function are fork-free, not `grep`, to hold the
-  # spawn ceilings in https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/README.md#measured-cost.
-  # `read -d ''` returns 1 at EOF yet holds the bytes, so its status is ignored. `__pls_wf` is
-  # cleared first so an unreadable file does not keep the previous candidate's bytes.
   for __pls_cand in "$__pls_root"/.github/workflows/*.yml "$__pls_root"/.github/workflows/*.yaml; do
     [[ -f "$__pls_cand" ]] || continue
     __pls_wf=""

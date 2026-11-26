@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# Run `claude plugin test` on every plugin that ships a mod: a hooks/hooks.json
-# whose "modules" array is non-empty (ADR 0052 adopts mods). Exits 0 with a
-# skip line when no plugin ships a mod, when
-# `claude` is not on PATH, or when the CLI predates `claude plugin test` (mods
-# need 2.1.287). Exits 1 when any mod's tests fail, a plugin ships a
-# hooks/register.* file that its hooks.json names no modules for, or a mod
-# plugin's plugin.json declares no engines["claude-code"] range or one other
-# than ">=" the claude version floor in its prerequisites.json, and 2 when
-# node, which reads hooks.json, is not on PATH.
-# Basis: https://code.claude.com/docs/en/plugins/mods/test#write-a-test (as of
-# 2026-10-30: `claude plugin test` runs the *.test.ts files and exits 1 when a test
-# fails). Recheck when that section changes the command, the file pattern or the
-# exit status.
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
@@ -23,7 +10,6 @@ fi
 
 MIN_VERSION=2.1.287
 
-# version_at_least <have> <want>: dotted numeric comparison, no sort -V.
 version_at_least() {
   local -a have want
   IFS=. read -ra have <<<"$1"

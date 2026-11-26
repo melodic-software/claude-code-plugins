@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# The test-node steps whose suites print `::error` lines on purpose (fixtures
-# that exercise a script's own failure messages) run them inside a
-# `::stop-commands::<token>` block, so a green run raises no failure
-# annotations. Each step's own `::error` lines stay outside the block. It also pins the
-# test-bash and test-python Playwright browser cache steps.
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
@@ -26,9 +21,6 @@ if [[ -z "$reader" ]]; then
   exit
 fi
 
-# check_step <name> <command>: the named test-node step's run body stops workflow
-# commands with a random token before <command>, resumes after it, and has
-# no `::error` line inside the block.
 check_step() {
   local out
   if out=$("$reader" - "$WORKFLOW" "$1" "$2" <<'PY' 2>&1
@@ -61,9 +53,6 @@ PY
 check_step 'Test resolve-config' 'npm test --prefix .github/actions/resolve-config'
 check_step 'Test the other Node packages' 'scripts/run-outside-node-suites.sh --paths'
 
-# The Playwright browser cache in test-bash and test-python: test-bash restores it only on a
-# leg that installs Chromium, both jobs restore under select-tests' one key, the install step
-# records a download, and the save runs only on main after one.
 if out=$("$reader" - "$WORKFLOW" <<'PY' 2>&1
 import sys
 

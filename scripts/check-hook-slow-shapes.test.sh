@@ -12,8 +12,6 @@ REQUIREMENTS="$SELF_DIR/../.github/requirements-ci.txt"
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
 new_fixture() {
@@ -27,9 +25,6 @@ plugin_file() {
   printf '%s\n' "$4" >"$1/plugins/$2/$3"
 }
 
-# row_json <command> [<extra-object>]: one Stop row. The command goes in on
-# stdin, not as an argument, because Git Bash rewrites a `.../hooks/x.sh`
-# argument into a Windows path before a native jq sees it.
 row_json() {
   local extra="${2:-}"
   [[ -n "$extra" ]] || extra='{}'
@@ -203,8 +198,6 @@ else
   fail "findings are sorted by path and identical across runs: $first"
 fi
 
-# ENV SHEBANG findings too: jq walks Stop before Notification (document order),
-# and the output must still come out sorted.
 new_fixture f
 plugin_file "$f" demo hooks/x.sh "$ENV_SCRIPT"
 printf '%s' "$ROOTED" | jq -Rs '{hooks:{Stop:[{hooks:[{type:"command",command:.}]}],

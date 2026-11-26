@@ -1,80 +1,11 @@
 #!/usr/bin/env bash
-# Gate: a hook finds out it has nothing to do BEFORE it sources any library.
-#
-#   scripts/check-killswitch-hoist.sh   rule 1: fail on any PreToolUse or
-#                                       PostToolUse hook script whose kill
-#                                       switch sits below a `source` line
-#                                       rule 2: fail on any blocking hook
-#                                       script, on any event, whose first early
-#                                       exit sits below a `source` line
-#
-# Rule 2 exists because the per-turn hooks (Stop, Notification, SessionEnd and
-# the rest) paid the same cost rule 1 removed from the tool hooks: a disabled
-# or unarmed hook parsed hook-utils.sh before its first `exit 0`. Most of those
-# hooks have no `_enabled` switch, so rule 1 cannot hold them; rule 2 asks only
-# that whatever early exit a hook has comes first. Async hooks are exempt (they do not block); see the
-# discovery block below for the documented exceptions.
-#
-# Why: every guard ships a `<name>_enabled` userConfig boolean, and an operator
-# who turns one off is entitled to stop paying for it. `hook::check_enabled`
-# only exists once `lib/hook-utils.sh` has been sourced, so a DISABLED guard
-# reading its switch through it parses the whole library before discovering it
-# has nothing to do. Measured on this repo's Linux CI host: a bare
-# `bash -c 'exit 0'` costs 1.8 ms and the same process with hook-utils sourced
-# costs 5.3 ms, so the library is ~3.5 ms of a disabled standalone guard's
-# ~5.3 ms.
-#
-# The saving is UNEVEN, and the honest split matters more than the headline.
-# Three of the fourteen PreToolUse guards run as their own process
-# (source-control's three) and recover the full
-# ~3.5 ms. The other eleven are sourced into one process by
-# `plugins/guardrails/hooks/run-guards.sh`, which has already loaded the library
-# for its own use; hook-utils.sh carries an include guard (`_HOOK_UTILS_LOADED`),
-# so their `source` line costs ~0.05 ms and the hoist buys them almost nothing.
-# They are held to the same rule anyway: one shape across the fleet is what
-# makes this mechanically checkable, and each of them is also invoked
-# standalone — by its own contract test today, and by a hooks.json that
-# registered it directly tomorrow.
-#
-# Why a gate rather than a convention: `scripts/sync-shared-copies.sh` generates
-# the vendored library copies but does NOT cover the entry scripts, so nothing
-# else in this repo would notice the ordering drifting back.
-#
-# The rule, per PreToolUse guard script:
-#   1. it carries a recognized inlined kill-switch line;
-#   2. that line comes before the first `source` / `.` of any file;
-#   3. it does not ALSO call `hook::check_enabled` (the un-hoisted form).
-#
-# Semantics are pinned, not just position: the inlined predicate must agree with
-# `hook::is_enabled` in lib/hook-utils.sh, which is the definition it duplicates.
-# If that helper's own reading of the env var changes, this gate fails and the
-# fourteen copies get revisited rather than silently diverging. That pin is the
-# price of inlining, and it is why inlining is acceptable here at all.
-#
-# Scope of rule 1: hooks registered on PreToolUse or PostToolUse in any plugin
-# JSON hook config (`plugins/*/hooks/hooks.json`, a manifest-pointed file, or an
-# inline manifest map) and implemented as shell scripts. Skill and agent
-# frontmatter hooks are out of scope. Rule 2 covers
-# every event in the same files, with the same token walk. A hook implemented in another language sources no shell library, has no
-# `source` line to sit above, and is reported as NOT SCANNED rather than passed
-# silently — today that is disk-hygiene's destructive_guard.py, context-budget's
-# node handler, and plugin-diagnostics' inline shell-form node-notice row.
-#
-# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
-# the whole family's contract, stated once in scripts/README.md, "The check-script
-# contract", and held by scripts/check-script-contract.test.sh. Two fail-closed
-# stops stay at 1 because they are statements about the TREE rather than about
-# this host: a hook corpus that scans to empty, and an inlined predicate that no
-# longer agrees with the hook::is_enabled it duplicates.
+# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
 # shellcheck source=lib/hook-configs.sh
 . scripts/lib/hook-configs.sh || exit 2
 
-# Every JSON hook config and the jq path of its event map: hooks.json,
-# manifest-pointed files and inline manifest maps (scripts/lib/hook-configs.sh).
-# Exits 2 without jq.
 hook_configs::sources check-killswitch-hoist
 
 HOOK_UTILS="lib/hook-utils.sh"
@@ -118,8 +49,6 @@ hooks_dir_of() {
 scripts_in() {
   local hooks_dir="$1" command="$2" token base skip_next=0
   found=()
-  # Split into words but never glob: a `*` token is text, not a path under
-  # the repository root.
   set -f
   # shellcheck disable=SC2086  # deliberate word split: the command is a shell command line
   for token in $command; do
@@ -156,8 +85,6 @@ for source in ${HOOK_CONFIG_SOURCES[@]+"${HOOK_CONFIG_SOURCES[@]}"}; do
       continue
     fi
     guards+=("${found[@]}")
-    # Exec form keeps the script path in `args`, not in `command` (`command` is
-    # `node`). Join both so a converted row is still scanned.
   done < <(jq -r --argjson m "$map" '
     (getpath($m) // {}) | (.PreToolUse[]?, .PostToolUse[]?) | .hooks[]?
     | select(.command | type == "string")
@@ -165,20 +92,6 @@ for source in ${HOOK_CONFIG_SOURCES[@]+"${HOOK_CONFIG_SOURCES[@]}"}; do
   ' "$hooks_json")
 done
 
-# --- discover every blocking hook, on any event (rule 2) ----------------------
-# Same token walk, over every event. A row with `async: true` is skipped: the
-# hooks reference (https://code.claude.com/docs/en/hooks, "Run hooks in the
-# background", fetched 2026-09-24) says "Set `async: true` on a command hook to
-# spawn it in the background without blocking ... Claude Code doesn't await the
-# result". The same section says async is ignored on four events: "`UserPromptSubmit`,
-# `UserPromptExpansion`, `PreModelSwitch`, and `MessageDisplay` require
-# synchronous hooks. When you set `async: true` on a hook for one of those
-# events, Claude Code ignores it and runs the hook synchronously instead." So an
-# async row on those four is still scanned. SessionStart is scanned: that page
-# says only that "Exit code 2 isn't honored for this event", and nowhere that a
-# SessionStart hook runs in the background or does not delay the session.
-# Recheck when that section changes the list of events that ignore `async: true`
-# or says a SessionStart hook can run without delaying the session.
 SYNC_ONLY_EVENTS=" UserPromptSubmit UserPromptExpansion PreModelSwitch MessageDisplay "
 blocking=()
 unreadable=()
@@ -186,9 +99,6 @@ for source in ${HOOK_CONFIG_SOURCES[@]+"${HOOK_CONFIG_SOURCES[@]}"}; do
   hooks_json="${source%%$'\t'*}"
   map="${source#*$'\t'}"
   hooks_dir="$(hooks_dir_of "$hooks_json")"
-  # Captured, not streamed: a jq that stops part-way (a non-object hook entry,
-  # invalid JSON) must fail the gate rather than hand back a truncated row list.
-  # A modules-only hooks.json (a mod with no settings hooks) has no rows.
   if ! rows="$(jq -r --argjson m "$map" '(getpath($m) // {}) | to_entries[] | .key as $e | .value[]? | .hooks[]?
     | select(.command | type == "string")
     | [$e, (.async == true | tostring),
@@ -278,19 +188,6 @@ for guard in "${guards[@]}"; do
   fi
 done
 
-# --- rule 2: the first early exit comes before the first source -------------
-# An early exit is an `exit 0` or a hook::check_enabled call (which exits 0 when
-# the switch is off) on a code line other than the script's last. A script with
-# no early exit has nothing to hoist and passes; a script whose first early exit
-# sits below a `source` pays for the library on the path that does nothing.
-# ponytail: textual; an `exit 0` inside a function defined above the source
-# counts as early. Upgrade to a real parse if that shape ever ships.
-#
-# `# hoist-ok: <reason>` on the first early exit's line, or on the line directly
-# above it, excuses the order. It applies only when that exit's test needs
-# something the library provides and has no cheaper form to hoist; the reason
-# says which. It is ignored on a hook::check_enabled call: a kill switch is
-# always inlinable.
 EARLY_EXIT_RE='(^|[[:space:];&|(])exit 0([[:space:];)]|$)|^[[:space:]]*hook::check_enabled[[:space:]]'
 for hooks_json in ${unreadable[@]+"${unreadable[@]}"}; do
   violation "VIOLATION: $hooks_json — not readable as a hooks config; this gate cannot clear it"

@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for worktree-add-containment-gate.sh (PreToolUse Bash hook,
-# #2611). Black-box: feed the hook real PreToolUse payloads against throwaway
-# git fixtures and assert allow (exit 0) / block (exit 2) plus the block
-# message's contents. Invoked from an UNRELATED cwd so any reliance on the test
-# runner's working directory (instead of the payload's own `cwd`) would
-# surface. No network.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -47,8 +41,6 @@ run() {
     payload=$(jq -n --arg cmd "$cmd" \
       '{session_id:"test",tool_name:"Bash",tool_input:{command:$cmd}}')
   fi
-  # A here-string, never a pipe: the kill switch exits before reading stdin, and
-  # a printf still writing then fails on the closed pipe, which pipefail reports.
   ERR=$(cd "$UNRELATED" && env -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT -u CLAUDE_PLUGIN_DATA \
     -u CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CONTAINMENT_GATE_ENABLED \
     "$@" bash "$HOOK" <<<"$payload" 2>&1 >/dev/null)
@@ -96,6 +88,9 @@ assert_block "a target inside a bare repository blocks" "$UNRELATED" \
 
 assert_block "'..' after a nonexistent component still blocks" "$UNRELATED" \
   "git worktree add $TEST_TMPDIR/nope/../${REPO##*/}/wt-dotdot"
+
+assert_block "a leading ~/ target expands to HOME and blocks inside the repo" "$UNRELATED" \
+  "git worktree add ~/wt-tilde" HOME="$REPO"
 
 assert_block "git -C <repo> with a relative target blocks" "$UNRELATED" \
   "git -C $REPO worktree add wt-dash-c"
@@ -170,9 +165,6 @@ legacy_left_rc=0
 git -C "$LEGACYREPO" config --get melodic.worktreeroot >/dev/null 2>&1 || legacy_left_rc=$?
 assert_exit "the containment gate unset the retired alias" 1 "$legacy_left_rc"
 
-# An empty last value is still the last-wins record. Command substitution would
-# strip it and leave the preceding path; the shared resolver keeps it empty and
-# falls through. The block message must name the same fallback.
 EMPTYLAST="$(mkrepo)"
 git -C "$EMPTYLAST" config --add worktreeroot.path "$TEST_TMPDIR/first-root"
 git -C "$EMPTYLAST" config --add worktreeroot.path ""

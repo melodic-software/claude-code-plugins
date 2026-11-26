@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# This suite builds git fixtures itself, so it clears the inherited git
-# environment for the same reason the gate exists: under an exported
-# ABSOLUTE GIT_DIR, `git init` and `git config` follow repository discovery
-# rather than `-C` or the working directory, and the fixture identity lands in
-# the caller's repository. GIT_CONFIG is cleared as a distinct path — it
-# replaces the file `git config` itself reads and writes.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -89,10 +83,6 @@ else
   fail "self-clearing suite: rc=$rc out='$out'"
 fi
 
-# --- clearing only the discovery pair is NOT enough ------------------
-# GIT_CONFIG is a second leak path (git-config ENVIRONMENT: used as --file),
-# so a suite that only unsets GIT_DIR and GIT_WORK_TREE still writes through
-# an inherited GIT_CONFIG.
 new_repo
 r="$REPO"
 cat >"$r/no-config.test.sh" <<'SH'
@@ -681,9 +671,6 @@ else
   fail "shell env -u all wrapped: rc=$rc out='$out'"
 fi
 
-# --- SHELL: env -u on one fixture line does not credit an unwrapped write ----
-# env -u is per-COMMAND. A wrap on `init` must not isolate a later bare
-# `config user.email` — that is the leak the gate exists to stop.
 new_repo
 r="$REPO"
 cat >"$r/env-mixed.test.sh" <<'SH'
@@ -853,17 +840,6 @@ else
   fail "scope mention: rc=$rc out='$out'"
 fi
 
-# --- HEREDOC: a body is DATA, so it cannot grant credit --------------
-# Every case below asserts an EXACT rc, not merely a non-zero one: a
-# violation is rc 1 and a usage error is rc 2, so `rc != 0` would pass just as
-# happily if the gate crashed on its own arguments and never judged the file.
-#
-# Direction 1 (cases 1-4): the three credit-granting signals — a clear, a scope
-# declaration, and a source of an isolating harness — must NOT count when they
-# appear only inside a heredoc body. This suite writes exactly such bodies
-# itself, which is what made the gate creditable from its own test data.
-
-# 1. an `unset` written into a heredoc body does not credit the writer.
 new_repo
 r="$REPO"
 cat >"$r/hd_unset.test.sh" <<'SH'
@@ -884,7 +860,6 @@ else
   fail "heredoc unset: rc=$rc out='$out'"
 fi
 
-# 2. a scope declaration written into a heredoc body does not exempt.
 new_repo
 r="$REPO"
 cat >"$r/hd_scope.test.sh" <<'SH'
@@ -905,8 +880,6 @@ else
   fail "heredoc scope: rc=$rc out='$out'"
 fi
 
-# 3. sourcing an isolating harness from inside a body does not credit. SOURCE is
-#    the third credit path and leaks the same way the other two do.
 new_repo
 r="$REPO"
 cat >"$r/iso-harness.sh" <<'SH'
@@ -931,9 +904,6 @@ else
   fail "heredoc source: rc=$rc out='$out'"
 fi
 
-# 4. `<<-` strips leading TABS from its terminator, so a tab-indented terminator
-#    really does close the body — and the body before it is still data. Written
-#    with printf so the tabs cannot be reflowed by a formatter.
 new_repo
 r="$REPO"
 {
@@ -954,11 +924,6 @@ else
   fail "heredoc dash-tab: rc=$rc out='$out'"
 fi
 
-# Direction 2 (cases 5-7): the ASYMMETRY. Suppressing credit must not suppress
-# anything else — a genuine executed token still counts, and FIXTURE detection
-# keeps reading heredoc text because conscripting a suite is the safe direction.
-
-# 5. the extent ENDS at the terminator: a real clear after it still credits.
 new_repo
 r="$REPO"
 cat >"$r/hd_after.test.sh" <<'SH'
@@ -981,9 +946,6 @@ else
   fail "heredoc clear-after: rc=$rc out='$out'"
 fi
 
-# 6. a here-string is not a heredoc, and a `<<` inside a quoted string is text.
-#    Either one read as a redirection opens a body on a delimiter that never
-#    reappears, swallowing every real clear below it to end of file.
 new_repo
 r="$REPO"
 cat >"$r/hd_herestring.test.sh" <<'SH'
@@ -1005,11 +967,6 @@ else
   fail "heredoc herestring: rc=$rc out='$out'"
 fi
 
-# 7. FIXTURE detection still READS bodies. This suite runs no git command of its
-#    own — its only fixture text is inside a heredoc — and is still conscripted,
-#    which is the whole asymmetry: bodies may put a suite IN scope, never excuse
-#    one. Losing this direction would let a suite escape the gate by moving its
-#    fixture setup into a generated file.
 new_repo
 r="$REPO"
 cat >"$r/hd_fixture_only.test.sh" <<'SH'

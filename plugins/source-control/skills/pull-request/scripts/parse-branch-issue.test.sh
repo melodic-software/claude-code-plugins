@@ -428,8 +428,6 @@ layer "${CASE_REPO}/.claude/source-control.local.md" '-([0-9]+)$'
 run_cfg "a root outside any git repository skips team and personal override" \
   "a/5-x-9" "" - "5" 0 "project root is not inside a git repository"
 
-# Physical equality through a symlink. mklink <target> <link> <case> fails, with
-# a SKIP line, where the host cannot make a real symlink (Git Bash copies).
 mklink() {
   MSYS=winsymlinks:nativestrict ln -s "$1" "$2" 2>/dev/null && [[ -L "$2" ]] && return 0
   echo "SKIP: host cannot create symlinks: $3" >&2

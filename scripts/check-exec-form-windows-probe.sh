@@ -1,53 +1,4 @@
 #!/usr/bin/env bash
-# Probe: a Windows exec-form hook must name a real executable and keep its args.
-#
-#   scripts/check-exec-form-windows-probe.sh
-#
-# Static half (every host): an exec-form hook (`args` present) whose `command`
-# is a shebang script, a .cmd/.bat shim, a bare name that is not on the
-# EXEC_NAME_ALLOWLIST of scripts/lib/hook-configs.sh, or a bash.exe/sh.exe
-# path fails. Shell form (no `args`) is not inspected. This script does not
-# rewrite rows. A .sh path is not a legal `command`; the landed spelling is
-# "node" plus hooks/exec-bash.mjs. Bare bash plus the script in args is the
-# shape scripts/check-hook-exec-form.sh already rejects.
-#
-# Spawn half (Windows, or EXEC_FORM_WINDOWS_PROBE_FORCE=1): spawn node.exe with
-# an args array and a stdin payload, with no shell. If the sentinel arg is
-# missing or the process image is bash.exe, exit 1 and the fleet sweep stops
-# (#90495: exec-form args dropped, the hook still routed
-# through bash.exe). On any other host the spawn half prints a SKIP line and
-# exits 0 when the spellings are clean. That skip is fail-soft: it does not
-# show that #90495 is absent and it does not authorize converting .sh rows.
-# EXEC_FORM_WINDOWS_PROBE_REQUIRE_SPAWN=1 turns a missing node.exe into a
-# failure on a host where the spawn half runs (the Windows CI lane).
-# EXEC_FORM_WINDOWS_PROBE_SIMULATE_DROP=1 omits the sentinel so the stop path
-# can be tested.
-#
-# Launcher half (same condition as the spawn half, after it): a native node
-# runs lib/exec-bash.mjs, the launcher every hook row goes through, with an
-# explicit env object and a recording bash script, the way Claude Code runs a
-# hook. It exits 1 when the argv token, the stdin payload, a backslash
-# CLAUDE_PLUGIN_ROOT (in the env and in an argument) or the script's own exit 2
-# does not come back through the launcher. On Windows it also exits 1 when the
-# script does not run under Git Bash, when a launcher with no bash to find does
-# not exit 1 on a first stderr line naming the script and saying it enforces
-# nothing, or when Git's bin directory on PATH does not resolve bash. Off
-# Windows those three checks are skipped and the rest run.
-# EXEC_FORM_WINDOWS_PROBE_SIMULATE_LAUNCHER_DROP=1 makes the recording script
-# exit 0 instead of 2 so the failure path can be tested.
-#
-# Live half (EXEC_FORM_WINDOWS_PROBE_LIVE=1, and a `claude` on PATH): one
-# throwaway exec-form PreToolUse row under `claude -p`. Without that opt-in,
-# or without `claude`, this half skips fail-soft with the same non-authorization.
-#
-# The record behind this probe is "Windows exec-form probe" in
-# docs/plugin-philosophy.md, and Category D of
-# plugins/harness-config/skills/audit/reference/audit-checklist.md.
-#
-# Exit 0 clean, 1 findings (including a reproduced args-drop), 2 environment or
-# usage. Findings on stderr; the clean statement and SKIP lines on stdout
-# (scripts/README.md, "The check-script contract"). An unparsable hook config is a
-# finding (1), as in scripts/check-hook-exec-form.sh.
 # shellcheck disable=SC2016
 # shellcheck disable=SC2329  # on_hook and on_unreadable, and the helpers they call, run by name from hook_configs::scan
 set -euo pipefail
@@ -75,10 +26,6 @@ flag() {
 
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
-# image_name <path>
-# Node's process.execPath on Windows is a backslash path. ${path##*/} leaves
-# C:\Program Files\nodejs\node.exe intact, so the spawn half reports that image
-# as not node.exe and stops the fleet sweep.
 image_name() {
   local base="${1##*/}"
   base="${base##*\\}"
@@ -183,7 +130,6 @@ run_spawn() {
     echo "SPAWN-PROBE: node exited non-zero while receiving an args array. Fleet sweep stopped." >&2
     return 1
   fi
-  # jq -e would treat a false `any` as failure and hide a real args-drop.
   if ! got="$(jq -r --arg s "$sentinel" 'any(.argv[]; . == $s)' <<<"$out")" ||
     ! bytes="$(jq -r '.stdinBytes' <<<"$out")" ||
     ! exec_path="$(jq -r '.execPath' <<<"$out")"; then
@@ -208,11 +154,6 @@ run_spawn() {
   return 0
 }
 
-# The driver runs in node, so the launcher gets an explicit env object that no
-# MSYS hop rewrites, and every comparison sees the exact strings the script
-# saw. argv: launcher, script, token, script exit code, empty dir, Git bin dir.
-# The last two are only used on Windows. Findings go to stderr and set the exit
-# code; the clean statement goes to stdout.
 launcher_driver_js() {
   cat <<'JS'
 const { spawnSync } = require("child_process");
@@ -274,8 +215,6 @@ run_launcher() {
   driver="$tmp/launcher-probe.cjs"
   mkdir "$empty"
   launcher_driver_js >"$driver"
-  # Builtins and printf only, so it runs with nothing but bash on PATH.
-  # uname is the one external, and a missing one shows up as an empty field.
   cat >"$script" <<'SH'
 LC_ALL=C
 IFS= read -r -d '' payload
