@@ -11,8 +11,6 @@ SCRIPT="$SELF_DIR/check-fleet-audit-doc-grammar.sh"
 # shellcheck source=lib/changed-files.sh
 . "$SELF_DIR/lib/changed-files.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-vars here is what tells it (SC2154) the names are written.
 repo="" hist=""
 
 write_stub_script() {

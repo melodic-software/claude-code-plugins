@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# Runs every suite that covers one source file, in one command:
-#
-#   scripts/run-covering-tests.sh <source file>
-#
-# scripts/affected-tests.sh selects the suites; each runs through
-# scripts/run-test-file.sh, which picks its runner and drops GH_TOKEN and
-# GITHUB_TOKEN. One line per suite on stdout, `PASS <suite>` or
-# `FAIL <suite> (exit <n>)`, then `covering suites: <n>, failed: <m>`.
-# Exits 0 when every suite passed, 1 when any failed, 2 when the file has no
-# covering suite or the selection itself failed. Run it from the checkout
-# root: that is the tree it selects in and tests. The post-merge mutation lane
-# runs a read-only copy of scripts/ once per mutant, so a mutant of these
-# scripts cannot break its own harness, and a kill is any failing suite.
 set -uo pipefail
 here=$(dirname "${BASH_SOURCE[0]}")
 export AFFECTED_TESTS_ROOT=${AFFECTED_TESTS_ROOT:-$PWD}

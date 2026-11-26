@@ -1,27 +1,4 @@
 #!/usr/bin/env bash
-# Runs the `Clear a cost-only review hold the owner decided` step body of
-# .github/workflows/pr-require-checks.yml's ci-status under the shell Actions
-# gives a step with no `shell:` (bash -e), against stub `gh` and `sleep`.
-#
-# A review lane's `cost` hold is cleared when every lane hold since a trusted
-# person last removed the human-gated label is cost-only, and the pull request
-# body cites the owner's unedited `**Decision recorded.** Cost:` comment on the
-# pull request itself, or, newer than the pull request and naming it as
-# `#<number>`, on its linked issue: the one issue GitHub records it as closing,
-# else, when it closes none, the one plain `Refs:` issue (the base's
-# merge-holds.mjs refsIssue). A second closing issue counts for nothing. The
-# decision, the newest on the pull request else the newest on the issue,
-# covers the head it decided (the sha of the newest cost hold notice a review
-# lane's status job recorded before it, naming its own run's head; with none,
-# no head, and none while the head branch's push history shows a head pushed
-# since the decided head, before the decision, with no run of every lane) and a
-# later head only when the net change against the base branch
-# is the same at both (owner decisions Q17 c and Q18 d on #9436). The holds
-# and the decided head are read from the lanes' check-run notices, never from
-# a hold comment.
-# The step then outputs cleared=true and the decision, and takes the label off
-# with one comment citing it. Anything else, an unreadable read included,
-# clears nothing and leaves the hold to the steps after it.
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
@@ -42,8 +19,6 @@ ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" || fail "the ci-status gh_read helpe
 
 NAME='Clear a cost-only review hold the owner decided'
 step="$(ci_step::read "$WORKFLOW" "$NAME" "$TMP_ROOT/body.sh")" || ci_step::abort "$WORKFLOW" "$NAME"
-# A draft's ci-status passes by design (`Note a draft`), so the step makes no
-# read there; the ready_for_review run judges the hold.
 if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.draft != true || steps.draft_rerun.outputs.ready == 'true') }}"* ]]; then
   ok "step runs on every pull_request run that is not cancelled or a draft, and on a draft run's re-run once the pull request is ready"
 else
@@ -161,9 +136,6 @@ OLD_SEC_CHECK='pr-review-security / review-status'
 
 event() { jq -cn --arg e "$1" --argjson actor "$2" --arg at "$3" '{event: $e, actor: $actor, created_at: $at, label: {name: "needs-human"}}'; }
 comment() { jq -cn --argjson user "$1" --arg at "$2" --arg body "$3" '{user: $user, created_at: $at, updated_at: $at, body: $body}'; }
-# What a cost decision carries besides its first line: a row link into the
-# owner-decisions record and the owner's verbatim words. decision appends
-# PROOF to the body it is given.
 ROW='https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L10'
 PROOF="
 Row: $ROW
@@ -189,8 +161,6 @@ nets() {
     | {($o): {files: $a, commits: [{sha: $o, parents: [{sha: $m}]}], total_commits: 1}, ($h): {files: $b, commits: $c, total_commits: ($c | length)}}')"
   export STUB_COMPARE
 }
-# push <sha> <timestamp>: a push to the head branch, as the repository
-# activity API lists it.
 push() { jq -cn --arg a "$1" --arg t "$2" '{after: $a, timestamp: $t, activity_type: "push", ref: "refs/heads/fix/cost"}'; }
 job() { jq -cn --argjson id "$1" --arg name "$2" --arg at "$3" '{id: $id, name: $name, completed_at: $at}'; }
 lanes() {
@@ -409,8 +379,6 @@ export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferen
 expect "a decision on one of two closing issues clears nothing" no no no
 export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"totalCount":1,"nodes":[{"number":9306,"repository":{"nameWithOwner":"x/r"}}]}}}}}'
 expect "a closing issue in another repository clears nothing" no no no
-# The exploit: the owner records a cost decision on an unrelated issue, and the
-# author points the body at it. Only GitHub's closing references count.
 export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"totalCount":1,"nodes":[{"number":8890,"repository":{"nameWithOwner":"o/r"}}]}}}}}'
 STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\",\"sha\":\"0123456789abcdef0123456789abcdef01234567\"},\"body\":\"Closes #8890\\nRefs: #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
 expect "a decision on an unrelated issue the body names on a Refs line clears nothing" no no no
@@ -418,8 +386,6 @@ export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferen
 STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\",\"sha\":\"0123456789abcdef0123456789abcdef01234567\"},\"body\":\"Closes #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
 expect "a Closes line GitHub does not record as closing clears nothing" no no no
 
-# pr-verify's credential stop adds no label event to a label already on, and a
-# cost decision does not answer it.
 # shellcheck disable=SC2016 # the backticks are the comment's text
 CREDENTIAL_HOLD='<!-- stop-reason lane=pr-verify reason=security -->
 Reason: `security`'
@@ -488,7 +454,6 @@ Refs: #9306
   expect "a body whose Refs lines read '${body//$'\n'/ }' names no linked issue and clears nothing" no no no
 done
 
-# The carry rule (#9436 Q18 d): the decided head is OLD, the current HEAD.
 reset
 nodecided
 decided "$OLD"
@@ -511,7 +476,6 @@ nets "[$TF]" "[$TF]" "[{\"sha\":\"$OLD\",\"parents\":[{\"sha\":\"$MAIN_SHA\"}]},
 expect "a commit of its own with the same net change clears nothing" no no no "covering this head"
 nets "[$TF]" "[$TF]" "[{\"sha\":\"6666666666666666666666666666666666666666\",\"parents\":[{\"sha\":\"$MAIN_SHA\"}]},{\"sha\":\"$HEAD\",\"parents\":[{\"sha\":\"6666666666666666666666666666666666666666\"},{\"sha\":\"$MAIN_SHA\"}]}]"
 expect "a rebase that rewrites the decided head clears nothing" no no no "covering this head"
-# A crafted merge commit (itself a merge of base commits) as the second parent.
 X=7777777777777777777777777777777777777777
 nets "[$TF]" "[$TF]" "[{\"sha\":\"$OLD\",\"parents\":[{\"sha\":\"$MAIN_SHA\"}]},{\"sha\":\"$X\",\"parents\":[{\"sha\":\"$MAIN_SHA\"},{\"sha\":\"$MAIN_SHA\"}]},{\"sha\":\"$HEAD\",\"parents\":[{\"sha\":\"$OLD\"},{\"sha\":\"$X\"}]}]"
 expect "a merge of a commit the base does not hold clears nothing" no no no "covering this head"
@@ -556,10 +520,6 @@ expect "a file with no patch carries nothing" no no no "covering this head"
 nets "[$TF]" "[$TF]"
 export STUB_FAIL=compare
 expect "a failed compare read carries nothing" no no no "are unreadable"
-# #10437: a deleted lane run of a head pushed after the decided head, before
-# the decision, would make an older notice the decided head. The head
-# branch's push history, which deleting a run leaves, shows that head, and it
-# needs a run of every review lane started before the decision.
 NEW=1111111111111111111111111111111111111111
 reset
 nodecided
@@ -577,9 +537,6 @@ expect "a head pushed since with the security lane's run deleted keeps the hold"
 ran "$NEW" pr-review-security-hosted.yml "$SEC_CHECK"
 expect "a head pushed since with a run of every lane and no cost notice carries the decision" yes yes yes
 STUB_FAIL=activity expect "an unreadable push history carries nothing" no no no "push history is unreadable"
-# A branch name recreated for each sync keeps its whole history, so the
-# decided head's push can sit past the first page (#10990).
-# later <n>: <n> pushes of NEW after the decision, from 15:00.
 later() {
   STUB_ACTIVITY="$(jq -c --arg n "$NEW" --argjson c "$1" '. + [range($c) | {after: $n, timestamp: (("2026-10-23T15:00:00Z" | fromdateiso8601) + . | todateiso8601), activity_type: "push"}]' <<<"$STUB_ACTIVITY")"
   export STUB_ACTIVITY
@@ -641,8 +598,6 @@ expect "a later notice without cost decides nothing, so the older cost notice do
 nodecided
 decided "$OLD" 2026-10-23T13:12:00Z cost pr-review-hosted.yml "$CODE_CHECK" "$HEAD"
 expect "a notice naming a head its run did not run on decides nothing" no no no "covering this head"
-# A run on a same-named branch of another repository (a fork pull request)
-# speaks for that pull request, not this one.
 for head_repo in '{"full_name":"f/r"}' null; do
   nodecided
   decided "$OLD"
@@ -863,8 +818,6 @@ STUB_EVENTS="[$(jq -c '.label.name = "owner-call"' <<<"$(event labeled "$OWNER" 
 expect "the base tracker's human-gated label is the one judged" no no no "someone other than a review lane"
 export STUB_TRACKER='{not json'
 expect "an invalid tracker config clears nothing" no no no "the tracker config is invalid"
-# A pull_request run takes its workflow from the head, so a head that edits a
-# lane workflow could write the cost notice itself.
 reset
 STUB_COMPARE="$(jq -cn --arg h "$HEAD" '{($h): {files: [{filename: ".github/workflows/pr-review-security-hosted.yml"}]}}')"
 expect "a lane run on a head that changes a review-lane workflow clears nothing" no no no "changes a review-lane workflow"
@@ -894,8 +847,6 @@ reset
 export LANES_APP_ID=''
 expect "an unset lanes App id clears nothing" no no no
 
-# A numeric id that is not merge.agent-identity's trusted-actor id misses the
-# lanes App's escalation, which keeps the label.
 reset
 lifted
 STUB_COMMENTS="[$(comment "$APP" 2026-10-23T13:22:00Z '<!-- work-items:escalation lane=pr-unblock kind=escalated -->')]"

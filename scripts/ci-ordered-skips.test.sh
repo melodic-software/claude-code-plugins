@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Runs the `Check each skipped lane against scope` step body of
-# .github/workflows/pr-require-checks.yml's ci-status under the shell Actions gives a step with
-# no `shell:` (bash -e), against `toJSON(needs)` fixtures.
 # test-scope: .github/workflows/pr-require-checks.yml .github/workflows/pr-unblock.yml
 set -uo pipefail
 

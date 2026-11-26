@@ -1,5 +1,3 @@
-// The check behind scripts/check-artifact-retention.sh, which states the
-// matching rule and the exit contract.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -188,10 +186,6 @@ for (const step of steps) {
   const [key] = claimed;
   used.add(key);
   const row = families[key];
-  // The scan gates the upload only as a top-level && conjunct of its if:,
-  // with no top-level ||. A scan step's gate is the whole condition: that
-  // step's own if:, parenthesized, then the clean output, so the scan runs
-  // whenever the upload would.
   const conjuncts = topLevelAnd(step.condition);
   const clean = (id) => `steps.${id}.outputs.clean == 'true'`;
   const gated = (id) => conjuncts !== null && conjuncts.includes(clean(id));
@@ -257,9 +251,6 @@ function squash(text) {
   return text.replace(/\s+/g, " ").trim();
 }
 
-// The top-level && conjuncts of an if: condition; null when it has a
-// top-level ||, or a `${{ }}` with text around it (a non-empty string, so
-// always true).
 function topLevelAnd(raw) {
   let text = squash(raw);
   const wrapped = /^\$\{\{([\s\S]*)\}\}$/.exec(text);
@@ -295,7 +286,7 @@ function report() {
   }
   process.stderr.write(`${findings.join("\n")}\n`);
   process.stderr.write(
-    `check-artifact-retention: ${findings.length} finding(s); every upload-artifact step sets the retention-days its family's row in ${TABLE} names (see the header of scripts/check-artifact-retention.sh).\n`,
+    `check-artifact-retention: ${findings.length} finding(s); every upload-artifact step sets the retention-days its family's row in ${TABLE} names (see scripts/README.md, "Artifact retention").\n`,
   );
   process.exit(1);
 }

@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Behavior test: the "Read the hold labels from the base" step in
-# pr-run-activity-write.yml, which gives apply-patch its hold labels: do-not-merge,
-# the human-gated role label unless the caller's base-code verdict lifts it,
-# and the activity's labels-absent list. Runs the step's bash with a stub
-# gate-recheck.mjs.
 # test-scope: .github/workflows/pr-run-activity-write.yml scripts/ci-deps/package.json
 set -uo pipefail
 

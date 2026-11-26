@@ -24,8 +24,6 @@ from unittest import mock
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 
-# The subject's filename is hyphenated, so it is not importable by name; load it
-# from its path through spec_from_file_location instead.
 _spec = importlib.util.spec_from_file_location(
     "check_manifest_duplicate_keys", SCRIPT_DIR / "check-manifest-duplicate-keys.py"
 )
@@ -42,15 +40,10 @@ class FindDuplicateKeysTests(unittest.TestCase):
         self.assertEqual([], detector.find_duplicate_keys(text))
 
     def test_top_level_duplicate_key_detected(self) -> None:
-        # The actual #1492 shape: two "version" members at the top level.
         text = '{"name": "skill-quality", "version": "0.11.0", "version": "0.12.0"}'
         self.assertEqual(["version"], detector.find_duplicate_keys(text))
 
     def test_last_value_wins_same_as_every_other_consumer(self) -> None:
-        # The detector must not crash or reject the document -- it reports
-        # the conflict AND still resolves last-wins internally, exactly like
-        # json.load, JSON.parse, and jq do, so its own read of "the version"
-        # (if it ever needed one) would never disagree with theirs.
         collector = detector._DuplicateKeyCollector()
         result = json.loads(
             '{"version": "0.11.0", "version": "0.12.0"}',
@@ -60,9 +53,6 @@ class FindDuplicateKeysTests(unittest.TestCase):
         self.assertEqual(["version"], collector.duplicates)
 
     def test_nested_duplicate_key_detected(self) -> None:
-        # A repeated key inside a nested object (e.g. userConfig) is not the
-        # top-level case #1492 was, but the same defect class, and
-        # object_pairs_hook is called once per object at every depth.
         text = '{"name": "x", "userConfig": {"scope": "a", "scope": "b"}}'
         self.assertEqual(["scope"], detector.find_duplicate_keys(text))
 
@@ -106,8 +96,6 @@ class CliTests(unittest.TestCase):
         return code, stdout.getvalue(), stderr.getvalue()
 
     def test_catches_the_1492_shaped_duplicate_version_key(self) -> None:
-        # Fixture reproducing #1492's actual defect: two "version" members in
-        # a plugin.json.
         manifest = self.write(
             "plugin.json",
             '{\n'

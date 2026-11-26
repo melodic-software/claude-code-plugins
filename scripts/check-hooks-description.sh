@@ -1,31 +1,5 @@
 #!/usr/bin/env bash
-# Gate: every plugin hooks.json carries a top-level `description`.
-#
-#   scripts/check-hooks-description.sh    fail on any plugins/*/hooks/hooks.json
-#                                         whose top-level `description` is
-#                                         absent, not a string, blank, or
-#                                         multi-line
-#
-# Why: this marketplace requires the optional top-level `description` field in
-# every plugin's `hooks/hooks.json`, because it is the one place a plugin can
-# label its hooks as a set, distinct from the per-handler `statusMessage` shown
-# while a hook runs. Nothing else reads the field, so nothing else would notice
-# a new plugin shipping without it, or a rewrite dropping it.
-#
-# The rule: `plugins/*/hooks/hooks.json` is scanned; a plugin with no such file
-# has no hooks to label and is skipped. The file must parse as JSON and its
-# top-level `description` must be a string with at least one non-blank
-# character and no line break. Wording is not judged here; the field is a one
-# sentence label, and a reviewer reads it in the diff.
-#
-# Pointer: for the plugin hooks.json `description` field, see
-# https://code.claude.com/docs/en/hooks#reference-scripts-by-path (the plugin
-# scripts tab). When the page renames, removes or requires the field, re-derive
-# this comment and the rule from the page, not from memory.
-#
-# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
-# the whole family's contract, stated once in scripts/README.md, "The check-script
-# contract", and held by scripts/check-script-contract.test.sh.
+# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr.
 
 set -euo pipefail
 
@@ -45,18 +19,6 @@ flag() {
   errors=$((errors + 1))
 }
 
-# Classify one file's top-level description. jq prints one word per JSON
-# document it reads:
-#   missing | notstring | blank | multiline | ok
-# CRLF line endings in a Git Bash checkout sit between tokens, where jq
-# treats them as whitespace; a line break INSIDE the value can only be an
-# escaped one the author wrote.
-#
-# jq's exit status is checked SEPARATELY from its output: a file whose first
-# document is well-formed but which carries trailing garbage makes jq print a
-# verdict for the document and then exit non-zero on the garbage, so output
-# alone would clear a file Claude Code cannot load. Only a zero exit with
-# exactly one verdict word counts as parsed.
 CLASSIFY_PROG='
   if has("description") | not then "missing"
   elif (.description | type) != "string" then "notstring"

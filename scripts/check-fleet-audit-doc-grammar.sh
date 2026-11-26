@@ -1,24 +1,4 @@
 #!/usr/bin/env bash
-# Gate: the audit skill's documented argument grammar must match what
-# audit-fleet.sh actually accepts.
-#
-#   scripts/check-fleet-audit-doc-grammar.sh --check
-#
-# Why this lives outside SKILL.md and audit-fleet.sh: a revert of either file's
-# half alone keeps every test inside the other green. A check that only lives
-# inside either protected file cannot defend the agreement between them.
-#
-# Agreement is established by probing the script and reading its answers — never
-# by pattern-matching the parser source:
-#   1. Bare positional is in both or neither (probe --apply-plan <missing> <dir>).
-#   2. Every scope form the no-scope remedy names has a grammar bullet in SKILL.md.
-#   3. No-scope stops non-zero with the remedy block (no report).
-#
-# The environment is sealed (HOME / USERPROFILE / CLAUDE_PROJECT_DIR /
-# XDG_CONFIG_HOME → scratch) so a maintainer config cannot change the verdict.
-# An unrecognized probe outcome is a hard exit 2 ("probe inconclusive"), never
-# a pass. FLEET_DOC_GRAMMAR_SCRIPT / FLEET_DOC_GRAMMAR_SKILL override paths
-# (self-test injection and historical proofs).
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
@@ -62,12 +42,6 @@ run_sealed() {
     bash "$script_abs" "$@") >"$probe_out" 2>&1
 }
 
-# Classify --apply-plan <missing> <dir>: three distinguishable outcomes after the
-# argument loop and before config resolution / discovery.
-#   rejected     → "unknown argument"
-#   accepted     → "cannot be combined with audit discovery flags"
-#   ignored      → "apply-plan file not found"
-# anything else  → inconclusive (exit 2)
 classify_bare_positional() {
   local missing="$seal_dir/probe/missing-plan-$$.json"
   local bare="$seal_dir/probe/bare-dir-$$"
@@ -125,9 +99,6 @@ probe_no_scope_and_collect_tokens() {
     echo "check-fleet-audit-doc-grammar: probe inconclusive (no-scope): $(tr '\n' ' ' <"$probe_out")" >&2
     exit 2
   fi
-  # Remedy block: either the no-config form ("Give it a scope instead") or the
-  # consumed-empty-config form ("Add scope to that config"). Sealed env should
-  # hit the former; either way we require the indented scope-form lines.
   if ! grep -Eq 'Give it a scope instead|Add scope to that config' "$probe_out"; then
     echo "check-fleet-audit-doc-grammar: no-scope stop missing remedy block" >&2
     exit 1
@@ -138,7 +109,6 @@ probe_no_scope_and_collect_tokens() {
   fi
 
   : >"$tokens_file"
-  # Indented remedy forms: "  <dir> ..." or "  --root <dir> ..." (not git config lines).
   while IFS= read -r line; do
     case "$line" in
     '  <dir>'* | '  --'[a-z]*)

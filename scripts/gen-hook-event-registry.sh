@@ -1,63 +1,21 @@
 #!/usr/bin/env bash
-# Generate the hook event registry the session-telemetry session event log records
-# from, and the event list its mod registers on.
-#
-#   scripts/gen-hook-event-registry.sh --fetch        fetch the Hooks reference,
-#                                                     rewrite the registry and
-#                                                     the event list
-#   scripts/gen-hook-event-registry.sh --from <file>  same, parsing a saved copy
-#                                                     of the reference (tests)
-#   scripts/gen-hook-event-registry.sh --check        OFFLINE: re-derive the
-#                                                     event list from the
-#                                                     committed registry and
-#                                                     fail on drift, or on an
-#                                                     event-log row in
-#                                                     hooks.json (CI)
-#
-# Why generated, never hand-maintained: the event list is an upstream fact
-# (https://code.claude.com/docs/en/hooks, the lifecycle table under "Hook
-# lifecycle"), and a hardcoded list drifts silently as events are added or
-# renamed. Every registry entry is a four-part record per
-# docs/contracts/upstream-drift (claim, basis, as-of date, recheck trigger),
-# and per docs/contracts/native-references it states what the reference
-# documented on the as-of date, never that the running binary fires the event.
-#
-# The log is a mod (plugins/session-telemetry/hooks/register.ts; ADR 0065). It hooks
-# `classic.<Event>` for each observable event whose category
-# session_event_log_categories enables, plus SessionEnd always (for retention),
-# in a block between the module's `GENERATED: observed events` markers that this
-# script writes, and only while session_event_log_enabled is true, so a
-# default-off install starts no process on any event. hooks.json carries no event-log or retention row: a run strips
-# any it finds, and --check fails while one is present.
-#
-# Not every documented event is recorded. Five are excluded with their reason
-# stamped in the registry. Three because a hook on them changes behavior rather
-# than observing it:
-#   WorktreeCreate  configuring one REPLACES the default git worktree creation,
-#                   and a hook that prints no path fails the worktree
-#   MessageDisplay  Claude Code holds each streamed batch until the hook returns
-#   FileChanged     the matcher builds the watch list; a matcherless row
-#                   watches nothing
-# and two for cost, because they fire on every tool call and an enabled log
-# pays a process creation per fire:
-#   PreToolUse, PostToolUse  PostToolBatch and PostToolUseFailure still record
-#                            tool activity
-# An event this script does not know is excluded as `unclassified` with a
-# warning, never recorded by default: classify it here first.
-#
-# The parse refuses to write when the table yields fewer than 25 rows: a page
-# whose shape changed would otherwise produce an empty registry and silently
-# stop the log. The committed registry stays authoritative until a human
-# re-runs --fetch. Recheck trigger for every entry: each
-# `/harness-ops:changelog` ingest of a Claude Code release whose notes touch
-# hooks re-runs `--fetch --check`; a read-time re-fetch finding the table
-# changed also fires.
-#
-# Exit 0 = written / clean; 1 = drift (--check) or a usage error; 2 = the
-# reference could not be fetched or parsed (nothing written).
 set -euo pipefail
 
-usage() { sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() {
+  cat <<'EOF'
+Generate the session-telemetry hook event registry and the event list its mod registers on.
+
+  scripts/gen-hook-event-registry.sh --fetch        fetch the Hooks reference, rewrite the registry and the event list
+  scripts/gen-hook-event-registry.sh --from <file>  same, parsing a saved copy of the reference (tests)
+  scripts/gen-hook-event-registry.sh --check        offline: re-derive the event list from the committed registry and
+                                                    fail on drift, or on an event-log row in hooks.json (CI)
+  --root <dir>     repository root (default: this checkout)
+  --as-of <date>   as-of date stamped on registry entries
+
+Exit 0 = written / clean; 1 = drift (--check) or a usage error; 2 = the
+reference could not be fetched or parsed (nothing written).
+EOF
+}
 
 MODE=""
 FROM=""
@@ -108,9 +66,6 @@ MOD_TS="$ROOT/plugins/session-telemetry/hooks/register.ts"
 RECHECK="each /harness-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
 MIN_ROWS=25
 
-# classify_to <cat-var> <producer-var> <event>: the category (the same table
-# plugins/session-telemetry/hooks/session-log-lib.sh carries, pinned by the test) and
-# whether the log may record it.
 classify_to() {
   local c p
   case "$3" in
@@ -141,10 +96,6 @@ classify_to() {
   printf -v "$2" '%s' "$p"
 }
 
-# parse_table: markdown on stdin -> `name<TAB>when` per row of the lifecycle
-# table (the rows after the `| Event | When it fires |` header, up to the first
-# blank line; the name is the first backticked cell, the description the second
-# cell, trimmed).
 parse_table() {
   awk '
     /^\| *Event *\| *When it fires *\|/ { inside = 1; next }
@@ -177,10 +128,6 @@ build_registry() {
     | sort_by(.name)' | tr -d '\r'
 }
 
-# strip_rows <hooks-json-file> -> hooks.json on stdout with every row that runs
-# session-event-log.sh or session-retention.sh removed, in any form an earlier
-# generator wrote (exec form through the launcher, or a bare command); the
-# other handlers and their order are untouched.
 strip_rows() {
   jq --indent 2 '
     def is_log: any((.args // [])[], (.command // ""); test("/hooks/session-(event-log|retention)[.]sh$"));
@@ -189,14 +136,6 @@ strip_rows() {
   ' "$1" | tr -d '\r'
 }
 
-# mod_ts <registry-json-file> <register-ts-file> -> register.ts on stdout with
-# the lines between its `BEGIN GENERATED: observed events` and `END GENERATED:
-# observed events` markers replaced by one `classic.<Event>` hook per event the
-# registry marks observe, sorted by name, each guarded by `wants('<category>')`
-# so only the categories session_event_log_categories enables are registered.
-# SessionEnd is written bare: it carries retention whatever the categories.
-# Claude Code reads each hooked event from a string literal at the call site,
-# so the events are written out one literal call each, in the module.
 mod_ts() {
   local block
   block=$(jq -r --arg q "'" '[.[] | select(.producer == "observe")] | sort_by(.name) | .[]

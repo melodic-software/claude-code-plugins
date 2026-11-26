@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# Gate: every repo-local hook script under .claude/hooks/*.sh (except *.test.sh)
-# must be referenced by .claude/settings.json — a hook command (or args string)
-# or an env-block value. HOOK_TELEMETRY_SINK is the existing env-wired case.
-#
-#   scripts/check-hook-wiring-liveness.sh    fail on any unwired hook script
-#
-# Why: #2959 / #2960. A hook can sit checked-in with a header claiming
-# enforcement while settings.json no longer wires it, and nothing notices
-# (#2188, #2655). This gate is the wiring-liveness half — it does not restore
-# a stripped hook.
-#
-# Scope: .claude/hooks/*.sh minus *.test.sh. A script whose repo-relative
-# path, or whose basename as a bounded path segment, does not appear in
-# settings.json hook commands, hook args, or env values fails the gate.
-# Scripts outside .claude/hooks/ are out of scope.
-#
 # Exit 0 = every hook script is referenced; 1 = one or more unwired;
 # 2 = environment / unreadable input (fail closed — never a silent skip).
 set -euo pipefail
@@ -39,9 +23,6 @@ if ! jq -e . "$SETTINGS" >/dev/null 2>&1; then
   exit 2
 fi
 
-# Env values plus every hook command/args string. Recursive descent on
-# .hooks so SessionStart / PreToolUse / exec-form args are all covered.
-# CRLF-tolerant: Git Bash can emit \r inside jq string values.
 refs="$(jq -r '
   [
     ((.env // {}) | to_entries[] | .value | strings),

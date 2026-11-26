@@ -1,81 +1,9 @@
 # shellcheck shell=bash
-# Shared base-ref validation and changed-file resolution. Sourced, never executed.
-#
-# One definition here means the next fix to the walk lands in every gate at once.
-#
-# A caller sources this file and uses:
-#
-#   changed_files::verify_base <ref>
-#       0 when <ref> resolves to a commit, 1 otherwise. Prints nothing: the
-#       callers do NOT share an error policy (the portability gates exit 2, and
-#       check-docs-only.sh deliberately falls back to "run the full suite"), so
-#       the diagnostic and the exit stay at the call site.
-#
-#   changed_files::resolve_base <out-var>
-#       Assigns the first of origin/main, origin/master, main, master that
-#       resolves to a commit. Returns 1 and leaves <out-var> untouched when none
-#       do. This is the FALLBACK ladder only: a caller with an explicitly
-#       supplied ref (scripts/affected-tests.sh's --base) verifies that ref
-#       itself, because a ref the user typed and got wrong has to be an error
-#       naming it rather than a silent fall-through to origin/main.
-#
-#   changed_files::into <out-array> <base> [--include-deleted]
-#                       [--no-renames | --find-renames] [-- <pathspec>...]
-#       Fills <out-array> with the paths changed against <base>, sorted and
-#       de-duplicated.
-#
-# WHY `into` TAKES A NAMEREF INSTEAD OF PRINTING. Two reasons, both load-bearing:
-#
-#   1. The paths are read NUL-delimited, and a NUL cannot survive a command
-#      substitution -- bash truncates the value there. An array assigned in the
-#      caller's own scope is the only shape that carries such a path back intact.
-#   2. Running in the CURRENT shell propagates failure. The pattern being
-#      replaced was `while read; do ...; done < <(git diff ... | sort -z -u)`,
-#      where a git failure is invisible: the process substitution's status is
-#      discarded and the loop simply sees no paths, so a blown-up diff and a
-#      genuinely empty change set are indistinguishable and both report "nothing
-#      in scope, exit 0" -- the fail-open these gates exist to refuse. Here the
-#      git failure is the function's own non-zero return, which the caller can
-#      (and does) treat as fatal.
-#
-# `--include-deleted` IS A PER-CALLER DECISION, NOT A DEFAULT TO COPY. Omitting
-# it passes `--diff-filter=d`, dropping paths the commit deleted; that is right
-# for a scanner, which needs a file on disk to open, and wrong for a classifier,
-# which must still see that a non-docs file was deleted. Making it an explicit
-# argument is the point of the extraction: the two behaviors stay different on
-# purpose and each call site says which it wants.
-#
-# `--no-renames` IS EQUALLY PER-CALLER. Under git's default rename detection a
-# byte-identical move collapses to one record whose --name-only line is the
-# DESTINATION only, so the source path never reaches the caller. A gate that
-# owes a check to BOTH sides of a move (check-vendor-version-bump.sh: the
-# source plugin's vendor deletion is a change its installed consumers must
-# receive) passes this flag to see the move as a delete plus an add; a scanner
-# that only opens files on disk is served by the default, since the vanished
-# source is nothing it could open.
-#
-# `--find-renames` IS THE OTHER SIDE OF THAT SAME DECISION, and it is not the
-# same as saying nothing. Rename detection is git's DEFAULT, but `diff.renames`
-# can turn it off in a repository's config, and a gate whose verdict depends on
-# a move collapsing to its destination alone (a `git mv` out of a policed
-# directory, where seeing the vanished source would red-line it) cannot let a
-# config setting decide. Passing it pins detection on for that call regardless of config.
 
-# changed_files::verify_base <ref>
 changed_files::verify_base() {
   git rev-parse --verify --quiet "${1}^{commit}" >/dev/null 2>&1
 }
 
-# EVERY local in the two nameref-taking functions below carries the `_cf_`
-# prefix, and that is a correctness requirement rather than a naming style. A
-# nameref resolves its target in the scope where it is USED, so a local declared
-# after the binding and sharing the caller's chosen out-var name shadows that
-# caller's variable for the rest of the function. Measured on the unprefixed version: an
-# out-var named `tmp` or `path` came back SILENTLY EMPTY, the empty-change-set
-# fail-open this file exists to remove. Prefixing every internal name puts the
-# collision out of a caller's reach; do not introduce an unprefixed local here.
-
-# changed_files::resolve_base <out-var>
 changed_files::resolve_base() {
   local -n _cf_base_out="$1"
   local _cf_candidate
@@ -88,8 +16,6 @@ changed_files::resolve_base() {
   return 1
 }
 
-# changed_files::into <out-array> <base> [--include-deleted]
-#                     [--no-renames | --find-renames] [-- <pathspec>...]
 changed_files::into() {
   local -n _cf_paths_out="$1"
   local _cf_base="$2"
@@ -115,23 +41,12 @@ changed_files::into() {
 
   _cf_paths_out=()
 
-  # Staged through a temp file rather than read straight off a pipe, and this is
-  # the mechanism the docstring's point 2 rests on. `while read; done < <(git
-  # ... | sort)` discards both commands' exit status, so the only way to notice
-  # a failed diff is to give git a destination whose status is checked in this
-  # shell -- and then feed the loop from a PLAIN redirect, which (unlike a
-  # process substitution) also keeps the array assignment out of a subshell.
   local _cf_tmp
   _cf_tmp="$(mktemp)" || {
     printf 'changed-files: mktemp failed\n' >&2
     return 1
   }
 
-  # NUL-delimited (-z) so a pathname Git would C-quote -- non-ASCII bytes under
-  # the default core.quotePath, or a literal quote or backslash -- arrives
-  # verbatim. A quoted `"plugins/..."` misses every suffix and prefix test the
-  # callers apply and is silently dropped, the exact silent exclusion the gates
-  # forbid.
   if ! git diff --name-only ${_cf_filter[@]+"${_cf_filter[@]}"} ${_cf_renames[@]+"${_cf_renames[@]}"} -z "$_cf_base" -- "$@" >"$_cf_tmp"; then
     rm -f "$_cf_tmp"
     printf 'changed-files: git diff against %s failed; refusing to report an empty change set\n' "$_cf_base" >&2

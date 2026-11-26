@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for scripts/check-comment-hygiene.sh: where it reads the pin and
-# the exclusions, which files it scans, and how it reports, against a fixture
-# repository and a file:// stand-in for the ci-workflows raw content. The
-# stand-in library flags a comment line holding the word BANNED; what the real
-# patterns ban is the ci-workflows suite's business.
-#
-#   bash scripts/check-comment-hygiene.test.sh
-#
 # The cases hold shell source as literal data on purpose.
 # shellcheck disable=SC2016
 set -uo pipefail
@@ -20,8 +12,6 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 SCRIPT="$SELF_DIR/check-comment-hygiene.sh"
 
 if ! command -v curl >/dev/null 2>&1; then
-  # silent-skip-ok: the script itself exits 2 without curl, which
-  # check-script-contract.test.sh holds; these cases need curl to read file://.
   ok "SKIP every case (curl not installed)"
   test_harness::report
   exit
@@ -134,7 +124,6 @@ if [[ -L "$repo/src/link.sh" ]]; then
   check "a symlink is not scanned, as git grep skips it in CI" \
     '[[ $RC == 0 && $OUT == *"none of the 1 files"* ]]'
 else
-  # silent-skip-ok: Git Bash's ln -s copies the file, so there is no symlink to skip.
   ok "SKIP the symlink case (ln -s made no symlink here)"
 fi
 rm -f "$repo/src/link.sh"

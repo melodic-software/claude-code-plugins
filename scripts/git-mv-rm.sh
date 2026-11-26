@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-# Renames or removes files inside the checkout through git, so the index
-# follows:
-#
-#   scripts/git-mv-rm.sh mv <source> <destination>
-#   scripts/git-mv-rm.sh rm <path>...
-#
-# A file not yet tracked works too: it is recorded as intent-to-add first, the
-# entry git mv and git rm need. rm removes a directory's contents and discards
-# uncommitted edits to what it removes. Every path must be inside the checkout
-# (the current directory; scripts/lib/checkout-path.sh), and git reads each
-# one literally, never as a glob or pathspec magic. Exits 2 on a refused
-# argument, else with git's status.
 set -euo pipefail
 # shellcheck source=scripts/lib/checkout-path.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/checkout-path.sh"

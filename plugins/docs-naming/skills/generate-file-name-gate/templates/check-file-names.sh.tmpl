@@ -226,6 +226,6 @@ if ((${#offenders[@]} == 0)); then
 fi
 
 printf '%s\n' "${offenders[@]}" | sort -u >&2
-printf '@@SCRIPT_STEM@@: %d offender(s); rename to %s (see the header of %s).\n' \
-  "${#offenders[@]}" "$RULE_NAME" "@@SCRIPT_PATH@@" >&2
+printf '@@SCRIPT_STEM@@: %d offender(s); rename each to %s, or exempt it in the docs-naming file_names configuration and re-emit this gate.\n' \
+  "${#offenders[@]}" "$RULE_NAME" >&2
 exit 1

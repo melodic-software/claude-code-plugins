@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-hook-wiring-liveness.sh.
-#
-# Self-contained and cwd-independent: builds a throwaway .claude/settings.json
-# + .claude/hooks/ tree, copies the checker next to it, and asserts on exit
-# code + output. Mutates only its own mktemp dir. A green run on the current
-# repo tree is not sufficient evidence the gate works — these fixtures prove
-# it goes red on the #2959/#2960 failure class (an unwired hook script) and
-# green when every non-test script is referenced by a hook command or env.
 # test-scope: .claude/settings.json
 set -uo pipefail
 
@@ -18,8 +10,6 @@ SUT_SRC="$SCRIPT_DIR/check-hook-wiring-liveness.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SCRIPT_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 TMP=""
 
 fixture_tree::build TMP --sut "$SUT_SRC"
@@ -54,9 +44,6 @@ else
   fail "happy path should pass (rc=$rc): $out"
 fi
 
-# --- 2. #2959's own failure class: pre-delete tree with the dead gate. ------
-# The live specimen: pr-linkage-mcp-gate.sh checked in, settings.json does
-# not name it (stripped in #2188, SessionStart-only restore in #2655).
 write_hook pr-linkage-mcp-gate.sh
 out="$(run)"
 rc=$?

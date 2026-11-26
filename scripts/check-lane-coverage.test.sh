@@ -1,18 +1,4 @@
 #!/usr/bin/env bash
-# Self-test for scripts/check-lane-coverage.sh
-#
-# Fixtures are plain files under mktemp, addressed by ABSOLUTE path: the script
-# cds to the git toplevel, so an absolute fixture path resolves from anywhere and
-# no scratch git repo is needed. That is deliberate — a fixture repo would need
-# `git -C <dir> config user.*`, and the un-scoped form of that command writes the
-# test identity into the CALLER's repo config.
-#
-# Every fixture run passes its OWN step opt-out list. The repository's real list
-# names steps of the real pr-require-checks.yml, and an entry naming a step no fixture defines
-# is a stale opt-out by construction — so a fixture checked against it would fail
-# for a reason that has nothing to do with the case under test.
-# The real workflow is the gate's own CI step (pr-require-checks.yml, step id
-# lane_coverage), which runs on every pull request.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -23,8 +9,6 @@ SCRIPT="$ROOT/scripts/check-lane-coverage.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$ROOT/scripts/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 scratch=""
 fixture_tree::build scratch --label lane-coverage
 

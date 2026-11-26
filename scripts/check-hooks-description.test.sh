@@ -9,8 +9,6 @@ SCRIPT="$SELF_DIR/check-hooks-description.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
 new_fixture() {
@@ -77,7 +75,6 @@ for case in \
   rm -rf "$f"
 done
 
-# --- a CRLF checkout (Git Bash) does not read as multi-line -----------------
 new_fixture f
 mkdir -p "$f/plugins/alpha/hooks"
 printf '{\r\n  "description": "Formats Go source.",\r\n  "hooks": {}\r\n}\r\n' >"$f/plugins/alpha/hooks/hooks.json"
@@ -118,9 +115,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a well-formed document followed by trailing garbage is still a failure --
-# jq prints a verdict for the first document and then exits non-zero on the
-# garbage; the gate must read the status, not only the word.
 new_fixture f
 hooks_file "$f" alpha '{"description":"Formats Go source.","hooks":{}} trailing'
 if out="$(run_check "$f" 2>&1)"; then

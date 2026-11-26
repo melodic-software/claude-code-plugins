@@ -1,35 +1,5 @@
 #!/usr/bin/env bash
-# Run CI's comment-hygiene gate over named files, so a banned marker or tracker
-# reference in a code comment fails before a push spends a CI round on it.
-#
-#   scripts/check-comment-hygiene.sh <pin-rev> [<file>...]
-#
-# CI runs the ci-workflows check-comment-markers composite action, pinned by SHA
-# in .github/workflows/pr-require-checks.yml. This script restates none of its
-# rules: it reads that SHA from <pin-rev>'s copy of the workflow, fetches the
-# action's action.yml and comment-hygiene-patterns.sh at that SHA, and calls the
-# library's chp::scan_text on each file, so the local and CI checks cannot
-# drift. Of the files named it scans those the action's `extensions` default
-# selects and the workflow step's `exclude:` input does not remove.
-#
-# The SHA picks code this script runs, so it comes from <pin-rev>, which
-# scripts/check-affected.sh passes as the merge-base of HEAD and its base. With
-# the default base, origin/main, as the pre-push hook runs it, that is reviewed
-# content and a branch that bumps the pin is checked with the old one here and
-# with its own in CI. With --uncommitted or another --base the merge-base can
-# be the branch's own commit, whose pin then decides, as that run already runs
-# the branch's own scripts. The exclusions only narrow the scan, so they come
-# from HEAD's copy of the workflow, the one CI reads for the branch.
-#
-# Paths are relative to the repository root; one that does not exist is exit 2.
-#
-# CHECK_COMMENT_HYGIENE_RAW_BASE replaces the raw-content URL prefix of the
-# ci-workflows repository (the suite points it at a file:// fixture).
-#
 # Exit 0 clean; 1 a violation, each on stderr as <file>:<line>:<kind>:<detail>;
-# 2 could not run: a missing curl, a failed fetch, a pin, input or file it
-# cannot read. The last line of output on a 2 is the reason. That is the
-# check-script family contract stated in README.md.
 set -uo pipefail
 
 usage() {
@@ -62,8 +32,6 @@ sha="${sha%%$'\n'*}"
   exit 2
 }
 
-# The step's `exclude:` input, inline or a block scalar: the tokens under that
-# key in the step whose uses line names the action.
 head_workflow="$(git show "HEAD:$WORKFLOW" 2>/dev/null)" || {
   echo "comment-hygiene: cannot read $WORKFLOW at HEAD" >&2
   exit 2
@@ -120,7 +88,6 @@ fetch() {
 }
 
 fetch "$ACTION_PATH/action.yml" "$dir/action.yml"
-# The `extensions` input's default: inline, or a block scalar's lines.
 ext_raw="$(awk '
   function indent(s) { match(s, /^ */); return RLENGTH }
   !inx && /^[[:space:]]*extensions:[[:space:]]*$/ { inx = 1; ind = indent($0); next }
@@ -142,9 +109,6 @@ read -ra extensions <<<"${ext_raw//$'\n'/ }"
   exit 2
 }
 
-# selected <file>: 0 when an extension glob matches it and no exclusion does,
-# with git's default pathspec matching, where * also matches / and a path also
-# excludes what lies under it.
 selected() {
   local g hit=1
   for g in "${extensions[@]}"; do
@@ -162,7 +126,6 @@ selected() {
   return 0
 }
 
-# A symlink is skipped, as git grep skips it in CI.
 declare -a files=()
 for f in "$@"; do
   if [[ ! -e "$f" && ! -L "$f" ]]; then
@@ -178,8 +141,6 @@ fi
 
 fetch "$ACTION_PATH/comment-hygiene-patterns.sh" "$dir/patterns.sh"
 
-# scan <library> <file>...: a subshell, so the sourced library touches nothing
-# here. Exits 0 clean, 1 on a violation, 2 when the library cannot scan.
 scan() (
   # shellcheck source=/dev/null
   source "$1" || exit 2

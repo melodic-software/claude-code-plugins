@@ -1,32 +1,4 @@
 #!/usr/bin/env bash
-# Enforces the boundary rule "a plugin's code never loads a file from a sibling
-# plugin", recorded under `## Boundary rules` in
-# docs/conventions/architecture/README.md.
-#
-#   scripts/check-plugin-imports.sh
-#
-# Every tracked shell, Node, Python and PowerShell file under plugins/<a>/, and
-# every tracked extensionless file starting with `#!`, is read for relative paths in a load position. Each is resolved against the
-# file's own directory, and one that lands in plugins/<b>/, b != a, is a crossing:
-#   - a path after a variable or this-file anchor: $SCRIPT_DIR/../x,
-#     ${HERE}/../x, $(dirname "$0")/../x, ${BASH_SOURCE%/*}/../x,
-#     $PSScriptRoot/../x, __dirname/../x, import.meta.dirname/../x;
-#   - a JS or TS module specifier: from "../x", import("../x"), require("../x");
-#   - literal arguments after an anchor in join, resolve or Join-Path:
-#     join(here, "..", "x"), os.path.join(HERE, "../x"), Join-Path $PSScriptRoot '..\x';
-#   - pathlib: Path(__file__).parents[2] / "x", HERE.parent / "x".
-# A shell variable assigned from this file's location, alone or plus a path, or from
-# another such variable holds the directory that names; otherwise one named
-# *PLUGIN_ROOT or *PLUGIN_DIR holds the plugin's root, and any other the file's
-# directory. One assignment the check cannot resolve leaves a variable untraced.
-# Comment lines and path strings with no anchor are not crossings. Accepted limits:
-# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/architecture/README.md#boundary-rules
-#
-# scripts/plugin-imports-exceptions.txt lists accepted crossings, one line per
-# file and sibling plugin: `<path> <sibling> <YYYY-MM-DD> <reason>`. A crossing it
-# does not list fails, and so does a listed one that no longer crosses.
-#
-# Exit codes and streams follow the check-script contract in scripts/README.md.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -253,7 +225,6 @@ scan_line() {
     whole="${BASH_REMATCH[0]}"
     base="${BASH_REMATCH[1]}"
     if [[ -n "$index" ]]; then ups=$((10#$index + 1)); else ups=$((${#chain} / 7)); fi
-    # Path(__file__) is the file, one level below the directory the rest resolves against.
     [[ "$base" == Path\(__file__\)* ]] && ups=$((ups - 1))
     up "$ups"
     base="$REPLY"

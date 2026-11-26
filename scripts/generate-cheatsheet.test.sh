@@ -6,8 +6,6 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GENERATOR="$SELF_DIR/generate-cheatsheet.mjs"
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 
-# file:// URL for the real config (Windows Git Bash needs the drive-letter
-# form; pwd -W emits it there and fails harmlessly elsewhere).
 REAL_SCRIPTS_DIR="$(cd "$SELF_DIR" && (pwd -W 2>/dev/null || pwd))"
 case "$REAL_SCRIPTS_DIR" in
 /*) REAL_CONFIG_URL="file://$REAL_SCRIPTS_DIR/cheatsheet-config.mjs" ;;
@@ -19,8 +17,6 @@ esac
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 tree=""
 
 write_skill() {
