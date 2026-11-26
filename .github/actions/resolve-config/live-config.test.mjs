@@ -885,3 +885,31 @@ test("live config: test-scope.apply is off, so fix-test-scope uploads its patch 
   assert.equal(grant("fix-test-scope").effect, "read");
   assert.deepEqual(grant("apply-test-scope"), { effect: "mutate-branch", grant: { contents: "write", "pull-requests": "read", issues: "read" } });
 });
+
+test("live config: every activity but the four runner-written reporters reads its input as untrusted", () => {
+  const doc = parse(FILES.config);
+  const trusted = Object.entries(doc.activities).filter(([, a]) => a["reads-untrusted"] !== true).map(([name]) => name);
+  assert.deepEqual(trusted.sort(), ["publish-lane-level", "report-escalation", "report-outcome", "sync-status"]);
+});
+
+test("live config: resolve-issue and apply-issue-patch wait on security: outside-actor", () => {
+  const doc = parse(FILES.config);
+  for (const activity of ["resolve-issue", "apply-issue-patch"]) {
+    assert.ok(doc.activities[activity]["applies-when"]["labels-absent"].includes(OUTSIDE_ACTOR_LABEL), activity);
+    assert.equal(skipReason("work-resolve-issue", activity, { ...ISSUE, labels: ["agent-ready", OUTSIDE_ACTOR_LABEL] }), "awaiting-human", activity);
+  }
+});
+
+test("live config: the App, reviewer and action-owner allowlists hold exactly the trusted ids and owners", () => {
+  const doc = parse(FILES.config);
+  assert.deepEqual(doc.adoption["spec-from-body-apps"], [337859524, 300666570]);
+  assert.deepEqual(doc.adoption["self-merging-apps"], [337859524]);
+  assert.deepEqual(doc["review-threads"]["reviewer-ids"], [199175422, 62310815]);
+  assert.deepEqual(doc.merge.dependabot["trusted-action-owners"], [
+    "actions", "anthropics", "aws-actions", "azure", "docker", "github", "google", "google-github-actions", "hashicorp", "melodic-software", "microsoft", "openai",
+  ]);
+});
+
+test("live config: a lane restarts after a turn cap at most once", () => {
+  assert.ok(parse(FILES.config).limits["turn-cap-restarts"] <= 1);
+});

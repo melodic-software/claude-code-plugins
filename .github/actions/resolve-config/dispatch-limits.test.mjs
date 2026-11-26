@@ -163,7 +163,7 @@ test("the base config's adoption section lets fix-ci adopt an idle owner PR", as
   assert.doesNotMatch(without, /^adoption:/m);
   assert.deepEqual(await run(without, [owner]), { code: 0, dispatched: ["40"] });
   const noIdle = LIVE.replace(/^ {2}idle-hours: 2\n/m, "");
-  assert.match(noIdle, /^adoption:\n {2}#/m);
+  assert.match(noIdle, /^adoption:\n {2}spec-from-body-apps:/m);
   assert.deepEqual(await run(noIdle, [owner, release]), { code: 0, dispatched: ["40"] });
 });
 

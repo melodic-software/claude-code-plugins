@@ -1865,7 +1865,10 @@ the rules that only tighten in
   red full run or canary run charges every unverified merge whose commit it contains, so a breakage
   found with several in flight demotes the rung and fails the post-merge check for all of them.
   The value is computed from `merge.in-flight-sizing`, measured burst rate, time in flight and
-  lanes App spend, by `scripts/compute-max-in-flight.py`; the YAML states the formula. The gate
+  lanes App spend, by `scripts/compute-max-in-flight.py`: the smaller of
+  `ceil(peak-merges-per-hour * mean-minutes-in-flight / 60)`, Little's law at the burst rate, and
+  `floor((app-hourly-limit * app-target-percent / 100 - app-peak-hourly-used) / (reader-runs-per-hour * app-calls-per-candidate))`,
+  the candidate reads the lanes App's hourly target leaves room for, and at least 1. The gate
   reads a value above the schema's maximum as unset. A value above the merge-queue ruleset's
   `max_entries_to_build` needs no ruleset change: that setting throttles builds, not the queue's
   length, and this count also holds merges already out of the queue.
