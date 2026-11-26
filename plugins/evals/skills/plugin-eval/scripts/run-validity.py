@@ -256,50 +256,50 @@ REDACT_PY = os.path.join(
 UNPRINTABLE = re.compile(r"[\s\x00-\x1f\x7f-\x9f]+")
 
 FULL_SCORE = 1.0
-ARMS = ("with", "without")  # cases[].arms.<arm>[]
-ONE_ARM_ABLATION = "none"  # suite.ablation value that runs the with-arm only
+ARMS = ("with", "without")
+ONE_ARM_ABLATION = "none"
 
 PARTIAL = "partial"
 PARTIAL_REASON = "partialReason"
 CLAUDE_VERSION = "claudeVersion"
 SUITE = "suite"
-SUITE_ROOT = "root"  # suite.root, the directory case dirs are relative to
-SUITE_ABLATION = "ablation"  # suite.ablation
-SUITE_PLUGINS, PLUGIN_PATH = "plugins", "path"  # suite.plugins[].path
-PLUGIN_MANIFEST = (".claude-plugin", "plugin.json")  # under a suite.plugins path
+SUITE_ROOT = "root"
+SUITE_ABLATION = "ablation"
+SUITE_PLUGINS, PLUGIN_PATH = "plugins", "path"
+PLUGIN_MANIFEST = (".claude-plugin", "plugin.json")
 MANIFEST_NAME = "name"
 CASES = "cases"
 CASE_NAME = "name"
-CASE_DIR = "dir"  # cases[].dir, relative to suite.root
-CASE_PROMPT = "prompt.md"  # <suite.root>/<dir>/prompt.md, its frontmatter
-CASE_YAML = "case.yaml"  # <suite.root>/<dir>/case.yaml, absent for most cases
-CASE_RUNS_STATED = "runsPerCase"  # the case default, not the run count
+CASE_DIR = "dir"
+CASE_PROMPT = "prompt.md"
+CASE_YAML = "case.yaml"
+CASE_RUNS_STATED = "runsPerCase"
 CASE_ARMS = "arms"
-CASE_GRADER_DEFS = "graders"  # cases[].graders[]: name, type, config
-GRADER_CONFIG = "config"  # cases[].graders[].config
+CASE_GRADER_DEFS = "graders"
+GRADER_CONFIG = "config"
 CONFIG_TOOL, CONFIG_MIN, CONFIG_MAX = "tool", "min", "max"
 CONFIG_INPUT_MATCH = "input_match"
-RUN_ERROR = "error"  # cases[].arms.<arm>[].error, null when the run ended normally
-RUN_ABORTED = "aborted"  # present when a mock stopped the run
+RUN_ERROR = "error"
+RUN_ABORTED = "aborted"
 RUN_SKIPPED_PAID = "skippedPaidGraders"
 RUN_SCORE = "score"
-RUN_TURNS = "turns"  # 0 when the session never took a turn
-RUN_TRACE = "tracePath"  # absent or deleted unless the run passed --keep-temp
-RUN_GRADERS = "graders"  # cases[].arms.<arm>[].graders[]
+RUN_TURNS = "turns"
+RUN_TRACE = "tracePath"
+RUN_GRADERS = "graders"
 GRADER_NAME = "name"
 GRADER_TYPE = "type"
 GRADER_PASSED = "passed"
-GRADER_VOTES = "judgeVotes"  # llm graders: one boolean per vote
+GRADER_VOTES = "judgeVotes"
 MODEL_KEYS = ("model",)
 JUDGE_MODEL_KEYS = ("judgeModel", "judge_model")
 
 LINE_TYPE, LINE_SUBTYPE = "type", "subtype"
-TRACE_INIT = ("system", "init")  # type, subtype of the line carrying the model
+TRACE_INIT = ("system", "init")
 TRACE_MODEL = "model"
-TRACE_RESULT = "result"  # type of the closing line
-TRACE_ASSISTANT = "assistant"  # type of a model message line, a forked session's too
+TRACE_RESULT = "result"
+TRACE_ASSISTANT = "assistant"
 TRACE_RESULT_ERROR = "is_error"
-TRACE_DENIALS = "permission_denials"  # on the result line
+TRACE_DENIALS = "permission_denials"
 SANDBOX_PLUGIN_DATA = ("config", "plugins", "data")
 SANDBOX_PROJECTS, TOOL_RESULTS_DIR = ("config", "projects"), "tool-results"
 TRACE_SESSION, TRANSCRIPT_SUFFIX, SUBAGENTS_DIR = "session_id", ".jsonl", "subagents"
@@ -313,7 +313,7 @@ BASH_READERS = {
     "fgrep": ("nicvwxoqszHhlLEFGPaI", "ABCm", True),
     "sed": ("nEr", "", True),
 }
-GREP_VALUE_FLAGS = {"e": False, "f": True}  # flag -> its value is a path
+GREP_VALUE_FLAGS = {"e": False, "f": True}
 GREP_LONG_FLAGS = {"--regexp": "e", "--file": "f"}
 END_OF_FLAGS = "--"
 PIPE = "|"
@@ -330,12 +330,12 @@ SED_PRINT = re.compile(r"\A%s(?:,%s)?p\Z" % (SED_ADDRESS, SED_ADDRESS))
 BASH_EXEC = re.compile(r"`|\$\(|[\r\n]")
 QUOTED_SPAN = re.compile(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"")
 UNQUOTED_EXPANSION = re.compile(r"[{*?\[$\\]")
-QUOTED_EXPANSION = re.compile(r"[$`]")  # inside double quotes
+QUOTED_EXPANSION = re.compile(r"[$`]")
 DENIAL_TOOL, DENIAL_ID, DENIAL_INPUT = "tool_name", "tool_use_id", "tool_input"
-MESSAGE, CONTENT, BLOCK_TYPE = "message", "content", "type"  # message.content[].type
+MESSAGE, CONTENT, BLOCK_TYPE = "message", "content", "type"
 TOOL_USE, USE_ID, USE_NAME, USE_INPUT = "tool_use", "id", "name", "input"
 TOOL_RESULT, RESULT_USE_ID, RESULT_ERROR = "tool_result", "tool_use_id", "is_error"
-DENIAL_TEXT = "denied by your permission settings"  # in an is_error tool_result
+DENIAL_TEXT = "denied by your permission settings"
 ABSENT_TOOL_TEXT = "No such tool available: Bash"
 SHIM_ERROR = re.compile(
     r"^(?:\S*mise\S*\s+)?(?:\S*ERROR\S*\s+)?([^\s'\"`]+) is not a valid shim", re.M
@@ -369,12 +369,12 @@ READ_ONLY_TARGET = re.compile(
     re.IGNORECASE,
 )
 MIN_BASH_CALLS = 2
-EXIT_LINE = re.compile(r"\AExit code -?\d+\s*")  # heads a failed Bash result's text
+EXIT_LINE = re.compile(r"\AExit code -?\d+\s*")
 TARGET_KEYS = ("file_path", "path")
 BASH_TOOL, BASH_COMMAND = "Bash", "command"
 GLOB_TOOL, GLOB_PATTERN = "Glob", "pattern"
 GLOB_CHAR = re.compile(r"[*?\[{]")
-SHELL_SPLIT = re.compile(r"[<>|;&()'\"=]")  # where one shell word holds several
+SHELL_SPLIT = re.compile(r"[<>|;&()'\"=]")
 UNRESOLVED = re.compile(r"[$`*?\[{]|^~|[^\w./-]/")
 OWN_PROCESS = re.compile(r"^/+(proc/(self|thread-self)|dev/fd)(/|$)")
 SHELL_NAME = r"[A-Za-z_][A-Za-z0-9_]*"
@@ -388,7 +388,7 @@ SHELL_SET = frozenset(
     " EPOCHSECONDS EPOCHREALTIME BASHPID PPID UID EUID GROUPS FUNCNAME"
     " SHELLOPTS MAPFILE PIPESTATUS DIRSTACK COPROC".split()
 )
-RESETS = ("eval", "source", ".")  # run other shell code, which may set any name
+RESETS = ("eval", "source", ".")
 COMPOUND = frozenset(
     "if then else elif fi while until for select do done case esac function { }".split()
 )
@@ -424,8 +424,8 @@ NO_NETWORK_TAG = "no-network"
 MAX_TURNS_ERROR = re.compile(
     r"(?:exit \d+: )?Reached maximum number of turns \(\d+\)\.?"
 )
-TRACE_ERRORS = "errors"  # on the result line
-TRACE_TOOLS = "tools"  # on the init line: the tools the session could call
+TRACE_ERRORS = "errors"
+TRACE_TOOLS = "tools"
 TRACE_PLUGINS, LOADED_NAME, LOADED_PATH = "plugins", "name", "path"
 TRACE_PLUGIN_ERRORS = "plugin_errors"
 ERROR_PLUGIN, ERROR_TYPE, ERROR_MESSAGE, ERROR_PATH = "plugin", "type", "message", "path"
@@ -2945,7 +2945,7 @@ def check_probe_tools(runs, root):
     names the fix, since the denial and error checks already judge the runs. A
     probe run with no trace, no init line or no tools list on it is unread: none
     read is UNCHECKED, some unread a warning."""
-    found = {}  # the removable tools a run could call -> the runs that could
+    found = {}
     probes, unread = 0, []
     for r in runs:
         if not is_probe(r.case, root):

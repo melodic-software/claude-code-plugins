@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# edit-config.sh — apply one jq edit to a built fixture's team layer.
-#
-# edit-config.sh <root> [jq options...] <filter>
-#
-# The filter sees the layer as the resolver does, `{schema, file_names}`, and the
-# result's `file_names` is written back to <root>/docs/conventions/docs-naming.yaml.
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

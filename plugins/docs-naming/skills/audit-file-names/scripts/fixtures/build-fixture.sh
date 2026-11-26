@@ -1,17 +1,8 @@
 #!/usr/bin/env bash
-# build-fixture.sh — materialize the committed fixture tree as a throwaway repo.
-#
-# The three suites beside it drive their scripts against a real git repository,
-# because the scripts ask the INDEX what exists rather than the filesystem. This
-# builder is what makes each suite's cases start from the same tree.
-#
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
-# build-fixture.sh <destination> [--variant collision|clean]
 dest="${1:?usage: build-fixture.sh <destination> [--variant <name>]}"
 variant="clean"
 if [[ "${2:-}" == "--variant" ]]; then
@@ -24,15 +15,12 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 mkdir -p "$dest"
 cp -R "$here/tree/." "$dest/"
-# The team layer, rendered from config.json, the same document --config reads.
 mkdir -p "$dest/docs/conventions"
 layer_yaml_render "$(jq -c '.file_names' "$here/config.json")" >"$dest/docs/conventions/docs-naming.yaml"
 chmod +x "$dest/tools/gen.sh"
 
 case "$variant" in
 collision)
-  # A lowercase twin of an offender's proposed name already exists, so the plan
-  # would put two paths differing only by case into one tree.
   printf '# beta\n\nThe lowercase twin that makes the BETA.md proposal a collision.\n' >"$dest/docs/beta.md"
   ;;
 clean) ;;

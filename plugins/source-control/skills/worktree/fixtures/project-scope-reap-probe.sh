@@ -1,24 +1,4 @@
 #!/usr/bin/env bash
-# project-scope-reap-probe.sh — measure what `claude plugin uninstall <id>
-# -s project --keep-data` actually acts on, so the teardown reap in
-# context/cleanup.md rests on a measurement rather than on an inference from
-# the flag's name. `--keep-data` is required: this probe writes and removes
-# its own project-scope records; it must never delete a plugin's persistent
-# data directory as a last-scope side effect.
-#
-# The whole reap design turns on one question: `-s project` has no path flag,
-# so WHICH directory's records does it remove, and does it still work once the
-# directory it recorded is gone? A reap wired in after `git worktree remove`
-# would be worthless if the answer were "only the live cwd, and only while it
-# exists".
-#
-# Costs no `claude -p` turns. It writes real project-scope records for its own
-# throwaway directories and removes them again through the CLI; it never
-# touches a record belonging to any other path, and it never edits
-# installed_plugins.json — that file is read here and written only by the CLI.
-#
-# Usage: bash project-scope-reap-probe.sh [plugin@marketplace] [second@marketplace]
-# See fixtures/README.md for the recorded outcome and its as-of stamp.
 
 set -uo pipefail
 
