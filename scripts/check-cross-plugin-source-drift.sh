@@ -1,26 +1,4 @@
 #!/usr/bin/env bash
-# Discover and check cross-plugin shared-source-file drift: files that live
-# at the same path-within-plugin (e.g. hooks/hook-utils.sh) in 2+ plugins.
-#
-#   scripts/check-cross-plugin-source-drift.sh          discover: list every
-#                                                        current cross-plugin
-#                                                        file cluster and
-#                                                        whether its copies
-#                                                        are identical
-#   scripts/check-cross-plugin-source-drift.sh --check  fail if a registered
-#                                                        cluster has drifted,
-#                                                        or an unregistered
-#                                                        cluster is now fully
-#                                                        identical
-#
-# This does not replace a cluster's own dedicated drift check --
-# scripts/sync-shared-copies.sh stays authoritative for hooks/hook-utils.sh,
-# scripts/validate-plugin-contracts.mjs for reference/artifact-protocol.md.
-# This script's job is the one neither of those can do: notice when a NEW
-# shared-copy pattern appears with no dedicated check yet. Register a cluster in
-# cross-plugin-source-registry.txt once it has a dedicated check (or is
-# accepted as low-stakes coincidence); an unregistered identical cluster is
-# a decision waiting to be made, not yet a violation of anything.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,7 +9,6 @@ cd "${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}" || exit 2
 registry="scripts/cross-plugin-source-registry.txt"
 
 declare -A cluster_entries=()
-# rel path -> IDENTICAL | DIFFERS (only set for clusters with 2+ entries)
 declare -A cluster_status=()
 
 list_plugin_files() {
@@ -75,11 +52,6 @@ done < <(list_plugin_files | LC_ALL=C awk '
   }
 ')
 
-# load_cluster <rel> -> populate the globals `entries` ("plugin:fullpath" pairs)
-# and `plugins_list` (plugin names only). Globals rather than stdout: the callers
-# need two arrays plus ${#entries[@]}, and a command substitution would both lose
-# the arrays and put a function call where .shellcheckrc's SC2310 warns about
-# set -e suppression.
 load_cluster() {
   entries=()
   local rem="${cluster_entries[$1]}" line
@@ -164,18 +136,8 @@ fi
 declare -A registered
 registry_entries=()
 if [[ -f "$registry" ]]; then
-  # `inline`: entries are path-within-plugin strings, never regexes, so a `#`
-  # anywhere on the line opens the rationale comment (scripts/lib/read-list.sh
-  # owns the two comment families and why they must stay distinct).
   # shellcheck disable=SC2310  # the non-zero return IS the handled case; the library reports it
   read_list::into registry_entries "$registry" --comments inline || exit 2
-  # A line containing ` -> ` is a cluster line (`<canonical> -> <member>...`,
-  # a root-relative canonical copy and the plugin paths or globs that carry
-  # it). It belongs to the duplication audit's reader
-  # (plugins/code-metrics/skills/audit-duplication/scripts/registry-filter.py),
-  # which excludes the whole class from its clone count; this check keys
-  # clusters by path-within-plugin, so the line is dropped from the entry list
-  # here and is neither registered nor reported stale.
   path_entries=()
   for line in ${registry_entries[@]+"${registry_entries[@]}"}; do
     [[ "$line" == *" -> "* ]] && continue
@@ -195,10 +157,6 @@ discover | --check) ;;
 esac
 
 if [[ "$mode" == "discover" ]]; then
-  # Feed `sort` from a loop, not an unquoted `$(...)` (word-splits and globs a
-  # key containing a space) nor `printf '%s\n'` with NO arguments (prints one
-  # blank line, which `mapfile -t` turns into an empty key on a tree with no
-  # clusters). An empty array iterates zero times and feeds `sort` nothing.
   mapfile -t sorted_rels < <(
     for rel in "${!cluster_status[@]}"; do printf '%s\n' "$rel"; done | sort
   )

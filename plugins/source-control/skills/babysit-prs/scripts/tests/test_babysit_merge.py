@@ -300,8 +300,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertIsNone(result["autopilotMergeTier"]["distinctBotApproval"])
 
     def test_unconfigured_bot_approval_is_rejected(self) -> None:
-        # An unrelated installed App's [bot] approval must not satisfy the tier:
-        # being a bot is not enough, it must be the configured approver identity.
         result = self._evaluate(_pr(), reviews=[_approval("random-app[bot]", HEAD)])
         self.assertIsNone(result["autopilotMergeTier"]["distinctBotApproval"])
         self.assertFalse(result["ready"])
@@ -319,9 +317,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertTrue(any("human blocking comment" in b for b in result["blockers"]))
 
     def test_superseded_bot_approval_is_ignored(self) -> None:
-        # The approver bot approved, then requested changes on the same head; a
-        # human approval keeps the base reviewDecision APPROVED. The bot's latest
-        # decisive state is CHANGES_REQUESTED, so it is not a valid tier approver.
         result = self._evaluate(
             _pr(),
             reviews=[
@@ -537,11 +532,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertTrue(result["ready"], result["blockers"])
 
     def test_configured_user_approver_body_is_not_a_human_block(self) -> None:
-        # The configured distinct-bot approver GitHub reports as a `User` (no
-        # [bot] suffix): its own approving review body carrying blocking-looking
-        # prose must not count as a human stop against the very approval it
-        # provides. The same review satisfies find_distinct_bot_approval and no
-        # longer self-blocks the merge.
         review = _approval(APPROVER, HEAD, typename="User")
         review["body"] = (
             "Approved. This change resolves the blocking regression "
@@ -553,11 +543,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertIsNotNone(result["autopilotMergeTier"]["distinctBotApproval"])
 
     def test_configured_user_lane_does_not_ratify_decision_default(self) -> None:
-        # A pipeline lane account GitHub reports as a `User` is automation for the
-        # ratification scan: its "ratified" comment after the marker must not
-        # clear the decision-default veto (the #450 hazard of automation ratifying
-        # its own default). The OWNER association proves the bot classification --
-        # not the association -- holds it.
         ratify = _comment(
             LANE,
             "Ratified — proceed.",
@@ -598,8 +583,6 @@ class TierApprovalBodySeverityGate(TierEvaluateHarness):
         )
 
     def test_approval_with_shields_p1_badge_body_rejected(self) -> None:
-        # A Codex-style shields.io P1 badge in the approval body is a structured
-        # blocking finding; the approve-with-P1-body verdict is not clean (#621).
         review = self._approval_body(
             "Approved overall. "
             "![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat) "
@@ -741,8 +724,6 @@ class DistinctBotApprovalUnit(unittest.TestCase):
         self.assertEqual(match["commit"]["oid"], HEAD)
 
     def test_approver_matched_by_configured_login_without_bot_suffix(self) -> None:
-        # A bot account whose review author carries no [bot] suffix and no Bot
-        # typename is still an approver when named in approver_bot_logins.
         reviews = [_approval(APPROVER, HEAD, typename="User")]
         match = merge.find_distinct_bot_approval(
             reviews, LANE, HEAD, frozenset({APPROVER})
@@ -1109,10 +1090,6 @@ class RequiredSignaturesEnforcement(unittest.TestCase):
 
 class NoAbbreviatedFlags(unittest.TestCase):
     def test_merge_abbreviation_is_rejected(self) -> None:
-        # The permission grants state "no --merge means check-only" as a
-        # condition on literal command text; an abbreviation resolving to
-        # --merge while the text lacks it would let the written command and
-        # resolved behavior diverge.
         with (
             mock.patch.object(
                 sys,
@@ -1730,9 +1707,6 @@ class AutoMergeArming(unittest.TestCase):
         return code, calls
 
     def test_auto_on_a_queue_base_reports_queued_with_its_position(self) -> None:
-        # The rules read missed the queue, so the arm ran `gh pr merge --auto`,
-        # which GitHub answered by putting the PR in the queue with no auto-merge
-        # request.
         code, _ = self._main(
             True,
             "--merge",
@@ -1902,7 +1876,6 @@ class RefreshRefusesDependencyManagerPrs(unittest.TestCase):
             self._validate("acme-deps[bot]", frozenset({"acme-deps"}))
 
     def test_dependabot_pr_is_refused(self) -> None:
-        # `gh pr view` reports app/dependabot; REST reports dependabot[bot].
         for login in (
             "dependabot",
             "app/dependabot",
@@ -1921,7 +1894,6 @@ class RefreshRefusesDependencyManagerPrs(unittest.TestCase):
         self.assertEqual(str(caught.exception), "past the author check")
 
 
-# A Dependabot pull request's commits as `pulls/{n}/commits` lists them.
 DEPENDABOT_PARENT, BASE_PARENT = "1" * 40, "2" * 40
 STRAY_SHA, EDITED_SHA = "4" * 40, "5" * 40
 DEPENDABOT_COMMIT = {
@@ -1936,8 +1908,6 @@ DEPENDABOT_COMMIT = {
         "verification": {"verified": True},
     },
 }
-# The stray update-branch shape (#9131's ad32a613): a person's merge of the
-# base that GitHub committed and signed, head parent first.
 STRAY_MERGE = {
     "sha": STRAY_SHA,
     "parents": [{"sha": DEPENDABOT_PARENT}, {"sha": BASE_PARENT}],
@@ -1983,7 +1953,6 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
     REPO = "owner/repo"
     TIP = "b" * 40
     COMMENTS = f"repos/{REPO}/issues/{PR_NUMBER}/comments"
-    # The command alone on line one, the marker naming the base tip on line two.
     BODY = f"@dependabot rebase\n<!-- babysit-dependabot-rebase base={TIP} -->"
     RECREATE = f"@dependabot recreate\n<!-- babysit-dependabot-rebase base={TIP} -->"
 
@@ -2154,7 +2123,6 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
         self.assertEqual(result["rebase"], "would-request @dependabot rebase")
 
     def test_the_lane_apps_own_request_is_not_repeated(self) -> None:
-        # An App identity's comment carries association NONE.
         own = {
             "id": 1,
             "body": self.BODY,
@@ -2533,8 +2501,6 @@ class RepoPolicyReachesTheGate(unittest.TestCase):
                 "gh_capture",
                 return_value=mock.Mock(returncode=0, stdout="", stderr=""),
             ),
-            # Not the default branch: the merge stays on `gh pr merge`, which is
-            # the path these method-resolution tests read.
             mock.patch.object(merge, "repository_default_branch", return_value=None),
             mock.patch.object(merge, "read_merge_queue", return_value=_queue_read()),
             contextlib.redirect_stdout(out),
@@ -2894,9 +2860,6 @@ class ForcePushedHeadsTests(unittest.TestCase):
         self.assertNotIn("c=next", read.call_args_list[0].args[0])
         self.assertIn("c=next", read.call_args_list[1].args[0])
 
-    # Recorded GitHub answers to the gate's query with totalCount,
-    # filteredCount and pageCount added: totalCount counts every timeline
-    # item, whatever itemTypes names. Nine items, none a force push:
     NO_FORCE_PUSH = {
         "totalCount": 9,
         "filteredCount": 0,

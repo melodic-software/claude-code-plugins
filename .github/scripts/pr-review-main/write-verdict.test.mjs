@@ -1,7 +1,4 @@
 // test-scope: plugins/source-control/.claude-plugin/plugin.json plugins/source-control/skills/babysit-prs/scripts/babysit_lane_binding.py plugins/source-control/skills/babysit-prs/scripts/babysit_merge_settings.py plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
-// The main-run review verdict: the counts the merge gate reads
-// (babysit_review_evidence `_main_review_counted`), from the model's checked
-// output and the job's own reads, and nothing written on doubt.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -94,10 +91,8 @@ test("a verdict counts only when every diff part was read whole", () => {
 });
 
 test("a diff line past the cap writes no verdict, and the verdict records the longest", () => {
-  // Read may cut a 2,500-byte line short; a 1,000-byte one is read whole.
   assert.equal(longestLine([`+${"x".repeat(1000)}\n`, " ok\n"]), 1000);
   assert.throws(() => longestLine([" ok\n", `+${"x".repeat(2500)}\n`]), /2500 bytes/);
-  // Bytes, not characters: 700 euro signs are 2,100 bytes.
   assert.throws(() => longestLine([`+${"\u20ac".repeat(700)}`]));
   assert.equal(buildVerdict(args({ findings: [], summary: "s" }, { maxLineBytes: 1000 })).max_line_bytes, 1000);
   for (const bad of [2500, LONG_LINE_BYTES + 1, undefined, "10", -1]) {
@@ -158,7 +153,8 @@ function chunkedRun(dir, chunks, { skip = [], result = () => ({ findings: [findi
       return part;
     });
     if (skip.includes(i + 1)) return "";
-    const execution = path.join(dir, `execution-${i + 1}.json`);
+    const execution = i === 0 ? path.join(dir, "execution-1.json") : path.join(dir, "chunks", `chunk-${i + 1}`, "execution.json");
+    mkdirSync(path.dirname(execution), { recursive: true });
     const output = result(i + 1);
     const messages = parts.map((part, j) => read(`r${i}-${j}`, part));
     if (output !== undefined) messages.push({ type: "result", structured_output: output, permission_denials: [] });
@@ -168,7 +164,8 @@ function chunkedRun(dir, chunks, { skip = [], result = () => ({ findings: [findi
   const output = path.join(dir, "output");
   writeFileSync(output, "");
   return {
-    EXECUTION_FILES: `${files.join("\n")}\n`,
+    EXECUTION_FILE: files[0] || path.join(dir, "execution-1.json"),
+    CHUNKS_DIR: path.join(dir, "chunks"),
     CHUNKS: String(chunks.length),
     LANE: "claude-review",
     PR_NUMBER: "42",
@@ -217,6 +214,25 @@ test("a chunked run writes one verdict over its chunks, the most CRITICAL in a c
   }
 });
 
+test("a run of 75 chunks, the workflow's ceiling, writes one verdict whose summary keeps 4 chunks' room", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-"));
+  try {
+    const env = chunkedRun(dir, Array.from({ length: 75 }, (_, i) => [`+line ${i + 1}\n`]), { result: () => ({ findings: [finding("CRITICAL")], summary: "s".repeat(4000) }) });
+    main(env);
+    const verdict = JSON.parse(readFileSync(path.join(dir, "verdict", "verdict.json"), "utf8"));
+    assert.deepEqual({ findings: verdict.findings, critical: verdict.critical, items: verdict.items.length }, { findings: 75, critical: 1, items: 75 });
+    assert.equal(verdict.items.at(-1).chunk, 75);
+    const pieces = verdict.summary.split("\n\n");
+    assert.equal(pieces.length, 75);
+    assert.equal(pieces[0], `Chunk 1 of 75: ${"s".repeat(213)}`);
+    assert.equal(pieces[74], `Chunk 75 of 75: ${"s".repeat(213)}`);
+    const two = buildChunkedVerdict({ ...args(undefined), outputs: [{ findings: [], summary: "a".repeat(5000) }, { findings: [], summary: "b" }] });
+    assert.equal(two.summary, `Chunk 1 of 2: ${"a".repeat(4000)}\n\nChunk 2 of 2: b`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("a chunk that failed, left no verdict, or skipped a part writes no verdict at all", () => {
   const cases = {
     "a chunk never ran": { skip: [2] },
@@ -237,8 +253,8 @@ test("a chunk that failed, left no verdict, or skipped a part writes no verdict 
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-"));
   try {
     const env = chunkedRun(dir, [["+x\n"], ["+y\n"]]);
-    const [first] = env.EXECUTION_FILES.split("\n");
-    assert.throws(() => main({ ...env, EXECUTION_FILES: `${first}\n${first}\n` }), /chunk 2 of 2: the run did not read 1 of 1/);
+    writeFileSync(path.join(env.CHUNKS_DIR, "chunk-2", "execution.json"), readFileSync(env.EXECUTION_FILE));
+    assert.throws(() => main(env), /chunk 2 of 2: the run did not read 1 of 1/);
     assert.throws(() => main({ ...env, CHUNKS: "1" }), /2 chunk directories/);
     assert.throws(() => main({ ...env, CHUNKS: "3" }), /2 chunk directories/);
     assert.throws(() => readFileSync(path.join(dir, "verdict", "verdict.json")), /ENOENT/);

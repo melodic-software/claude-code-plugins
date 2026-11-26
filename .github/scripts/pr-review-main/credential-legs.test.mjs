@@ -1,21 +1,3 @@
-// pr-review-main.yml picks each leg's credential through ci-workflows'
-// select-model-credential, fetched at the pin the workflow names. Each leg is
-// a matrix job with one instance per lane, and a route job between legs
-// turns each lane's handoff reason into the next leg's matrix row. This
-// truth table drives the workflow's own conditions and inputs through every
-// gate verdict and set of secrets, with the first lane taking every
-// combination of reaching its credential check or not, its kill switch, a
-// step failing before the leg, between the leg and the handoff, or after it,
-// a handoff from the first chunk or a later one, and every launcher outcome
-// run-claude-cli's own handoffReason can produce, beside a few fixed shapes
-// of the second lane. It holds each state to the expressions the workflow
-// used before the action (quoted from main before this change, a6a9c686f3,
-// with #13836's held terms, so held runs vary too): the same jobs and lanes
-// start, the same skipped key legs are reported, and each leg gets the same
-// model run, fallback-ready and fallback-reason. A leg's `present` is
-// compared as whether its model runs: the action writes `false` where the
-// old subscription and fallback steps wrote nothing, and every reader
-// compares it to `true` (asserted below).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -54,9 +36,6 @@ const named = wf.stepNamed;
 
 const CASE = /case "\$REASON" in\n\s+([a-z| -]+)\) ;;/.exec(named(KEY, "Hand the lane on").text)[1].split("|").map((r) => r.trim());
 
-// The old conditions, reasons and route env, at a6a9c686f3 (main before this
-// change, with #13836's held terms), with the trigger job under its id since
-// its rename, check-trigger.
 const OLD = {
   key: "needs.review-handoffs-credit.outputs.skip-key != 'true' && !cancelled() && needs.check-trigger.result == 'success' && github.ref == 'refs/heads/main' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository && (needs.check-trigger.outputs.run-attempt != github.run_attempt || needs.check-trigger.outputs.review != 'false' && needs.check-trigger.outputs.judged != 'true' && needs.check-trigger.outputs.held != 'true')",
   report: (sw) => `steps.gate.outputs.skip-key == 'true' && needs.check-trigger.outputs.proceed == 'true' && needs.check-trigger.outputs.review == 'true' && needs.check-trigger.outputs.judged != 'true' && needs.check-trigger.outputs.held != 'true' && vars.${sw} != 'true'`,
@@ -81,6 +60,9 @@ function chunks(ran, l, outcome) {
     steps[`steps.review-${k}.outputs.handoff`] = hit ? outcome.handoff : before ? "false" : "";
     steps[`steps.review-${k}.outputs.handoff-reason`] = hit ? outcome.reason : "";
   }
+  const later = ran && l.at >= 2;
+  steps["steps.review-chunks.outputs.handoff"] = later ? outcome.handoff : "";
+  steps["steps.review-chunks.outputs.handoff-reason"] = later ? outcome.reason : "";
   return steps;
 }
 

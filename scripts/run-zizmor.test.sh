@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Self-test for scripts/run-zizmor.sh with a stubbed zizmor on PATH. The stub
-# answers the offline run (--no-online-audits) and the online run separately,
-# so each case pins one pair of outcomes. The error text is zizmor 1.30's, from
-# merge-group run 39187151244 (403 on api.github.com/advisories) and a local
-# reproduction of a refused connection.
 # test-scope: scripts/run-zizmor.sh .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
@@ -22,8 +17,6 @@ standards="$scratch/standards"
 mkdir -p "$standards/.github"
 printf 'rules: checkout\n' >"$standards/.github/zizmor.yml"
 
-# A fatal online-audit error, as zizmor 1.30 prints it, with <cause> as the
-# innermost lines.
 online_error() {
   cat <<EOF
 fatal: no audit was performed
@@ -81,7 +74,6 @@ run
 check 'a timeout is a warning naming the network error' \
   "$([[ $RC -eq 0 && "$OUT" == *'::warning '*'operation timed out'* ]] && echo yes)"
 
-# Not a downgrade: a 401 or 404 is a configuration or reference problem.
 stub 0 '' 1 "$(online_error '    2: HTTP status client error (401 Unauthorized) for url (https://api.github.com/advisories)')"
 run
 check 'a 401 still fails' "$([[ $RC -ne 0 && "$OUT" != *'::warning title=zizmor online'* ]] && echo yes)"

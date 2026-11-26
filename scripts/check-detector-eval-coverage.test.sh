@@ -1,40 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for check-detector-eval-coverage.sh.
-#
-#   bash scripts/check-detector-eval-coverage.test.sh
-#
-# Every scenario builds a throwaway detector and eval suite and points the gate
-# at them through DETECTOR_EVAL_COVERAGE_PAIRS, so no assertion here depends on
-# the state of the real audit-permission-grants surfaces.
-#
-# The negative cases are the synthetic proof the gate catches each direction:
-# an emitted id no case covers, and a case naming an id the detector cannot
-# emit. The second is the one that matters most: an eval asserting a scope that
-# is out of date is the shape a coverage-only check reads as green.
-#
-# THE N BLOCKS. Sections marked N1 and N2 guard against over-correcting in both
-# of the directions a coverage check can: the negation screen reading ordinary
-# covering prose as a disclaimer and FAILING a correct suite, and the emit-site
-# accounting calling ordinary shell (quoted arguments, a line-continued call, a
-# wrapper definition, an `emit`-prefixed variable) a partial extraction loss and
-# exiting 2 on a well-formed detector.
-#
-# THE P BLOCKS. Sections marked P1..P6 below guard against verifying MENTION
-# rather than coverage, losing emit call sites silently, counting the gate's own
-# prose as call sites, having no stopping rule for an unregistered pair,
-# streaming a partial discover report before an exit 2, and ignoring trailing
-# argv.
-#
-# The "what the walk resolves, excludes and refuses" block pins the jq walk one
-# rule per case: a shape it must resolve, an exclusion it must keep, and a shape
-# it must refuse by naming the site.
-#
-# P7 guards the stopping rule's extractor: a greedy `.*` keeps only the LAST id
-# on a line, so a detector spelling two emits as
-# `emit warning Q1 ...; emit error Q2 ...` never reaches the two-distinct-ids bar
-# and is silently unenforced. Its first case is that defect; the two beside it
-# are preservation guards that keep the wider extraction from being bought with
-# a false positive or a lowered threshold.
 # shellcheck disable=SC2016  # fixture bodies are literal detector source in single quotes; expansion would destroy the shape under test
 set -uo pipefail
 
@@ -49,8 +13,6 @@ SCRIPT="$SELF_DIR/check-detector-eval-coverage.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 root=""
 
 ID_RE='P[0-9]+[a-z]?'
@@ -125,9 +87,6 @@ else
   fail "uncovered emitted id not caught: rc=$RC out='$OUT' err='$ERR'"
 fi
 rm -rf "$root"
-
-# ================= eval names an id the detector cannot emit ===============
-# The #4149 shape: the suite asserts a scope the detector outgrew.
 
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "message"'
@@ -213,9 +172,6 @@ else
 fi
 rm -rf "$root"
 
-# path_without <tool> — sets NO_TOOL_PATH to PATH with <tool> gone. Entries
-# without it pass through; each entry that holds it is replaced in place by a
-# dir of native symlinks to its other files (Git Bash's default `ln -s` copies).
 NO_TOOL_PATH=""
 path_without() {
   local tool="$1" d exe mirror
@@ -270,8 +226,6 @@ else
   fail "missing shfmt not handled: rc=$RC out='$OUT' err='$ERR'"
 fi
 
-# An shfmt below the v3.13.0 floor drops call sites silently, so it must stop
-# the gate the same way a missing one does.
 stub="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 printf '#!/usr/bin/env bash\necho v3.12.0\n' >"$stub/shfmt"
 chmod +x "$stub/shfmt"
@@ -312,9 +266,6 @@ else
 fi
 rm -rf "$root"
 
-# ======= P1: coverage means an eval case, in a coverage-bearing field ======
-# Each case below covers nothing, and passes at rc 0 if an id counts as covered
-# whenever the string appears ANYWHERE in the file.
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "message"' 'emit error P4 SRC "message"'
 mk_evals evals.json "$(evals_json 'exercises P1 classification' 'deliberately does NOT exercise P4')"
@@ -392,11 +343,6 @@ else
 fi
 rm -rf "$root"
 
-# ===== N1: the negation screen may not fail a suite on ordinary prose ======
-# A screen that scans 80 characters back to the previous `.`/`;`/`:` for a cue
-# disclaims the id on any cue ANYWHERE in that span. Ordinary covering prose
-# carries cues, so such a gate exits 1 on a correct suite: a false FAILURE with
-# no remedy but editing the gate.
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "message"' 'emit error P4 SRC "message"'
 mk_evals evals.json "$(evals_json 'Reports P1. A rule without a scope suffix must be flagged as P4.')"
@@ -452,9 +398,6 @@ else
 fi
 rm -rf "$root"
 
-# ============ P2: every emit call site is accounted for, or exit 2 =========
-# Each shape below can drop an id from the emitted set while leaving the count
-# non-zero, so a zero-ids guard alone never fires.
 mk_tree
 # shellcheck disable=SC2016  # the unexpanded $sev IS the fixture; expanding it erases the defect
 mk_detector det.sh 'emit warning P1 SRC "message"' 'emit "$sev" P4 SRC "message"'
@@ -512,9 +455,6 @@ else
 fi
 rm -rf "$root"
 
-# ============ P3: the detector's own prose is not a call site =============
-# The mirror-image false FAILURE: a quoted or heredoc'd emit in help text was
-# counted as a real emit, yielding a permanent uncoverable gap.
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "message"' "printf 'usage: emit error P9 <src> <detail>\\n'"
 mk_evals evals.json "$(evals_json 'exercises P1 classification')"
@@ -552,18 +492,6 @@ else
 fi
 rm -rf "$root"
 
-# ===== P3b: a `<<` that is not a heredoc operator arms no heredoc body =====
-# The defect this section is the regression guard for: the opening scan read the
-# RAW line, so a `<<` inside
-# a quoted string or an arithmetic left shift armed a body whose delimiter no
-# later line could close, and the skip ran to EOF. Every call site below the
-# line disappeared from the extraction AND from the candidate count at once, so
-# the accounting that turns a partial loss into exit 2 had nothing to compare
-# and the gate passed clean on a detector with uncovered ids. One line of
-# ordinary shell, no advisory, exit 0.
-#
-# Each case puts the shape between a COVERED id and an UNCOVERED one: exit 1
-# naming P4 proves the sites below the shape were still read.
 p3b_case() {
   local label="$1"
   shift
@@ -610,7 +538,6 @@ parsed_span_case 'an unterminated `${` carrying a heredoc opener' \
   'x=${unset:-$(cat <<EOF' 'cat <<HELP' 'EOF' ')}' 'emit error P4 SRC "message"' 'HELP'
 parsed_span_case 'an unterminated `((` carrying a heredoc opener' \
   'x=$(( a + $(cat <<EOF' 'cat <<HELP' 'EOF' ') ))' 'emit error P4 SRC "message"' 'HELP'
-# `hint=${HINT:-<<EOF ...}` prints the text `<<EOF ...`; bash opens no heredoc.
 parsed_span_case 'a `<<` that is data inside an unterminated `${`' \
   'hint=${HINT:-<<EOF opens a heredoc body' '}' 'emit error P4 SRC "message"' \
   'cat <<EOF' 'usage text' 'EOF' 'emit warning P1 SRC "message"'
@@ -626,11 +553,6 @@ parsed_span_case 'an unterminated `${` carrying a backtick substitution' \
 p3b_case 'an unterminated `${` with no `<<` in its tail' 'x=${v:-$(printf "%s" "a"' ')}'
 p3b_case 'an unterminated `((` with no `<<` in its tail' 'v=$(( 1 + (2 * 3)' '))'
 p3b_case 'an escaped `<` is not an operator' 'printf "%s\\n" \<\<EOF' # portability-ok: fixture shell containing an escaped redirection operator, not a GNU grep word boundary
-# The escaped character must leave a SEPARATOR behind, not vanish. Emitting ""
-# instead of a space rejoins two non-adjacent `<` into a `<<` operator, which
-# arms a heredoc bash never opened. The walk's comment asserts both halves --
-# not the literal character, and not nothing -- and only the first half was
-# guarded until an audit mutated the second and no case failed.
 p3b_case 'an escaped char that vanishes rejoins `<` into `<<`' 'cat <\<<EOF' # portability-ok: fixture shell with an escaped redirection operator, not a GNU grep word boundary
 p3b_case 'a left shift in an array subscript' 'a[1<<3]=5'
 p3b_case 'a left shift in `$[ ]` arithmetic' 'v=$[ 1 << 3 ]'
@@ -661,17 +583,10 @@ p3b_arms 'a redirected heredoc (`>&2 <<EOF`)' 'usage() { cat >&2 <<USAGE' \
 p3b_arms 'a single-quoted delimiter' "usage() { cat <<'USAGE'" 'emit error P9 SRC "someday"' \
   'USAGE' '}'
 
-# The four spellings a narrowed delimiter matcher armed on the WRONG word, each
-# swallowing to EOF. `<<\USAGE` is a plain POSIX heredoc: the backslash only
-# suppresses expansion, exactly as quoting the delimiter does.
 p3b_arms 'a backslash-escaped delimiter' 'usage() { cat <<\USAGE' \
   'emit error P9 SRC "someday"' 'USAGE' '}'
 p3b_arms 'a backslash-escaped `<<-` delimiter' 'usage() { cat <<-\USAGE' \
   'emit error P9 SRC "someday"' '	USAGE' '}'
-# A delimiter carrying punctuation is a delimiter. bash accepts all of these,
-# and REFUSING one is not safe: the body
-# is then read as code and a `<<` inside it arms and swallows. They assert the
-# whole delimiter is read, which is what stops that cascade.
 p3b_arms 'a delimiter carrying `@`' 'usage() { cat <<USAGE@1' \
   'emit error P9 SRC "someday"' 'USAGE@1' '}'
 p3b_arms 'a delimiter carrying `=`' 'usage() { cat <<USAGE=1' \
@@ -687,20 +602,6 @@ p3b_arms 'a quoted delimiter carrying a dot' "usage() { cat <<'PY.END'" \
   'emit error P9 SRC "someday"' 'PY.END' '}'
 p3b_arms 'an unquoted hyphenated delimiter' 'usage() { cat <<USAGE-1' \
   'emit error P9 SRC "someday"' 'USAGE-1' '}'
-# Removing `${ ... }` from the scan's copy must not cost a real opener sharing
-# the line with one.
-# CLOSING EARLY IS AS SILENT AS NEVER CLOSING, and the unclosed-at-EOF rule
-# cannot see it: a skip that closes on a line bash treats as body re-syncs on
-# some later line, so it swallows the real call sites in between and still
-# finishes with nothing outstanding. These three are that direction, and each
-# needs the terminator matched exactly the way bash matches it.
-#
-# The fixture is the CASCADE, not just the early close, because "the body's own
-# emit is hidden" is satisfied by a swallow too. A line bash reads as body but
-# the scanner reads as a terminator is followed by a second `<<`: on the buggy
-# path that second opener arms, eats the true terminator and the code past it,
-# and closes later, so the call site after the function disappears. On the
-# correct path the whole block is body and that call site is plain code.
 early_close_case() {
   local label="$1" fake="$2" true_term="$3" opener="$4"
   mk_tree
@@ -717,17 +618,10 @@ early_close_case() {
   rm -rf "$root"
 }
 
-# `USAGE ` with a trailing space is BODY to bash, not a terminator.
 early_close_case 'a terminator carrying a trailing space' 'USAGE ' 'USAGE' '<<USAGE'
-# `<<-` strips TABS only, so a space-indented terminator is body.
 early_close_case 'a `<<-` terminator indented by spaces' '  USAGE' '	USAGE' '<<-USAGE'
 early_close_case 'a plain `<<` terminator indented by a tab' '	USAGE' 'USAGE' '<<USAGE'
 
-# `#` after `)` or a backtick is NOT reliably a comment: `$(printf a)#tag`
-# prints `a#tag`. Reading it as one truncates the line and loses what followed,
-# so the call site has to be ON THE SAME LINE, after the `#`. With it on the
-# next line the fixture proves nothing: truncating a line that carries no emit
-# costs nothing, and the guard passes even when the bug is present.
 p3b_samecase() {
   local label="$1" shape="$2"
   mk_tree
@@ -789,12 +683,6 @@ rm -rf "$root"
 
 p3b_case 'a here-string (`<<<`) opens no body, by either mechanism' 'grep x <<<"$v"'
 
-# ====== N2: ordinary shell is not a partial extraction loss (exit 2) ======
-# Each shape below can make a well-formed detector un-gateable, when the site
-# counter and the id extractor disagree, and any disagreement is exit 2 ("cannot determine"). Where the id IS readable the
-# assertion is exit 1 naming it, which proves the site was EXTRACTED rather
-# than merely skipped; where the line is not a call site at all the assertion
-# is a clean exit 0.
 mk_tree
 mk_detector det.sh 'emit "error" P1 SRC "message"' 'emit warning P2 SRC "message"'
 mk_evals evals.json "$(evals_json 'exercises P2 classification')"
@@ -818,8 +706,7 @@ fi
 rm -rf "$root"
 
 mk_tree
-# shellcheck disable=SC1003  # the trailing backslash IS the fixture: it is the
-# line continuation under test, not an attempt to escape a quote.
+# shellcheck disable=SC1003  # the trailing backslash IS the fixture
 mk_detector det.sh 'emit \' 'warning P4 SRC "message"' 'emit error P1 SRC "message"'
 mk_evals evals.json "$(evals_json 'exercises P1 classification')"
 run_gate "$(pair det.sh evals.json)" --check
@@ -889,13 +776,6 @@ else
 fi
 rm -rf "$root"
 
-# ===== #4222: calls a line walk lost, which the parser must still see =====
-# Round 6 is the simplest one: a command substitution inside double quotes.
-# The others are the rest of the open set that the syntax tree represents as
-# a CallExpr. A quoted `eval` or `trap` body is data, not a call, which is
-# the same answer as help text (P3); re-parsing those strings would count
-# prose again.
-
 parser_sees_p1() {
   local label="$1"
   shift
@@ -963,9 +843,6 @@ else
 fi
 rm -rf "$root"
 
-# ===== what the walk resolves, excludes and refuses =========================
-# A real call must end as an id, as an UNRESOLVED line naming its site, or as a
-# stated exclusion; never as nothing.
 parser_sees_p1 'a single-quoted command word' "'emit' error P1 SRC \"message\""
 parser_sees_p1 'single-quoted severity and id' "emit 'error' 'P1' SRC \"message\""
 parser_sees_p1 'a dollar-quoted command word' "\$'emit' error P1 SRC \"message\""
@@ -1055,14 +932,9 @@ unresolved_case 'an id the row pattern matches only in part' 'emit error xP1' 'e
 unresolved_case 'a computed severity or id' 'emit "$sev" P4' 'emit error ${id}'
 unresolved_case 'a severity that is not a plain word' \
   'emit -x P1' 'emit error-x P1' 'emit 1x P1' 'emit "a b" P1'
-# `$` in the row pattern is not the end of the string: it also matches before a
-# final newline. The id is matched from \A to \z.
 unresolved_case 'an id with a trailing newline is not a full-string match' $'emit error "P1\n"'
-# The full-string match reads \A ... \z, so a leading newline is not part of an id.
 unresolved_case 'an id with a leading newline is not a full-string match' $'emit error "\nP1"'
 
-# A quoted array subscript is a string bash evaluates later, the same class as
-# `eval '...'`: the header's "any other string bash evaluates later" covers it.
 not_a_site_case 'a quoted array subscript is text until bash evaluates it' \
   "[[ -v 'a[\$(emit error P9)]' ]]" "let 'a[\$(emit error P9)]=1'" "unset 'a[\$(emit error P9)]'"
 
@@ -1134,9 +1006,6 @@ nested_ids_case 'a call inside each compound command, expansion and redirection'
   'x=$(( $(emit error @ID@) + 1 ))' '[[ $(emit error @ID@) ]]' 'let x=$(emit error @ID@)' \
   $'cat <<EOF\n$(emit error @ID@)\nEOF'
 
-# A span neither shfmt nor bash accepts is a file the parser cannot read: exit 2.
-# The line walk read these three (exit 1 naming P4), and this suite asserted so
-# before shfmt became the reader; the parser's refusal is the answer now.
 unparsable_case() {
   local label="$1"
   shift
@@ -1155,9 +1024,6 @@ unparsable_case 'an unterminated `${` with no `<<` in its tail' 'x=${v:-$(printf
 unparsable_case 'an unterminated `((` with no `<<` in its tail' 'v=$(( 1 + (2 * 3'
 unparsable_case 'a comment opened after `(`' 'f() (#<<EOF'
 
-# ============== P4: the registry is the stopping rule =====================
-# A qualifying skill absent from the registry is unenforced, which is the same
-# false-green one level up. Following check-script-contract.test.sh's precedent.
 mk_tree
 mkdir -p "$root/plugins/demo/skills/thing/scripts" "$root/plugins/demo/skills/thing/evals"
 mk_detector det.sh 'emit warning P1 SRC "message"'
@@ -1234,11 +1100,6 @@ else
 fi
 rm -rf "$root"
 
-# ===== P7: the stopping rule scans EVERY emit call site on a line ==========
-# A greedy sed retains only the LAST id on a line, so a detector spelling its
-# two emits as `emit warning Q1 ...; emit error Q2 ...` would resolve to one id,
-# fall short of the two-distinct-ids bar, and go silently unenforced. Discovery
-# runs the verdict scanner, so the two halves cannot disagree.
 mk_tree
 mkdir -p "$root/plugins/demo/skills/oneline/scripts" "$root/plugins/demo/skills/oneline/evals"
 mk_detector det.sh 'emit warning P1 SRC "message"'
@@ -1291,7 +1152,6 @@ else
 fi
 rm -rf "$root"
 
-# ================================ discover =================================
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "message"' 'emit error P4 SRC "message"'
 mk_evals evals.json "$(evals_json 'names P1 and P7')"
@@ -1308,9 +1168,6 @@ else
 fi
 rm -rf "$root"
 
-# ===== P5: discover stdout is buffered, so an exit 2 emits nothing there ====
-# With two rows, a per-row exit 2 must not leave the FIRST row's report on
-# stdout with no denominator trailer under it.
 mk_tree
 mk_detector a.sh 'emit warning P1 SRC "message"'
 mk_evals a.json "$(evals_json 'exercises P1 classification')"
@@ -1323,9 +1180,6 @@ else
 fi
 rm -rf "$root"
 
-# ============================= multiple pairs ==============================
-# The registry is a list, so the denominator must sum and a gap in the SECOND
-# row must still fail.
 mk_tree
 mk_detector a.sh 'emit warning P1 SRC "message"'
 mk_evals a.json "$(evals_json 'names P1')"
@@ -1339,7 +1193,6 @@ else
 fi
 rm -rf "$root"
 
-# ================================= usage ===================================
 mk_tree
 run_gate "$(pair det.sh evals.json)" --bogus
 if [[ $RC -eq 2 && "$ERR" == *"usage:"* && -z "$OUT" ]]; then
@@ -1349,8 +1202,6 @@ else
 fi
 rm -rf "$root"
 
-# P6: silently ignored trailing argv reads as a mode the gate accepted and did
-# not run.
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "message"'
 mk_evals evals.json "$(evals_json 'exercises P1 classification')"
@@ -1362,8 +1213,4 @@ else
 fi
 rm -rf "$root"
 
-# The built-in registry is checked against the live tree by the
-# detector_eval_coverage gate step of pr-require-checks.yml, which runs --check
-# whenever a skill script or eval set changes and fails on an unresolved row or
-# an unregistered pair. Run here, that check reads every skill script of the tree.
 test_harness::report

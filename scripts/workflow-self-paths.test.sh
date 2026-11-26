@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Every path a workflow here gives to one of this repository's own workflow
-# files, plain or regex-escaped (`.github/workflows/x.yml`, `\.github/workflows/x\.yml`),
-# names a file that exists. A rename that misses one leaves a dead trigger:
-# after ci.yml became pr-require-checks.yml, three "run the whole tree when this
-# workflow changes" patterns kept matching ci.yml and never fired. A path
-# another repository owns (`owner/repo/.github/workflows/...`) is not checked.
-# Comment lines are prose and are skipped, and so is a SYNC-MANAGED file: the
-# standards repository owns its paths.
 # test-scope: .github/workflows/*
 set -uo pipefail
 

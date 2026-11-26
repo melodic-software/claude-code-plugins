@@ -1,9 +1,5 @@
 ---
-type: llm
+type: regex
+pattern: '(?:^|[.!?;:,\n(])(?:(?!\b(?:not|never|nor|even though|although|though|you (?:say|said|call|called|think)|claim(?:s|ed)?|supposedly)\b|n''t\b)[^.!?;:,\n])*?(?:\balready[ \t]+(?:[\w-]+,?[ \t]+){0,3}?sharp\b|\bsharp(?:,? (?:and )?(?:answerable|clear|scoped|well-scoped|well-defined))? (?:tickets|work items)\b|\bno[- ]fog\b|\bnothing (?:here |in (?:it|this|them) )?(?:is )?foggy\b|\b(?:is not|are not|isn''t|aren''t) (?:\w+ )?foggy\b|\bno (?:real |actual |genuine )?fog\b|\bfog-free\b)'
+flags: i
 ---
-
-The user asked wayfind to chart a 'forgot password' email flow and said it is exactly three clear tickets: a reset-token request endpoint, an email send, and a reset-confirmation endpoint. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the reply says the three pieces are already sharp, answerable tickets rather than fog.
-
-FAIL if it treats the work as foggy or never says it is already sharp.

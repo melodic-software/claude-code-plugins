@@ -29,9 +29,6 @@ CHECK_FAILURE_STATES = {
     "TIMED_OUT",
 }
 CHECK_SUCCESS_STATES = {"NEUTRAL", "SKIPPED", "SUCCESS"}
-# Documentation of GitHub's pending vocabulary rather than a lookup table:
-# `check_category` treats every state that is neither failing nor success as
-# pending, so adding a value here does not change any classification.
 CHECK_PENDING_STATES = {
     "EXPECTED",
     "IN_PROGRESS",
@@ -47,8 +44,6 @@ def check_category(state: str) -> str:
         return "failing"
     if state in CHECK_SUCCESS_STATES:
         return "success"
-    # Pending, empty, and any state GitHub adds later all land here: an
-    # unrecognized state must never read as success or failure.
     return "pending"
 
 
@@ -77,18 +72,12 @@ def normalize_check(check: dict[str, Any]) -> dict[str, Any]:
         or check.get("createdAt")
         or ""
     )
-    # Inception timestamp for stuck-check aging -- distinct from `_sort_key`,
-    # which prefers `completedAt` for latest-wins dedupe. Here we want when the
-    # check began, so a still-running/queued check can be aged against the
-    # snapshot's `generated_at`. gh's `statusCheckRollup` exposes `startedAt`
-    # on a CheckRun (no `createdAt`) and `createdAt` on a StatusContext:
+    # statusCheckRollup gives a CheckRun `startedAt` (no `createdAt`) and a StatusContext `createdAt`:
     # https://docs.github.com/en/graphql/reference/checks#checkrun
     created_at = str(check.get("startedAt") or check.get("createdAt") or "")
 
     return {
         "name": name,
-        # The check run's own id: GraphQL `databaseId`, which `rest_check_rollup`
-        # fills from REST; `gh pr view --json statusCheckRollup` omits it.
         "id": str(check.get("databaseId") or ""),
         "type": typename,
         "category": check_category(effective_state),
@@ -219,10 +208,6 @@ def classify_checks(status_rollup: Any) -> dict[str, Any]:
 
 
 APPROVAL_HELD = "awaiting_approval"
-# The conclusion GitHub gives a run or check that needs a person to act before
-# it proceeds: a workflow run held for maintainer approval (a first-time or
-# outside contributor's fork PR, or a run GitHub flagged as potentially
-# malicious) or a check run requesting a manual action.
 APPROVAL_HELD_STATES = frozenset({"ACTION_REQUIRED"})
 
 

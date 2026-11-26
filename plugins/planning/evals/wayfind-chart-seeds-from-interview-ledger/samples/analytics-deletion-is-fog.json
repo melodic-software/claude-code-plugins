@@ -2,13 +2,41 @@
   "pass": [
     {
       "answer": "## Not-yet-specified\n- **Analytics deletion**: what deletion means for derived data is unclear.",
-      "why": "meets the rule"
+      "why": "a bullet under the section heading"
+    },
+    {
+      "answer": "**Not-yet-specified**\n\n- **Backup scope**: placeholder\n- **Derived-analytics deletion**: nobody can yet say what deleting derived analytics means.",
+      "why": "second bullet in the section, blank line after the heading"
+    },
+    {
+      "answer": "Not-yet-specified: **Derived analytics**: what 'deletion' means for derived analytics.",
+      "why": "inline section"
     }
   ],
   "fail": [
     {
       "answer": "Items: 'Define deletion for derived analytics'.",
-      "why": "breaks the rule"
+      "why": "made a decision item"
+    },
+    {
+      "answer": "## Not-yet-specified\n(none)\n\n## Decision items\n- Define deletion for derived analytics (interview)",
+      "why": "the section is empty and the worry is an item"
+    },
+    {
+      "answer": "## Not-yet-specified\n- **Backup scope**: unclear.\n\n## Out-of-scope\n- Derived analytics deletion.",
+      "why": "put in Out-of-scope"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Not-yet-specified: none; the derived-analytics deletion question becomes a decision item.",
+      "why": "wrong: inline section says none and turns the worry into an item"
+    },
+    {
+      "answer": "## Not-yet-specified\n- **Backup scope**: unclear.\n- Decision item: define deletion for derived analytics (interview).",
+      "why": "wrong: listed under the section but as a decision item"
     }
   ]
 }

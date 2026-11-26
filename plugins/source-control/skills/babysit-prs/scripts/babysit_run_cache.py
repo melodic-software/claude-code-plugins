@@ -23,7 +23,6 @@ from typing import Any
 
 ENV = "BABYSIT_RUN_CACHE"
 MAX_AGE = timedelta(minutes=2)
-# What gh reads its credentials from: these variables and hosts.yml.
 CREDENTIAL_ENV = (
     "GH_TOKEN",
     "GITHUB_TOKEN",
@@ -55,13 +54,6 @@ def _load(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else {}
 
 
-# This process's parse of the file, by path, with the stat it was read at. A
-# memo is current only while the stat matching means the file is unchanged:
-# pr-merge.yml runs its gate processes one after another, and every writer
-# renames a new file into place (`put`, carry-run-cache.mjs), so another
-# process's write brings a new inode. A writer that rewrote the file in place
-# within one mtime tick at the same size, or a gate process running beside
-# this one, would be served the stale parse.
 _memo: dict[str, tuple[tuple[int, int, int, int], dict[str, Any]]] = {}
 
 

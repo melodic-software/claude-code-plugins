@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
-# Fail when an ACTIVE skill-portability token duplicates or drifts from the
-# org-agnosticism SSOT (docs/plugin-philosophy.md Design boundary; #4582).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
-# CHECK_DATA_ROOT: the tree to check, when it is not the one holding this script.
 cd "${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}" || exit 2
 
 ORG_FILE="${PUBLISHER_TOKEN_ORG_FILE:-scripts/org-agnosticism-tokens.txt}"

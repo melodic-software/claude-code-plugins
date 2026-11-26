@@ -28,8 +28,6 @@ BEGIN = "<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run script
 LEGACY_BEGIN = "<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->"
 END = "<!-- END GENERATED: plugin options -->"
 
-# CHECK_DATA_ROOT: the tree to check, when it is not the one holding this script
-# (the pre-push hook runs a merge-base copy against the branch).
 REPO = pathlib.Path(
     os.environ.get("CHECK_DATA_ROOT")
     or pathlib.Path(__file__).resolve().parent.parent
@@ -85,13 +83,8 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         if bounds:
             typ = f"{typ}<br>*{', '.join(bounds)}*"
         default = spec.get("default", "")
-        # MD049: this repo's markdownlint requires asterisk emphasis, not underscore.
-        default = "*(none)*" if default == "" else f"`{json.dumps(default)}`"
+        default = "*(none)*" if default == "" else "`" + json.dumps(default).replace("|", "\\|") + "`"
         desc = " ".join(str(spec.get("description", spec.get("title", ""))).split())
-        # A description is arbitrary prose from the manifest and lands inside a table
-        # cell. Escape the characters that would otherwise be read as markdown: a pipe
-        # ends the cell, and a bracketed run such as `[a-z0-9-]` in a regex reads as an
-        # undefined reference link (MD052).
         desc = desc.replace("|", "\\|").replace("[", "\\[").replace("]", "\\]")
         if spec.get("sensitive"):
             desc = f"**Sensitive.** {desc}"
@@ -134,11 +127,6 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         "",
         "### Upstream documentation",
         "",
-        # The settings page keeps bare backward-compatibility `<span id=…>` stubs
-        # (`#plugin-settings`, `#configuration-scopes`): lychee's fragment check passes a
-        # link to a stub id, but a reader following it lands on blank space, so these
-        # anchors must target the live headings. A link CI accepts is not the same as a
-        # link that works.
         f"- [User configuration]({USER_CONFIG_DOCS})",
         f"- [Plugin configure]({CONFIGURE_DOCS})",
         f"- [Plugin install options]({INSTALL_DOCS})",

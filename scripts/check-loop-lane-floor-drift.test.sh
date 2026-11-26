@@ -1,28 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-loop-lane-floor-drift.sh.
-#
-# Self-contained and cwd-independent: builds a throwaway root holding a fake
-# reader contract and fake consumers at the registered paths, points the SUT at
-# it with LOOP_LANE_FLOOR_ROOT, and asserts on exit code plus output. Mutates
-# only its own mktemp dir.
-#
-# The cases that earn their keep are the ones proving the gate goes RED. A
-# drift check nobody has watched fail is the false-green shape
-# docs/contracts/liveness-assertion/ names. So every failure class gets a case: exact
-# drift, values drift, a consumer that stopped inlining the floor, a
-# registration pointing at nothing, a COPY NOBODY REGISTERED, and the two ways
-# the extractor could go blind and pass everything forever.
-#
-# The fixture root is a throwaway git repository, because the SUT enumerates
-# the corpus with git the way every sibling gate in scripts/ does. It is built
-# through scripts/test-git-helpers.sh, which clears the ambient git environment
-# so a fixture's identity can never land in the caller's checkout.
-#
-# The fixture heredocs below open with the floor's marker line as stand-in test
-# data, so the SUT's repo-wide scan sees THIS file as a carrier. It is listed in
-# the SUT's own DATA_CARRIERS for that reason. Note that nothing written here
-# performs that exemption: the list lives in the gate, so this file cannot
-# excuse itself, which case 24 asserts.
 # test-scope: plugins/*/reference/reader-contract.md
 set -uo pipefail
 
@@ -41,8 +17,6 @@ if [[ ! -r "$SUT" ]]; then
   exit 1
 fi
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 TMP=""
 fixture_tree::build TMP --git --label loop-lane-floor-drift || {
   fail "could not build the fixture repository"
@@ -140,9 +114,6 @@ run() {
   LOOP_LANE_FLOOR_ROOT="$TMP" bash "$SUT" "$@" 2>&1
 }
 
-# mutate <file> <sed program> — the drift each case introduces.
-# Not `sed -i`: that spelling is GNU-only (BSD sed reads the next argument as a
-# backup suffix), and scripts/check-shell-portability.sh rejects it.
 mutate() {
   local file="$1" prog="$2"
   sed "$prog" "$file" >"$file.mutated" && mv "$file.mutated" "$file"

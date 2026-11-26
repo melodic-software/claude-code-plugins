@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# list-targets.sh [--root <dir>]: read-only. Prints the drift-audit workflow's
-# repo-mode args.targets as one JSON array of {area, files[]}: the tracked
-# markdown files in <dir> (default: the current repository) that state a
-# model, effort, workflow or subagent claim. Out of scope: docs/upstream/
-# snapshots, changelogs and .changes/ release fragments, vendored trees and
-# eval fixtures. An area is
-# plugins/<name> or the first path segment ("(root)" for top-level files),
-# split into chunks of at most 10 files.
 set -uo pipefail
 
 ROOT=""

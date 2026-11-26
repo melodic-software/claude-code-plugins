@@ -1,21 +1,4 @@
 #!/usr/bin/env node
-// hill-climb-edit.mjs: apply and check the one skill edit maintenance-measure-skill-edit.yml's
-// model proposes.
-//
-//   hill-climb-edit.mjs apply --root <repo> --plugin <p> --skill <s> --proposal <file>
-//   hill-climb-edit.mjs check --plugin <p> --skill <s>      (changed paths on stdin)
-//
-// apply reads the model's structured output, {file, old_string, new_string},
-// where file is relative to plugins/<p>/skills/<s>/, and replaces the one
-// occurrence of old_string in that markdown file under --root. It prints the
-// changed path. check reads changed paths, one per line, and refuses each one
-// outside plugins/<p>/skills/<s>/, under an evals/ directory, git-quoted (a
-// leading `"`) or holding a `.` or `..` segment; no path at all is refused as
-// no edit. select-plugins.mjs then judges the same paths for what a suite may
-// run with the credential.
-//
-// Refusals go to stderr as `<path>: <reason>`. Exit 0 applied or clean, 1
-// refused, 2 usage.
 import { lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
@@ -24,7 +7,6 @@ import { parseArgs } from "node:util";
 
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
-// Why one changed path may not reach the edit's eval pass, or null.
 export function pathRefusal(path, plugin, skill) {
   if (path.startsWith('"')) {
     return "a git-quoted path, whose real name is unknown";
@@ -53,7 +35,6 @@ export function check(paths, plugin, skill) {
   });
 }
 
-// The repository path the proposal changed; throws with the reason it cannot apply.
 export function applyProposal(root, plugin, skill, proposal) {
   const { file, old_string: before, new_string: after } = proposal ?? {};
   if (![file, before, after].every((value) => typeof value === "string") || before === "" || before === after) {

@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# Runs the `Fail a queued pull request carrying a hold label` step body of
-# .github/workflows/pr-require-checks.yml's ci-status under the shell Actions
-# gives a step with no `shell:` (bash -e), against stub `gh` and `sleep`.
-#
-# A merge-group run carries no pull request, so this step is the only reader of
-# the hold labels in the merge queue: `do-not-merge` and the human-gated label
-# the base commit's docs/conventions/work-items.yaml binds (default `needs-human`), and
-# `pr-verify-failed`. It must fail on any of them, pass without them, and fail
-# closed when it cannot tell.
-# For a pull request an automation opened it also applies the trust hold to
-# the linked issue: a label naming untrusted work, in any spelling, or one
-# removed other than by a person on the base's trusted-actor list, holds, so
-# a label added after the pull request opened stops the merge.
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
@@ -98,8 +85,6 @@ EOF
 printf '#!/usr/bin/env bash\n' >"$TMP_ROOT/bin/sleep"
 chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
 
-# ci-status's job-level LANES_APP_ID comes from the AUTOMATION_LANES_APP_SENDER_ID
-# repository variable, set once, which no step overrides.
 pins="$(grep -nE '^ +LANES_APP_ID:' "$WORKFLOW")"
 if [[ "$pins" =~ ^[0-9]+:"      LANES_APP_ID: \${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}"$ ]]; then
   ok "ci-status names the lanes App id once, from the repository variable"
@@ -116,11 +101,6 @@ QUEUE="refs/heads/gh-readonly-queue/main/pr-6419-$SHA"
 CUSTOM='{"config":{"role_labels":{"human-gated":" owner-call "}}}'
 ACTORS='{"version":1,"actors":[{"id":100,"login":"maintainer","kind":"human"},{"id":200,"login":"agent-lanes[bot]","kind":"bot"}]}'
 
-# expect <label> <want-rc> <want-label-calls> <want-pr|-> <GITHUB_REF> <STUB_LABELS> <STUB_FAILS> [want-out]
-# A label call is the GraphQL read, which holds the pull request's labels, or
-# the Refs issue's labels read; the pull request's labels are never read over
-# REST.
-# The tracker fixture is set by the caller's environment (STUB_TRACKER, STUB_CHECKOUT_FAILED, BASE_SHA).
 expect() {
   local label="$1" want_rc="$2" want_calls="$3" want_pr="$4" out rc calls config="$TMP_ROOT/base-config"
   : >"$TMP_ROOT/log"
@@ -208,8 +188,6 @@ unset STUB_TRACKER
 expect "every hold label is named" 1 1 6419 "$QUEUE" "pr-verify-failed,needs-human,do-not-merge" 0 \
   "::error::#6419 carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge.
 ::error::#6419 carries 'needs-human'; the merge queue removes it."
-# The rule is the base's merge-holds.mjs labelHolds: a base that cannot judge
-# fails closed, before the labels read when it cannot name the label.
 export STUB_NO_MODULE=1
 expect "a base with no merge-holds.mjs fails closed without a call" 1 0 - "$QUEUE" "do-not-merge" 0 "::error::cannot read merge-holds.mjs at $BASE; re-run this run."
 unset STUB_NO_MODULE
@@ -253,7 +231,6 @@ trust() {
 }
 UNTRUSTED='provenance: untrusted'
 
-# Exported once and emptied, never unset, so each assignment reaches the step.
 export STUB_LINK='' STUB_LINK_FAIL='' STUB_TIMELINE='' STUB_TIMELINE_FAIL='' STUB_ISSUE_LABELS='' STUB_ACTORS='' STUB_PULL='' STUB_FILES=''
 trust "a person's pull request reads no issue" 0 1 "is a person's pull request"
 STUB_LINK="$(link Bot "[$(issue 16 '["agent-ready"]')]")"
@@ -303,8 +280,6 @@ STUB_LINK="$(link Bot '[]' '' "$DEPENDABOT")"
 trust "another automation's pull request linking nothing passes" 0 1 "links no issue in this repository"
 STUB_LINK='' STUB_ISSUE_LABELS=''
 
-# The lanes App's pull request must link exactly one issue here, as the gate's
-# _linked_issue takes it: a link dropped after arming fails, it does not pass.
 STUB_LINK="$(link Bot '[]' 'Refs: #18
 Refs: #19' "$LANES")"
 trust "the lanes App's two Refs issues fail the run" 1 1 "its Refs: lines name no single issue"
@@ -320,12 +295,8 @@ STUB_LINK="$(link Bot "[$(issue 16 '[]')]" '' "$LANES")"
 trust "the lanes App's one clean closing issue passes" 0 2 "carries no label naming untrusted work"
 STUB_LINK="$(link Bot '[]' 'Refs: #18' "$LANES")" STUB_ISSUE_LABELS=agent-ready
 trust "the lanes App's one clean Refs issue passes" 0 3 "carries no label naming untrusted work" refs
-# A bot with no numeric id cannot be told apart from the lanes App: it fails closed.
 STUB_LINK="$(link Bot "[$(issue 16 '[]')]" '' null)"
 trust "a bot author with no numeric id fails closed" 1 1 "::error::the bot author id of #6419 could not be read"
-# An empty LANES_APP_ID (the variable unset) cannot tell the lanes App's pull
-# request from another automation's, whose unlinked pull request passes: it
-# fails closed rather than reading the lanes App's as another automation's.
 app_id=$LANES LANES=''
 STUB_LINK="$(link Bot '[]' '' "$app_id")"
 trust "an empty lanes App id fails a bot's unlinked pull request closed" 1 1 "::error::the bot author id of #6419 could not be read"
@@ -356,15 +327,12 @@ STUB_PULL='' STUB_FILES=''
 trust "an unread pull request still needs a link" 1 1 "its Refs: lines name no single issue"
 STUB_LINK='' STUB_BASELINE_FILE=''
 
-# A jq error is neither a match nor a miss: it fails closed.
 STUB_LINK="$(link Bot "[$(issue 16 '[null]')]")"
 trust "a label that is not a string fails closed" 1 1 "could not be matched"
 STUB_LINK="$(link Bot "[$(issue 16 '[]')]")" STUB_TIMELINE='{not json'
 trust "a timeline that does not parse fails closed" 1 2 "could not be matched"
 STUB_LINK='' STUB_TIMELINE=''
 
-# The shared table test_babysit_merge_policy.py reads too: Python's _untrusted
-# and this step's jq hold the same labels.
 TABLE="$ROOT/plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/untrusted-labels.json"
 while IFS=$'\t' read -r want label; do
   STUB_LINK="$(link Bot "[$(issue 16 "$(jq -nc --arg l "$label" '[$l]')")]")"

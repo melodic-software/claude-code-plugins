@@ -1,34 +1,10 @@
 #!/usr/bin/env bash
-# Gate: a *.test.sh that would vacate the only discriminating assertions in a
-# case group must not call skip_case and exit 0. Optional platform skips are
-# fine; a skip that costs the entire point of a case group must fail (or use
-# fail_discriminating_skip) so CI cannot report green while proving nothing.
-#
-#   scripts/check-discriminating-test-skips.sh
-#
-# Two shapes are flagged in plugins/**/*.test.sh and .claude/hooks/*.test.sh:
-#
-#   1. skip_case whose reason matches the git copy-pairing vacuous-pass messages
-#      this repo has already shipped — the canonical discriminating-skip defect.
-#   2. skip_case on a line annotated with discriminating-skip-required: the
-#      author marked the branch as load-bearing; skip_case there is forbidden.
-#
-# A flagged site passes when the line calls fail_discriminating_skip instead,
-# or carries a documented exemption:
-#   # discriminating-skip-ok: <reason>
-# on the skip_case line, in the comment block immediately above it, or inside
-# the enclosing if/else block.
-#
-# This is a grep-level tripwire, not a semantic proof — its job is to stop the
-# regression where a discriminating branch quietly no-ops via skip_case.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
 mapfile -t test_files < <(find plugins .claude/hooks -type f -name '*.test.sh' 2>/dev/null | sort)
 
-# FNR is per-file so line numbers stay the file:line contract; FNR==1 closes a
-# block left open at the previous file's EOF (mawk has no ENDFILE).
 if ((${#test_files[@]} > 0)); then
   out=$(awk '
     function is_annotated(l) { return l ~ /#[[:space:]]*discriminating-skip-ok:/ }

@@ -1,30 +1,10 @@
 # shellcheck shell=bash
-# test-helpers.sh — shared assertion primitives for this plugin's *.test.sh
-# suites. Self-contained — no host-repo assertion library. Sourced, not
-# executed; the plugin test runner ignores it via the *.test.sh glob.
-#
-# Each test file owns its own FAILED / CASE_NUM counters (initialized here
-# defensively). PASS lines go to stdout, FAIL lines to stderr. Test files
-# exit non-zero at the end: [[ $FAILED -eq 0 ]] || exit 1
-#
-# Param order: subject (haystack/actual) BEFORE expected (needle), except
-# assert_eq / assert_exit which take (label, expected, actual).
-#
-# Duplicated across plugins by design, not drift — see
-# docs/contracts/shell-test-helpers/README.md at the repo root.
 
 [[ -n "${_TESTS_LIB_LOADED:-}" ]] && return 0
 readonly _TESTS_LIB_LOADED=1
 
-# Strip inherited git-hook context so fixture `git init` / ref writes never
-# resolve to the real repo when a test runs under a git hook chain.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 
-# Isolate the host's global and system git config and the worktree_root plugin
-# option. The worktree resolver reads worktreeroot.path from git config, so a
-# host that sets it globally would otherwise place fixture worktrees in the
-# operator's real root (#4472). The real root is captured first so
-# assert_real_worktree_root_clean can prove nothing landed there.
 # fixture-isolation-scope: reads the host worktreeroot.path once, on purpose, before isolating (https://github.com/melodic-software/claude-code-plugins/issues/4472)
 _REAL_WORKTREE_ROOT="$(git config --global --includes --type=path --get worktreeroot.path 2>/dev/null || true)"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
@@ -35,19 +15,12 @@ unset CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT
 : "${SKIP_CASES:=0}"
 : "${DISCRIMINATING_SKIP_CASES:=0}"
 
-# native_mktemp_dir — mktemp -d as a path native git and bash both resolve. On
-# Windows Git Bash a bare /tmp/... is MSYS-only: native git rewrites it to
-# C:/... on write and cannot follow it when read from a config include path.
 native_mktemp_dir() {
   local d
   d="$(mktemp -d)"
   if command -v cygpath >/dev/null 2>&1; then cygpath -m "$d"; else printf '%s' "$d"; fi
 }
 
-# physical_dir <existing-dir> — the spelling a script prints after it reads the
-# directory back from git and resolves it with `cd && pwd -P`. On Windows Git
-# Bash git returns the native C:/... form and `pwd -P` turns it into /c/...,
-# while mktemp handed the test /tmp/...; elsewhere it resolves symlinks only.
 physical_dir() {
   local d="$1"
   if command -v cygpath >/dev/null 2>&1; then d="$(cygpath -m "$d")"; fi
@@ -67,44 +40,33 @@ mkrepo() {
   printf '%s' "$repo"
 }
 
-# pass <label>
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
 }
 
-# _fail_with <label> <detail> — count one failed case and print its FAIL line.
 _fail_with() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'FAIL: [%d] %s — %s\n' "$CASE_NUM" "$1" "$2" >&2
   FAILED=$((FAILED + 1))
 }
 
-# fail <label> <expected> <actual>
 fail() {
   local detail
   printf -v detail 'expected %q got %q' "$2" "$3"
   _fail_with "$1" "$detail"
 }
 
-# skip_suite <reason> — print SKIP marker and exit 0 (missing toolchain etc.).
 skip_suite() {
   printf 'SKIP: %s\n' "$1" >&2
   exit 0
 }
 
-# skip_case <reason> — skip one optional case without exiting. Platform or
-# toolchain gaps that intentionally vacate a nice-to-have assertion use this;
-# it must never swallow the only discriminating coverage for a case group.
 skip_case() {
   SKIP_CASES=$((SKIP_CASES + 1))
   printf 'SKIP: %s\n' "$1" >&2
 }
 
-# fail_discriminating_skip <reason> — a skip that would vacate the only
-# discriminating assertions in a case group. Counts as a failure and prints a
-# distinct marker so CI aggregate output can distinguish "coverage ran" from
-# "coverage silently skipped".
 fail_discriminating_skip() {
   DISCRIMINATING_SKIP_CASES=$((DISCRIMINATING_SKIP_CASES + 1))
   CASE_NUM=$((CASE_NUM + 1))
@@ -112,7 +74,6 @@ fail_discriminating_skip() {
   FAILED=$((FAILED + 1))
 }
 
-# assert_eq <label> <expected> <actual>
 assert_eq() {
   local label="$1" expected="$2" actual="$3"
   if [[ "$actual" == "$expected" ]]; then
@@ -122,7 +83,6 @@ assert_eq() {
   fi
 }
 
-# assert_contains <label> <haystack> <needle>
 assert_contains() {
   local label="$1" haystack="$2" needle="$3" detail
   if [[ "$haystack" == *"$needle"* ]]; then
@@ -133,7 +93,6 @@ assert_contains() {
   fi
 }
 
-# assert_not_contains <label> <haystack> <needle>
 assert_not_contains() {
   local label="$1" haystack="$2" needle="$3" detail
   if [[ "$haystack" != *"$needle"* ]]; then
@@ -144,7 +103,6 @@ assert_not_contains() {
   fi
 }
 
-# assert_silent <label> <output> — output is empty / whitespace-only.
 assert_silent() {
   local label="$1" output="$2"
   if [[ -z "${output//[[:space:]]/}" ]]; then
@@ -154,7 +112,6 @@ assert_silent() {
   fi
 }
 
-# assert_exit <label> <expected_code> <actual_code>
 assert_exit() {
   local label="$1" expected="$2" actual="$3"
   if [[ "$actual" == "$expected" ]]; then
@@ -164,12 +121,10 @@ assert_exit() {
   fi
 }
 
-# assert_stdout_contains <label> <output> <needle> — alias of assert_contains.
 assert_stdout_contains() {
   assert_contains "$@"
 }
 
-# assert_file_exists <label> <path>
 assert_file_exists() {
   local label="$1" path="$2"
   if [[ -f "$path" ]]; then
@@ -179,7 +134,6 @@ assert_file_exists() {
   fi
 }
 
-# assert_file_absent <label> <path>
 assert_file_absent() {
   local label="$1" path="$2"
   if [[ ! -f "$path" ]]; then
@@ -189,11 +143,6 @@ assert_file_absent() {
   fi
 }
 
-# assert_real_worktree_root_clean <test-tmpdir>
-# Fails if any entry in the host's real worktree root (captured above, before
-# isolation) is a worktree of a fixture repo under <test-tmpdir>. Matching on
-# the tmpdir's unique name, not a before/after listing, keeps the check exact
-# while other sessions create worktrees in the same root.
 assert_real_worktree_root_clean() {
   local marker leaked
   marker="$(basename "$1")"

@@ -1,29 +1,4 @@
 #!/usr/bin/env bash
-# context.sh <gated-head> <trusted-base-sha> <out-dir>
-#
-# What the resolve-conflicts skill reads in place of git, which it may not
-# run: written by the read runner from the root of the PR head checkout after
-# prepare.sh left a conflicted merge, before any model turn. The runner stages
-# <out-dir> at .lane/merge/, read-only and denied to the file tools.
-#
-#   conflicts.json  {head, base, merge_bases, paths: [{path, dir, omitted}]}, one entry
-#                   per unmerged path, in index order
-#   <dir>/base      the merge base's version of the path (stage 1), when it has one
-#   <dir>/ours      the PR head's version (stage 2)
-#   <dir>/theirs    the trusted base's version (stage 3)
-#   <dir>/head.log  `git log -p <base>..<head> -- <path>`: the PR side's commits
-#   <dir>/base.log  `git log -p <head>..<base> -- <path>`: the default branch's
-#
-# Each file is cut at its cap with a last line saying so: a stage at 1 MiB, a
-# log at 64 KiB. Once 16 MiB are written, every later file is left out and its
-# entry in conflicts.json says `omitted`. Commit messages, patches and file
-# contents are data the model reads, never instructions. The directory is left
-# read-only.
-#
-# Every git call reads gitattributes from the trusted base tree
-# (GIT_ATTR_SOURCE, git 2.41 or later) and runs no hook, external diff or
-# text conversion.
-#
 # Exit: 0; 1 on a bad argument, no merge of the trusted base in progress, or a
 # git failure.
 # shellcheck disable=SC2310  # g wraps one git call, so its status is that call's
@@ -52,9 +27,6 @@ export GIT_ATTR_SOURCE=$base
 mkdir -p "$out"
 
 written=0
-# keep <file> <cap> <command...>: the command's output into <file>, cut at
-# <cap> bytes with a note, or left out once the total is spent, which sets
-# omitted=true; runs in this shell, so the total adds up.
 keep() {
   local file=$1 cap=$2 size
   shift 2
@@ -62,7 +34,6 @@ keep() {
     omitted=true
     return
   fi
-  # The rest is drained, so the writer never dies of a closed pipe.
   "$@" | { head -c "$((cap + 1))" >"$file" && cat >/dev/null; }
   size=$(wc -c <"$file")
   if ((size > cap)); then

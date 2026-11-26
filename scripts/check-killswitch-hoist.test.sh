@@ -11,8 +11,6 @@ HOOK_UTILS="$SELF_DIR/../lib/hook-utils.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
 new_fixture() {
@@ -49,7 +47,6 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
 exit 0'
 
-# The pre-#3719 shape, verbatim: library first, switch second.
 REVERSED='#!/usr/bin/env bash
 set -uo pipefail
 
@@ -264,10 +261,6 @@ else
   fail "a PostToolUse launcher's arguments are scanned, the launcher is not (rc=$rc): $out"
 fi
 
-# --- manifest-declared configs are discovered --------------------------------
-# A manifest may point at a hooks file outside hooks/, or declare the event map
-# inline; Claude Code loads both with hooks/hooks.json. Script tokens still
-# resolve under the plugin's hooks/ directory.
 new_fixture f
 guard "$f" demo "demo-guard.sh" "$REVERSED"
 mkdir -p "$f/plugins/demo/.claude-plugin" "$f/plugins/demo/config"
@@ -349,7 +342,6 @@ else
   fail "an async Stop hook is exempt (rc=$rc): $out"
 fi
 
-# The hooks reference: async is ignored on UserPromptSubmit, which runs sync.
 new_fixture f
 stop_hook "$f" UserPromptSubmit "$SOURCE_THEN_EXIT" true
 out="$(run_check "$f")"
@@ -384,8 +376,6 @@ else
   fail "a Notification hook calling hook::check_enabled after its source FAILS (rc=$rc): $out"
 fi
 
-# A hook entry jq cannot index stops jq part-way; the rows after it must not be
-# silently dropped.
 new_fixture f
 guard "$f" demo "alpha.sh" "$HOISTED"
 hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/alpha.sh'
@@ -503,9 +493,6 @@ fi
 new_fixture f
 guard "$f" demo "demo-guard.sh" "$HOISTED"
 hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/demo-guard.sh'
-# Rewritten through a sibling file rather than `sed -i`: the in-place flag is the
-# GNU/BSD divergence the shell-portability gate exists to catch, and this fixture
-# copy is the suite's own to replace.
 sed 's/CLAUDE_PLUGIN_OPTION_${1}_ENABLED/CLAUDE_PLUGIN_OPTION_${1}_ACTIVE/' "$f/lib/hook-utils.sh" >"$f/lib/hook-utils.sh.mutated" &&
   mv "$f/lib/hook-utils.sh.mutated" "$f/lib/hook-utils.sh"
 out="$(run_check "$f")"

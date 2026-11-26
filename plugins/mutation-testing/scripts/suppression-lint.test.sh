@@ -83,8 +83,6 @@ lacks "accepted kinds:" "a clean run does not print the vocabulary"
 
 run 0 "sites hash in sorted order, not file order" "$valid"
 
-# --- the sort is on encoded bytes, not the locale's collation ------------------
-
 bytesort="$WORK/bytesort.md"
 cat >"$bytesort" <<'RECORD'
 ```yaml
@@ -448,7 +446,7 @@ run 2 "an unreadable vocabulary table fails closed" --kinds "$WORK/no-such-table
 run 2 "a vocabulary table with no kinds fails closed" --kinds "$norecord" "$valid"
 run 0 "--help exits clean" --help
 has "suppression-lint.sh <record>" "--help prints the usage block"
-has "reports as clean." "--help prints the header through its closing FAIL CLOSED sentence"
+has "no digest tool." "--help prints the exit codes"
 
 echo
 if [[ $fails -eq 0 ]]; then

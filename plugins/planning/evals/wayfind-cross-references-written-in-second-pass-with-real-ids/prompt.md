@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 14, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "Chart creates both decision items first, then wires the blocked-by edge and links the format item by absolute URL, never by a guessed issue number (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

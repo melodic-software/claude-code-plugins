@@ -1,51 +1,23 @@
 import type { EngineInterface, Register } from 'claude-code'
 
 import { askedRow, band } from './observer-band.tsx'
-import {
-  buildPrompt,
-  CLEAR_AFTER_PROMPTS,
-  disputeLine,
-  notedLine,
-  resolvedLine,
-  type Finding,
-  isKnown,
-  isResolved,
-  isStepCheck,
-  ledgerHeader,
-  ledgerSection,
-  noteFor,
-  parseReply,
-  remember,
-  checksToSkipAfterIgnored,
-  summarize,
-  type Trigger,
-} from './observer-live.ts'
+import { type CheckRequest, type Effect, type Event, type Options, type Rate, initial, readOptions, step } from './observer-machine.ts'
+import { buildPrompt, type Finding, isKnown, ledgerHeader, ledgerLine, ledgerSection, remember, summarize, type Trigger } from './observer-live.ts'
+import { commandKey, type HarnessEvent, harness, harnessInitial, hookRunsFrom, type Platform } from './observer-harness.ts'
 
 const DAY_MS = 86_400_000
 const USAGE = `Usage: /observer [on|off]. Bare /observer shows this session's and the last day's checks.`
 
 const PERSON_ORIGINS = ['composer', 'bridge']
+const PLUGIN = 'session-flow'
 
-type Card = { finding: Finding; ledger: string; source: string; promptsSurvived: number; isOpen: boolean }
 type Usage = { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }
 
-const fresh = () => ({
-  on: false,
-  sid: '',
-  dataDir: '',
-  liveFile: '',
-  ledgerDir: '',
-  gen: 0,
-  tools: 0,
-  inFlight: false,
-  ended: false,
-  card: null as Card | null,
-  asked: false,
-  dismissed: null as Finding | null,
-  icon: '◆',
-  rows: [] as object[],
-})
+const fresh = () => ({ sid: '', dataDir: '', liveFile: '', ledgerDir: '', projectDir: '', platform: 'unknown' as Platform, icon: '◆', rows: [] as object[] })
 let st = fresh()
+let m = initial()
+let hs = harnessInitial()
+let opts: Options
 
 const list = async ($: EngineInterface, key: string) => {
   const v = await $.store.get(key)
@@ -76,11 +48,10 @@ const mainCheckout = async ($: EngineInterface, dir: string) => {
   return /[\\/]\.git$/.test(common) ? common.replace(/[\\/]\.git$/, '') : dir
 }
 
-const KEEP_DAYS = 30
 const PRUNE =
   "const fs=require('fs'),path=require('path'),[d,cut]=process.argv.slice(1);for(const n of fs.readdirSync(d)){const p=path.join(d,n);if(/^(live-.*\\.jsonl|observations-.*\\.ndjson|status-.*\\.json|observer-.*\\.(log|lock))$/.test(n)&&fs.statSync(p).mtimeMs<Number(cut))fs.rmSync(p,{force:true})}"
 const prune = async ($: EngineInterface, now: number) => {
-  if (await $.fs.exists(st.dataDir)) await $.process.run(['node', '-e', PRUNE, st.dataDir, String(now - KEEP_DAYS * DAY_MS)], { timeoutMs: 10_000 }).catch(() => undefined)
+  if (await $.fs.exists(st.dataDir)) await $.process.run(['node', '-e', PRUNE, st.dataDir, String(now - opts.keepDays * DAY_MS)], { timeoutMs: 10_000 }).catch(() => undefined)
 }
 
 const iso = async ($: EngineInterface) => new Date(await $.clock.now()).toISOString()
@@ -140,103 +111,179 @@ const lastDayRows = async ($: EngineInterface) => {
   return rows.filter(r => Date.parse(String((r as { at?: string }).at)) >= since)
 }
 
+const accept = async ($: EngineInterface, req: CheckRequest, finding: Finding) => {
+  const redact = (t: string) => $.session.redact(t)
+  const f = { ...finding, finding: await redact(finding.finding), rule: await redact(finding.rule), evidence: await redact(finding.evidence) }
+  const ledger = await writeFinding($, await iso($), req.trigger, req.turnId, req.step, f)
+  await $.store.set('seen', remember(await list($, 'seen'), f.finding, opts.listMax))
+  return run($, { kind: 'finding-accepted', req, finding: f, ledger })
+}
+
+const perform = async ($: EngineInterface, fx: Effect): Promise<string | undefined> => {
+  switch (fx.kind) {
+    case 'check':
+      void runCheck($, fx.trigger, fx.turnId, fx.step)
+      return undefined
+    case 'fork':
+      return undefined
+    case 'accept':
+      return accept($, fx.req, fx.finding)
+    case 'finish':
+      return fx.outcome
+    case 'store':
+      await $.store.set(fx.key, fx.value)
+      return undefined
+    case 'record':
+      await record($, { at: await iso($), ...fx.row }).catch(() => undefined)
+      return undefined
+    case 'ledger':
+      await appendTo($, fx.path, ledgerLine(fx.line, await iso($), fx.finding, fx.detail)).catch(() => undefined)
+      return undefined
+    case 'deliver':
+      await deliver($, fx)
+      return undefined
+    case 'drop':
+      return undefined
+    case 'gate-fork':
+    case 'deny':
+      return undefined
+    case 'abort':
+      await $.turn.abort({ turnId: fx.turnId }).catch(() => undefined)
+      return undefined
+    case 'toast':
+      $.ui.toast(fx.text)
+      return undefined
+    case 'fill':
+      await $.prompt.fill({ text: fx.text, mode: 'append' })
+      return undefined
+    case 'after':
+      $.clock.after(fx.ms, () => void run($, fx.event))
+      return undefined
+    case 'invalidate':
+      $.ui.invalidate('ui.render')
+      return undefined
+  }
+}
+
+const dispatch = async ($: EngineInterface, e: Event) => {
+  const r = step(m, e, opts)
+  m = r.state
+  let outcome: string | undefined
+  for (const fx of r.effects) outcome = (await perform($, fx)) ?? outcome
+  return { outcome, effects: r.effects }
+}
+const run = async ($: EngineInterface, e: Event) => (await dispatch($, e)).outcome
+
+const deliver = async ($: EngineInterface, fx: Extract<Effect, { kind: 'deliver' }>) => {
+  const done = (error?: string) => run($, { kind: 'delivered', cardId: fx.cardId, delivery: fx.delivery, chars: fx.text.length, stepsLate: fx.stepsLate, error })
+  if (fx.delivery === 'submit') {
+    void $.prompt.submit({ text: fx.text }).then(
+      r => done('drop' in r && r.drop !== undefined ? `dropped: ${r.drop}` : undefined),
+      err => done(String(err)),
+    )
+    return
+  }
+  const r = await $.session.append({ message: { type: 'user', content: [{ type: 'text', text: fx.text }] } }).catch((err: unknown) => ({ deny: String(err) }))
+  await done(r.deny === undefined ? undefined : String(r.deny))
+}
+
+const gate = async ($: EngineInterface, command: string) => {
+  const { effects } = await dispatch($, { kind: 'gate-requested', command, paused: (await $.store.get('paused')) === true })
+  if (!effects.some(fx => fx.kind === 'gate-fork')) return undefined
+  await syncSession($)
+  const started = await $.clock.now()
+  const [seen, disputed, notRelevant] = [await list($, 'seen'), await list($, 'disputed'), await list($, 'notRelevant')]
+  const prompt = buildPrompt(seen, disputed, undefined, notRelevant, (await count($, 'unclear')) > 0, {
+    autoSend: true,
+    guidance: opts.guidance,
+    guidanceMax: opts.guidanceMax,
+    override: opts.checkPrompt,
+    heldCommand: command,
+  })
+  const timeout = new Promise<'timeout'>(resolve => $.clock.after(opts.gateTimeoutMs, () => resolve('timeout')))
+  const r = await Promise.race([$.model.fork({ prompt }), timeout]).catch(() => 'error' as const)
+  const reply = r === 'timeout' || r === 'error' ? { isAnswered: false as const, reason: r } : r.isAnswered ? { isAnswered: true as const, text: await $.session.redact(r.text) } : { isAnswered: false as const, reason: 'error' as const }
+  const usage = typeof r === 'object' && r.isAnswered ? r.usage : undefined
+  const done = await dispatch($, { kind: 'gate-replied', command, reply, latencyMs: (await $.clock.now()) - started, usage })
+  const deny = done.effects.find(fx => fx.kind === 'deny')
+  return deny?.kind === 'deny' ? deny.text : undefined
+}
+
 const syncSession = async ($: EngineInterface) => {
   const sid = await $.session.id()
   if (sid === st.sid) return
   st.sid = sid
   st.liveFile = `${st.dataDir}/live-${sid}.jsonl`
-  st.card = null
+  hs = harnessInitial()
+  await run($, { kind: 'session-changed' })
   st.rows = parseRows(await readOr($, st.liveFile))
 }
 
-const runCheck = async ($: EngineInterface, trigger: Trigger, turnId: string, step: number) => {
-  if (st.inFlight || (await $.store.get('paused')) === true) return
+const runCheck = async ($: EngineInterface, trigger: Trigger, turnId: string, stepIndex: number) => {
   await syncSession($)
-  const skip = await count($, 'skip')
-  if (skip > 0) {
-    await $.store.set('skip', skip - 1)
-    return
-  }
-  st.inFlight = true
-  const gen = st.gen
+  const { effects } = await dispatch($, { kind: 'check-requested', trigger, turnId, step: stepIndex, paused: (await $.store.get('paused')) === true, skip: await count($, 'skip') })
+  const fork = effects.find(fx => fx.kind === 'fork')
+  if (fork?.kind !== 'fork') return
+  const { req } = fork
   const started = await $.clock.now()
   let outcome = 'error'
   let usage: Usage | undefined
   try {
     const [seen, disputed, notRelevant] = [await list($, 'seen'), await list($, 'disputed'), await list($, 'notRelevant')]
-    const open = st.card
-    const r = await $.model.fork({ prompt: buildPrompt(seen, disputed, open?.finding.finding, notRelevant, (await count($, 'unclear')) > 0) })
-    if (!r.isAnswered) {
-      outcome = r.reason === 'nothing-to-fork' || r.reason === 'empty-reply' ? 'none' : String(r.reason).replace('-', '_')
-      return
-    }
-    usage = r.usage
-    const parsed = parseReply(r.text)
-    if ((await $.store.get('paused')) === true) {
-      outcome = 'paused'
-      return
-    }
-    const isCurrent = !st.ended && st.gen === gen
-    if (isCurrent && open !== null && st.card === open && isResolved(r.text)) {
-      await appendTo($, open.ledger, resolvedLine(await iso($), open.finding))
-      await record($, { at: await iso($), answer: 'resolved' })
-      st.card = null
-      $.ui.invalidate('ui.render')
-    }
-    if (!isCurrent) outcome = 'stale'
-    else if (parsed.kind !== 'finding') outcome = parsed.kind === 'none' ? 'none' : 'parse_failed'
-    else if (isKnown(parsed.value.finding, seen, disputed)) outcome = 'deduped'
-    else {
-      const redact = (t: string) => $.session.redact(t)
-      const f = { ...parsed.value, finding: await redact(parsed.value.finding), rule: await redact(parsed.value.rule), evidence: await redact(parsed.value.evidence) }
-      const ledger = await writeFinding($, await iso($), trigger, turnId, step, f)
-      await $.store.set('seen', remember(seen, f.finding))
-      if (ledger === undefined) outcome = 'unsafe_memory_root'
-      else {
-        st.card = { finding: f, ledger, source: trigger === 'step' ? `step ${step}` : 'turn end', promptsSurvived: 0, isOpen: false }
-        outcome = 'shown'
-        $.ui.invalidate('ui.render')
-      }
-    }
+    const extra = { autoSend: opts.autoSend, guidance: opts.guidance, guidanceMax: opts.guidanceMax, override: opts.checkPrompt }
+    const r = await $.model.fork({ prompt: buildPrompt(seen, disputed, req.open?.finding.finding, notRelevant, (await count($, 'unclear')) > 0, extra) })
+    if (r.isAnswered) usage = r.usage
+    const reply = r.isAnswered ? { isAnswered: true as const, text: r.text } : { isAnswered: false as const, reason: String(r.reason) }
+    outcome = (await run($, { kind: 'check-replied', req, reply, paused: (await $.store.get('paused')) === true, seen, disputed })) ?? 'error'
   } catch {
     outcome = 'error'
   } finally {
-    st.inFlight = false
+    m = step(m, { kind: 'check-finished' }, opts).state
     const latencyMs = (await $.clock.now()) - started
-    await record($, { at: await iso($), trigger, turnId, step, outcome, latencyMs, usage }).catch(() => undefined)
+    await record($, { at: await iso($), trigger, turnId, step: stepIndex, outcome, latencyMs, usage }).catch(() => undefined)
   }
 }
 
-const ASKED_MS = 20_000
+const runHarness = async ($: EngineInterface, e: HarnessEvent) => {
+  const r = harness(hs, e, opts, { repo: st.projectDir, platform: st.platform })
+  hs = r.state
+  for (const row of r.rows) await record($, { at: await iso($), ...row }).catch(() => undefined)
+  if (r.findings.length === 0 || !m.on || (await $.store.get('paused')) === true) return
+  const [seen, disputed, notRelevant] = [await list($, 'seen'), await list($, 'disputed'), await list($, 'notRelevant')]
+  for (const { check, finding } of r.findings) {
+    const perSession = check === 'context' || check === 'rate-limit'
+    if (isKnown(finding.finding, ...(perSession ? [] : [seen]), disputed, notRelevant)) continue
+    await accept($, { trigger: 'harness', turnId: '', step: -1, gen: m.gen, open: null, source: check }, finding).catch(() => undefined)
+  }
+}
 
-const answered = async ($: EngineInterface, answer: string, toast?: string) => {
-  st.card = null
-  st.asked = false
-  if (toast) $.ui.toast(toast)
-  await record($, { at: await iso($), answer }).catch(() => undefined)
-  await $.store.set('typedPast', 0)
-  await $.store.set('skip', 0)
-  $.ui.invalidate('ui.render')
+const hookLog = () => {
+  const dir = /^([\\/]|[A-Za-z]:)/.test(opts.hookLogDir) ? opts.hookLogDir : `${st.projectDir}/${opts.hookLogDir}`
+  return `${dir}/sessions/${st.sid}.jsonl`
 }
 
 export const register: Register = (on, options) => {
   st = fresh()
+  m = initial()
+  hs = harnessInitial()
   if (options.observer_enabled !== true) return
-  const stepCheck = options.observer_step_check !== false
-  const turnEndCheck = options.observer_turn_end_check === true
+  const read = readOptions(options)
+  opts = read.options
 
   on('session.start', async ($, e, next) => {
     const result = await next(e)
     if (!e.isInteractive || (await $.env.get('SESSION_FLOW_OBSERVER_ANALYSIS'))) return result
     const env = await $.process.hookEnv()
     st.dataDir = `${env.CLAUDE_PLUGIN_DATA}/session-flow-observer`
+    st.projectDir = env.CLAUDE_PROJECT_DIR || e.cwd
+    if (opts.harnessCheck) st.platform = (await $.session.info().catch(() => undefined))?.platform ?? 'unknown'
     st.sid = ''
     await syncSession($)
     st.ledgerDir = `${await mainCheckout($, env.CLAUDE_PROJECT_DIR || e.cwd)}/.work/running-retros`
     void prune($, await $.clock.now())
     st.icon = (await $.env.get('TERM')) === 'dumb' ? '*' : '◆'
-    st.ended = false
-    st.on = true
+    await run($, { kind: 'session-started' })
+    for (const key of read.invalid) await record($, { at: await iso($), answer: 'option_invalid', key }).catch(() => undefined)
     await $.command.register({ name: 'observer', description: 'Session observer: show its checks and token use, or turn its live checks on or off on this machine' })
     return result
   }).catch(($, e, next) => next(e))
@@ -244,16 +291,14 @@ export const register: Register = (on, options) => {
   on('command.run', { command: 'observer' }, async ($, e) => {
     const arg = e.args.trim().toLowerCase()
     if (arg === 'off' || arg === 'on') {
-      await $.store.set('paused', arg === 'off')
-      if (arg === 'on') st.on = !st.ended
-      if (arg === 'off' && st.card !== null) await answered($, 'dismissed')
+      await run($, { kind: 'command', arg })
       return { text: arg === 'off' ? 'Live checks paused on this machine until /observer on. The catch-up for ended sessions still runs.' : 'Live checks on.' }
     }
     if (arg !== '') return { text: USAGE }
     const paused = (await $.store.get('paused')) === true
     return {
       text: [
-        `live checks: ${paused ? 'paused (/observer on)' : 'on'}; step ${stepCheck ? 'on' : 'off'}, turn end ${turnEndCheck ? 'on' : 'off'}`,
+        `live checks: ${paused ? 'paused (/observer on)' : 'on'}; step ${opts.stepCheck ? 'on' : 'off'}, turn end ${opts.turnEndCheck ? 'on' : 'off'}, harness ${opts.harnessCheck ? 'on' : 'off'}`,
         '',
         'This session:',
         summarize(st.rows),
@@ -264,79 +309,93 @@ export const register: Register = (on, options) => {
     }
   })
 
-  on('session.end', ($, e, next) => {
-    st.ended = true
-    st.on = false
+  on('session.end', async ($, e, next) => {
+    await run($, { kind: 'session-ended' })
     return next(e)
   })
 
-  on('turn.start', ($, e, next) => {
-    if (e.agentId === undefined) {
-      st.gen += 1
-      st.tools = 0
+  on('turn.start', async ($, e, next) => {
+    await run($, { kind: 'turn-started', main: e.agentId === undefined, turnId: e.turnId, text: e.text ?? '', paused: (await $.store.get('paused')) === true })
+    if (e.agentId === undefined && opts.harnessCheck) await runHarness($, { kind: 'turn-started', at: await $.clock.now() })
+    return next(e)
+  })
+
+  on('tool.call', async ($, e, next) => {
+    const main = e.agentId === undefined
+    await run($, { kind: 'tool-called', main, name: e.tool })
+    const command = (e as { command?: unknown }).command
+    if (main && e.tool === 'Bash' && typeof command === 'string') {
+      const deny = await gate($, command.trim())
+      if (deny !== undefined) return { deny }
     }
-    return next(e)
-  })
-
-  on('tool.call', ($, e, next) => {
-    if (e.agentId === undefined) st.tools += 1
     return next(e)
   }).catch(($, e, next) => next(e))
 
   on('turn.step', async function* ($, e, next) {
-    if (st.on && stepCheck && isStepCheck(e.index, e.agentId)) void runCheck($, 'step', e.turnId, e.index)
+    await run($, { kind: 'step', main: e.agentId === undefined, turnId: e.turnId, index: e.index })
     return yield* next(e)
   })
 
-  on('turn.complete', ($, e, next) => {
-    if (st.on && turnEndCheck && e.agentId === undefined && !e.isAborted && st.tools > 0) void runCheck($, 'turn-end', e.turnId, -1)
+  on('turn.complete', async ($, e, next) => {
+    await run($, { kind: 'turn-completed', main: e.agentId === undefined, turnId: e.turnId, isAborted: e.isAborted, durationMs: e.durationMs, usage: e.usage })
+    if (e.agentId === undefined && opts.harnessCheck) {
+      await runHarness($, { kind: 'turn-completed', at: await $.clock.now(), usage: e.usage })
+      await runHarness($, { kind: 'hook-runs', runs: hookRunsFrom(await readOr($, hookLog()).catch(() => '')) })
+    }
     return next(e)
   })
 
+  if (opts.harnessCheck) {
+    on('tool.run', async ($, e, next) => {
+      if (e.agentId !== undefined) return next(e)
+      const started = await $.clock.now()
+      const result = await next(e)
+      const command = (e as { command?: unknown }).command
+      const key = commandKey(e.tool, typeof command === 'string' ? command : undefined)
+      void $.clock
+        .now()
+        .then(end => runHarness($, { kind: 'tool-ran', key, ms: end - started }))
+        .catch(() => undefined)
+      return result
+    })
+
+    on('session.measure', async ($, e, next) => {
+      await runHarness($, { kind: 'measured', tokens: e.context.tokens, percent: e.context.percent, rateLimits: e.rateLimits })
+      return next(e)
+    }).catch(($, e, next) => next(e))
+
+    on('session.compact', async ($, e, next) => {
+      await runHarness($, { kind: 'compacted' })
+      return next(e)
+    }).catch(($, e, next) => next(e))
+  }
+
   on('prompt.submit', async ($, e, next) => {
-    const card = st.card
-    if (card !== null && PERSON_ORIGINS.includes(e.origin.kind)) {
-      card.promptsSurvived += 1
-      if (card.promptsSurvived >= CLEAR_AFTER_PROMPTS) {
-        st.card = null
-        await record($, { at: await iso($), answer: 'ignored' }).catch(() => undefined)
-        const typedPast = (await count($, 'typedPast')) + 1
-        await $.store.set('typedPast', typedPast)
-        await $.store.set('skip', checksToSkipAfterIgnored(typedPast))
-        $.ui.invalidate('ui.render')
-      }
-    }
-    return next(e)
+    const ours = e.origin.kind === 'plugin' && e.origin.name === PLUGIN
+    const { effects } = await dispatch($, {
+      kind: 'prompt-submitted',
+      byPerson: PERSON_ORIGINS.includes(e.origin.kind),
+      ours,
+      paused: ours && (await $.store.get('paused')) === true,
+      typedPast: await count($, 'typedPast'),
+    })
+    const drop = effects.find(fx => fx.kind === 'drop')
+    return drop?.kind === 'drop' ? { drop: drop.reason } : next(e)
   }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const theirs = await next(e)
-    const card = st.card
-    if (e.props.hasSurvey || (card === null && !st.asked)) return theirs
+    const card = m.card
+    if (e.props.hasSurvey || (card === null && !m.asked)) return theirs
     const ui = $.ui.resolve(e)
     const { Box } = ui
     if (card === null) {
-      const rate = (answer: string) => async () => {
-        st.asked = false
-        const f = st.dismissed
-        if (answer === 'not_relevant' && f !== null) await $.store.set('notRelevant', remember(await list($, 'notRelevant'), f.finding))
-        if (answer === 'unclear') await $.store.set('unclear', (await count($, 'unclear')) + 1)
-        await record($, { at: await iso($), answer }).catch(() => undefined)
-        $.ui.invalidate('ui.render')
+      const rate = (answer: Rate) => async () => {
+        await run($, { kind: 'rate', answer, notRelevant: await list($, 'notRelevant'), unclear: await count($, 'unclear') })
       }
       return (
         <Box flexDirection="column" marginTop={1}>
-          {askedRow(ui, st.icon, {
-            helpful: rate('helpful'),
-            notRelevant: rate('not_relevant'),
-            unclear: rate('unclear'),
-            turnOff: async () => {
-              st.on = false
-              $.ui.toast('observer: live checks off for this session (/observer on resumes; /observer off pauses every session)')
-              await rate('turned_off')()
-            },
-            close: rate('closed'),
-          })}
+          {askedRow(ui, st.icon, { helpful: rate('helpful'), notRelevant: rate('not_relevant'), unclear: rate('unclear'), turnOff: rate('turned_off'), close: rate('closed') })}
           {theirs}
         </Box>
       )
@@ -346,33 +405,14 @@ export const register: Register = (on, options) => {
       <Box flexDirection="column" marginTop={1}>
         {band(ui, st.icon, f, card.source, card.isOpen, `this session: ${summarize(st.rows).split('\n')[1] ?? ''} (/observer for more)`, {
           noted: async () => {
-            const ok = await appendTo($, card.ledger, notedLine(await iso($), f)).then(() => true, () => false)
-            await answered($, 'noted', ok ? 'observer: noted in the running-retro ledger' : `observer: could not write ${card.ledger}`)
+            const ok = await appendTo($, card.ledger, ledgerLine('confirmed', await iso($), f)).then(() => true, () => false)
+            await run($, { kind: 'noted', ok })
           },
-          send: async () => {
-            await $.prompt.fill({ text: noteFor(f), mode: 'append' })
-            await answered($, 'sent')
-          },
-          dispute: async () => {
-            await $.store.set('disputed', remember(await list($, 'disputed'), f.finding))
-            await appendTo($, card.ledger, disputeLine(await iso($), f)).catch(() => undefined)
-            await answered($, 'disputed', 'observer: disputed; it will not be reported again')
-          },
-          why: () => {
-            card.isOpen = !card.isOpen
-            $.ui.invalidate('ui.render')
-          },
-          dismiss: async () => {
-            st.dismissed = f
-            await answered($, 'dismissed')
-            st.asked = true
-            $.clock.after(ASKED_MS, () => {
-              st.asked = false
-              $.ui.invalidate('ui.render')
-            })
-            $.ui.invalidate('ui.render')
-          },
-        })}
+          send: () => run($, { kind: 'send' }),
+          dispute: async () => run($, { kind: 'dispute', disputed: await list($, 'disputed') }),
+          why: () => void run($, { kind: 'why' }),
+          dismiss: () => run($, { kind: 'dismiss' }),
+        }, card.sent)}
         {theirs}
       </Box>
     )

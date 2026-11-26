@@ -2,11 +2,6 @@
 # test-scope: plugins/review/schemas/review.schema.json plugins/review/skills/setup/scripts/setup-apply.mjs plugins/review/lib/setup-apply.mjs plugins/review/lib/yaml-subset.mjs
 # test-scope: plugins/review/.claude-plugin/plugin.json plugins/review/lib/parse-concern-value.sh plugins/review/lib/resolve-convention-home.sh plugins/review/lib/yaml-subset.awk
 # test-scope: plugins/review/scripts/fixtures/standards-ref-heads-main.json plugins/review/scripts/fixtures/standards-trusted-actors.json
-# Tests for loosened-check-settings.mjs. Expected values come from the level
-# rules in reference/config.md: loosened_check_verdict is a policy floor (fail
-# in any valid layer wins, default fail) and loosened_check_patterns is the
-# union of every valid layer's entries; both read the repository value from the
-# default branch, never the head.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -126,7 +121,6 @@ R5B="$(new_repo c5b $'loosened_check_verdict: note\nloosened_check_patterns:\n  
 node "$SCRIPT_DIR/../skills/setup/scripts/setup-apply.mjs" --check --root "$R5B" >/dev/null
 assert_eq "case 5: a valid file passes the schema check" "0" "$?"
 
-# --- Case 6: the patterns option arrives through a file, never through a shell -
 S1="$TEST_TMPDIR/ran-dollar-paren"
 S2="$TEST_TMPDIR/ran-backtick"
 P6="$TEST_TMPDIR/patterns-c6"
@@ -152,7 +146,6 @@ assert_eq "case 6: an unreadable patterns file is a usage error" "2" "$?"
 node "$RESOLVE" --root "$R4" --ref origin/main --patterns-option '["test/**"]' >/dev/null 2>&1
 assert_eq "case 6: the shell-argument form is gone" "2" "$?"
 
-# --- Case 7: the spec gives a reason only when a trusted human wrote the issue --
 FAKE_BIN="$TEST_TMPDIR/bin"
 mkdir -p "$FAKE_BIN"
 # shellcheck disable=SC2016 # the stub's own variables expand when it runs, not here
@@ -186,7 +179,6 @@ assert_contains "case 7: with no --spec-issue the spec gives no reason" "$out" "
 node "$RESOLVE" --root "$R7" --ref origin/main --spec-issue '42; rm' >/dev/null 2>&1
 assert_eq "case 7: a --spec-issue that is not a number is a usage error" "2" "$?"
 
-# --- Case 7b: the list is read only from the default branch the resolver resolves --
 g "$R7" checkout -q -b head-branch
 g "$R7" commit -q -a -m "head adds stranger"
 g "$R7" update-ref refs/remotes/origin/head-branch HEAD
@@ -250,7 +242,6 @@ g "$R7S" update-ref refs/remotes/origin/main HEAD
 out="$(std_at '{"number": 42, "user": {"login": "stranger", "id": 999, "type": "User"}}')"
 assert_contains "case 7c: an unknown trusted_actors_source gives no reason" "$out" 'trusted_actors_source "elsewhere" is not one of repository, standards'
 
-# --- Case 8: with no trusted-actor list, a member human's issue gives a reason --
 spec_at() { (cd "$1" && PATH="$FAKE_BIN:$PATH" FAKE_GH_ISSUE=42 FAKE_GH_REPLY="$2" node "$RESOLVE" --root "$1" --ref origin/main --spec-issue 42 | grep '^loosened_check_spec: '); }
 out="$(spec_at "$R4" '{"number": 42, "author_association": "MEMBER", "user": {"login": "member", "id": 7, "type": "User"}}')"
 assert_contains "case 8: no list and a MEMBER human counts" "$out" "loosened_check_spec: counts"

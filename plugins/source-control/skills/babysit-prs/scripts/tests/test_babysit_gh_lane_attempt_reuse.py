@@ -115,10 +115,6 @@ class LaneAttemptReuseTests(unittest.TestCase):
         self.assertNotIn(f"{base}/attempts/2", self.reads)
 
     def test_an_earlier_attempts_kill_switch_notice_is_read(self) -> None:
-        # #10092's attempt 1: the kill-switch job wrote its notice and the
-        # reusable's caller job was skipped. The kill-switch job of an attempt
-        # that has a lane job, and one that neither succeeded nor failed, cost
-        # no read.
         rerun = {**self.run_record, "run_attempt": 2}
         notice = {
             "annotation_level": "notice",
@@ -145,10 +141,6 @@ class LaneAttemptReuseTests(unittest.TestCase):
         self.assertFalse(any("check-runs" in path for path in self.reads))
 
     def test_an_earlier_attempts_upstream_stop_is_read(self) -> None:
-        # The upstream-status gate failed attempt 1's kill-switch job with its
-        # error, and the reusable's caller job was skipped
-        # (babysit_review_evidence `_upstream_stopped`), on a head tested
-        # before the jobs got display names.
         rerun = {**self.run_record, "run_attempt": 2}
         error = {
             "annotation_level": "failure",

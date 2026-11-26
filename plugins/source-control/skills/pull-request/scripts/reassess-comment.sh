@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# Build the conversation comment `reassess --act` posts on a rework or close.
-#
-# The text is fixed and every value is a reference: no PR or issue text, local
-# path or free wording reaches a public comment, so it cannot mention anyone,
-# leak local data or read as a person's veto.
-#
-# Usage:
-#   reassess-comment.sh --verdict <rework|close> [--replaced-by <ref>] [--no-label] --evidence <ref>...
-#
-# A <ref> is a full https://github.com/ URL, a commit SHA, or #<number>.
-# --no-label is for a close where the label does not exist, so the comment
-# claims no hold.
-#
 # Exit 0, or 2 for a usage error (stdout empty).
 set -uo pipefail
 

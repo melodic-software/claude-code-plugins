@@ -1,114 +1,5 @@
 #!/usr/bin/env node
 
-// Operator-side publisher for the promotion-evidence events file
-// (promotion_evidence_source in reference/promotion-evidence-bootstrap.md) and the C3
-// promotion-evidence report. It reads GitHub only, through `gh api` GET calls and one read-only
-// GraphQL query, and never runs inside the lane: the lane must not be able to write its output.
-//
-// Usage: node publish-promotion-evidence.mjs --repo <owner/name> --since <ISO> --lane-login <login> [--lane-login ...]
-//          --gate-check <check or context name> [--gate-check ...] [--through <ISO>] [--ai-reviewer <login> ...] [--missed-blocking-label <name>] [--out <dir>]
-// Exit 0 = report printed (and published with --out); 1 = publish refused; 2 = usage or GitHub read error.
-//
-// Report mode (no --out) prints {repo, since, through, events, unresolvedReverts, gateFailures, noRungAutonomous, cells} to
-// stdout and writes nothing. --through defaults to, and is clamped to, now. With --out it also
-// writes <dir>/evidence.json (the events array) and <dir>/evidence.meta.json ({generated_at,
-// through, sha256, prev_sha256}). Both temp files are written before either rename, the events
-// file renamed first. It refuses when an existing evidence.json is not a JSON array, has no
-// sidecar or does not match the sidecar's sha256, holds a contrary event the new array lacks, or
-// holds an event whose `discovered` the new array changes, except a contrary event published
-// without one gaining the previous generated_at; a re-earned event the new array lacks is carried
-// forward instead. It refuses a new contrary event whose `discovered` is missing or does not parse.
-//
-// Cost: every run pages the repository's whole closed-PR history (one REST page per 100 closed
-// PRs, created ascending, so no merge is skipped while paging), then reads, per merged PR in the
-// window, one GraphQL query and the issue events of the PR and each linked issue, and per
-// autonomous merge its check runs and statuses.
-//
-// Autonomy follows babysit_merge_policy.py derive_auto_merge: the latest AddedToMergeQueueEvent's
-// actor and enqueuer, or merged_by when the merge bypassed the queue; a merge is autonomous when
-// any of them is null or not human (a User outside --lane-login, not `github-actions`, not a
-// `[bot]` login; derive_auto_merge's write-permission read is not made), or merged_by is a
-// --lane-login. Logins compare case-insensitively and exactly in REST spelling: a GraphQL `Bot`
-// actor gains `[bot]`, so a User owning an App's bare slug is never that App. GitHub records the
-// enqueuer as merged_by (probed 2026-10-12 on a queue-merged pull: merged_by.login matched the
-// AddedToMergeQueueEvent enqueuer), so --lane-login names any lane identity that runs as a User
-// (a machine user); an App lane is a Bot and counts without it. Recheck if merged_by stops
-// matching the enqueuer. For an App lane pass --lane-login as `name[bot]`, or its dispatch runs
-// and pins are not found.
-//
-// Deletion (#7518) refuses the publish rather than erasing a contrary event, inside --since..
-// --through (EvidenceGone, failClosedReason): a run_number gap between two runs of
-// FULL_RUN_WORKFLOW or CANARY_WORKFLOW created in the window ("run-deleted:"), and an issue or
-// pull number missing between two created in the window that reads 410 Gone ("issue-deleted:")
-// or names another repository ("issue-missing:"). The newest run or issue in the window, deleted
-// before a later one exists, leaves no gap. Each babysit-merge-demotion record a filer
-// (github-actions[bot] or a --lane-login) opened, with the marker in its body or any revision, or
-// an edit history that cannot be read whole, is a gate-failure on every cell at its creation and
-// at each repeat-failure comment inside the window: records only ever add events.
-//
-// Anything a lane can write into a PR or commit degrades to a listing or to no-rung-autonomous,
-// never to a refused publish. What refuses is GitHub itself being unreadable: a failed read, an
-// unparsable date, a compare that is neither ahead, identical nor behind.
-//
-// What counts (judgment where the contract names no GitHub source):
-// - An autonomous merge's rung is the one its lane pin names (`rung=C2|C3`, babysit_postmerge.py
-//   pin_comment, or enable-auto-merge.mjs pinBody for the pr-merge lane's native arm): the
-//   effective rung the gate enqueued or armed it under. No work-class label is read. A native
-//   auto-merge owes no pin but is credited by one the same way. A merge counts toward its rung's
-//   cells: C2 merges toward the C2 terms, C3 merges toward the C3 terms. An autonomous merge with
-//   no rung (no unedited lane pin at its head, a pin of the older shape naming none, another
-//   bot's merge, or an unreadable timeline page) is
-//   listed in noRungAutonomous, never counted toward a positive term, and each of its contrary
-//   events is emitted against every promotable cell. A human merge has no rung.
-// - C3-ai-review-blocking's positive evidence (its advisory-review count and its window) comes
-//   from autonomous rung-C3 merges only; its missed-blocking term counts confirmed misses on those
-//   and on human merges, so a human merge can only count against it. Autonomous C2 and no-rung
-//   merges are in neither. C3-auto-merge and the C2 terms count only autonomous merges of their
-//   rung.
-// - reverted-merge: an autonomous merge named by a merged PR body or a default-branch
-//   commit as `Reverts <owner/repo>#<n>` (GitHub's revert button) or `This reverts commit
-//   <sha>` (git revert); one event at each date a revert of the merge is seen, so a revert found
-//   later with an earlier date adds an event rather than moving a published one. A merged PR
-//   titled revert... with neither form is listed in unresolvedReverts for a human to read, as is
-//   a named target that is not a merged pull request or a SHA no commit has, so a bad reference
-//   cannot stop a publish. Every revert counts, whoever merged or enqueued the revert PR (a
-//   human, a bot or the lane) and whoever pushed a revert commit straight to the default branch
-//   (its git author can be forged anyway). The trade-off: a bot able to merge reverts can hold a
-//   cell down, which fails safe (it can only demote).
-// - gate-failure: only the post-merge gate counts: check runs and commit-status contexts on an
-//   autonomous merge's merge commit whose name is a --gate-check (required; none named is a
-//   usage error, never an empty gate). In this repository babysit-prs/scripts/babysit_postmerge.py
-//   reads the post-merge gate as the silent-revert canary (post-merge-detect-silent-revert.yml,
-//   check run `Silent-Revert Canary`, `Silent-revert canary` on a commit tested before the
-//   rename, on the merge commit; pass both as --gate-check) and the full pr-require-checks.yml run
-//   (aggregate job `CI Status`), scheduled or dispatched on a later SHA containing the merge. This
-//   script reads those workflow runs the same way (postMergeRuns) and, on the merge commit itself,
-//   the --gate-check check runs and contexts. Among the latter, every check run (filter=all, so a run later
-//   re-run green still counts) concluding failure, timed_out or startup_failure, and every
-//   status in state failure or error, whenever it completed. A run concluding cancelled,
-//   action_required, stale or anything else not green also counts, unless a later run of the
-//   same check name on that commit succeeded. The gate-pass term also fails while a run is in
-//   progress or a context's latest status is not success.
-// - verification-divergence: a human (a User actor outside --lane-login) applied
-//   --missed-blocking-label to a merged PR, read from the label timeline, so removing the label
-//   later does not undo it: against C2-auto-merge for a C2 merge, every cell for an autonomous
-//   merge with no rung, and C3-ai-review-blocking otherwise (a C3 merge or a human merge).
-// - A cell's window runs from its first counted merge to its last.
-// - re-earned: {cell, event: "re-earned", at, since}, emitted when the cell's report() predicate
-//   passes over only the merges after `since`, the latest `at` or `discovered` of any contrary
-//   event against the cell or a prerequisite (reEarned). It lets a demoted cell re-promote with no
-//   binding update.
-// - discovered: with `prior` (the published events, which main reads for --out), each contrary
-//   event carries {cell, event, at, discovered}: the run's `now` rounded up to a whole second the
-//   first time its key is published, else the value the prior file holds. An event that file
-//   holds without one (published before the field existed) is stamped once with that file's
-//   generated_at, rounded up to a whole second. Report mode passes no prior and sets none.
-//
-// Event shape and vocabulary: the autonomy plugin's check-security-binding.mjs (/autonomy:setup),
-// CONTRARY_EVIDENCE_EVENTS and resolveEffectivePromotion; restated here, not imported, because
-// no plugin reads another plugin's files. Predicate terms and suggested default thresholds:
-// plugins/autonomy/reference/guardrails/work-classes.md "Suggested default predicates".
-
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
@@ -127,7 +18,6 @@ const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 
 export class PublishError extends Error {}
 
-// Contrary evidence GitHub no longer lists: failClosedReason carries the stable reason prefix.
 export class EvidenceGone extends PublishError {
   constructor(reason) {
     super(`refusing to publish: ${reason}`);
@@ -141,7 +31,6 @@ function instant(value, name) {
   return ms;
 }
 
-// A REST path is read with GET; "graphql" runs a query (read-only: PULL_QUERY is the only one).
 function realGh(path, graphql) {
   const args = graphql
     ? ["api", "graphql", "-f", `query=${graphql.query}`, ...Object.entries(graphql.variables).flatMap(([key, value]) => ["-F", `${key}=${value}`])]
@@ -151,14 +40,9 @@ function realGh(path, graphql) {
   return JSON.parse(run.stdout);
 }
 
-// A reference a lane can write (a PR number, a commit SHA) that names nothing: listed, never fatal.
 export class UnresolvableError extends PublishError {}
 class IncompleteError extends PublishError {}
 
-// A failed `gh api` call. Only two answers are not read failures: GraphQL NOT_FOUND on the pull
-// request or discussion itself (data.repository.<key> null, every error path ending in that key),
-// which is returned as the answer, and REST 422 "No commit found for SHA", which is unresolvable. Any
-// other failure, a repository NOT_FOUND included, fails the publish.
 export function ghFailure(path, graphql, stdout, stderr) {
   let body = null;
   try {
@@ -195,15 +79,12 @@ const PULL_QUERY =
   "... on AutoMergeEnabledEvent{createdAt actor{__typename login}} ... on AutoMergeDisabledEvent{createdAt actor{__typename login}}}}}}}";
 const CELLS = ["C2-auto-merge", "C3-ai-review-blocking", "C3-auto-merge"];
 
-// A REST login (`app[bot]` for an App), compared exactly and case-insensitively.
 function loginKey(login) {
   return String(login ?? "")
     .trim()
     .toLowerCase();
 }
 
-// A GraphQL actor in REST spelling, as babysit_merge_policy.py actor_key: a `Bot` gains the
-// `[bot]` GraphQL omits, so a User who owns the bare slug `app` is never the App `app[bot]`.
 function actorKey(actor) {
   const login = loginKey(actor?.login);
   return actor?.__typename === "Bot" && login && !login.endsWith("[bot]") ? `${login}[bot]` : login;
@@ -233,27 +114,6 @@ function eventKey(event) {
 
 const byInstant = (a, b) => Date.parse(a.at) - Date.parse(b.at) || eventKey(a).localeCompare(eventKey(b));
 
-// The post-merge gate's workflow runs, read as babysit-prs/scripts/babysit_postmerge.py check()
-// and _judge() read them (same plugin, mirrored rather than imported across languages):
-// FULL_RUN_WORKFLOW runs from `schedule` and `workflow_dispatch`, and CANARY_WORKFLOW runs from
-// `push`, on the default branch, created at or after a merge (no upper bound), on a SHA that
-// contains it: compare <merge>...<run SHA>, as _Context.contains does. Attempt 1 decides; a red
-// full run is a flake only when a lane identity's attempt 2 passed. A merge is verified at the
-// later of its first green lane dispatch run and first green canary run, and runs created after
-// that are not its evidence; a compare that is behind means not contained. Only a verified merge
-// with nothing red or pending passes the gate, and only a lane dispatch created within
-// DISPATCH_DEADLINE of the merge verifies it, so a merge with no timely lane dispatch run
-// (check()'s 6-hour failure) is not passed. Departures, all toward a failure: a compare that is
-// diverged or unknown refuses the publish (check() reads it as not containing); a red full run
-// whose re-run has not come counts as red once DISPATCH_DEADLINE has passed since it completed
-// (check() waits on it); a red run covering several merges is a failure of each.
-//
-// Where check() files a Failure, this emits a gate-failure, so demotion counts match: a red full
-// or canary run (at the run's update time); no dispatch run by a lane identity created within
-// DISPATCH_DEADLINE of the merge, once that deadline has passed (at the deadline); and, for a
-// merge a lane identity enqueued, other than its own native auto-merge, the pin read-back
-// (read_pin): no unedited lane pin once the deadline has passed (at the deadline), or a pinned
-// SHA that is not headRefOid (at the merge).
 const FULL_RUN_WORKFLOW = "pr-require-checks.yml";
 const CANARY_WORKFLOW = "post-merge-detect-silent-revert.yml";
 const DISPATCH_DEADLINE_MS = 6 * 3_600_000;
@@ -265,9 +125,6 @@ function isoSeconds(msValue) {
 const ceilSecond = (msValue) => Math.ceil(msValue / 1000) * 1000;
 const legacyDiscovered = (generatedMs) => isoSeconds(ceilSecond(generatedMs));
 
-// babysit_postmerge.py read_pin: the newest comment by the identity whose first line is the pin
-// marker, read through at most PIN_PAGE_LIMIT pages; none, an edited one, or a longer thread is
-// no pin. A pin is {sha, rung}: the rung the gate enqueued under, null in the older shape.
 const PIN_RE = /^<!-- babysit-merge-pin sha=([0-9a-f]{40})(?: rung=(C2|C3))? -->$/;
 const PIN_QUERY =
   "query($owner:String!,$name:String!,$number:Int!,$c:String){repository(owner:$owner,name:$name){pullRequest(number:$number){" +
@@ -300,10 +157,6 @@ function postMergeRuns(gh, repo, branch, merges, { lane, throughMs }) {
   const floor = Math.min(...merges.map((m) => ms(m.mergedAt, `#${m.number} mergedAt`)));
   const created = encodeURIComponent(`>=${new Date(floor).toISOString().replace(/\.\d{3}Z$/, "Z")}`);
   const byCreated = (a, b) => a.createdMs - b.createdMs;
-  // check()'s _Context.on_branch: a run's head_branch is only a name, which a run on a tag named
-  // like the branch carries too, so a run counts only when its commit is on refs/heads/<branch>.
-  // Residual: the tip is read here, before the run listings, where check() reads it after them,
-  // so a run on a commit that lands between the two reads is off the branch here alone.
   const ref = gh(`repos/${repo}/git/ref/heads/${branch.split("/").map(encodeURIComponent).join("/")}`);
   const tip = ref?.object?.sha;
   if (!/^[0-9a-f]{40}$/.test(tip ?? "")) throw new PublishError(`refusing to publish: branch ${branch} has no tip commit`);
@@ -331,7 +184,6 @@ function postMergeRuns(gh, repo, branch, merges, { lane, throughMs }) {
     const key = `${sha}...${runSha}`;
     if (!compares.has(key)) {
       const status = gh(`repos/${repo}/compare/${key}?per_page=1&page=1`)?.status;
-      // behind: the run's SHA is an ancestor of the merge, so it does not contain it (as check()).
       if (status !== "ahead" && status !== "identical" && status !== "behind") {
         throw new PublishError(`refusing to publish: compare ${key} is ${JSON.stringify(status)}, so whether that post-merge run contains the merge is unknown`);
       }
@@ -399,17 +251,6 @@ function postMergeRuns(gh, repo, branch, merges, { lane, throughMs }) {
   };
 }
 
-// run_number starts at 1 per workflow, rises with each new run, and a re-run keeps it (pointer:
-// https://docs.github.com/en/actions/reference/workflows-and-actions/contexts, github.run_number;
-// as of 2026-10-15; recheck if that definition changes). So the runs created in [loMs, hiMs],
-// every event and branch, number consecutively unless one between them was deleted. A list
-// filtered by `created` returns at most RUN_RESULT_LIMIT results (pointer: REST "List workflow
-// runs for a workflow"; measured 2026-10-15, past them a page is empty and total_count reads 0,
-// and total_count stops at 2,500), so a range holding more is read in halves. The list is newest
-// first, but runs created in one second are not in run_number order (measured 2026-10-15), so a
-// range's newest number is the highest on its first page and its oldest the lowest on its last
-// page and the page before. A count that changes between those reads shifts the pages and could
-// hide one deletion, so it refuses, as does any answer that does not fit.
 const RUN_RESULT_LIMIT = 1000;
 function checkRunNumbers(gh, repo, workflow, loMs, hiMs) {
   const read = (lo, hi, page) => {
@@ -451,12 +292,6 @@ function checkRunNumbers(gh, repo, workflow, loMs, hiMs) {
   span(ceilSecond(loMs), Math.floor(hiMs / 1000) * 1000);
 }
 
-// Issues, pulls and discussions share one number sequence, so a number missing between two created
-// in the window was deleted (410 Gone, pointer: REST "Get an issue"; as of 2026-10-15), moved, or
-// is a discussion, which reads 404 there (measured 2026-10-15). Anyone can open a discussion, so
-// one is no gap unless a filer wrote it, which no filer should: converting an issue keeps it under
-// its number and numbers the discussion anew, so the check only fails closed. The listing is
-// newest first and stops at the first page reaching before the window.
 const DISCUSSION_QUERY = "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){discussion(number:$number){author{__typename login}}}}";
 function checkIssueNumbers(gh, repo, sinceMs, throughMs, filers) {
   const [owner, name] = repo.split("/");
@@ -491,11 +326,6 @@ function checkIssueNumbers(gh, repo, sinceMs, throughMs, filers) {
   }
 }
 
-// The demotion records post-merge-file-demotion-issues.yml files (and babysit_postmerge.py files under
-// the lane identity), read as babysit_merge_policy.py read_demotion finds candidates: issues a
-// filer opened, updated inside the window, whose body or any revision carries the marker, or
-// whose edit history is not whole. Each yields its creation and every repeat-failure comment a
-// filer posted; anyone can comment on a public record, and the alert workflow reads only its own.
 export const DEMOTION_MARKER = "<!-- babysit-merge-demotion";
 const DEMOTION_FILER = "github-actions[bot]";
 const DEMOTION_AGAIN = "The post-merge check found this failure again: ";
@@ -538,8 +368,6 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   const sinceMs = instant(since, "--since");
   const throughMs = Math.min(instant(through, "--through"), Date.now());
   const lane = new Set(laneLogins.map(loginKey));
-  // babysit_merge_policy.py is_human, without its permission read: a User that is not a lane
-  // login, `github-actions` or a `[bot]` login. A null actor is not human.
   const human = (actor) =>
     actor?.__typename === "User" && !lane.has(actorKey(actor)) && loginKey(actor.login) !== "github-actions" && !/\[bot\]$/i.test(actor.login ?? "");
   const inWindow = (at) => typeof at === "string" && Date.parse(at) >= sinceMs && Date.parse(at) <= throughMs;
@@ -555,8 +383,6 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   for (const workflow of [FULL_RUN_WORKFLOW, CANARY_WORKFLOW]) checkRunNumbers(gh, repo, workflow, sinceMs, throughMs);
   const filers = [...new Set([DEMOTION_FILER, ...laneLogins].map(loginKey))];
   checkIssueNumbers(gh, repo, sinceMs, throughMs, filers);
-  // Merges into the default branch only (babysit_postmerge.py _merged_since). Created-ascending
-  // order is stable while paging: an update moves no PR between pages.
   const seen = new Set();
   const merged = pages(gh, `repos/${repo}/pulls?state=closed&base=${encodeURIComponent(branch)}&sort=created&direction=asc`).filter(
     (pr) => inWindow(pr.merged_at) && !seen.has(pr.number) && seen.add(pr.number),
@@ -584,18 +410,10 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     return pin.rung ? { rung: pin.rung, reason: null } : { rung: null, reason: "the pin names no rung" };
   };
 
-  // Autonomy as babysit_merge_policy.py derive_auto_merge reads it: the latest
-  // AddedToMergeQueueEvent's actor and enqueuer, or merged_by when the merge bypassed the
-  // queue; any of them null or not human makes the merge autonomous.
   const autonomousOf = (g, timeline) => {
     const queued = timeline.filter((e) => e.__typename === "AddedToMergeQueueEvent").sort((a, b) => ms(a.createdAt, "a merge-queue event") - ms(b.createdAt, "a merge-queue event"));
     const actors = queued.length > 0 ? [queued.at(-1).actor, queued.at(-1).enqueuer] : [g.mergedBy];
     const byIdentity = actors.some((actor) => actor && lane.has(actorKey(actor)));
-    // babysit_postmerge.py native_auto_merge: a lane identity's own native auto-merge posts no
-    // pin. One lane identity opened it from this repository, enqueued it, and made its newest
-    // auto-merge enable or disable, an enable no later than the enqueue. When that identity
-    // opened it from this repository, unreadable auto-merge events refuse the publish, as the
-    // check reads them unreadable.
     const who = actorKey(g.author);
     const owned = byIdentity && lane.has(who) && actors.some((actor) => actor && actorKey(actor) === who) && g.isCrossRepository === false;
     if (owned && !Array.isArray(g.autoMerge?.nodes)) throw new PublishError(`refusing to publish: #${g.number} has no auto-merge events`);
@@ -637,8 +455,9 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   const revertsOf = (text) => {
     const targets = [];
     for (const m of (text ?? "").matchAll(/\bReverts\s+(?:([\w.-]+\/[\w.-]+))?#(\d+)/g)) {
-      // A GraphQL Int is at most 2^31 - 1; a longer digit string is never parsed into a Number.
       if (!m[1] || m[1].toLowerCase() === own) {
+        // A GraphQL Int is signed 32-bit, so a longer digit string is never parsed into a Number:
+        // https://spec.graphql.org/October2021/#sec-Int
         const valid = /^[1-9]\d{0,9}$/.test(m[2]) && BigInt(m[2]) <= 2147483647n;
         targets.push(valid ? { number: Number(m[2]) } : { invalid: m[2] });
       }
@@ -649,7 +468,6 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   const reverts = [];
   const unresolvedReverts = [];
   const gateFailures = [];
-  // Every revert counts, whoever merged or enqueued it (owner decision, #4588).
   for (const pr of merged) {
     const targets = revertsOf(pr.body);
     for (const target of targets) reverts.push({ ...target, at: pr.merged_at });
@@ -712,10 +530,6 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     return pinned.sha === r.head ? {} : { failure: { check: "pin read-back", conclusion: `headRefOid ${r.head} is not the pinned ${pinned.sha}`, at: r.mergedAt } };
   };
 
-  // Post-merge gate on each autonomous merge commit: the --gate-check runs and status contexts.
-  // A run that did not finish green or red (cancelled, action_required, stale) fails the gate
-  // unless a later run of the same check succeeded, so cancelling a red run cannot erase it.
-  // Then the post-merge workflow runs on later SHAs containing the merge (postMergeRuns).
   for (const r of tracked) {
     const wf = judgeWorkflows(r);
     const pin = r.byIdentity && !r.native ? readBack(r) : {};
@@ -888,7 +702,6 @@ function sha256(text) {
   return createHash("sha256").update(text).digest("hex");
 }
 
-// "wx" refuses a temp file that already exists rather than overwrite or remove it.
 function writeTemp(path, text) {
   const temp = `${path}.${process.pid}.tmp`;
   writeFileSync(temp, text, { flag: "wx" });

@@ -105,7 +105,6 @@ Describe 'Test-Drivers -- healthy baseline' -Tag 'check' {
 
 Describe 'Test-Drivers -- IsSigned=false is no longer a WARN trigger' -Tag 'check' {
     BeforeAll {
-        # WMI reports IsSigned=false for multiple drivers (common on dev machines).
         # spellchecker:ignore-next-line
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_PnPSignedDriver' } -MockWith {
             $nic = New-MockDriver -DeviceName 'Intel(R) NIC' -DriverVersion '12.0.0.0' `
@@ -131,8 +130,6 @@ Describe 'Test-Drivers -- IsSigned=false is no longer a WARN trigger' -Tag 'chec
 
     It 'does not flag WMI IsSigned=false as a finding' {
         $result = Invoke-DriversAsObject
-        # WMI IsSigned is noise -- SignerName from pnputil is the
-        # authoritative signal.
         $result.severity | Should -Be 'OK'
     }
 }

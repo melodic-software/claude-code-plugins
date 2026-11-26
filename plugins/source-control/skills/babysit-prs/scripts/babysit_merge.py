@@ -278,17 +278,10 @@ def merge_hold_label(labels: Iterable[Any], *, human_gated: str | None) -> str |
 
 EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}$")
 
-# GitHub's own fixed enum contract. MergeStateStatus values meaning "mergeable,
-# all commit status passing": CLEAN on github.com, HAS_HOOKS when the repo has
-# pre-receive hooks (GHES) -- GitHub returns one OR the other, so both are ready.
+# GitHub reports a mergeable PR with passing status as CLEAN, or as HAS_HOOKS with pre-receive hooks:
+# https://docs.github.com/en/graphql/reference/pulls
 READY_MERGE_STATES = {"CLEAN", "HAS_HOOKS"}
 
-# The commit status pr-merge posts on a head it left unarmed
-# (.github/scripts/pr-merge/enable-auto-merge.mjs UNARMED_CONTEXT). It reports
-# an earlier refusal and is no input to this one: counted, it fails the gate's
-# failing-checks rule and holds `mergeStateStatus` at UNSTABLE, so the PR stays
-# refused after the refusal's cause clears and the run that would post the
-# passing status never arms it.
 UNARMED_STATUS_CONTEXT = "pr-merge/unarmed"
 
 
@@ -299,11 +292,6 @@ def is_unarmed_status(check: dict[str, Any]) -> bool:
     )
 
 
-# The two AI review lanes `--auto` waits for. `ci-status` is the only required
-# check and does not wait on these separate workflows, so auto-merge armed
-# before both pass on the live head could merge ahead of their review. Each
-# lane maps to its `review_lane_checks` `merge` names, read only from the
-# operator's settings: https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-config-delivery/README.md
 AI_REVIEW_CHECKS: dict[str, tuple[str, ...]] = {
     f"{lane}-status": merge
     for lane, (_, _, merge) in merge_settings.load().review_lane_checks.items()
@@ -316,29 +304,6 @@ def is_ai_review_check(check_name: str, names: tuple[str, ...]) -> bool:
     return any(full == n if " / " in n else segment == n for n in names)
 
 
-# An AI review check that failed on the Claude usage limit carries a
-# lane-outcome record of class `rate-limit` on its check run (ci-workflows
-# `.github/actions/report-lane-outcome`); one whose review post hit GitHub's
-# API rate limit, or whose runner isolation or CLI install failed, carries the
-# lane's publish failure line. Under `--merge` the gate re-runs that check's
-# workflow run instead of holding on it until a person re-runs it, on exactly
-# the classes `review_evidence.GATE_RERUN_CLASSES` names, so the re-run's
-# attempt binds (`review_evidence.rerun_binds` accepts more: a rejected
-# credential or a kill-switch stop, which the gate leaves to a person).
-# A rate limit is re-run once it has reset, and each class resets on its own
-# window. A `rate-limit` is the Claude plan's session limit. "Reset" is
-# conservative: the shortest plan limit is a five-hour session window
-# (https://support.claude.com/en/articles/11145838, checked 2026-10-09), so
-# five hours after the failure that window has reset whenever it started. A
-# weekly limit outlasts it; the re-run then fails again and stays failed,
-# since a run is re-run at most once. A `publish-rate-limit` is GitHub's
-# installation REST pool; our decision is to wait one hour after the failure
-# (read its reset window at https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#primary-rate-limit-for-github-app-installations).
-# With both classes on one check the longer wait applies. A failed install is
-# re-run at once: a slow package mirror is not a window to wait out. So is a
-# run an outage lost (`review_evidence.LOST`), once nothing shows its lane
-# posted on the head. Any class the gate re-runs that is not listed here waits
-# the longer plan-window delay.
 RATE_LIMIT_RERUN_DELAY = timedelta(hours=5)
 PUBLISH_RATE_LIMIT_RERUN_DELAY = timedelta(hours=1)
 PUBLISH_RATE_LIMIT = "publish-rate-limit"
@@ -346,8 +311,6 @@ NO_WAIT_RERUN_CLASSES = frozenset(
     {review_evidence.INSTALL_FAILED, review_evidence.LOST}
 )
 LOST_CHECK_STATES = frozenset(c.upper() for c in review_evidence.LOST_CONCLUSIONS)
-# The opening of the report reason for a lost run whose lane already posted
-# (babysit_merge_skip.STABLE_RERUNS keys on it).
 LEFT_TO_A_PERSON = "left to a person: "
 ACTIONS_JOB_URL_RE = re.compile(r"/actions/runs/\d+/job/(\d+)")
 
@@ -463,7 +426,6 @@ def rerun_rate_limited_review(
     else:
         classes = review_evidence.rerun_classes(lane, {"annotations": annotations})
     if not classes or not classes <= review_evidence.GATE_RERUN_CLASSES:
-        # babysit_merge_skip.STABLE_RERUNS keys on this reason's opening.
         report["reason"] = (
             "failure class is not one the gate re-runs ("
             + ", ".join(sorted(review_evidence.GATE_RERUN_CLASSES))
@@ -491,8 +453,6 @@ def rerun_rate_limited_review(
         report["reason"] = f"could not read the attempt: {type(exc).__name__}: {exc}"
         return report
     conclusion = first.get("conclusion")
-    # A lane job can finish while a sibling job keeps its run open; the gate
-    # reads the attempt again until it concludes.
     if conclusion is None:
         report["reason"] = "attempt 1 has not concluded yet"
         return report
@@ -572,22 +532,10 @@ def _pr_number(ref: Any) -> int | None:
     return int(match.group(1)) if match else None
 
 
-# The async merge API (`PUT .../pulls/{n}/merge-async`) answers with a request
-# UUID and runs the merge in the background; the gate polls it to a terminal
-# status for at most this long, at the API budget's 90-second wait cadence
-# (reference/providers/github/README.md#api-budget). A request still pending
-# past the bound is left to GitHub: the next run's PUT returns 409 with the
-# same UUID and polls again. The API's response codes and statuses:
-# https://docs.github.com/rest/pulls/pulls?apiVersion=2026-03-10#merge-a-pull-request-asynchronously
 ASYNC_MERGE_POLL_TIMEOUT_SECONDS = 90.0
 ASYNC_MERGE_POLL_INTERVAL_SECONDS = 90.0
 ASYNC_TERMINAL_STATUSES = frozenset({"merged", "enqueued", "failed"})
 ASYNC_UUID_RE = re.compile(r"[0-9A-Za-z-]{1,64}")
-# A `gh pr merge` the queue base took can read back as neither queued, armed,
-# nor merged for a moment. The run reads the GraphQL-only queue state once,
-# per the API budget; a result unseen is recorded unconfirmed. Later runs, at
-# least one loop wake apart, hold it while it stays unseen, and the
-# QUEUE_UNCONFIRMED_LATER_READS-th such run calls it dequeued.
 QUEUE_UNCONFIRMED_LATER_READS = 2
 
 
@@ -756,11 +704,6 @@ def branch_rules(repo: str, branch: str, *, shared: bool = True) -> dict[str, ob
         "requireUpToDate": False,
     }
     try:
-        # `{branch}` is one path parameter. Percent-encode it, including `/`,
-        # so a base such as release/1.x stays a single segment. quote(..., safe="")
-        # matches Go's url.PathEscape, which go-github uses for this endpoint
-        # (github.com/google/go-github repos_rules.go, ListRulesForBranch).
-        # gh 2.99.0 forwards that path unchanged.
         key = f"{repo}|{branch}"
         rules = (
             run_cache.get(RULES_SECTION, key, run_cache.MAX_AGE)
@@ -800,12 +743,6 @@ def branch_rules(repo: str, branch: str, *, shared: bool = True) -> dict[str, ob
             ):
                 summary["requireUpToDate"] = True
         elif rtype == "pull_request":
-            # Absence and unreadability are different facts. No key means the
-            # rule requires no reviews, which is 0. A key holding anything this
-            # code cannot read as a count -- null, "", 0.0, [], {} -- means a
-            # requirement IS stated and its size is unknown, so it counts as
-            # one: a falsy non-int must not collapse to 0, which would be the
-            # single fail-OPEN step in a fold that may only ever over-report.
             if "required_approving_review_count" not in params:
                 count = 0
             else:
@@ -829,11 +766,6 @@ def branch_rules(repo: str, branch: str, *, shared: bool = True) -> dict[str, ob
     return summary
 
 
-# Distinct remedies per verification reason: `unsigned`, `no_user`, and
-# `unknown_key` are different problems fixed in different places, so they must
-# never collapse into one message. `no_user` in particular is the trap #2162
-# keeps producing -- the signature itself is VALID, and nothing else in the
-# loop says why GitHub still reports verified:false.
 SIGNATURE_REMEDIES = {
     "unsigned": (
         "the commit carries no signature -- configure commit signing on the "
@@ -950,9 +882,6 @@ def find_distinct_bot_approval(
             continue
         if not is_bot(login, typename, approver_bot_logins):
             continue
-        # A bot, but it must be the configured approver identity: `is_bot` accepts
-        # any `[bot]`/Bot-typed login, so without this an arbitrary installed
-        # App's approval would authorize a tier merge past the configured boundary.
         if not (login_norm & approver_norm):
             continue
         commit_oid = dig(review, "commit", "oid")
@@ -963,17 +892,7 @@ def find_distinct_bot_approval(
 
 
 DECISION_DEFAULT_MARKER_RE = re.compile(r"decision[ -]defaulted", re.I)
-# GitHub author associations that identify a maintainer able to exercise the
-# "veto before merge" window: the operators the ratification signal must come
-# from. COLLABORATOR is deliberately excluded -- it is granted per-repo push
-# access, not the maintainer role that owns the veto.
 RATIFYING_ASSOCIATIONS = frozenset({"OWNER", "MEMBER"})
-# A maintainer clears the veto only with an explicit ratification signal -- a
-# small, closed, whole-word token set -- not merely any later comment (an
-# unrelated "thanks" must not ratify). Matching is strict/fail-closed: a comment
-# without a signal (or carrying a withheld-approval negation) does not clear, so
-# an ambiguous maintainer comment over-holds to the human list. Keep this set in
-# sync with the contract documented in reference/safety.md.
 RATIFICATION_SIGNAL_RE = re.compile(
     r"\b(?:ratif(?:y|ied)|approved?|confirmed?)\b", re.I
 )
@@ -1103,9 +1022,6 @@ def _human_comments(
 ) -> list[tuple[str, str, str, str]]:
     corpus: list[dict[str, Any]] = list(fetch_issue_comments(repo, number))
     corpus.extend(reviews)
-    # Inline review-thread comments are neither issue comments nor review
-    # summaries; a human veto left inline whose thread is later resolved would
-    # otherwise escape both the base unresolved-thread gate and this scan.
     if review_comments is None:
         review_comments = fetch_pull_request_review_comments(repo, number)
     corpus.extend(
@@ -1249,10 +1165,6 @@ def evaluate_autopilot_tier(
 
     if reviews is None:
         reviews = fetch_pull_request_reviews(repo, number)
-    # Collapse to each actor's latest decisive review before accepting a tier
-    # approval: a bot that approved and then submitted CHANGES_REQUESTED (or had
-    # its approval dismissed) on the same head must no longer count as the
-    # approver, even when another approval keeps the base reviewDecision APPROVED.
     decisive_reviews = latest_reviews_by_author(
         {"reviews": reviews}, decisive_only=True
     )
@@ -1262,11 +1174,6 @@ def evaluate_autopilot_tier(
     if approval is not None and approval_reports_blocking(
         str(approval.get("body") or "")
     ):
-        # The latest distinct-bot approval ratifies the live head but its own body
-        # raises a structured high-severity finding. An approve-with-blocking-
-        # findings verdict is not a clean tier approval, so it counts as no
-        # approval (not a human blocker) -- a since-superseded earlier clean
-        # approval must not be honored past the latest blocking verdict. See #621.
         blockers.append(
             "distinct-bot approving review reports blocking findings in its body "
             "(CRITICAL/IMPORTANT or a P0-P3 severity marker) -- an "
@@ -1280,11 +1187,6 @@ def evaluate_autopilot_tier(
             "(need author != approver via bot identity, approval unchanged since head)"
         )
 
-    # A configured approver/lane account GitHub misreports as a `User` classifies
-    # as a bot here, so its clean review body ("no blocking issues") does not
-    # self-block the very approval `find_distinct_bot_approval` accepted -- the
-    # "a bot's blocking-looking prose is not a human stop" rule extends to
-    # configured bots that lack a `[bot]` suffix.
     human_blocking = human_blocking_logins(
         repo, number, reviews, review_comments, tier.automation_actor_config
     )
@@ -1665,10 +1567,6 @@ def evaluate(
     unattended: merge_policy.UnattendedPolicy | None = None,
 ) -> dict[str, Any]:
     owner = split_owner(repo)
-    # `closingIssuesReferences` is requested only when the autopilot merge tier
-    # is configured, because only the tier reads it. The field is GraphQL-only,
-    # so asking for it on the default gate path made every run of the base gate
-    # depend on a surface it never consumed.
     view_fields = [
         "state",
         "isDraft",
@@ -1702,10 +1600,6 @@ def evaluate(
     checks_by_key: dict[tuple[str, str, str], dict[str, Any]] = {
         check_identity_key(check): check for check in checks["checks"]
     }
-    # Stack membership is read only under `stacked` (the opt-in), so the default
-    # gate makes no request it did not make before. A layer above the bottom is
-    # governed by the stack's trunk, not its literal base: GitHub determines a
-    # stack's merge requirements from the bottom layer's base branch.
     base_ref = str(pr.get("baseRefName") or "")
     stack: dict[str, Any] | None = None
     stack_error: str | None = None
@@ -1763,10 +1657,6 @@ def evaluate(
     unmet_only_running = all(r["category"] in (None, "pending") for r in unmet)
 
     blockers: list[str] = []
-    # Blockers that only mean "a check is still running". `--auto` may arm over
-    # them and nothing else: GitHub's auto-merge waits out a running required
-    # check, the AI review checks are gated separately below, and any other
-    # running check is advisory and does not hold a merge.
     waiting: list[str] = []
     if owner not in allowed:
         blockers.append(f"owner {owner!r} out of scope")
@@ -1796,9 +1686,6 @@ def evaluate(
         blockers.append(
             f"mergeable={pr.get('mergeable')} (conflict or still computing)"
         )
-    # UNSTABLE is a non-required check not passing. When the only failing check
-    # is the unarmed status, that status is the cause, so the state counts as
-    # ready; a running check still holds through the pending-checks rule.
     unstable_from_unarmed_only = (
         pr.get("mergeStateStatus") == "UNSTABLE" and unarmed_failing and not failing
     )
@@ -1823,13 +1710,6 @@ def evaluate(
             f"reviewDecision={review_decision or 'none'}"
         )
     if threads is None:
-        # Readiness is UNPROVEN, not clean: review-thread resolution is served
-        # only over GraphQL, and sandboxed sessions (Claude Code on the web and
-        # remote execution) refuse GraphQL; the pointer record sits beside
-        # `GRAPHQL_UNAVAILABLE_MARKERS` in babysit_gh.py. Every other input above was
-        # re-sourced over REST; this one has no REST equivalent, and
-        # `reference/safety.md` forbids substituting a lesser signal for a gate
-        # verdict, so the gate holds instead of approximating one.
         blockers.append(
             "unresolved review threads could not be read: GitHub's GraphQL API "
             "is not served to this session, and thread resolution has no REST "
@@ -1866,9 +1746,6 @@ def evaluate(
             "support for stacks is not relied on yet; merge the stack by hand"
         )
     elif merge_queue_required and not stack_mode and not rules_base:
-        # The async API enqueues a PR on the default branch. Any other base keeps
-        # the prior hold: an unconfirmed stack layer there could enqueue the
-        # layers below it with them.
         default_branch = repository_default_branch(repo)
         if not default_branch or base_ref != default_branch:
             blockers.append(
@@ -1897,8 +1774,6 @@ def evaluate(
             f"author {author_login!r} is a dependency manager "
             "-- held (pass --allow-dependency to override)"
         )
-    # On an unprotected base, CLEAN proves nothing (no required checks/reviews).
-    # A non-self author's PR there is held unless explicitly allowed.
     author_is_self = is_self_login(author_login, self_logins)
     if base_is_unprotected and not author_is_self and not allow_unprotected:
         blockers.append(
@@ -1984,12 +1859,6 @@ def evaluate(
                 "governed this merge -- held (pass --allow-unprotected to override)"
             )
 
-    # CLEAN proves an up-to-date head only where the base requires one: under
-    # loose required checks GitHub merges a behind head, and a squash of it can
-    # drop base commits. A merge queue tests the PR against the latest base
-    # itself, so a queue base needs no compare. Evaluated after every other
-    # hold but a running check, for the per-cycle cost reason above, and before
-    # `--auto` arms over those running checks.
     freshness: dict[str, Any] = {"checked": False, "compare": None, "behind": None}
     if (
         not merge_queue_required
@@ -2045,9 +1914,6 @@ def evaluate(
         blockers.append(f"{UNATTENDED_REFUSED}{unattended.reason}")
 
     ready = not blockers
-    # `--auto` needs both AI review checks at SUCCESS in the rollup, which is the
-    # live head's. A draft skips both lanes, so neither an absent nor a SKIPPED
-    # check (which the check buckets count as success) passes.
     ai_review_holds = [
         f"AI review check {lane!r} has not succeeded on the live head"
         for lane, names in AI_REVIEW_CHECKS.items()
@@ -2071,8 +1937,6 @@ def evaluate(
     ]
     ai_review_holds += stack_result.get("aiReviewHolds") or []
     auto_blockers = [b for b in blockers if b not in waiting] + ai_review_holds
-    # GitHub auto-merge is armed only over a plain direct merge; a queue or a
-    # stack is merged through the async API once the PR is fully ready.
     if not ready and merge_queue_required:
         auto_blockers.append(MERGE_QUEUE_AUTO_HOLD)
     if not ready and stack_mode:
@@ -2105,8 +1969,6 @@ def evaluate(
         "requiredSignatures": signature_result,
         "requiredChecks": required_check_status,
         "graphqlAvailable": graphql_available,
-        # None, never 0, when thread resolution could not be read: a count of
-        # zero is a claim this run cannot make.
         "unresolvedThreadCount": None if threads is None else len(threads),
         "unresolvedThreads": threads,
         "threadResolutionProven": threads is not None,
@@ -2531,8 +2393,6 @@ def enqueue_pull_request(repo: str, number: int, *, sha: str) -> dict[str, Any]:
     ]
     error_text = "; ".join(e for e in errors if e)
     if is_json_object(entry):
-        # An entry is a live enqueue even beside errors: reported enqueued so
-        # it is recorded and checked against the merge.max-in-flight cap.
         record["status"] = "enqueued"
         record["success"] = True
         record["mergeQueue"] = {
@@ -2590,9 +2450,6 @@ def async_merge(
     accepted = request["ok"] or request["httpStatus"] == 409
     if not accepted:
         return record
-    # A 409 names a request this run did not send, possibly another actor's.
-    # Options it states must be this run's; options it omits leave the
-    # read-back below to confirm the head that merged.
     expected = {"expected_head_sha": sha, "merge_action": merge_action}
     if request["httpStatus"] == 409 and any(
         request["options"].get(key, value) != value for key, value in expected.items()
@@ -2969,10 +2826,6 @@ def _queue_position(queue: dict[str, Any]) -> str:
     return f"{where}, state {queue.get('state') or 'unknown'}"
 
 
-# A queue push the signed-commit rule refuses is removed as
-# `branch_protection_failure`. One known cause: GitHub wraps the body into the
-# squash message, and a message line starting with `committer ` breaks
-# the commit's signature (#7279, #7360). Requeuing rebuilds the same message.
 SQUASH_SIGNATURE_CAUSE = (
     "if the base requires signed commits, the likely cause is a body line that "
     "GitHub's 72-character wrap starts with 'committer ', which breaks the squash "
@@ -3052,9 +2905,6 @@ def queued_entry_hold(
 
 
 RISK_MARKER = whole_review.RISK_MARKER
-# Appended to the reasons comment when its refusal persisted: the rewrite
-# stamps the comment beside the label it explains, which the head-moved
-# clear (clear-escalations.mjs) needs to pair them.
 RISK_ESCALATION_LINE = (
     "This refusal has stood unchanged at this head, so a person is needed: "
     "the pr-merge lane added the human-gated label."
@@ -3063,9 +2913,6 @@ VERIFY_ESCALATION_MARKER = "<!-- babysit-merge-verify-escalation -->"
 QUEUE_EJECTION_MARKER = "<!-- babysit-merge-queue-ejections -->"
 MAJOR_ESCALATION_MARKER = "<!-- babysit-merge-dependabot-major -->"
 SHARED_COPY_ESCALATION_MARKER = "<!-- babysit-merge-shared-copy-escalation -->"
-# The attended queue's escalation marker (work-items reference
-# escalation-marker.md): first line of the held-major comment, so
-# /work-items:attend-queue lists the pull request as escalated.
 ATTEND_QUEUE_MARKER = "<!-- work-items:escalation lane=pr-merge kind=escalated -->"
 UNATTENDED_REFUSED = "unattended merge refused: "
 STOP_REFUSALS = (
@@ -3142,14 +2989,11 @@ def _lane_evidence(
             f"repos/{repo}/pulls/{number}/commits?per_page=100", f"#{number} commits"
         ),
     )
-    # The commits list is capped: a longer head has pushers no list names.
     total = pr.get("commits")
     if not isinstance(total, int) or isinstance(total, bool) or total > len(commits):
         raise HeadPusherUnproven(
             f"head-pusher-unproven:commits-listed:{len(commits)}-of:{total}"
         )
-    # A commit whose author or committer email no account claims names no
-    # login to exclude, so whoever pushed it is not proven non-human.
     unlinked = [
         str(item.get("sha") or "?")[:12]
         for item in commits
@@ -3382,7 +3226,6 @@ def _force_pushed_heads(repo: str, number: int) -> list[str]:
         if not isinstance(node, dict) or "beforeCommit" not in node:
             raise RuntimeError(f"#{number} force pushes: unread")
         oid = json_object(node["beforeCommit"]).get("oid")
-        # GitHub leaves beforeCommit null when the old commit is gone.
         if oid is not None:
             heads.append(str(oid))
     return heads
@@ -3534,7 +3377,8 @@ def _head_file(repo: str, head: str) -> Callable[[str, str], str | None]:
         files = json_object(
             gh_json(["api", f"repos/{repo}/compare/{original}...{head}"])
         ).get("files")
-        # The comparison lists at most 300 files; a full page may hide one.
+        # The comparison lists at most 300 files; a full page may hide one:
+        # https://docs.github.com/en/rest/commits/commits#compare-two-commits
         if (
             not is_json_array(files)
             or len(files) >= 300
@@ -3618,9 +3462,6 @@ def score_unattended(
             LaneEvidence(lane, False, "evidence-missing", None)
             for lane in review_evidence.LANES
         )
-    # An adopted pull request's trusted author: the denied paths and manifest review hold only
-    # paths someone else's commits touched, a lane's fix among them. A
-    # model-driven App's own lines count only under `MODEL_APP_OWN` (Q14 (c)).
     own = (
         merge_policy.own_paths(
             repo,
@@ -3632,9 +3473,6 @@ def score_unattended(
         if eligible.adoption
         else frozenset()
     )
-    # A trusted person's own gate-path lines on a head the verifier reader
-    # passed above clear on a clean security review (owner direction
-    # 2026-10-27); with no reader run, nothing does.
     reviewed = (
         merge_policy.author_reviewed_paths(
             repo,
@@ -3648,8 +3486,6 @@ def score_unattended(
         else frozenset()
     )
     files = merge_policy.with_contents(repo, pr, files)
-    # The pr-merge lane's switches (owner decisions Q624 and Q15); the local
-    # lane keeps the manifest review, both caps and every path hold.
     lane_switches = (
         {
             "high_floor": config.high_path_floor,
@@ -4172,8 +4008,6 @@ def _lifted_by_person(
         default = repository_default_branch(repo)
         if not default:
             return False, "default branch unread"
-        # At its tip SHA, so no tag of the same name stands in for it; one
-        # that does not resolve raises, which is no lift.
         owner, _, name = repo.partition("/")
         tip = merge_policy.base_tip(owner, name, default)
         at, event = max(enumerate(removals), key=lambda r: (r[1][0], r[0]))[1]
@@ -4280,19 +4114,7 @@ def _failed_merge_group_runs(repo: str, branch: str, number: int) -> list[str] |
     return [str(run["html_url"]) for run in runs if run.get("html_url")]
 
 
-# A merge-queue removal is charged to the queue entry whose failed run ended
-# within this long of it. The queue removes an entry as its required check
-# fails: run 43155083740 ended at 04:40:05Z, the second #15535 left the queue.
 REMOVAL_RUN_WINDOW = timedelta(minutes=2)
-# The rate-limit lines the gate job's guards write: the pinned ci-workflows
-# composites (pr-require-checks/aggregate-results/run.sh:266 at ac4d878 and
-# check-contract/run.sh:184 at 2476d5d), this repo's rate guard
-# (.github/actions/log-api-budget/api-budget.bash, api_budget_refuse and the
-# line after it) and ci-status's gh_read (pr-require-checks.yml, "API rate
-# limit blocks"). Those guards word a server error hold (a 5xx whose only
-# signal was Retry-After) as below, a line their rate-limit wording matched
-# before, so it matches still. babysit_gh.py's "; no GitHub call is sent
-# before" line is left out: its rate-limit wording never matched.
 SERVER_ERROR_HOLD = (
     r"\bHTTP 5\d\d with a Retry-After(?:: no call to it before"
     r"|; no call to it before|, which holds ')"
@@ -4306,8 +4128,6 @@ RATE_LIMIT_ANNOTATION_RE = re.compile(
 HOLD_RESET_RE = re.compile(
     rf"rate.limit|floor share|{SERVER_ERROR_HOLD}", re.IGNORECASE
 )
-# Failure lines that name no cause of their own: the runner's exit line, and
-# a read that failed, which the gate words as "...; re-run this run.".
 GENERIC_FAILURE_RE = re.compile(
     r"Process completed with exit code \d+\.|.*; re-run this run\.", re.DOTALL
 )
@@ -4340,8 +4160,6 @@ INFRA_CAUSE_LINES = {
 MAIN_RED = "main-red"
 MAIN_RED_WINDOW = timedelta(hours=3)
 ISO_STAMP_RE = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ")
-# The reset assumed when no annotation names one: GitHub's primary limit
-# window is an hour.
 DEFAULT_RESET = timedelta(hours=1)
 PASSING_JOB_CONCLUSIONS = frozenset({"success", "skipped", "neutral"})
 
@@ -4957,8 +4775,6 @@ def _identity_queue_entries(
     try:
         data = gh_json(
             ["api", "graphql", "-f", f"query={UNATTENDED_QUEUE_QUERY}"]
-            # `-f`: a raw string; `-F` would read `@path` and coerce
-            # `true`, `null` or digits.
             + ["-f", f"o={owner}", "-f", f"r={name}", "-f", f"b={branch}"]
         )
     except (RuntimeError, json.JSONDecodeError):
@@ -5116,8 +4932,6 @@ def unattended_enqueue(
             "native-stack-layer: GitHub refuses an unattended enqueue of a stack "
             "layer; a person enqueues it"
         )
-    # A head the queue keeps ejecting for failed checks fails again on the
-    # same commits; only a push (which resets the count) can change that.
     ejections = queue.get("failedEjections")
     step["failedEjections"] = ejections
     step["excludedRemovals"] = []
@@ -5227,17 +5041,6 @@ def unattended_enqueue(
         for base, served in list(SHARED_RULES.items())
     ):
         return hold("the base branch's rules changed since the gate read them")
-    # A head green on an old base can fail the queue's merge with the base
-    # tip, and every entry built behind it fails too. When the base changed
-    # what the checks read since the merge base, the branch is updated from
-    # the base instead; a later run enqueues the new head once its checks
-    # pass. A Dependabot head is not written (its own rebases stop): an
-    # eligible one enqueues, any other gets one rebase request per base tip
-    # and holds (`request_dependabot_rebase`). A head the shared decision holds
-    # (`branch_update_decision`) is neither updated nor enqueued. A
-    # doubtful read or an update the API refused (4xx) enqueues as before. An
-    # update with no answer (a timeout, no status, a server error) may have
-    # landed, so the old head is held rather than pinned.
     inputs_read = check_inputs.changed_since_merge_base(
         inputs["config"].check_inputs,
         pin,
@@ -5411,12 +5214,6 @@ def _main() -> int:
     SHARED_RULES.clear()
     merge_policy.SHARED_DEFAULT_BRANCHES.clear()
     merge_policy.SHARED_HEAD_CONFIGS.clear()
-    # allow_abbrev=False: the permission grants covering this gate state their
-    # conditions as the literal presence or absence of a flag in the command
-    # text -- above all "no --merge means check-only". Prefix abbreviation
-    # (argparse's default) lets `--mer` resolve to --merge while the text
-    # contains no such flag, so the written command and the resolved behavior
-    # diverge -- exactly what those conditions must be able to rule out.
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("pr", help="owner/repo#number or PR URL")
     parser.add_argument(
@@ -6069,7 +5866,6 @@ def _main() -> int:
             result["aiReviewReruns"] = rerun_rate_limited_reviews(repo, result)
         return _emit(result, 10)
     if arm_auto:
-        # Consumers treat `action: merge` as a performed merge; an arm is not one.
         result["action"] = "auto-merge"
     if args.unattended and unattended is not None:
         return unattended_enqueue(repo, number, result, unattended, pending_path)
@@ -6081,22 +5877,12 @@ def _main() -> int:
         return _emit(result, 2)
 
     result["mergeMethod"] = method
-    # Atomic head pin: GitHub refuses the merge unless the head still equals the
-    # exact full SHA the gate just evaluated, closing the preflight-to-merge
-    # TOCTOU window. `--allow-unpinned-head` waives only the `--expected-head`
-    # argument, never this pin.
     pin = result.get("headRefOid")
     if not isinstance(pin, str) or not pin:
         return _refuse_merge(
             result, "the gate read no head SHA to pin the merge to -- held"
         )
 
-    # A ready PR merges through the async merge API: REST (so it works where
-    # GraphQL is refused) and GitHub's required API for merging any stacked PR,
-    # the bottom layer included. It is used on the default branch and for a
-    # stack member; a queue base is enqueued through GraphQL instead
-    # (`enqueue_pull_request`). Any other base keeps `gh pr merge`. Auto-merge
-    # has no async form and keeps `gh pr merge`.
     if not arm_auto:
         stack = json_object(result.get("stack"))
         stack_lands = bool(stack.get("landsLowerLayers"))

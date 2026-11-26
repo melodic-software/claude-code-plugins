@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for reap-project-plugin-records.sh. Black-box: a stubbed
-# `claude` on PATH reproduces the measured CLI contract — `plugin list --json`
-# reports every project-scope record regardless of cwd, while
-# `plugin uninstall <id> -s project` acts ONLY on a record whose projectPath is
-# the current directory and otherwise fails with the text that suggests
-# `--scope user`. Every case here pins a safety property the reap rests on:
-# the main-working-tree refusal, the never-`-s user` / never-`--prune` rule, the
-# always-`--keep-data` rule, the other-path records left untouched, and the
-# visible degrade.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -129,8 +120,6 @@ assert_exit "--help exits 0" 0 "$help_rc"
 assert_contains "--help documents the usage line" "$help_out" "--worktree-path"
 assert_contains "--help includes the exit-code taxonomy near the header's end" \
   "$help_out" "prerequisite missing (claude CLI, jq)"
-assert_contains "--help reaches the end of the header, not a truncated range" \
-  "$help_out" "must never read as a clean one"
 
 run "$WT"
 assert_exit "missing --worktree-path is a usage error" 2 "$RC"
@@ -140,10 +129,6 @@ assert_exit "unknown argument is a usage error" 2 "$RC"
 
 run "$WT" --worktree-path "$TEST_TMPDIR/does-not-exist"
 assert_exit "unresolvable --worktree-path is a usage error" 2 "$RC"
-
-# --- the main-working-tree refusal ----------------------------------------------
-# A main working tree keeps `.git` as a directory. It is refused before the
-# script enters it, whatever the caller's cwd is.
 
 MAIN="$TEST_TMPDIR/main"
 mkdir -p "$MAIN/.git"
@@ -160,8 +145,6 @@ run "$MAIN" --worktree-path "$MAIN"
 assert_exit "refuses a main working tree even when standing in it" 2 "$RC"
 assert_eq "a refused run from inside removes nothing" "1" "$(jq 'length' "$STATE")"
 
-# A main checkout whose `.git` is a file (`git init --separate-git-dir`) is
-# refused too: git reports its git dir equal to its common dir.
 SEPMAIN="$TEST_TMPDIR/sepmain"
 git init -q --separate-git-dir "$TEST_TMPDIR/sepmain.git" "$SEPMAIN"
 SEPMAIN_NATIVE="$(native_of "$SEPMAIN")"
@@ -172,10 +155,6 @@ assert_exit "refuses a main working tree whose .git is a file" 2 "$RC"
 assert_contains "the .git-file refusal names the main working tree" "$OUT" "main working tree"
 assert_eq "a refused .git-file run removes nothing" "1" "$(jq 'length' "$STATE")"
 assert_not_contains "a refused .git-file run never calls the CLI" "$(cat "$LOG")" "plugin"
-
-# --- the caller's cwd does not matter -------------------------------------------
-# A linked worktree keeps `.git` as a file. Run from an unrelated directory, the
-# script enters --worktree-path itself and reaps only that path's records.
 
 LINKED="$TEST_TMPDIR/linked"
 mkdir -p "$LINKED"
@@ -231,13 +210,6 @@ left="$(jq -r 'map(.scope + ":" + (.projectPath // "")) | sort | join(",")' "$ST
 assert_eq "the user record and the other path's local record are untouched" \
   "local:$OTHER_NATIVE,user:" "$left"
 assert_not_contains "never escalates to user scope" "$(cat "$LOG")" "-s user"
-
-# --- the tracked settings file is left as it was found ------------------------
-# The uninstall CLI also rewrites the cwd's .claude/settings.json. Left dirty, a
-# tracked file makes the plain `git worktree remove` that follows the reap
-# refuse, and silently drops tracked settings. The stub above reproduces the
-# rewrite when STUB_REWRITE_SETTINGS=1. A logging git shim records every git
-# call the helper makes.
 
 if command -v git >/dev/null 2>&1; then
   REAL_GIT="$(command -v git)"
@@ -299,9 +271,6 @@ SHIM
   assert_not_contains "no git restore runs over a pre-existing edit" "$(cat "$GIT_LOG")" "restore"
   assert_contains "the file is left exactly as the CLI wrote it" "$(cat "$GWT/.claude/settings.json")" '"enabledPlugins": {}'
 
-  # A staged-only change (index differs from HEAD, worktree matches HEAD) is a
-  # pre-existing edit too: classifying it clean would let the restore's
-  # --staged drop it.
   GWT="$TEST_TMPDIR/gwt-staged"
   new_repo "$GWT"
   printf '{"staged": true}\n' >"$GWT/.claude/settings.json"
@@ -317,8 +286,6 @@ SHIM
   assert_not_contains "a staged-only change is not restored over" "$OUT" "info: restored"
   assert_contains "a staged-only change is warned about" "$OUT" "uncommitted changes before the pass"
 
-  # assume-unchanged or skip-worktree hides a local edit from both diffs, so the
-  # file would read clean and the restore would discard the hidden edit.
   for flag in assume-unchanged skip-worktree; do
     GWT="$TEST_TMPDIR/gwt-$flag"
     new_repo "$GWT"
@@ -377,9 +344,6 @@ else
   skip_case "git not available — the settings-restore cases are unpinned here"
 fi
 
-# --- path normalization ---------------------------------------------------------
-# The record is written by Claude Code in native form; a case- or
-# separator-variant of the same directory must still match.
 if [[ "$UNAME_S" == MINGW* || "$UNAME_S" == MSYS* || "$UNAME_S" == CYGWIN* ]]; then
   variant="$(printf '%s' "$WT_NATIVE" | tr '/' "\134" | tr '[:lower:]' '[:upper:]')"
   seed_state "$(jq -n --arg v "$variant" '[{id:"a@m",scope:"project",projectPath:$v}]')"
@@ -404,10 +368,6 @@ assert_exit "--dry-run exits 0" 0 "$RC"
 assert_contains "--dry-run names what it would remove" "$OUT" "would reap a@m"
 assert_eq "--dry-run removes nothing" "1" "$(jq 'length' "$STATE")"
 assert_not_contains "--dry-run issues no uninstall" "$(cat "$LOG")" "uninstall"
-
-# --- a CLI no-op is reported, never escalated -----------------------------------
-# `enumerated but not removable` is the shape a stale enumeration produces. The
-# script must report it and must not follow the CLI's own `--scope user` hint.
 
 seed_state '[]'
 reset_log
@@ -474,14 +434,6 @@ assert_contains "the survivor count is reported as unknown, not zero" "$OUT" "su
 assert_not_contains "never emits the clean-reap line" "$OUT" "ok: every project- and local-scope"
 assert_contains "the uninstall that did run is still reported" "$OUT" "reaped 1"
 
-# --- the documented trailing-separator normalization ----------------------------
-# `cleanup.md` Step 4a disqualifies a symlinked orphaned-directory candidate with
-# `test -L`. A trailing separator makes POSIX resolve THROUGH the link, so the
-# test answers about the target and the disqualifier silently passes — while
-# `find` does not descend a symlinked start point, so the link also reads empty.
-# That pairing is what turns a live directory into an "orphaned husk". The rule
-# lives in prose an agent executes, so this fixture is what keeps it true.
-
 LINKDIR="$TEST_TMPDIR/linkcase"
 mkdir -p "$LINKDIR/target"
 : >"$LINKDIR/target/busy.txt"
@@ -501,15 +453,6 @@ else
   skip_case "no real symlink on this platform — the trailing-separator rule is unpinned here"
 fi
 
-# The documented normalization must strip EVERY trailing separator the
-# platform recognizes — and nothing more. `${path%/}` alone strips one forward
-# slash, leaving a doubled separator (or, on Windows shells, a pasted trailing
-# backslash) in place, and either survivor re-opens the symlink bypass above.
-# Off Windows, `\` is a legal filename byte (the same gated rule
-# worktree-create.sh applies to its root normalization), so a candidate
-# literally named `link\` must survive untouched — stripping it would point
-# every qualifying test and the reap at a different sibling path. Pure string
-# manipulation, so it is pinned even where the symlink fixture must skip.
 normalize_candidate() {
   local path="$1"
   case "$UNAME_S" in

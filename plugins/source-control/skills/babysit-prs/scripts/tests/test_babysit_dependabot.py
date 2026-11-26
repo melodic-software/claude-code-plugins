@@ -167,7 +167,6 @@ class Classify(unittest.TestCase):
                 self.assertEqual((result.tier, result.reasons), ("auto", ()))
 
     def test_a_quoted_scoped_npm_name_matches_the_title(self) -> None:
-        # Dependabot quotes `@scope/name` in the metadata.
         message = metadata(('"@anthropic-ai/claude-code"', "semver-patch", "2.1.302"))
         result = tier(
             "build: Bump @anthropic-ai/claude-code from 2.1.301 to 2.1.302 in the npm-minor-patch group",
@@ -176,7 +175,6 @@ class Classify(unittest.TestCase):
         self.assertEqual((result.tier, result.reasons), ("auto", ()))
 
     def test_a_0x_minor_update_is_review(self) -> None:
-        # Semver promises nothing below 1.0, so 0.3 to 0.4 is breaking.
         result = tier("Bump x from 0.3.1 to 0.4.0")
         self.assertEqual((result.tier, result.reasons), ("review", ("major:x",)))
         self.assertEqual(tier("Bump x from 0.3.1 to 0.3.2").tier, "auto")
@@ -253,8 +251,6 @@ class Classify(unittest.TestCase):
     def test_security_metadata_without_update_type_reads_the_commit_subject(
         self,
     ) -> None:
-        # A security update's metadata names the package and version but no
-        # update-type (#9511): its own verified commit subject gives the jump.
         title = "build: Bump fast-uri from 3.1.8 to 3.1.9 in /plugins/miro/server"
         result = tier(title, commits=[security(title, "fast-uri", "3.1.9")])
         self.assertEqual((result.tier, result.reasons), ("auto", ()))
@@ -263,7 +259,6 @@ class Classify(unittest.TestCase):
         self.assertEqual(result.reasons, ("major:x",))
 
     def test_an_edited_title_cannot_hide_a_major_jump(self) -> None:
-        # The subject is signed with the commit; the title is not.
         signed = security("bump x from 1.9.0 to 2.0.0", "x", "2.0.0")
         for title in (
             "bump x from 2.0.0 to 2.0.0",
@@ -346,7 +341,6 @@ class Commits(unittest.TestCase):
     def test_a_commit_not_dependabots_is_refused(self) -> None:
         cases = {
             "commit-unverified": commit(self.MESSAGE, verified=False),
-            # A pusher can write any author and committer, not the signature.
             "commit-not-committed-by-github": commit(
                 self.MESSAGE, committer="me@example.com"
             ),
@@ -603,7 +597,6 @@ class MergeVerdict(unittest.TestCase):
         older = marker(at="2026-10-16T10:00:00Z")
         newer = marker(verdict="escalate", at="2026-10-16T11:00:00Z")
         self.assertEqual(self.verdict(older, newer), (None, "review-verdict:escalate"))
-        # A later marker from someone else does not displace the App's.
         forged = marker(login="maintainer", kind="User", at="2026-10-16T13:00:00Z")
         self.assertEqual(self.verdict(older, forged), ("123-1", None))
 
@@ -681,8 +674,6 @@ class Content(unittest.TestCase):
         self.assertIsNone(dependabot.parse_config("version: 2\n"))
 
     def test_a_directories_glob_keeps_star_and_question_in_one_segment(self) -> None:
-        # The pr-unblock lane's dependency-classify.test.mjs cases, one for
-        # one: both lanes must sort a pull request the same way.
         cases = [
             ("plugins/x/scripts/package.json", "/plugins/*/scripts", True),
             ("plugins/x/extra/scripts/package.json", "/plugins/*/scripts", False),
@@ -755,7 +746,6 @@ class Content(unittest.TestCase):
             self.refusal(changed(".github/workflows/ci.yml", patch)),
             "dependabot-content:.github/workflows/ci.yml",
         )
-        # A workflow with no patch (too large to show) cannot be judged.
         self.assertIsNotNone(self.refusal(changed(".github/workflows/ci.yml")))
         self.assertIsNotNone(self.refusal(changed(".github/scripts/x.yml", PIN)))
 
@@ -779,11 +769,6 @@ def push(
     }
 
 
-# One for one with dependency-classify.test.mjs's PUSH_VECTORS, so both lanes
-# tie each commit to the same pusher. Each vector is the pull request's
-# commits as (sha, author, parents), its pushes newest first as (type,
-# pusher, before, after), and the refusal; the head is the newest push's
-# `after` unless the vector names one.
 _D, _D2, _B, _A, _X, _ZERO = "d" * 40, "c" * 40, "e" * 40, "f" * 40, "9" * 40, "0" * 40
 PUSH_VECTORS: list[dict[str, Any]] = [
     {
@@ -956,7 +941,6 @@ class Pushes(unittest.TestCase):
             ),
             "pushed-by:github-actions[bot]",
         )
-        # A forged Dependabot-authored commit pushed by a workflow token.
         forged = [
             push("push", HEAD, "github-actions[bot]"),
             push("branch_creation", SHA),
@@ -1006,15 +990,6 @@ class Pushes(unittest.TestCase):
         )
 
 
-# The provenance gate, vector for vector with dependency-classify.test.mjs.
-# Fixtures carry the shapes the registries return: npm's packument
-# (dist.attestations, _npmUser.trustedPublisher) and attestations endpoint (a
-# base64 DSSE payload holding the SLSA v1 predicate), PyPI's simple index JSON
-# (files[].provenance, upload-time) and integrity endpoint
-# (attestation_bundles[].publisher). The identities are what the registries
-# served on 2026-10-17: biome 2.5.14 from biomejs/biome
-# .github/workflows/release.yml, its trusted publisher's oidcConfigId both
-# with and without `oidc:`, numpy from numpy/numpy-release wheels.yml.
 REG = "https://registry.npmjs.org"
 BIOME = "@biomejs/biome"
 BIOME_OIDC = "88a86367-18c3-4668-9f8d-aa7619d345aa"
@@ -1139,7 +1114,6 @@ class Provenance(unittest.TestCase):
     def test_an_npm_release_from_the_same_repository_and_workflow_passes(self) -> None:
         get = Registry(biome_pages())
         self.assertEqual(reasons(npm(BIOME, "2.5.14"), "npm_and_yarn", get), [])
-        # The packument and two attestations; the prerelease is not read.
         self.assertEqual(len(get.calls), 3)
 
     def test_a_release_workflow_on_a_new_tag_ref_is_the_same_identity(self) -> None:
@@ -1421,11 +1395,6 @@ _HASH = "    --hash=sha256:" + "b" * 64
 _SCRIPTS = {"test": "node t.js", "postinstall": "node steal.js"}
 _RANGE = "package-json-range:dependencies:x"
 
-# One for one with dependency-classify.test.mjs's FIX_VECTORS, so both lanes
-# refuse the same fix. Each expected value is the rule as the security review
-# states it: a version-range change of an existing dependency entry,
-# registry-only lock tarballs with no install script change, and
-# `name==version` requirement pins with hashes.
 FIX_VECTORS: list[tuple[str, str, str, str | None]] = [
     ("package.json", _pkg({"x": "^1.0.0"}), _pkg({"x": "^2.0.0"}), None),
     ("package.json", _pkg({"x": "^1.0.0"}), _pkg({"x": ">=2.0.0 <3"}), None),
@@ -1681,8 +1650,6 @@ FIX_VECTORS: list[tuple[str, str, str, str | None]] = [
         None,
     ),
     ("setup.py", "", "", "content-unchecked"),
-    # The install-script pin: moved to the version the manifest pins, and no
-    # other way (claude-code-plugins#12807).
     (
         "package.json",
         _pkg(
@@ -1723,8 +1690,6 @@ FIX_VECTORS: list[tuple[str, str, str, str | None]] = [
         _pkg({"x": "1.0.1"}, allowScripts={"x@1.0.1": True}),
         "package-json-key:allowScripts",
     ),
-    # A fix that moves the manifest and the pin together, to a downgrade or
-    # past Dependabot's version: the pin follows only the version Dependabot set.
     (
         "package.json",
         _pkg({_CLI: "2.1.317"}, allowScripts={f"{_CLI}@2.1.316": True}),
@@ -2081,7 +2046,6 @@ class BaseMergeShape(unittest.TestCase):
                 self.assertIs(self.judge(self.merge(**commit), self.answers()), False)
 
     def test_a_file_both_sides_changed_may_differ_from_the_base(self) -> None:
-        # The merge of a lock file both sides changed is neither side's blob.
         merged = {"filename": "package-lock.json", "status": "modified", "sha": "d4"}
         both = {"filename": "package-lock.json", "status": "modified", "sha": "e5"}
         key = f"{self.C}{self.HEAD_PARENT}...{self.MERGE}"
@@ -2090,7 +2054,6 @@ class BaseMergeShape(unittest.TestCase):
             **{key: {"files": [merged]}, base_key: {"files": [both]}}
         )
         self.assertIs(self.judge(self.merge(), answers), True)
-        # The same blob mismatch on a file only the base changed is an edit.
         head_key = f"{self.C}{self.BASE_PARENT}...{self.HEAD_PARENT}"
         answers[head_key] = {"files": []}
         self.assertIs(self.judge(self.merge(), answers), False)
@@ -2109,7 +2072,6 @@ class BaseMergeShape(unittest.TestCase):
         )
 
     def test_a_forged_dependabot_author_counts_as_another_writer(self) -> None:
-        # Unsigned, so not Dependabot's: a recreate would drop it.
         forged = {
             "sha": "7" * 40,
             "parents": [{"sha": "3" * 40}],

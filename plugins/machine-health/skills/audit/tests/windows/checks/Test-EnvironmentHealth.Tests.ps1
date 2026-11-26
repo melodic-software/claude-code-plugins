@@ -89,8 +89,6 @@ BeforeAll {
 
     function Install-EnvironmentMocks {
         param($Fixture)
-        # GetNewClosure: MockWith runs in the mocked command's scope, where a $script:
-        # variable would resolve against the check script, not this file.
         $userKey = $Fixture.UserKey
         $machineKey = $Fixture.MachineKey
         Mock Get-Item -ParameterFilter { $LiteralPath -eq 'HKCU:\Environment' } -MockWith (

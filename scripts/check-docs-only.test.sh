@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for check-docs-only.sh. Each scenario builds a throwaway git repo
-# with the REAL shipped allowlist (scripts/docs-only-paths.txt) plus one fixture
-# prefix, commits a base tree, commits a change, and asserts the emitted
-# docs_only flag. Using the real allowlist makes these tests the honesty proof
-# the #532 liveness convention wants: the README / protocol / taxonomy cases
-# below fail the moment someone widens the allowlist to cover a doc a code lane
-# actually reads.
 set -uo pipefail
 
 TMP_ROOT="$(mktemp -d)"
@@ -23,8 +16,6 @@ ALLOWLIST="$SELF_DIR/docs-only-paths.txt"
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 repo=""
 
 mk_repo() {
@@ -91,7 +82,6 @@ assert_flag "marketplace manifest (marketplace-schema reads it)" false ".claude-
 assert_flag "plugin manifest (plugin-schema reads it)" false "plugins/p1/.claude-plugin/plugin.json"
 assert_flag "dependabot.yml (dependabot-schema reads it)" false ".github/dependabot.yml"
 
-# --- fail-closed paths: emit false, exit 0 (run full, never block) ---------
 mk_repo repo
 out="$(cd "$repo" && bash scripts/check-docs-only.sh "does-not-exist" 2>/dev/null)"
 rc=$?

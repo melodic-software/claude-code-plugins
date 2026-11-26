@@ -1,12 +1,3 @@
-// Local usage history: how often each skill and plugin was used on this machine, as Claude Code
-// counts it in its global state file. The one module that reads that file.
-//
-//   usageFile({env, home}) -> the path of the global state file
-//   readUsage(path, [read]) -> {source, skills: [{name, count, lastUsedAt}], plugins: [...]},
-//                              most used first; source is null when the file holds no counts
-//
-// The skillUsage and pluginUsage keys are not documented; they were observed in Claude Code
-// 2.1.325, so a missing or reshaped key reads as no usage data rather than an error.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 

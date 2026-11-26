@@ -1,25 +1,15 @@
 #!/usr/bin/env node
 
-// Generates the grouped plugin catalog in docs/catalog.md from the manifests,
-// per the generation contract in docs/catalog-taxonomy.md: marketplace.json owns
-// the ordering; plugin.json owns each description and category (metadata.category,
-// copied into marketplace.json by scripts/generate-marketplace.mjs). The
-// block between the catalog markers is generated, never hand-edited. Run with no
-// argument to rewrite the block; run with --check to fail on drift (CI gate).
-
 import { readFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import process from "node:process";
 
 import { findMarkerBlock, markerForms, syncMarkerBlock, wrapMarkerBlock } from "./lib/marker-block.mjs";
 
-// Paths render with forward slashes on every platform, in messages and in
-// generated links alike.
 function toPosix(path) {
   return path.split(sep).join("/");
 }
 
-// CHECK_DATA_ROOT: the tree to check, when it is not the one holding this script.
 const root = process.env.CHECK_DATA_ROOT || join(import.meta.dirname, "..");
 const outputPath = join(root, "docs", "catalog.md");
 const outputLabel = toPosix(relative(root, outputPath));

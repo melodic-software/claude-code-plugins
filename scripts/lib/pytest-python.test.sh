@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests for scripts/lib/pytest-python.sh through scripts/run-test-file.sh, in
-# a throwaway checkout and a linked worktree of it. python3, the venv's python
-# and scripts/setup-env.sh are stubs that log what they were asked to run.
 # The stubs and the checks hold shell source as literal data on purpose.
 # shellcheck disable=SC2016
 set -uo pipefail
@@ -19,7 +16,6 @@ log="$TMP_ROOT/calls.log"
 stubs="$TMP_ROOT/stubs"
 mkdir -p "$stubs"
 
-# A python3 without pytest unless PY3_PYTEST=1; a pytest run exits 5.
 cat >"$stubs/python3" <<'EOF'
 #!/usr/bin/env bash
 if [[ $1 == -I ]]; then [[ ${PY3_PYTEST:-} == 1 ]]; exit; fi

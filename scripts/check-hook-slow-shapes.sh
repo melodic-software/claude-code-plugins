@@ -1,50 +1,5 @@
 #!/usr/bin/env bash
-# Gate: plugin hooks must not ship two shapes whose cost a spawn budget misses
-# or that every fire pays for nothing.
-#
-#   scripts/check-hook-slow-shapes.sh   fail on either shape below
-#
-# (a) TRANSCRIPT READ. A registered hook script reads the whole session
-#     transcript: `mapfile`, `readarray`, `cat`, `grep`, `jq`, `sed` or `awk`
-#     over the transcript variable, or an input redirect from it (`while read
-#     ... done <"$TRANSCRIPT"`), on a line with no `tail -c` / `head -c` bound.
-#     The transcript grows every turn, so the read cost grows with it. A builtin
-#     read such as `mapfile -s N <"$TRANSCRIPT"` spawns no process, so no spawn
-#     counter can see it.
-#     The transcript variable is any variable whose name contains
-#     "transcript" (any case) in a script that mentions `.transcript_path`. That
-#     is a naming heuristic, not dataflow: hook-failure-audit.sh takes the path
-#     out of a library array (`HOOK_JQ_FIELDS[0]`), which no textual dataflow
-#     rule follows. A read the script bounds some other way (a size check
-#     above it) is excused by `slow-shape-ok: <reason>` on the line or the line
-#     above. Out of reach: a path handed to another process (`--transcript
-#     "$T"`), a variable filled by `read` or `printf -v` rather than `name=`,
-#     readers not in the list (`wc`, `tac`), a read continued onto the next
-#     line with a backslash, a read inside a library the script sources, and a
-#     command whose text merely contains `tail -c` or `head -c` (`grep -c
-#     "tail -c" "$T"` and the whole-file `tail -c +1 "$T"` read as bounded).
-#     The hook-census `growth` ratchets in .performance/ratchets.json measure
-#     the actual bytes read and are the behavioral check behind this text match.
-#
-# (b) ENV SHEBANG. A shell-form hook runs a script as its command word, with no
-#     interpreter in front of it, and that script starts `#!/usr/bin/env`. The
-#     kernel then runs /usr/bin/env, which looks up and execs the interpreter:
-#     one extra exec on every fire. A leading `bash`
-#     (`bash "${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh` with `"shell": "bash"`) execs
-#     bash directly. Each `;`, `&&`, `||` and `|` segment is checked, so an
-#     opt-in row's `exec "${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh` counts too. Exec
-#     form (`args` present) is out of scope.
-#
-# Scope: the plugin hook-config corpus scripts/lib/hook-configs.sh enumerates
-# (hooks.json, manifest-pointed and inline manifest configs, skill/agent
-# frontmatter `hooks:`), the same one scripts/check-hook-exec-form.sh reads.
-# Shape (a) scans every `.sh` word of every command that resolves to a file:
-# `${CLAUDE_PLUGIN_ROOT}` paths, and bare names under the declaring plugin's
-# hooks/ directory (launcher arguments).
-#
-# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr (scripts/README.md,
-# "The check-script contract"). An unparsable hook config is a finding (1), as in
-# the exec-form gate: a file this gate cannot read is one it cannot clear.
+# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr
 # shellcheck disable=SC2016  # jq programs and messages are literal text, never shell-expanded
 set -euo pipefail
 
@@ -134,8 +89,6 @@ if ((commands == 0)); then
 fi
 
 READERS_RE='(^|[^A-Za-z0-9_-])(mapfile|readarray|cat|grep|jq|sed|awk)([^A-Za-z0-9_-]|$)'
-# Sorted: an associative array's key order is unspecified, and the findings
-# must come out in the same order on every run.
 mapfile -t scripts < <(printf '%s\n' "${!SCRIPTS[@]}" | LC_ALL=C sort)
 for script in ${scripts[@]+"${scripts[@]}"}; do
   [[ -n "$script" ]] || continue

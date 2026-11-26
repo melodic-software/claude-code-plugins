@@ -4,11 +4,11 @@ const API_KEY = "          api-key: ${{ secrets.ISSUE_LANE_CLAUDE_API_KEY }}\n";
 const NEXT_OUTPUTS = "      next-leg: ${{ steps.next.outputs.next-leg }}\n      next-reason: ${{ steps.next.outputs.next-reason }}\n";
 const IF = "    if: >-\n      ${{ !cancelled() && needs.select-release.outputs.proceed == 'true' && github.run_attempt == '1'\n";
 
-const subscription = (key, name, comment) => ({
+const subscription = (key, name) => ({
   header: `  ${key}-subscription:
     name: ${name} Subscription
     needs: [select-release, ${key}]
-${comment}${IF}      && (needs.${key}.outputs.next-leg == 'subscription' || needs.select-release.outputs.next-leg == 'subscription') }}
+${IF}      && (needs.${key}.outputs.next-leg == 'subscription' || needs.select-release.outputs.next-leg == 'subscription') }}
 `,
   replace: [
     ["          leg: key\n", "          leg: subscription\n", 1],
@@ -23,11 +23,11 @@ ${comment}${IF}      && (needs.${key}.outputs.next-leg == 'subscription' || need
     [API_KEY, "          subscription-token: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}\n          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}\n", 1],
   ],
 });
-const fallback = (key, name, comment) => ({
+const fallback = (key, name) => ({
   header: `  ${key}-fallback:
     name: ${name} Fallback
     needs: [select-release, ${key}-subscription]
-${comment}${IF}      && needs.${key}-subscription.outputs.next-leg == 'fallback' }}
+${IF}      && needs.${key}-subscription.outputs.next-leg == 'fallback' }}
 `,
   replace: [
     ["          leg: key\n", "          leg: fallback\n", 1],
@@ -39,7 +39,7 @@ const leg = (job, { header, replace }, more) => ({ job, ...more, replace: [[HEAD
 
 const APPLY_COMMENTS = {
   "Resolve the model": true,
-  "Check the credential": "Only whether each secret is set leaves this step, never its value.",
+  "Check the credential": true,
   "Stage the base plugins": true,
   "Check out main with history": true,
   "Clear the trusted checkout path": true,
@@ -65,20 +65,11 @@ const applyChangelog = {
   legs: [
     leg(
       "apply-changelog-subscription",
-      subscription(
-        "apply-changelog",
-        "Apply Changelog",
-        "    # The first attempt only, after the key leg handed off, found its key\n    # empty, or was skipped by the credit gate.\n",
-      ),
+      subscription("apply-changelog", "Apply Changelog"),
       {
         drop: CREDIT_MARKER,
         comments: {
           ...APPLY_COMMENTS,
-          "Record the start": `The gate's per-day cap counts these: every leg past the kill switch,
-a setup failure before the leg included, except one that handed off
-or found its credential empty, since the next leg then runs the
-release and records its own start. One start per run, so the cap
-stays the brake. The file is rewritten after the leg and scanned.`,
           "Pick the next leg": true,
         },
         replace: [
@@ -98,16 +89,11 @@ stays the brake. The file is rewritten after the leg and scanned.`,
     ),
     leg(
       "apply-changelog-fallback",
-      fallback("apply-changelog", "Apply Changelog", "    # The first attempt only, after the subscription leg handed off or found\n    # its token empty.\n"),
+      fallback("apply-changelog", "Apply Changelog"),
       {
         drop: [...CREDIT_MARKER, "Report the key's handoff", "Pick the next leg"],
         comments: {
           ...APPLY_COMMENTS,
-          "Record the start": `The gate's per-day cap counts these: every leg past the kill switch,
-a setup failure before the leg included, except one that found its
-credential empty. This last leg never hands off. One start per run,
-so the cap stays the brake. The file is rewritten after the leg and
-scanned.`,
         },
         replace: [
           [NEXT_OUTPUTS, "", 1],
@@ -121,36 +107,23 @@ scanned.`,
 };
 
 const SCRUB_COMMENTS = { "Check the credential": true, "Record the probe leg": true, "Check the probe": true };
-const probeComment = (input, after) => `CAPTURE_PROBE_EXTRA_NAMES holds a name, never the secret: the token goes
-only to the ${input} input.
-${after}`;
 const scrubNames = (token) => [": ISSUE_LANE_CLAUDE_API_KEY\n", `: ${token}\n`, 2];
 
 const verifyEnvScrub = {
   workflow: ".github/workflows/upstream-apply-changelog.yml",
   key: "verify-env-scrub",
   legs: [
-    leg("verify-env-scrub-subscription", subscription("verify-env-scrub", "Verify Env Scrub", ""), {
+    leg("verify-env-scrub-subscription", subscription("verify-env-scrub", "Verify Env Scrub"), {
       comments: {
         ...SCRUB_COMMENTS,
-        "Probe what a Bash child can reach": probeComment(
-          "subscription-token",
-          `continue-on-error lets a handoff end the job green; "Check the probe"
-fails it on any other probe failure.`,
-        ),
         "Pick the next leg": true,
       },
       replace: [scrubNames("ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN")],
     }),
-    leg("verify-env-scrub-fallback", fallback("verify-env-scrub", "Verify Env Scrub", ""), {
+    leg("verify-env-scrub-fallback", fallback("verify-env-scrub", "Verify Env Scrub"), {
       drop: ["Pick the next leg"],
       comments: {
         ...SCRUB_COMMENTS,
-        "Probe what a Bash child can reach": probeComment(
-          "fallback-token",
-          `continue-on-error leaves the verdict to "Check the probe", which
-fails the job on any probe failure; this last leg never hands off.`,
-        ),
       },
       replace: [[`    outputs:\n${NEXT_OUTPUTS}`, "", 1], scrubNames("FALLBACK_CLAUDE_CODE_OAUTH_TOKEN")],
     }),

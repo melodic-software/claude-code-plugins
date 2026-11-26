@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 34, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "Closing a decision-record map runs /work-items:track dossier-branches for the map and deletes the dossier branch no other way (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

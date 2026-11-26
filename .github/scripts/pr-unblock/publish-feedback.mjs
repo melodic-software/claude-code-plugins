@@ -1,98 +1,4 @@
 #!/usr/bin/env node
-// publish-feedback.mjs: the reply job of the pr-unblock lane's address-feedback
-// round, a script activity with no model. The model job recorded its replies
-// in an artifact; this posts exactly what it wrote, or nothing, and adds no
-// judgment of its own.
-//
-//   1. Validates the whole artifact strictly: the select job's run.json (the
-//      head it read and the kept threads) and the model's replies.jsonl,
-//      one object per kept thread at most, each with exactly the template's
-//      fields, within the limits below. Any failure posts no reply.
-//   2. For VALID replies, which name no commit (the model job commits
-//      nothing), finds the one commit apply-feedback-patch pushed: the lanes
-//      App's, after the select job's head, carrying the review-threads
-//      row's Lane-Activity trailer (isLaneFix). Confirms its Lane-Thread
-//      trailer lines name each VALID thread and it changes that thread's path, or a line its evidence cites in a file of the PR
-//      or the thread's scope (touchesThread), and that the branch changed no path outside the
-//      kept threads' scope (thread-scope.mjs) and none under
-//      .github/workflows/. With no such commit in that range and no patch
-//      written this round (a retry after a round whose fix landed but whose
-//      replies did not post), each VALID thread's fix is an earlier commit on
-//      the PR of the same kind whose Lane-Thread trailer names the thread,
-//      committed after the thread's newest reviewer or lane comment, that changed the thread's path and a line the
-//      reply's evidence cites, and that no lane reply already named as a
-//      fix (earlierFixOf). A push
-//      that was superseded, refused, escalated or held ends the round
-//      feedback-not-landed.
-//   3. Re-reads each thread and skips one that is resolved, moved, or has a
-//      comment the model job did not see; for a follow-up (an advisory
-//      outside the closing issue's scope) first records it under the PR
-//      body's `## Follow-ups` (recordFollowUp); posts the templated reply on its
-//      root comment and resolves it only when it is VALID or follow-up, and only on a
-//      lanes App PR: on a PR a person opened the lanes App cannot resolve, so
-//      the thread is left open for the person or their babysit worker tier. The PR head is
-//      re-read before each post and each resolve: once it is not the head
-//      this job gated, nothing more is posted or resolved. When a fix
-//      landed, puts the body sections the model job recorded in place of
-//      the ones the select job offered (refreshBody); text holding a line a
-//      gate reads, or any other refusal, drops that refresh alone.
-//   4. Posts the round marker, naming a dropped body refresh, as the lanes App, once per model run: a
-//      re-run of this job finds the marker naming that run and posts none.
-//   5. With no replies.jsonl, no scanned patch, no scan refusal, no upload
-//      the scan named and the selected head still current (no model turn)
-//      posts nothing and skips no-model-turn, escalating nothing; with a
-//      moved head it escalates feedback-not-landed, and beside a patch, a
-//      refusal or a named upload feedback-invalid. Otherwise escalates
-//      feedback-invalid, feedback-incomplete (a kept thread has no
-//      disposition; the round marker names each such thread),
-//      feedback-not-landed, feedback-partial (posting stopped
-//      after a reply), or a reason adjudicate-feedback.mjs settleDisputes
-//      gives for an INCORRECT, UNCERTAIN or VALID-defer reply:
-//      feedback-unadjudicated, feedback-question-intent,
-//      feedback-question-design, feedback-question-security,
-//      feedback-disputed, feedback-uncertain, feedback-verifier-open, or
-//      feedback-stood-open (the finding stood at an earlier adjudication and
-//      this round left it open). A finding that stands with the head unmoved
-//      skips finding-stands instead, which feedback-dispatch.mjs's sweep
-//      dispatches again.
-//
-// A pass-only round is the exception: when pr-verify passed the PR's current
-// head, pr-dispatch-feedback.yml sends pr-unblock.yml with verify-pass-head,
-// and the select job lists in run.json's stale_notes the open fail-note
-// threads from earlier heads (address-feedback.mjs staleVerifyNotes), and
-// those at the passing head when its superseded_head names that head (the
-// merge gate's reader found the FAIL there superseded), with no thread for a
-// model. This job then resolves each one still open and stale
-// while the PR head is the passing one, and posts no reply and no round
-// marker, and skips pass-only. The job token cannot resolve a thread; the
-// lane token can.
-//
-// Environment:
-//   GH_TOKEN              the lane token (pull-requests: write, contents: read)
-//   ARTIFACT_READ_TOKEN   the job's own token (actions: read), for the lane
-//                         comments' run records only (address-feedback.mjs laneReader)
-//   GITHUB_REPOSITORY     owner/repo
-//   PR_NUMBER, HEAD_SHA   the gated pull request and its current head
-//   HEAD_REF              the PR branch, re-read for HEAD_SHA before each post
-//   GITHUB_RUN_ID, MODEL_RUN_ATTEMPT  the model run the round marker names
-//   APP_SENDER_ID         the lanes App bot's user id, the round marker author
-//   TRUSTED_ACTORS        the base's trusted-actors.json, for the reviewer bot
-//                         and the people whose replies are direction
-//   REVIEWER_IDS          the listed review bots' ids, one per line
-//                         (address-feedback.mjs reviewerIdsFrom)
-//   FEEDBACK_REPLIES_DIR  the downloaded artifacts: the select job's run.json
-//                         and the model run's scanned replies.jsonl
-//   RUN_SHA256            run.json's SHA-256, from the select job
-//   REPLIES_SHA256        replies.jsonl's SHA-256, from the scan job
-//   REVIEW_PATCH_STATE    the scan job's patch-state for the same model call
-//   SCAN_REFUSED_DIR, SCAN_REFUSED_READ  the scan-refusal job's markers for
-//                         the model call and their download's outcome
-//                         (address-feedback.mjs scanRefusal)
-//   ADJUDICATION_DIR, ADJUDICATION_SHA256  the adjudicate-feedback job's
-//                         verdicts.json and the SHA-256 that job recorded
-//   GITHUB_WORKSPACE      the PR head checkout evidence paths are checked in
-//   SKIP_REASON_FILE, ESCALATION_REASON_FILE  where the runner reads them
-
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -132,22 +38,14 @@ import { DISPUTED, FINDING_ANSWERED, LEFT_OPEN, parseVerdicts, settleDisputes } 
 import { inThreadScope, NOTE_ID, THREAD_ID, threadsNamed } from "./thread-scope.mjs";
 import { stopSkip } from "./escalation-routes.mjs";
 
-// bytes: replies.jsonl's cap, the read runner's carry, seal and scan cap too;
-// runBytes: run.json's, the 1 MiB the read runner accepts for it.
-export const LIMITS = { bytes: 49152, runBytes: 1048576, note: 2000, evidence: 10, files: 300 };
-// GitHub's web-flow user, the committer of a commit made through the API.
+export const LIMITS = { bytes: 49152, runBytes: 1048576, note: 2000, evidence: 10 };
 const WEB_FLOW_ID = 19864447;
-// The trailer apply-patch.mjs writes from patch-rules.json's review-threads row.
 export const FIX_TRAILER = "Lane-Activity: pr-unblock/address-feedback";
 const PATH_LINE = /^[A-Za-z0-9_@+.-]+(\/[A-Za-z0-9_@+.-]+)*:[1-9][0-9]{0,6}$/;
 const DOT_SEGMENT = /(^|\/)\.\.?(\/|:)/;
-// follow-up: an advisory finding whose change falls outside the closing
-// issue's scope, answered with no fix (run.json's may_follow_up threads only).
 export const FOLLOW_UP = "follow-up";
 const DISPOSITIONS = ["VALID", "INCORRECT", "UNCERTAIN", "VALID-defer", FOLLOW_UP];
 const RESOLVING = new Set(["VALID", FOLLOW_UP]);
-// A pr-verify note from an earlier FAIL's verdict artifact (run.json's
-// verify_notes) is fixed, or already addressed by the diff.
 export const ALREADY_ADDRESSED = "already-addressed";
 const NOTE_DISPOSITIONS = ["VALID", ALREADY_ADDRESSED];
 export const ANSWERED = "answered";
@@ -162,14 +60,8 @@ const LABELS = {
 const FOLLOW_UP_LINE = "This advisory asks for a change outside the closing issue's scope, so this pull request leaves it out and records it under `## Follow-ups` in the pull request body.";
 const FOLLOW_UPS_HEADING = /^## Follow-ups[ \t]*$/;
 const FOLLOW_UP_TEXT_CAP = 200;
-// The paused-filing sweep files each Follow-ups entry carrying this marker as
-// an issue (AGENTS.md, review-discipline.md D4.6).
 const FOLLOW_UP_MARKER = "Pre-existing (advisory):";
 
-// A `## Follow-ups` bullet: the sweep's marker, the advisory's first non-blank
-// line in a code span, so a closing keyword or an @-mention in it does
-// nothing, then `link`. Comment markers are stripped until none is left, since
-// one pass can join the halves of a nested marker into a new one.
 export function followUpBullet(advisory, link) {
   const first = String(advisory ?? "")
     .split(/\r?\n/)
@@ -184,8 +76,6 @@ export function followUpBullet(advisory, link) {
   return `- ${FOLLOW_UP_MARKER} \`${text}\` ([thread](${link}))`;
 }
 
-// `body` with `bullet` last in its `## Follow-ups` section, the section
-// appended when missing; `body` unchanged when it already holds `link`.
 export function withFollowUp(body, bullet, link) {
   const text = String(body ?? "");
   if (text.includes(link)) {
@@ -219,10 +109,6 @@ async function recordFollowUp(api, pr, comment) {
   }
 }
 
-// The review-thread tool's body record, a replies.jsonl line holding only
-// `body_sections` (the other readers skip it as no reply): replyText without
-// it, and the record's sections, null with none, or the reason it is
-// malformed, which drops the refresh and nothing else.
 export function takeBodyRecord(text) {
   const kept = [];
   const records = [];
@@ -257,11 +143,6 @@ export function takeBodyRecord(text) {
 
 const sha256 = (text) => createHash("sha256").update(text).digest("hex");
 
-// `body` with each of `sections` ({heading, text}) put in place of the text
-// under its `## ` heading, every other byte unchanged, or the refusal that
-// drops the whole refresh: a section the select job did not offer
-// (`offered`, run.json's body_sections), or one whose text changed since it
-// read it; text sectionRefusal refuses; or a result whose gate lines differ.
 export function refreshedBody(body, sections, offered = []) {
   const text = String(body ?? "");
   const { rows, sections: found } = bodySections(text);
@@ -330,10 +211,6 @@ async function refreshBody({ api, pr, headMoved, body, log }) {
   }
 }
 
-// Whether a lane reply is one after which a lanes App PR's thread is resolved:
-// the VALID or follow-up reply (renderReply) or an adjudication that found
-// the finding does not hold (FINDING_ANSWERED). On an owner PR such a thread
-// is left open here, and resolve-threads.mjs resolves it.
 const RESOLVING_FIRST_LINES = new Set([...[...RESOLVING].map((disposition) => `**pr-unblock / address-feedback: ${LABELS[disposition]}**`), FINDING_ANSWERED]);
 export const isResolvingAnswer = (body) => RESOLVING_FIRST_LINES.has(String(body ?? "").split("\n")[0].replace(/\r$/, ""));
 
@@ -350,7 +227,6 @@ const sameIds = (a, b) => a.length === b.length && a.every((id, i) => id === b[i
 const citation = (ev) => [ev.slice(0, ev.lastIndexOf(":")), Number(ev.slice(ev.lastIndexOf(":") + 1))];
 
 const CI_RUN_URL = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/[1-9][0-9]{0,19}\/job\/[1-9][0-9]{0,19}$/;
-// A job's name, display (`Test Bash (3)`) or id (`test-bash (3)`).
 const CI_RUN_NAME = /^[A-Za-z0-9_.-]+(?: [A-Za-z0-9_.-]+)*( \([0-9]{1,3}\))?$/;
 const ciValid = (ci) =>
   ci !== null &&
@@ -361,10 +237,6 @@ const ciValid = (ci) =>
   ci.runs.length <= 100 &&
   ci.runs.every((run) => run !== null && typeof run === "object" && Object.keys(run).sort().join(",") === "name,url" && CI_RUN_NAME.test(String(run.name)) && CI_RUN_URL.test(String(run.url)));
 
-// run.json is the select job's: the gated head and the threads it kept, with
-// the comment ids the model was shown and, from a select job that records
-// them, the reviewed heads it kept them on and the head's covering check runs
-// (address-feedback.mjs ciSnapshot).
 export function parseRun(text) {
   let run;
   try {
@@ -433,7 +305,6 @@ export function parseRun(text) {
   return run;
 }
 
-// replies.jsonl is model output: every line is checked before anything posts.
 export function parseReplies(text, run, fileExists) {
   check(Buffer.byteLength(text) <= LIMITS.bytes, "the replies are over the size limit");
   const kept = new Map(run.threads.map((thread) => [thread.id, thread]));
@@ -473,10 +344,8 @@ export function parseReplies(text, run, fileExists) {
       evidence.every((ev) => fileExists(citation(ev)[0])),
       "a reply's evidence names a file not in the checkout",
     );
-    // The model job commits nothing: this job finds the fix commit itself.
     check(fixSha === "", "a reply's fix_sha is not empty");
     check(
-      // Code points, as jq's length counts them in the review-thread tool.
       typeof note === "string" && note.length > 0 && [...note].length <= LIMITS.note && !BAD_CHARS.test(note) && !FORBIDDEN.test(note),
       "a reply's note is empty, too long, or holds a control character, an HTML comment or a token",
     );
@@ -485,7 +354,6 @@ export function parseReplies(text, run, fileExists) {
   return replies;
 }
 
-// The note sits in a fence longer than any backtick run in it.
 export function renderReply({ disposition, evidence, fixSha, note }) {
   const fence = "`".repeat(Math.max(3, ...[...note.matchAll(/`+/g)].map((run) => run[0].length + 1)));
   return [
@@ -553,8 +421,6 @@ async function answerComments({ api, pr, appId, asks, answers, headMoved, log })
 
 const SKILL_FILE = /^((?:.*\/)?skills\/[^/]+\/)SKILL\.md$/;
 
-// Whether a unified diff's new side (a commit file's `patch`) holds `line` in
-// one of its hunks; false with no patch, as for a binary or very large file.
 export function lineChanged(patch, line) {
   for (const [, start, count] of String(patch ?? "").matchAll(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/gm)) {
     const first = Number(start);
@@ -566,10 +432,6 @@ export function lineChanged(patch, line) {
   return false;
 }
 
-// The files whose line the reply's `evidence` cites inside a hunk of the fix
-// (`patches`, by filename), among the pull request's files (`prPaths`) and
-// those inThreadScope allows for that one thread, under the same scope the
-// fix itself was checked against (`prPaths`, `copyPaths`).
 function citedFiles(evidence, patches, thread, prPaths = new Set(), copyPaths = new Set()) {
   return new Set(
     evidence
@@ -579,11 +441,6 @@ function citedFiles(evidence, patches, thread, prPaths = new Set(), copyPaths = 
   );
 }
 
-// Whether a fix commit's changed files touch a thread ({ path, named_paths }):
-// the path itself, a file citedFiles gives (`cited`), so a finding fixed in
-// another file of the PR or the thread's scope lands only at a line its
-// evidence cites, or for a skill's SKILL.md any file under that skill's
-// directory.
 function touchesThread(changed, thread, cited) {
   if (changed.some((file) => file === thread.path || cited.has(file))) {
     return true;
@@ -592,8 +449,6 @@ function touchesThread(changed, thread, cited) {
   return skillDir !== undefined && changed.some((file) => file.startsWith(skillDir));
 }
 
-// A commit the lanes App authored through the API (the web-flow committer,
-// with a valid signature) with the fix trailer on a line of its own.
 const isLaneFix = (commit, appId) =>
   commit.author?.id === appId &&
   commit.committer?.id === WEB_FLOW_ID &&
@@ -603,16 +458,6 @@ const isLaneFix = (commit, appId) =>
     .split("\n")
     .some((line) => line.replace(/\r$/, "") === FIX_TRAILER);
 
-// The newest of the PR's `commits` (oldest first, as GET /pulls/{n}/commits
-// lists them) that is a lane fix commit whose Lane-Thread trailer names
-// `thread`, committed (the date GitHub sets for
-// a web-flow commit) after `after` (epoch ms), not in `claimed` (a commit a
-// lane reply already named as another thread's fix), whose files touch
-// `thread` (touchesThread), and in which one `evidence` path:line falls
-// inside a hunk of that path; both read only the commit's paths no later PR
-// commit changed, so what credits the fix still holds it at the head and the
-// head's line numbers are still that commit's; null for none. `filesOf`
-// reads a commit's files, each {filename, patch}.
 export async function earlierFixOf({ commits, appId, after, thread, evidence, claimed, filesOf }) {
   const cites = evidence.map(citation);
   for (let i = commits.length - 1; i >= 0; i -= 1) {
@@ -643,8 +488,6 @@ export async function earlierFixOf({ commits, appId, after, thread, evidence, cl
   return null;
 }
 
-// The commits lane replies already named as a thread's fix (renderReply's
-// `Fix: <sha>` line), read from the PR's review comments.
 const claimedFixes = (reviewComments, appId) =>
   new Set(
     reviewComments
@@ -652,31 +495,13 @@ const claimedFixes = (reviewComments, appId) =>
       .flatMap((comment) => [...String(comment.body ?? "").matchAll(/^Fix: ([0-9a-f]{40})$/gm)].map((match) => match[1])),
   );
 
-// Whenever the PR branch moved since the select job's head, or a reply is
-// VALID, that range may change only what inThreadScope allows around the kept
-// threads' paths, the PR's own files and their shared copies (run.json, whose SHA-256 the select
-// job recorded), adding none of those files, and nothing under
-// .github/workflows/. With a VALID reply the range must hold
-// exactly one fix commit (isLaneFix), whose Lane-Thread trailer must name
-// every VALID thread, and it must change, for every VALID thread, its path, a file the PR already
-// changes or inThreadScope allows for that thread alone at a line the reply's
-// evidence cites, or for a thread on a skill's SKILL.md any file in that
-// skill's directory (touchesThread).
-// With no fix commit in the range and no patch written this round
-// (`patchWritten`, whose push then did not land), each VALID thread takes its
-// earlier fix on the PR instead (earlierFixOf, after the time `judgedAt` gives:
-// the thread's newest comment by the reviewer or the lane, so a commit the
-// lane already answered on that thread, or one a reviewer re-raised the
-// finding after, is not its fix; nor one a lane reply already named as a
-// fix, `claimed`). Returns each VALID thread's fix commit by
-// thread id (empty when no reply is VALID), or null.
 async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, patchWritten, claimed = new Set() }) {
   const valid = replies.filter((reply) => reply.disposition === "VALID");
   const landed = new Map();
   if (valid.length === 0 && run.head_sha === headSha) {
     return landed;
   }
-  const comparison = await api.compare(run.head_sha, headSha);
+  const comparison = await api.compareWhole(run.head_sha, headSha);
   const fixes = valid.length === 0 ? [] : (comparison.commits ?? []).filter((commit) => isLaneFix(commit, appId));
   const fixSha = fixes.length === 1 ? fixes[0].sha : "";
   const threadOf = new Map(run.threads.map((thread) => [thread.id, thread]));
@@ -687,7 +512,6 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
   const inRange =
     ["ahead", "identical"].includes(comparison.status) &&
     fixes.length <= 1 &&
-    files.length < LIMITS.files &&
     files.every((file) =>
       [file.filename, file.previous_filename].every(
         (path) =>
@@ -772,13 +596,8 @@ async function resolveAfterReply(api, id, expected, headMoved) {
   }
 }
 
-// The line after the round marker naming the model run whose replies this job
-// posts; a re-run of this job alone reuses that run's artifact.
 export const modelRunLine = (modelRun) => `<!-- pr-unblock:address-feedback-model-run ${modelRun} -->`;
 
-// The pass-only round's skip, which feedback-dispatch.mjs tells apart from a
-// round's reply check: it answers no thread, so it releases nothing and holds
-// nothing.
 export const PASS_ONLY_SKIP = "pass-only";
 
 async function resolveStaleNotes({ api, pr, headSha, headRef, run, log, summary }) {
@@ -823,9 +642,6 @@ function staleRunOf(readArtifact) {
   }
 }
 
-// The round marker's lines naming each kept thread with no disposition (its
-// id and root comment), which report-escalation.sh copies into the
-// feedback-incomplete escalation: at most 20, then how many more.
 const UNDISPOSED_SHOWN = 20;
 export const undisposedLines = (undisposed = []) =>
   undisposed.length === 0
@@ -911,7 +727,6 @@ async function settleNotes({ api, pr, run, headSha, replies, appId, log }) {
 
 async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", scanRefused = "", repliesExpected = false, reviewerId, reviewerIds = [], trustedHumans, readArtifact, readAdjudication = () => null, fileExists, log }) {
   let escalationReason = "";
-  // fixesLanded judged the range up to headSha; a push after it is unjudged.
   const headMoved = async () => (await api.readBranch(headRef)) !== headSha;
   {
     let run;
@@ -974,14 +789,10 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
     const shown = new Map(run.threads.map((thread) => [thread.id, thread]));
     const createdAt = new Map(reviewComments.map((comment) => [comment.id, comment.created_at]));
     const rootComments = new Map(reviewComments.map((comment) => [comment.id, comment]));
-    // The newest of the thread's comments, as the reply job reads them now,
-    // by the reviewer, the verifier or the lane. NaN (no such comment, or no
-    // readable time) compares false, so it finds no earlier fix.
     const judgedAt = (thread) => {
       const times = (now.get(thread)?.comments ?? [])
         .filter((comment) => ["reviewer", "verifier", "lane"].includes(comment.author))
         .map((comment) => Date.parse(createdAt.get(comment.id) ?? ""));
-      // Math.max of an empty list is -Infinity, and of one NaN is NaN.
       return times.length === 0 ? Number.NaN : Math.max(...times);
     };
     const landed = await fixesLanded({
@@ -1000,11 +811,6 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       return { escalationReason: "feedback-not-landed", posted: [] };
     }
     replies = replies.map((reply) => (reply.disposition === "VALID" ? { ...reply, fixSha: landed.get(reply.thread) } : reply));
-    // GitHub lets only a PR's author or a writer resolve its threads, and the
-    // lanes App is neither on a PR a person opened: there each answered thread
-    // is left open with the lanes App's reply, for the person or their
-    // babysit worker tier to resolve. The stand-in returns LEFT_OPEN, so
-    // settleDisputes reports such a thread as left open, not resolved.
     const appPr = (await api.getPull(pr))?.user?.id === appId;
     const resolve = appPr
       ? resolveAfterReply
@@ -1054,16 +860,6 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       }
       log(`replied on ${reply.thread} (${reply.disposition})${RESOLVING.has(reply.disposition) && appPr ? "; resolved" : ""}`);
     }
-    // A thread left open (INCORRECT, UNCERTAIN or VALID-defer) goes to the
-    // adjudicator's verdict, not straight to a person (owner decision): it is
-    // resolved, handed back to the next round, or escalated with the question
-    // the verdict names; a thread whose finding stood at an earlier
-    // adjudication and is still open ends feedback-stood-open
-    // (adjudicate-feedback.mjs settleDisputes). The
-    // adjudicator read the select job's head, which this round's fix push
-    // may have moved past headSha.
-    // A head that moved this round gets a review run, which starts the next
-    // round; an earlier fix (#9560's fallback) moves nothing.
     const settled = await settleDisputes({
       api,
       pr,
@@ -1136,8 +932,6 @@ export async function main(env, { api, actions, log = (line) => console.log(line
     }
     return readFileSync(path, "utf8");
   };
-  // run.json must be the bytes the select job wrote, whose SHA-256 that job
-  // passed out.
   const readRun = () => {
     const text = read("run.json", LIMITS.runBytes);
     if (!matchesSha256(text, env.RUN_SHA256)) {
@@ -1145,8 +939,6 @@ export async function main(env, { api, actions, log = (line) => console.log(line
     }
     return text;
   };
-  // A missing replies.jsonl is judged in postReplies; one present must be
-  // the bytes the scan job uploaded, whose SHA-256 it passed out.
   const readReplies = () => {
     let text;
     try {
@@ -1171,8 +963,6 @@ export async function main(env, { api, actions, log = (line) => console.log(line
     return matchesSha256(text, env.ADJUDICATION_SHA256) ? text : null;
   };
   const { escalationReason, skipReason } = await publish({
-    // The lane comments' bindings are read with ARTIFACT_READ_TOKEN, never
-    // the lane token (address-feedback.mjs laneReader).
     api: withLaneBinding(
       api ??
         createGitHubApi({

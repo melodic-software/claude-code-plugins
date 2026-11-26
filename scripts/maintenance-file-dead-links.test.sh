@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2016 # jq programs and markdown code spans are literal
-# Runs the two step bodies of .github/workflows/maintenance-file-dead-links.yml
-# under the shell Actions gives a step with no `shell:` (bash -e): `Check the
-# dead links` against artifact fixtures, and `Rewrite the rollup issue`
-# against a stub `gh` that applies the step's own --jq filter to a fixture
-# issue list and logs every write. Also checks the workflow's shape: the
-# trigger names the link-check workflow, and each job holds one scope.
 # test-scope: .github/workflows/maintenance-file-dead-links.yml
 # test-scope: .github/workflows/maintenance-check-links-online*.yml
 set -uo pipefail
@@ -217,7 +211,6 @@ run_file() {
 }
 two='[{"url":"https://example.com/a","status":404,"locations":[{"path":"docs/a.md","line":7},{"path":"docs/b.md","line":null}]},{"url":"https://example.com/b","status":null,"locations":[{"path":"README.md","line":2}]}]'
 
-# No rollup yet: a marker on a later line, or on a pull request, is not one.
 issues '[{number: 4, state: "open", state_reason: null, body: ("intro\n" + $m)},
   {number: 5, state: "open", state_reason: null, body: $m, pull_request: {url: "x"}}]'
 run_file "$two"
@@ -252,9 +245,6 @@ else
   fail "no overflow line: $BODY"
 fi
 
-# 50 long URLs with 20 locations each on long paths: the read step keeps 5
-# locations a link and stays under the 128 KiB a single environment variable
-# holds, and the file step keeps the body under the 65,536-character limit.
 big="$(jq -cn '[range(53) as $i | {url: ("https://example.com/" + ("u" * 950) + "/\($i)"), status: 404,
   locations: [range(20) as $j | {path: ("docs/" + ("p" * 185) + "/\($j).md"), line: $j}]}]')"
 run_read success failure "$big"

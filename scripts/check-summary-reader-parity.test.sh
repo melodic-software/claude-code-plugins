@@ -1,32 +1,4 @@
 #!/usr/bin/env bash
-# Parity gate: every reader of `metadata.summary` must return the same verdict,
-# and the verdict they share must be the correct one.
-#
-# Three pieces of code in this repository read skill frontmatter, and they used
-# to disagree. A malformed summary reached CI twice, failing in opposite
-# directions, each time after clearing the local check meant to catch it
-# (#3189). Making them merely agree was not enough: agreement on a wrong rule is
-# still wrong, so this gate pins the verdicts to an oracle rather than to each
-# other.
-#
-#   Reader A  plugins/skill-quality/scripts/skill-frontmatter.sh
-#             (bash; ships inside the installable plugin, no Node available)
-#   Reader C  scripts/cheatsheet-config.mjs, summaryError
-#             (JavaScript; repo-internal, drives the cheat-sheet generator)
-#   Oracle    a real YAML parser (PyYAML), the same reader
-#             scripts/check-hook-exec-form.sh already relies on
-#
-# The contract is a FIXED POINT: the literal text after `summary:` must be the
-# value every reader recovers. Readers A and C are fast, single-line
-# approximations of that. The oracle is the definition, so it also catches the
-# classes no character-level rule can reach: values a resolver reads as a
-# non-string (`true`, `12:34`, `2026-08-23`) and multi-line plain scalars whose
-# continuation lines a line-oriented reader never sees.
-#
-# Two sweeps:
-#   1. the shared case table, proving the RULE SET
-#   2. every SKILL.md in the tree, proving the TREE
-#
 # Exit 0 = parity holds; 1 = a reader diverged; 2 = the gate could not run.
 # test-scope: plugins/*/skills/*/SKILL.md
 set -uo pipefail
@@ -144,12 +116,6 @@ while IFS=$'\t' read -r id verdict; do
 done < <(yaml_verdicts)
 
 case_count=0
-# The VALUE travels base64-encoded, deliberately. A bare @tsv field escapes an
-# embedded tab into a literal backslash-t, so the bash reader would judge a
-# different string than the other two readers judge and the gate would report a
-# divergence it manufactured itself. Encoding also survives jq's CRLF output on
-# Windows, which otherwise rides along on the final field and silently adds a
-# codepoint to every value.
 while IFS=$'\t' read -r id expect expect_yaml value_b64; do
   [[ -n "$id" ]] || continue
   value_b64="${value_b64%$'\r'}"

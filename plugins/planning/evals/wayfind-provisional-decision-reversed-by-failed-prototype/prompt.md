@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 31, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "A failed prototype reverses the provisional Knock decision by opening a new decision item that links the old one and starts from the Courier fallback, without reopening or editing the old decision (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

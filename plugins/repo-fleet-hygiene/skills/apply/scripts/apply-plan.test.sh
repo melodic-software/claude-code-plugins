@@ -2,8 +2,6 @@
 # shellcheck disable=SC2310 # pass/fail helpers return status in if/||; every false path is handled
 # shellcheck disable=SC2015 # `cond && pass || fail`: pass never fails, so fail runs only when cond is false
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -83,8 +81,6 @@ add_merged_branch() {
 }
 
 write_plan() {
-  # Usage: write_plan PATH <<'EOF' ... JSON ... EOF
-  # Copy stdin to a temp file first so the python here-doc does not consume the JSON.
   local out=$1
   local raw
   raw="$(mktemp "$TMP/plan-raw.XXXXXX")"
@@ -331,10 +327,6 @@ write_plan "$PLAN2" <<EOF
 }
 EOF
 
-# An interactive "n" decline needs a pty (the script checks -t 0, so piped stdin
-# hits the non-interactive stop instead). Re-assert that stop on this fresh plan,
-# then a --yes apply as the positive control that the same plan would mutate.
-
 decline_rc=0
 bash "$SCRIPT" --plan-file "$PLAN2" --apply </dev/null >/dev/null 2>&1 || decline_rc=$?
 [[ "$decline_rc" -eq 3 ]] || fail "plan2 confirmation stop rc=$decline_rc"
@@ -488,9 +480,6 @@ assert_contains "prunable empty fields decode to prune" "[prune-worktrees]" "$pr
 assert_contains "prunable kind preserved" "kind: prunable-worktree" "$prune_out"
 assert_not_contains "prunable not misread as merged-worktree skip" "target has no branch name" "$prune_out"
 
-# --- 8) delete-remote-branches: gated by --remote-branches, per branch --------
-# Fixtures use a local bare repository as the remote; nothing here reaches GitHub. The per-branch
-# prompt reads a terminal, so the interactive cases run under a pty driver; without one they SKIP.
 HAVE_PTY=0
 python3 -c 'import pty' >/dev/null 2>&1 && HAVE_PTY=1
 PTY_DRIVER="$TMP/pty-run.py"
@@ -650,9 +639,6 @@ with open(out, "w", encoding="utf-8") as f:
 PY
 }
 
-# gh stand-in for the apply-time PR recheck. It logs "<repo> <head>" per call and answers with the
-# rows in $GH_STUB_DIR/<branch with / as _> (tab-separated state and headRefOid), or exits 1 when
-# $GH_STUB_DIR/fail exists.
 export GH_STUB_DIR="$TMP/gh-stub" GH_STUB_LOG="$TMP/gh-stub.log"
 mkdir -p "$GH_STUB_DIR" "$TMP/bin"
 : >"$GH_STUB_LOG"
@@ -833,10 +819,8 @@ else
   skip_no_pty "(f) gated half of the dry-run parity case"
 fi
 
-# The printed command carries a literal full-width lease, the shape the guardrails hook allows.
 HOOK="$SCRIPT_DIR/../../../../guardrails/hooks/block-dangerous-git.sh"
 if [[ -f "$HOOK" ]] && command -v jq >/dev/null 2>&1; then
-  # The attended flag turns the guard's deny into an ask (exit 0), so it is unset.
   hook_rc() {
     local cmd=$1 rc=0
     python3 -c 'import json, sys; print(json.dumps({"tool_name": "Bash", "tool_input": {"command": sys.argv[1]}, "cwd": sys.argv[2]}))' \
@@ -881,7 +865,6 @@ for forged in merged-remote-branch merged-local-branch; do
 done
 assert_remote_head "forged plans deleted nothing" "$REMOTE_BARE" feat/merged "$RG_OID"
 
-# A tip that is not the audit finding's tip, or is abbreviated, is a bad plan (exit 2).
 RG_BAD="$TMP/rg-bad.json"
 write_remote_plan "$RG_BAD" "$REMOTE_REPO" "$NP" "feat/merged|never-pr|${RG_OID:0:7}|${RG_OID:0:7}"
 rg_rc=0

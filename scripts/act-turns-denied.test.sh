@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# Behavior test: the "Check the skill took a model turn" step in
-# pr-run-activity-read.yml records each permission_denials entry as
-# {tool_name, input} in act-turns.json, keeping the first 20 with denied_total
-# counting all, and the step summary shows each as `tool: input`, then
-# `(+N more)` for any cut. Tool names are cut to 100 characters, at most 4
-# stderr messages are kept with local_command_stderr_total counting all, and
-# denied entries drop from the end until denied serializes to at most 8192
-# bytes. A worst-case file, every field at its limit in 6-byte-escaped
-# characters, fits the 32768-byte carry cap, with the oldest stderr entries
-# dropped first. The step writes no summary; the scan job's summary step,
-# after the leak scan and in both modes, renders the act-turns.json it wrote. Runs each step's
-# github-script body against a canned execution file with a stub `core` whose
-# summary records its code blocks.
 # test-scope: .github/workflows/pr-run-activity-read.yml .github/scripts/lib/act-turns.mjs scripts/ci-deps/package.json
 set -uo pipefail
 

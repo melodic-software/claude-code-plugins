@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# Before/after spawn census, with the rule-1 self-proof built in.
-#
-# harness-integrity.md rule 1: run the harness twice against an UNCHANGED
-# subject; if the two runs disagree beyond characterized noise, the harness is a
-# variable rather than an instrument. A spawn count has no noise band, so the
-# runs must agree exactly, and a disagreement is a hard failure here rather than
-# a footnote in the report.
-#
-# The comparison is between WARM runs only. Run 1 of each arm is discarded as
-# cold and reported separately: a cold cache legitimately changes a spawn count,
-# and a gate that fired on that would be loosened by the next person to hit it.
-#
-# Usage, options and exit codes: usage() below, printed by --help.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -124,9 +111,6 @@ fi
 
 CENSUS_COUNT=""
 
-# Sets CENSUS_COUNT. Not a $( ) helper, so a precondition
-# failure inside spawn-census.sh can terminate this script rather than a
-# subshell nobody is checking.
 census_run() {
   local label="$1" command="$2" rc line
   set +e

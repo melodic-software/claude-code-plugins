@@ -1,26 +1,4 @@
 #!/usr/bin/env bash
-# reassess-limits.sh — What limits `reassess` on one pull request.
-#
-# Prints one `<kind>: <reason>` line per limit. A failed read is a limit, so an
-# unread hold never reads as no hold. Run from a checkout of the base repository.
-#
-#   refused    closed or merged: no verdict
-#   label      carries do-not-merge: a verdict, and only the action's own comment may be edited
-#   queue      in a merge queue: a verdict and no action
-#   stack      a native stack member: a verdict and no action
-#   held       a body hold, a member's veto, a live worker lease or a worktree claim: no action
-#   moved      the head is no longer --expect-head: no action
-#   unread     a read failed: no action
-#   no-update  no update on `continue`, though a label or comment may still go on
-#              (a fork head, the standards-sync label, a head branch not unique
-#              among open pull requests, a person's outstanding change request)
-#
-# A person's veto follows the merge gate's rule: each owner, member or
-# collaborator's newest comment, review or inline comment with text decides.
-#
-# Usage:
-#   reassess-limits.sh <pr> --repo <owner/repo> --state-dir <dir> [--expect-head <sha>]
-#
 # Exit codes:
 #   0  no limit
 #   1  invalid argument
@@ -140,7 +118,6 @@ else
   repo_key=$(tr '[:upper:]' '[:lower:]' <<<"${REPO/\//__}")
   lease="$STATE_DIR/active-workers/${repo_key}__pr-$PR.json"
   if [[ -e "$lease" ]]; then
-    # Babysit writes UTC with microseconds; jq parses it on every platform, and any other offset fails closed.
     if expiry=$(jq -er '.expires_at | sub("\\.[0-9]+"; "") | sub("\\+00:00$"; "Z") | fromdateiso8601' "$lease" 2>/dev/null); then
       ((expiry <= $(date +%s))) || limit held "a live babysit worker lease"
     else

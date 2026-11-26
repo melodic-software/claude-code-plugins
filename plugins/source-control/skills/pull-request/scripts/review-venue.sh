@@ -1,53 +1,30 @@
 #!/usr/bin/env bash
-# review-venue.sh — Say, per AI review lane, whether CI reviews this repository's
-# pull requests and is healthy, so a local review runs only where CI does not.
-#
-# A lane is a workflow whose pull_request runs call a reusable review workflow
-# the review_lane_workflows setting names for it (`code-review=` or
-# `security-review=`), or one it names `either=`: security-review from a caller
-# whose path names security, code-review from any other. The setting is read
-# only from the operator's settings, so a pull request cannot widen it:
-# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-config-delivery/README.md
-# Unset, no run counts and every lane reads local absent. A lane is healthy
-# when its workflow is active and its newest pull_request run that reached a verdict (completed, and neither skipped nor
-# cancelled) succeeded and was created within --max-age-days. A failed run whose
-# every failed job says failure-class=skipped-validation reached no verdict: the
-# pull request edits the caller workflow, so the review skipped itself by
-# design. A disabled workflow, any other failed run (a usage-limit stop
-# included), a timed-out one, or none in the window is not healthy.
-#
-# A run listing page is whole when its workflow_runs array holds every run its
-# total_count leaves for that page. A page still not whole after three reads
-# reads unreadable for each lane it leaves undecided, never absent or stale.
-#
-# With --head, a last `tests` line says whether CI's test lanes covered that
-# commit: the GitHub Actions check runs on it whose name is `Test` or `test`,
-# or starts with one of them and `-`, ` ` or `(` (`Test Bash (0)`, or
-# `test-bash (0)` on a head tested before the jobs got display names), taking
-# per name the newest run that did not skip. It reads `ci` when every one finished as success, skipped or neutral
-# and at least one succeeded. None (a draft skips them), all skipped, any
-# unfinished, any other conclusion, or more than 500 check runs reads `local`.
-#
-# Usage:
-#   review-venue.sh [--repo <owner/repo>] [--max-age-days <n>] [--head <sha>]
-#
-# Output, one line per lane, code-review first, then tests with --head:
-#   <lane> ci healthy: <detail>
-#   <lane> local absent|failing|stale|unreadable: <detail>
-#   tests ci healthy: <detail>
-#   tests local absent|failing|pending: <detail>
-#
-# Exit codes:
-#   0  read; every lane has a line
-#   1  invalid argument
-#   2  a gh call failed or returned something unparsable: treat every lane as local
-#   5  prerequisite missing (gh, jq)
-
 # portability-scope: the GitHub implementation of the review-venue read; every read is a gh call.
 set -uo pipefail
 
 usage() {
-  sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+review-venue.sh: say per AI review lane whether CI reviews this repository's pull requests and is healthy.
+
+Usage:
+  review-venue.sh [--repo <owner/repo>] [--max-age-days <n>] [--head <sha>]
+
+  --repo          the repository (default: the current directory's)
+  --max-age-days  how recent a lane's last verdict must be
+  --head          also print a `tests` line for whether CI's test lanes covered this commit
+
+Output, one line per lane, code-review first, then tests with --head:
+  <lane> ci healthy: <detail>
+  <lane> local absent|failing|stale|unreadable: <detail>
+  tests ci healthy: <detail>
+  tests local absent|failing|pending: <detail>
+
+Exit codes:
+  0  read; every lane has a line
+  1  invalid argument
+  2  a gh call failed or returned something unparsable: treat every lane as local
+  5  prerequisite missing (gh, jq)
+EOF
   exit 0
 }
 
@@ -136,9 +113,6 @@ skipped_validation() {
   done
 }
 
-# Find each lane's caller workflow among the newest pull_request runs. Every PR
-# event starts each lane, a draft's run included (it concludes skipped), so a
-# repository with lanes shows them in the first pages.
 UNREAD=""
 [[ "$code_wfs$security_wfs$CLI" == "[][][]" ]] && PAGES=0
 for ((page = 1; page <= PAGES; page++)); do
@@ -182,7 +156,6 @@ for i in "${!LANES[@]}"; do
     continue
   fi
   [[ "$id" =~ ^[0-9]+$ ]] || die 2 "unexpected workflow id for $lane"
-  # A disabled workflow keeps its run history but answers no trigger.
   wf=$(gh api "repos/$REPO/actions/workflows/$id") || die 2 "cannot read the workflow $path"
   state=$(jq -er '.state | strings' <<<"$wf") || die 2 "cannot parse the workflow $path"
   if [[ "$state" != active ]]; then
@@ -221,10 +194,6 @@ for i in "${!LANES[@]}"; do
 done
 
 [[ -n "$HEAD_SHA" ]] || exit 0
-# filter=all, because a label or body edit re-runs the workflow on the same
-# commit and posts each test lane skipped: per name, the newest run that did
-# not skip is the lane's result, so a skip never hides a failure and a re-run
-# that passed replaces its failed attempt.
 CHECK_PAGES=5
 tests="[]" complete=false
 for ((page = 1; page <= CHECK_PAGES; page++)); do

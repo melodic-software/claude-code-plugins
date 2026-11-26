@@ -1,22 +1,4 @@
 #!/usr/bin/env bash
-# Decides how one pull request branch takes its base: none, merge, rebase,
-# delegate or hold. Pure: signals JSON on stdin, decision JSON on stdout, no
-# network, no git. The rows below own every condition and their order; the
-# reasoning for each is in ../reference/branch-update-criteria.md.
-#
-#   branch-update-method.sh <signals.json   print one decision
-#   branch-update-method.sh --rows          print the row ids, in order
-#
-# Rows are evaluated top to bottom, first match. A row needing a signal that
-# reads `unknown` does not match, except where a row tests for `unknown` itself.
-#
-# setting.applied is true exactly when `setting` is merge or rebase and the
-# matched row is forceable: the method came from the setting, whether it changed
-# the row's method or agreed with it. On every other row the setting has no
-# effect and applied is false.
-#
-# Exit: 0 a decision was printed; 2 malformed input, usage error or jq missing,
-# with nothing on stdout. A consumer treats exit 2 as `hold`.
 set -uo pipefail
 
 # shellcheck disable=SC2016 # False positive: each $name is a jq variable.

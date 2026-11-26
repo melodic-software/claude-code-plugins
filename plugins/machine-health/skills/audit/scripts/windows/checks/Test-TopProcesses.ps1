@@ -33,8 +33,6 @@ $commands = @(
     ("Get-Counter -Counter $(($counter.Paths.Values | ForEach-Object { "'$_'" }) -join ', ') " +
         "-SampleInterval $($counter.SampleInterval) -MaxSamples $SampleSeconds")
 )
-# The shortest window that grades disk latency (catalog section 26). The orchestrator's
-# -SampleSeconds maximum must reach it; Get-CheckArgument.Tests.ps1 checks that.
 $SustainedSeconds = 60
 
 $FailureSummary = 'Top-processes sample failed.'

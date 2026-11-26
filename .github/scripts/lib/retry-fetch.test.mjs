@@ -55,8 +55,6 @@ test("a 4xx is returned and an error with no network cause raised, each at once"
   assert.deepEqual(h.slept, []);
 });
 
-// Outage posture element 1: a rate-limited read waits as long as GitHub asks,
-// within the 3 attempts and a 60 s budget per wrapper, and a write is sent once.
 function limited(answers, { clock = 0 } = {}) {
   const sent = [];
   const slept = [];

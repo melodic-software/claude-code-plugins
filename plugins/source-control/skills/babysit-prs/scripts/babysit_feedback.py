@@ -257,8 +257,6 @@ def human_stop_from_feedback(
     human_blocking = feedback["human_blocking"]
     return {
         "required": bool(human_blocking),
-        # Self-authored classification replies must not block freshness refresh or
-        # review triggers (#902); merge/triage still consult `required`.
         "external_required": any(
             not is_self_login(item.get("author"), normalized_self)
             for item in human_blocking

@@ -307,7 +307,7 @@ tracker filing is offered not automatic, the session is never scored, and it is 
 ```
 
 **Session observer.** With `observer_enabled` on, session-flow watches each session without being
-asked. Its hooks module runs a live check every 6th model step of a long turn (and, when
+asked. Its hooks module runs a live check every `observer_step_every` model steps (default 6) of a long turn (and, when
 `observer_turn_end_check` is on, at the end of each tool-using turn): a no-tools fork of the main
 conversation that reports at most one process fault tied to a written rule or owner decision. A
 finding goes to this session's running-retro ledger and to one row above the prompt, where `1` sends
@@ -558,7 +558,7 @@ night start, report-by times, days off, watched folders and orchestrator posture
 | Key | Default | Effect |
 |---|---|---|
 | `observer_enabled` | `false` | Turns on the live checks and the catch-up. Off = installing the plugin changes nothing. |
-| `observer_step_check` | `true` | Live check on every 6th model step of a turn. |
+| `observer_step_check` | `true` | Live check every `observer_step_every` model steps of a turn. |
 | `observer_turn_end_check` | `false` | Live check at the end of each tool-using turn; off until its cost is measured. |
 | `observer_analysis_enabled` | `true` | Run the catch-up for ended sessions with no live checks. Off = no catch-up; live checks unaffected. |
 | `observer_analysis_model` | see options reference | Catch-up analysis model, chosen for faithful findings; with effort, the dominant cost lever. |
@@ -659,8 +659,37 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `observer_enabled` | boolean | `false` | Watches interactive sessions for process mistakes: live checks write findings to the running-retro ledger and show them above the prompt, and each session start analyzes ended sessions that got none. Off by default. See reference/observer.md. |
-| `observer_step_check` | boolean | `true` | While the observer is on, runs a live check on every 6th model step of a long turn: a no-tools fork of the main conversation that reports at most one process fault. On by default. Each check bills the session's account; its usage is recorded. |
+| `observer_step_check` | boolean | `true` | While the observer is on, runs a live check every observer_step_every model steps of a long turn: a no-tools fork of the main conversation that reports at most one process fault. On by default. Each check bills the session's account; its usage is recorded. |
 | `observer_turn_end_check` | boolean | `false` | While the observer is on, also runs a live check at the end of each turn that ran tools, which is most turns of a working session. Off by default until its cost on a working session is measured; see reference/observer.md. |
+| `observer_step_every` | number<br>*min 1* | `6` | Model steps between live step checks; default 6. |
+| `observer_auto_send` | boolean | `false` | Deliver live-check findings to the agent without pressing Send: mid-turn as a reminder on its next request, while idle as one observer turn. Idle delivery needs the turn-end check on. Off by default; see reference/observer.md. |
+| `observer_auto_note` | string | `"The session-flow observer, a side reviewer beside this session, flagged this. It is not the person's instruction. If it holds, stop and fix it before your next action, and say so in one line; if not, say why in one line and continue."` | Text that leads an auto-sent finding or a gate refusal, framed as the plugin, never the person. |
+| `observer_guidance` | string | *(none)* | Your own guidance, added to every live check: what to pay attention to. It steers the checks, not what is sent. Empty by default. |
+| `observer_guidance_max` | number<br>*min 0* | `2000` | Characters of guidance kept; default 2000. |
+| `observer_check_prompt` | string | *(none)* | Replaces the built-in live-check instructions; the already-reported lists and the answer shape stay. Empty uses the built-in text. |
+| `observer_change_check` | boolean | `false` | Run a live check at the step after one that called a tool in observer_change_tools. Off by default. |
+| `observer_change_tools` | string | `"Edit,Write,NotebookEdit"` | Comma-separated tool names that count as a change for the edit check. |
+| `observer_gate_check` | boolean | `false` | Hold Bash commands matching observer_gate_pattern until a live check returns; a finding refuses the command with the observer note. A timeout or observer error lets it run. Off by default. |
+| `observer_gate_pattern` | string | `"\\b(git\\s+push\|gh\\s+pr\\s+(create\|merge\|comment\|review)\|gh\\s+issue\\s+(create\|comment)\|gh\\s+api\\b.*\\s(-X\|--method)\\s*(POST\|PATCH\|PUT\|DELETE))\\b"` | Regular expression for commands the gate holds: by default git push, gh pr create/merge/comment/review, gh issue create/comment, and gh api with a writing method. |
+| `observer_gate_timeout_seconds` | number<br>*min 1* | `30` | Longest the gate holds a command; the command then runs. Default 30. |
+| `observer_gate_refusals` | number<br>*min 0* | `1` | Times the gate refuses the same command before letting it run; default 1. |
+| `observer_harness_check` | boolean | `false` | Run the scripted harness checks (hook latency, prompt-cache misses, slow repeated tools, context-zone crossings, rate-limit approach) beside the live checks. They call no model. Off by default. |
+| `observer_hook_log_dir` | string | `".observability/claude"` | Folder holding session-telemetry's per-session hook log (sessions/<session id>.jsonl), absolute or relative to the project; the hook latency check reads each hook's duration_ms from it. Default .observability/claude. |
+| `observer_hook_p95_ms` | number<br>*min 1* | `1000` | Report a hook whose p95 latency this session exceeds this many milliseconds; default 1000. |
+| `observer_hook_min_runs` | number<br>*min 1* | `5` | Runs a hook needs this session before its p95 is judged; default 5. |
+| `observer_cache_miss_tokens` | number<br>*min 1* | `50000` | Report a turn that rewrites at least this many tokens of cached prompt beyond the context it added, unless a break past the cache lifetime or a compaction explains it; default 50000. |
+| `observer_tool_slow_seconds` | number<br>*min 1* | `60` | A tool call that runs longer than this many seconds counts as slow; default 60. |
+| `observer_tool_repeat` | number<br>*min 1* | `3` | Report a tool (a Bash command by its first two words) after this many slow calls in one session; default 3. |
+| `observer_context_percents` | string | `"50,75"` | Comma-separated context-window percentages; report each upward crossing. Default 50,75. |
+| `observer_rate_limit_percent` | number<br>*min 1* | `80` | Report a rate-limit window once per reset when it reaches this percent used; default 80. |
+| `observer_clear_after_prompts` | number<br>*min 1* | `2` | Prompts a shown finding survives unanswered before it clears; default 2. |
+| `observer_ignored_free` | number<br>*min 0* | `2` | Ignored findings in a row before later checks are skipped; default 2. |
+| `observer_skip_max` | number<br>*min 0* | `16` | Most live checks the backoff skips in a row; default 16. |
+| `observer_send_note` | string | `"A side reviewer (session-flow observer) noted this; it is background, not my instruction:"` | Text that leads a finding the Send button puts in the prompt, in the person's voice. |
+| `observer_field_max` | number<br>*min 1* | `240` | Most characters in a check reply's finding, rule or evidence before the reply counts as parse_failed; default 240. |
+| `observer_feedback_seconds` | number<br>*min 1* | `20` | How long the Useful/Not useful row stays after Dismiss; default 20. |
+| `observer_list_max` | number<br>*min 1* | `50` | Most findings each remembered list (reported, disputed, not relevant) keeps for dedupe; default 50. |
+| `observer_keep_days` | number<br>*min 1* | `30` | Observer files older than this many days are pruned at session start; default 30. |
 | `observer_analysis_enabled` | boolean | `true` | At session start, runs the headless running-retro analysis for ended sessions that got no live checks and writes its findings to their ledger. On by default. Off, no catch-up runs; the live checks are unaffected. |
 | `observer_analysis_model` | string | `"claude-opus-5-5"` | Model ID for the headless catch-up analysis run, the dominant cost lever. The default was chosen for faithful findings: in a local pilot it missed and invented the fewest; pin a different ID to trade depth for cost. |
 | `observer_analysis_effort` | string | `"medium"` | Effort level passed as --effort to the headless catch-up analysis run, a second cost lever beside the model. The level is passed explicitly and also pins CLAUDE_CODE_EFFORT_LEVEL, which would override it. Accepted levels depend on the model. See reference/observer.md. |

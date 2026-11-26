@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "user-interface:glossary", "args": "the bounce when a popover opens"}}],
+      "why": "the skill the description names for interface terms"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "engineering-concepts:lookup", "args": "popover bounce"}}],
+      "why": "lookup fired on an interface term"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "engineering-concepts:load", "args": "popover bounce"}}],
+      "why": "load fired on an interface term"
+    }
+  ]
+}

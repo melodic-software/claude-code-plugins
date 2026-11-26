@@ -1,22 +1,3 @@
-// Gate for CI lanes: two manual switches, then, on a gate that starts new
-// work, the GITHUB_TOKEN budget.
-//
-// - The org switch and the repository switch each proceed only on exactly
-//   `false`. Unset, empty and every other value stop the lane (fail closed).
-// - With BUDGET_CHECK=true (the action's `budget: "true"`, set only on gates
-//   that start new work) and both switches proceeding, one GET /rate_limit
-//   with the job's token reads the core pool: x-ratelimit-limit, -remaining
-//   and -reset when the response carries all three, else the body's
-//   resources.core. The lane stops while remaining < start-gate x limit and
-//   the reset is still ahead; start-gate is github-token's entry in
-//   ../log-api-budget/rate-limits.json. A refused read (403, 429, retry-after
-//   or x-ratelimit-remaining 0) stops, since more calls would be refused too.
-//   A read that fails otherwise (transport, timeout, 5xx, 401) or cannot be
-//   parsed, or a share that cannot be read, proceeds with a warning; the rate guard's
-//   stop-floor (log-api-budget/rate-guard.mjs) is the backstop. GitHub counts
-//   this call against the secondary limit, not the primary one, so it is made
-//   once, with no retry. A gate that finishes or judges existing work leaves
-//   the budget off, so a low budget never throws that work away.
 import { randomUUID } from "node:crypto";
 import { appendFileSync, readFileSync } from "node:fs";
 import process from "node:process";
@@ -33,17 +14,12 @@ export function checkKillSwitch(value, repoValue) {
     : { proceed: "false", reason: "kill-switch", cause: "switch" };
 }
 
-// Whether `reading` ({ limit, remaining, reset }, reset in epoch seconds) is
-// under `share` of its limit with its reset after `now` (epoch seconds).
-// Anything unreadable never stops.
 export function budgetStops({ limit, remaining, reset } = {}, share, now) {
   return [limit, remaining, reset, share].every(Number.isFinite) && limit > 0 && reset > now && remaining < share * limit;
 }
 
 const HEADERS = ["limit", "remaining", "reset", "used", "resource"];
 
-// The reading from one GET /rate_limit response: its headers when limit,
-// remaining and reset all parse, else the body's resources.core.
 export function readingOf(headers, body) {
   const header = Object.fromEntries(HEADERS.map((name) => [name, headers?.get?.(`x-ratelimit-${name}`) ?? null]));
   const fromHeaders = Object.fromEntries(["limit", "remaining", "reset"].map((name) => [name, /^\d+$/.test(header[name] ?? "") ? Number(header[name]) : Number.NaN]));
@@ -54,17 +30,12 @@ export function readingOf(headers, body) {
   return { reading, header, core };
 }
 
-// A value from a response, kept to one line with no workflow command in it.
 const clean = (text) => String(text).replace(/[\r\n%:]/g, " ");
 const show = (fields) => Object.entries(fields ?? {}).map(([name, value]) => `${name}=${clean(value ?? "na")}`).join(" ");
 
 const DEFAULT_WAIT_S = 60;
 const whole = (value) => (/^\d+$/.test(value ?? "") ? Number(value) : Number.NaN);
 
-// A response that says the token is already limited (403, 429, retry-after, or
-// no requests remaining) stops the lane rather than proceeding into more calls
-// that would be refused too. Its reset is always ahead of now: the header's
-// reset, else now + retry-after, else now + 60.
 function refusal(response, now, title) {
   const { status, headers } = response;
   const header = (name) => headers?.get?.(name) ?? null;
@@ -88,17 +59,28 @@ export function projectionStops(reading, { share, minutes, labels = START_LABELS
   if (left === null) {
     return { stop: false, left: null, text: `projection unreadable for this reading, so it does not hold the start (${labels.minutes}=${minutes})` };
   }
+  const secondsToReset = reading.reset - now;
+  if (secondsToReset < minutes * 60) {
+    const floor = (share * secondsToReset) / (minutes * 60);
+    const stop = left < floor;
+    const [resetIn, shown, floorShown] = [Math.round(secondsToReset), Math.round(left * 1000) / 1000, Math.round(floor * 1000) / 1000];
+    return {
+      stop,
+      left: shown,
+      why: `the window is projected to have ${shown} of its limit left at its reset in ${resetIn} s, under ${labels.share}=${share} scaled to the ${resetIn} s of the ${minutes} min run before the reset, ${floorShown}`,
+      text: `projected left ${shown} of the limit at the reset in ${resetIn} s, inside the run's ${minutes} min (${labels.minutes}=${minutes}), against ${labels.share}=${share} scaled to the ${resetIn} s before the reset, ${floorShown}; stop=${stop}${stop ? `: the window would reach its reset with under that share of the limit left` : ""}`,
+    };
+  }
   const stop = left < share;
   const shown = Math.round(left * 100) / 100;
   return {
     stop,
     left: shown,
-    text: `projected left ${shown} of the limit ${minutes} min ahead or at the reset, against ${labels.share}=${share} (${labels.minutes}=${minutes}) stop=${stop}${stop ? `: the run would end in a window with under its ${labels.share} share of the limit left` : ""}`,
+    why: `the window is projected to have ${shown} of its limit left ${minutes} min ahead, under ${labels.share}=${share}`,
+    text: `projected left ${shown} of the limit ${minutes} min ahead, against ${labels.share}=${share} (${labels.minutes}=${minutes}) stop=${stop}${stop ? `: the run would end in a window with under its ${labels.share} share of the limit left` : ""}`,
   };
 }
 
-// The budget half of the gate: { stop, reset, line } where line is the run's
-// one notice or warning. Never throws.
 export async function checkBudget({ token, api = "https://api.github.com", share, projection = null, now = Date.now() / 1000, fetchImpl = fetch, title = "start-gate" } = {}) {
   if (!token) {
     return { stop: false, line: `::warning title=${title}::no token to read the GITHUB_TOKEN budget; the lane proceeds` };
@@ -127,6 +109,7 @@ export async function checkBudget({ token, api = "https://api.github.com", share
       stop,
       reset: reading.reset,
       projected: ahead?.left ?? null,
+      why: ahead?.why ?? null,
       line:
         `::notice title=${title}::github-token ${share === null ? "defer" : `start-gate=${share}`} decided from ${reading.source}: limit=${reading.limit} remaining=${reading.remaining} reset=${reading.reset} stop=${stop}; ` +
         `${ahead ? `${ahead.text}; ` : ""}body core ${core ? show(coreFields) : "absent"}; headers ${show(header)}`,
@@ -136,8 +119,6 @@ export async function checkBudget({ token, api = "https://api.github.com", share
   }
 }
 
-// github-token's start-gate share from rate-limits.json, the only copy, or
-// null with a warning when it cannot be read.
 export function startGateShare(path = RATE_LIMITS, log = (line) => console.log(line)) {
   try {
     const share = JSON.parse(readFileSync(path, "utf8"))?.["github-token"]?.["start-gate"];
@@ -191,8 +172,6 @@ export async function deferGate({ rateLimits = RATE_LIMITS, resolvedPath = "", m
 
 const isoOf = (seconds) => new Date(seconds * 1000).toISOString().replace(".000Z", "Z");
 
-// Every value is written in the delimited form, so no value can start a
-// second output line.
 export function writeOutputs(outputs, outputPath = process.env.GITHUB_OUTPUT) {
   if (!outputPath) {
     throw new Error("GITHUB_OUTPUT is not set");
@@ -260,10 +239,7 @@ export async function main(
         log(budget.line);
         if (budget.stop) {
           result = { proceed: "false", reason: "kill-switch", cause: "defer", reset: String(budget.reset) };
-          const why =
-            budget.projected === null || budget.projected === undefined
-              ? "the budget read was refused"
-              : `the window is projected to have ${budget.projected} of its limit left ${gate.minutes} min ahead or at the reset, under defer-project=${gate.share}`;
+          const why = budget.why ?? "the budget read was refused";
           log(`::notice title=defer::deferred until the GITHUB_TOKEN window resets at ${budget.reset} (${isoOf(budget.reset)}): ${why}; cause=defer, so a later run after the reset does this work`);
         }
       }

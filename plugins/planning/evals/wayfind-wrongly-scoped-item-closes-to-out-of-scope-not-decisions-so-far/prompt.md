@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 8, run as a plugin-eval case for the before/after comparison (loss-set)."
+description: "An item found out of scope closes as not planned behind an Out-of-scope line linking it, with no Decisions-so-far pointer and no fog moved into Out-of-scope (loss-set)."
 tags: [wayfind, wayfind-charting, loss-set]
 runs: 3
 max_turns: 30

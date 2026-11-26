@@ -1,38 +1,5 @@
-// Checks the verifier's structured output, the last result message of each
-// chunk's run-claude-cli execution file, and writes the one verdict file that
-// pr-verify.yml uploads as pr-verify-<pr>-<head-sha>-<verdict>, a FAIL's name
-// followed by `-i` and the issues it records (`artifactName`). Every reader
-// also accepts that name followed by `-<headRefDigest of the head branch>`,
-// which lets the pr-merge lane tie a FAIL to a branch without downloading it;
-// this writer moves to it once the readers have run on main, in the change
-// that adds the digest lookups to resolve-pr, which looks up only the names
-// this writer writes. The output
-// of each chunk must be exactly {verdict, summary, notes}: verdict pass, pass-notes or fail,
-// summary a string, notes an array of strings. Since the verdict is uploaded,
-// a pass or pass-notes with a permission denial writes none, and so does a chunk
-// that left no output or read a part of its diff short (pr-review-main
-// readCoverage) with no defect in its notes. A fail stands on a denial, since no
-// fail can pass the head. A fail whose text matches the shared credential
-// patterns (lib/publish-gate.mjs findSecret), a pass or pass-notes whose text
-// holds a credential format (those patterns less WARN_ONLY, a secret assignment
-// that may be a fixture), and any verdict whose step's credential scan stopped
-// it become a fail with a fixed text in place of the model's, so the head is not
-// sampled again and no part of it is published. Only this script records such a
-// fail as `withheld: true`, which is what verify-notes.mjs reads to hold the pull
-// request. A pass or pass-notes holding only an assignment writes no verdict.
-// The file also records the head
-// branch and the linked issues with their authors, as the resolver read them
-// (number, author and last body editor login, id and type, last_edited_at;
-// each nullable but the number), and, given STANDARDS_DIR, the git blob id of
-// the standards trusted list it judged with, which the pr-merge
-// lane's reader checks. Anything malformed throws, so the job fails and
-// uploads nothing. Model text is cut to fixed lengths (judgment) and never
-// reaches a shell. The file's evidence block (buildEvidence) records that no
-// app check ran and the author's evidence-loop count, and never fails the
-// verdict (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#verifier-verdict).
-
 import { createHash } from "node:crypto";
-import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -83,10 +50,6 @@ function checkIssues(issues) {
 
 const NO_APP = Object.freeze({ capture: "no-app", reason: "no app check ran", capture_count: 0 });
 
-// The author's own count from the trusted PR body's `Evidence loop: k/3`
-// line, or the `Evidence loop: 3/3 cap reached, last NEEDS WORK` line
-// /verification:confirm writes at its cap (its context/outcome.md), read as
-// data: null when the body is withheld or holds no such line.
 export function localLoop(body) {
   const match = typeof body === "string" ? /^Evidence loop: (?:([0-3])\/3|(3)\/3 cap reached, last NEEDS WORK)[ \t\r]*$/m.exec(body) : null;
   return match ? Number(match[1] ?? match[2]) : null;
@@ -96,14 +59,7 @@ export function buildEvidence({ prBody } = {}) {
   return { ...NO_APP, features: [], local_loop: localLoop(prBody) };
 }
 
-// run-claude-cli's own scan, which fails its step on a shorter Anthropic key
-// than findSecret's shape, so this script holds text to the same line.
 const KEY_SHAPE = /\bsk-ant-[A-Za-z0-9_-]{8,}/;
-// chunk-diff.sh's fold, which a quoted line carries through the middle of a
-// token, with the white space a quote leaves before it, on the line or across a
-// line end. The lookbehind starts a match only at the head of a white space run,
-// so a long run is not read again from each of its characters; folds in a
-// row, an empty one included, go as one.
 const FOLD = /(?<!\s)(?:\s*\\ continued: ?)+/g;
 const FORMATS = SECRET_PATTERNS.filter(([label]) => label !== WARN_ONLY);
 const formatIn = (text) => firstHit(FORMATS, text)?.[0] ?? (KEY_SHAPE.test(text) ? "Anthropic key" : deeperLeak(text));
@@ -120,12 +76,8 @@ class AssignmentOnly extends Error {
   }
 }
 
-// What a withheld fail says. Its text decides nothing: a genuine fail may quote it.
 export const WITHHELD_SUMMARY = "The verifier returned fail, and its text is withheld: the text was shaped like a credential, or its step stopped on the credential scan.";
 
-// Marks a checked output as withheld. Outputs pass through parseOutput more than
-// once, and a symbol key survives a spread, stays out of its exact-key check, and
-// is one no model's JSON can carry. buildVerdict writes it as `withheld: true`.
 const WITHHELD = Symbol("withheld");
 
 const withheld = ({ notes }, kind) => {
@@ -164,12 +116,6 @@ function parseOutput(output) {
   return kind ? withheld(parsed, kind) : parsed;
 }
 
-// One output from each chunk's and the whole-spec judgment's: the worst
-// verdict, each summary, and the notes, unprefixed since each starts with its
-// path (verify-notes.mjs noteComments). The worst come first, so the cuts in
-// buildVerdict never drop a fail's notes for a pass-notes chunk's. A single
-// chunk is its own output; two or more never stand without `final`, so no
-// chunk's pass or pass-notes becomes the head's alone.
 export function mergeChunks(outputs, final) {
   if (!Array.isArray(outputs) || outputs.length === 0) {
     throw new Error("no chunk left an output");
@@ -195,8 +141,6 @@ function mergeEntries(entries) {
   };
 }
 
-// The whole-spec judgment's schema: the verdict's, and each done-when item with
-// the chunks that together deliver it, none when no chunk does.
 export const FINAL_SCHEMA = Object.freeze({
   type: "object",
   properties: {
@@ -217,11 +161,6 @@ export const FINAL_SCHEMA = Object.freeze({
   additionalProperties: false,
 });
 
-// The whole-spec judgment's output as a verdict output. The script holds it to
-// its own mapping: an item it maps to no chunk fails the head whatever verdict
-// it gave, and a pass or pass-notes that maps no item, or names a chunk that
-// does not exist, counts for nothing. The script cannot tell whether a named
-// chunk holds the item: that stays the judgment's.
 export function parseFinal(output, count) {
   if (!isObject(output) || !Array.isArray(output.items)) {
     throw new Error("the structured output does not match the verdict schema");
@@ -248,8 +187,6 @@ export function parseFinal(output, count) {
   return parsed;
 }
 
-// Read may cut a long line short, so each line for the whole-spec judgment is
-// wrapped at WRAP_CHARS characters (pr-review-main.yml LONG_LINE_BYTES).
 const WRAP_CHARS = 1500;
 
 function wrapped(text) {
@@ -264,8 +201,6 @@ function wrapped(text) {
   return out.join("\n");
 }
 
-// Text in parts of at most partBytes, the most one Read returns whole
-// (pr-verify.yml PART_BYTES), cut between lines.
 function readParts(text, partBytes) {
   const parts = [""];
   for (const line of wrapped(text).split("\n")) {
@@ -299,15 +234,8 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, lin
     base_sha: baseSha,
     head_ref: headRef,
     linked_issues: issues,
-    // How the linked issues were linked (resolve-pr's specKind): a `refs`
-    // issue was judged as a partial slice, so the gate refuses the pass once
-    // the pull request closes it instead (babysit_verify_evidence).
     spec_kind: own ? "pull-request" : issues.length === 0 ? "none" : refs ? "refs" : "closes",
-    // What the spec was: the pull request's own title and body
-    // (babysit_verify_evidence.INTENT_PULL_REQUEST), else its closing issues.
     intent: own ? "pull-request" : "issues",
-    // The title and body it judged, which the gate compares live
-    // (babysit_verify_evidence): an edit since refuses the pass.
     ...(own ? { intent_sha256: createHash("sha256").update(String(own.body)).digest("hex") } : {}),
     ...(trustedActorsBlob === undefined ? {} : { trusted_actors_blob: trustedActorsBlob }),
     verdict: parsed.verdict,
@@ -329,9 +257,6 @@ function lastResult(messages) {
 
 const resultDenials = (result) => (Array.isArray(result.permission_denials) ? result.permission_denials : []);
 
-// The structured output of the last result message in the CLI's messages. A
-// denied call means the model reached past its data files: no pass stands on
-// it. Only tool names are printed, never a call's input.
 export function structuredOutput(messages) {
   const result = lastResult(messages);
   const denials = resultDenials(result);
@@ -342,7 +267,6 @@ export function structuredOutput(messages) {
   return result.structured_output;
 }
 
-// run-claude-cli's log, one object per leg, counts every leg's denials.
 const logDenials = (logText) =>
   logText
     .split("\n")
@@ -362,14 +286,32 @@ export function earlierDenials(logText) {
   }
 }
 
-// A newline-separated list from a workflow's env, by position; a step that
-// did not run renders as a blank line.
 const positions = (value) =>
   String(value ?? "")
     .split("\n")
     .map((line) => line.trim());
 
 const fileList = (value) => positions(value).filter(Boolean);
+
+export function laterRuns(env) {
+  if (!env.CHUNK_OUTCOMES) return [];
+  requireEnv(env, ["CHUNKS_DIR"]);
+  const outcomes = env.CHUNK_OUTCOMES.split(",");
+  let classes = null;
+  try {
+    classes = JSON.parse(env.CHUNK_CLASSES ?? "");
+  } catch {}
+  const classed = Array.isArray(classes) && classes.length === outcomes.length && classes.every((name) => typeof name === "string");
+  return outcomes.map((outcome, i) => {
+    const dir = path.join(env.CHUNKS_DIR, `chunk-${i + 2}`);
+    const ran = outcome === "success" || outcome === "failure";
+    const scanStop = outcome === "failure" && classed && (classes[i] === "credential-stop" || classes[i] === "");
+    const execution = path.join(dir, "execution.json");
+    return { outcome: ran ? outcome : "", execution: (outcome === "success" || scanStop) && existsSync(execution) ? execution : "", log: ran ? path.join(dir, "log.jsonl") : "" };
+  });
+}
+
+const withLater = (value, later, key) => [...positions(String(value ?? "").replace(/\n$/, "")), ...later.map((run) => run[key])];
 
 function requireEnv(env, keys) {
   for (const key of keys) {
@@ -397,47 +339,29 @@ function readJson(file, message) {
 
 const checkLog = (file) => earlierDenials(readLog(file));
 
-// After a leg hands off, the next job judges on a new VM that cannot read
-// this leg's logs, so this job records here whether every chunk it judged was
-// free of denials; the next job runs only on clean=true.
 export function checkKeyLeg(env = process.env) {
   requireEnv(env, ["LOG_FILES", "GITHUB_OUTPUT"]);
   const lines = env.LOG_FILES.replace(/\n$/, "").split("\n");
-  const logs = fileList(env.LOG_FILES);
-  if (logs.length !== (env.CHUNKS ? Number(env.CHUNKS) + 1 : lines.length)) {
+  const later = laterRuns(env).filter((run) => run.outcome !== "");
+  const logs = [...fileList(env.LOG_FILES), ...later.map((run) => run.log)];
+  if (logs.length !== (env.CHUNKS ? Number(env.CHUNKS) + 1 : lines.length + later.length)) {
     throw new Error("the run log is unreadable");
   }
   logs.forEach(checkLog);
   appendFileSync(env.GITHUB_OUTPUT, "clean=true\n");
 }
 
-// The head-ref digest in an artifact name: the first HEAD_REF_DIGEST_HEX hex
-// digits of the SHA-256 of the head branch's UTF-8 bytes. Equal branches
-// always give equal digests, so a collision can only tie a FAIL to a branch
-// it did not judge, which holds a merge, never clears one.
-// babysit_verify_evidence.head_ref_digest is its twin, and
-// tests/test_verify_rules_sync.py compares them.
 export const HEAD_REF_DIGEST_HEX = 16;
 export const headRefDigest = (ref) =>
   createHash("sha256").update(String(ref), "utf8").digest("hex").slice(0, HEAD_REF_DIGEST_HEX);
 
-// A FAIL's name ends with `-i` and the numbers of the issues it records,
-// ascending and joined by dots, so the pr-merge gate counts it toward each
-// issue's repeated-fail cap from the artifact listing alone
-// (babysit_verify_evidence.NAME_RE, which takes at most NAMED_ISSUES_MAX).
 export const NAMED_ISSUES_MAX = 10;
-// The `-i` part for issue numbers `numbers`: empty for none, null for more
-// than a name carries.
 export function issuesSuffix(numbers) {
   const issues = [...new Set(numbers)].sort((a, b) => a - b);
   if (issues.length > NAMED_ISSUES_MAX) return null;
   return issues.length === 0 ? "" : `-i${issues.join(".")}`;
 }
-// A verdict's name (babysit_verify_evidence.NAME_RE): the head-ref digest is
-// optional, and so, on a FAIL only, is `-i` with the verdict's issue numbers,
-// ascending, each once, joined by dots (`isVerdictName` checks the order).
 export const NAME = /^pr-verify-([1-9][0-9]{0,9})-([0-9a-f]{40})-(pass(?:-notes)?(?=(?:-[0-9a-f]{16})?$)|fail)(?:-[0-9a-f]{16})?(?:-i([1-9][0-9]{0,9}(?:\.[1-9][0-9]{0,9}){0,9}))?$/;
-// The longest name NAME allows (babysit_verify_evidence.NAME_MAX).
 export const NAME_MAX = 194;
 export function isVerdictName(name) {
   const match = String(name).length <= NAME_MAX ? NAME.exec(String(name)) : null;
@@ -445,11 +369,6 @@ export function isVerdictName(name) {
   return match !== null && numbers.every((n, i) => i === 0 || numbers[i - 1] < n);
 }
 
-// The verdict's artifact name, checked against the readers' pattern before
-// anything uploads: a name no reader takes throws, so the job fails loudly. A
-// FAIL whose issues no name carries (over the cap, or a number the pattern
-// refuses) keeps the plain name, which still counts per pull request and at
-// the head.
 export function artifactName(verdict) {
   const plain = `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}`;
   let name = plain;
@@ -467,13 +386,6 @@ export function artifactName(verdict) {
   return name;
 }
 
-// The exact names under which a FAIL's index artifacts upload, one per tie the
-// merge gate's reader looks up (babysit_verify_evidence.INDEX_PREFIX and
-// `Reader._targeted`): the pull request, the head, the head branch's digest,
-// then each issue the FAIL's name carries (`artifactName`), as the reader ties
-// a FAIL only to those. The API's name filter matches whole names across runs,
-// so each lookup returns every FAIL so tied without the whole listing. None
-// starts like a verdict name, which the reader would hold.
 export const INDEX_PREFIX = "pr-verify-index-";
 export function failIndexNames(verdict) {
   const issues = NAME.exec(artifactName(verdict))?.[4]?.split(".") ?? [];
@@ -485,28 +397,10 @@ export function failIndexNames(verdict) {
   ];
 }
 
-// How many days the verdict's artifact lasts. A PASS or PASS-NOTES judged
-// after no body edit or issue connect or disconnect since the head commit
-// (resolve-pr.mjs relinkedSince, RELINK_SINCE_HEAD `false`) is read only at
-// the open pull request's current head, so one that expires refuses as
-// verify:missing until the next pr-require-checks run (a push, edit or label)
-// has pr-verify judge the head again; 7 days keeps a week of a held head.
-// Any other pass may supersede a FAIL at its head after a relink
-// (babysit_verify_evidence `_superseded`), which the merge gate still reads
-// at a later head of the same change, so it keeps a FAIL's 90 days. A FAIL,
-// or anything else, keeps 90 days, the maximum: the merge gate counts an
-// earlier FAIL while its artifact lasts (babysit_verify_evidence.py), and
-// carry-run-cache.mjs RETENTION_DAYS matches it.
 export function retentionDays(verdict, mayRelink = true) {
   return ["pass", "pass-notes"].includes(verdict) && mayRelink === false ? 7 : 90;
 }
 
-// One run's messages and its checked output: it left an output on the schema
-// and a readable log, or this throws, and so does a denial on anything but a
-// fail. A fail cannot pass the head, so it stands and records the denials. The
-// workflow reads a failed step only when run-claude-cli's scan stopped it, on
-// text this script may not recognize and with no log when the log held it, so
-// that step's output is a withheld fail.
 function readJudgment(file, logFile, outcome, parse = parseOutput) {
   const messages = readJson(file, "the execution file is unreadable");
   const result = lastResult(messages);
@@ -561,8 +455,6 @@ const filesIn = (dir) => readdirSync(dir).map((name) => path.join(dir, name));
 
 const chunkFiles = (env, k, count) => [...filesIn(path.join(env.DIFF_DIR, `chunk-${k}`)), ...(count > 1 ? filesIn(env.MANIFEST_DIR) : [])];
 
-// After each judge step: whether its run left a fail the head can count, which
-// stops the later chunks. Anything else, a broken run included, is no fail.
 export function checkChunk(env = process.env) {
   let fail = false;
   try {
@@ -574,15 +466,29 @@ export function checkChunk(env = process.env) {
   appendFileSync(env.GITHUB_OUTPUT, `fail=${fail}\n`);
 }
 
+export function checkLaterChunks(env = process.env) {
+  requireEnv(env, ["GITHUB_OUTPUT", "CHUNKS", "DIFF_DIR", "MANIFEST_DIR"]);
+  const count = Number(env.CHUNKS);
+  const fail = laterRuns(env).some((run, i) => {
+    try {
+      return run.execution !== "" && countedOutput(readJudgment(run.execution, run.log, run.outcome), chunkFiles(env, i + 2, count)).verdict === "fail";
+    } catch {
+      return false;
+    }
+  });
+  appendFileSync(env.GITHUB_OUTPUT, `fail=${fail}\n`);
+}
+
 function judgedChunks(env) {
   const chunkDirs = readdirSync(env.DIFF_DIR).filter((name) => /^chunk-[1-9][0-9]?$/.test(name));
   const count = Number(env.CHUNKS);
   if (!/^[1-9][0-9]?$/.test(env.CHUNKS) || chunkDirs.length !== count) {
     throw new Error(`the chunk count does not match ${chunkDirs.length} chunk(s) of the diff`);
   }
-  const executions = positions(env.EXECUTION_FILES);
-  const logs = positions(env.LOG_FILES);
-  const outcomes = positions(env.JUDGE_OUTCOMES);
+  const later = laterRuns(env);
+  const executions = withLater(env.EXECUTION_FILES, later, "execution");
+  const logs = withLater(env.LOG_FILES, later, "log");
+  const outcomes = withLater(env.JUDGE_OUTCOMES, later, "outcome");
   const results = Array.from({ length: count }, (_, i) => {
     const k = i + 1;
     try {
@@ -627,29 +533,30 @@ function headOutput(env, count, results) {
   );
 }
 
-const RESULT_BYTES_MAX = 300000;
+export const RESULT_BYTES_MAX = 300000;
 
-// What the whole-spec judgment reads, each file one Read, with its prompt and
-// schema: written only when every chunk counts. Each chunk's output goes whole,
-// in as many files as it takes: a cut here could hide what a chunk delivers,
-// and the head would fail on size alone. The prompt lists the files, whose
-// number only this step knows.
+export const chunkBudget = (count) => Math.floor(RESULT_BYTES_MAX / count / 3);
+
 export function writeChunkResults(env = process.env) {
   requireEnv(env, ["EXECUTION_FILES", "LOG_FILES", "JUDGE_OUTCOMES", "CHUNKS", "DIFF_DIR", "RESULTS_DIR", "PART_BYTES", "SPEC_TEXT_FILE", "SPEC_FILE", "CONTEXT_FILE", "PR_FILE", "MANIFEST_DIR", "PROMPT_FILE", "PROMPT_TEMPLATE", "SCHEMA_FILE"]);
-  // Past three bytes a character, one wrapped line always fits a part.
   const partBytes = Number(env.PART_BYTES);
   if (!Number.isSafeInteger(partBytes) || partBytes <= WRAP_CHARS * 3) {
     throw new Error("PART_BYTES is not a part size");
   }
   const { count, results } = judgedChunks(env);
+  if (results.some(({ output }) => output?.verdict === "fail")) {
+    requireEnv(env, ["GITHUB_OUTPUT"]);
+    appendFileSync(env.GITHUB_OUTPUT, "fail=true\n");
+    return;
+  }
   const error = firstError(results, count);
   if (error) {
     throw error;
   }
-  const chunkParts = results.map(({ k, output: { verdict, summary, notes } }) => [`chunk-${k}`, readParts(JSON.stringify({ chunk: k, of: count, verdict, summary, notes }), partBytes)]);
-  const resultParts = chunkParts.flatMap(([, parts]) => parts).length;
-  if (resultParts * partBytes > RESULT_BYTES_MAX) {
-    throw new Error(`the chunk results take ${resultParts} parts, more than the final judge reads`);
+  const resultParts = readParts(results.map(({ k, output: { verdict, summary, notes } }) => JSON.stringify({ chunk: k, of: count, verdict, summary, notes })).join("\n"), partBytes);
+  const resultBytes = resultParts.reduce((sum, part) => sum + Buffer.byteLength(part), 0);
+  if (resultBytes > RESULT_BYTES_MAX) {
+    throw new Error(`the chunk results take ${resultBytes} bytes in ${resultParts.length} parts, more than the ${RESULT_BYTES_MAX} the final judge reads`);
   }
   const specText = readFileSync(env.SPEC_TEXT_FILE, "utf8");
   const refs = JSON.parse(specText).some?.((entry) => entry?.spec_kind === "refs");
@@ -660,7 +567,7 @@ export function writeChunkResults(env = process.env) {
       writeFileSync(file, part);
       return file;
     });
-  const resultFiles = chunkParts.flatMap(([stem, parts]) => writeParts(stem, parts));
+  const resultFiles = writeParts("results", resultParts);
   const partFiles = writeParts("spec", readParts(specText, partBytes));
   const contextFiles = refs ? writeParts("context", readParts(readFileSync(env.CONTEXT_FILE, "utf8"), partBytes)) : [env.CONTEXT_FILE];
   const listed = (files) => files.map((file) => `  - \`${file}\``).join("\n");
@@ -720,9 +627,6 @@ export function main(env = process.env) {
   mkdirSync(env.VERDICT_DIR, { recursive: true });
   writeFileSync(path.join(env.VERDICT_DIR, "verdict.json"), `${JSON.stringify(verdict, null, 2)}\n`);
   const name = artifactName(verdict);
-  // A FAIL's index (failIndexNames): each artifact holds the FAIL's name. A
-  // job without FAIL_INDEX (a re-run of a pr-verify.yml from before the
-  // index, on this script from main) has no index step, so it writes no FAIL.
   if (verdict.verdict === "fail" && env.FAIL_INDEX !== "1") {
     throw new Error("a FAIL needs its index step (FAIL_INDEX), which this job lacks");
   }
@@ -745,6 +649,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       checkKeyLeg();
     } else if (process.argv[2] === "chunk-fail") {
       checkChunk();
+    } else if (process.argv[2] === "later-fail") {
+      checkLaterChunks();
     } else if (process.argv[2] === "chunk-results") {
       writeChunkResults();
     } else {

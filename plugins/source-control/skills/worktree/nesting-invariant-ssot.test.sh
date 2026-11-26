@@ -1,22 +1,4 @@
 #!/usr/bin/env bash
-# nesting-invariant-ssot.test.sh — the mechanism claim has ONE owner.
-#
-# The nesting invariant justifies a machine-wide worktree-placement rule enforced
-# by a fail-closed hook. Restated copies drift into undated absolutes, and a
-# pointer can then land a reader on a copy asserting a freshness it has no basis
-# for. Updating every copy is not the fix; one owner and pointers is. This test
-# is what stops the re-drift: it fails when a second site states the mechanism,
-# so the next person to explain it in place has to point instead.
-#
-# CHANGELOG.md is excluded throughout. A changelog is a historical record and its
-# past entries must keep their original wording — rewriting them to satisfy a
-# freshness rule would be the more serious defect.
-#
-# Environment:
-#   NESTING_INVARIANT_INSTALLED_VERSION  Installed Claude Code version (N.N.N) to
-#     check against the stamp's version arm. The suite never probes the host CLI,
-#     so the result does not depend on where it runs; unset skips that arm with a
-#     counted skip.
 # test-scope: plugins/source-control/*
 # test-scope: .gitattributes
 set -uo pipefail
@@ -65,17 +47,6 @@ assert_contains "the owner names the arm as disputed rather than settled" \
 assert_contains "the owner points at the fixture that would adjudicate it" \
   "$owner_text" "nesting-invariant-probe.sh"
 
-# 3b. The unconditional expiry must be able to fire (#2767).
-#
-# The literal-presence checks above guard the stamp's *shape*. They never parse
-# a date, so the suite stays green forever after the expiry passes — the one
-# failure mode the stamp exists to prevent. Parse both arms out of the owner;
-# enforce the date arm against an injectable "today"; assert the version arm is
-# present and shaped (CI has no live Claude Code version to compare against).
-
-# nesting_invariant_expiry_date_passed <expiry-YYYY-MM-DD> <today-YYYY-MM-DD>
-# — return 0 when today is on or after the expiry (stamp is stale), 1 when still
-# fresh. Pure string compare of ISO dates.
 nesting_invariant_expiry_date_passed() {
   local expiry="$1" today="$2"
   [[ "$today" > "$expiry" || "$today" == "$expiry" ]]
@@ -89,13 +60,6 @@ else
   as_of_date=""
 fi
 
-# Parse unconditional expiry arms from the owner sentence:
-#   **Unconditional expiry.** **2.1.305, or 2026-12-29 — whichever comes first.**
-# Match the complete bold arm (not an arbitrary substring) so malformed tokens
-# such as `2.1.244.1`, `v2.1.244`, or overlong dates cannot pass shape checks.
-# The second alternative is the same whole-arm capture with slightly looser
-# heading markup tolerance; whichever alternative matches leaves its captures in
-# BASH_REMATCH for the shared read.
 expiry_version=""
 expiry_date=""
 if [[ "$owner_text" =~ Unconditional[[:space:]]+expiry\.\*\*[[:space:]]*\*\*([0-9]+\.[0-9]+\.[0-9]+),[[:space:]]+or[[:space:]]+([0-9]{4}-[0-9]{2}-[0-9]{2})[[:space:]]+[—-] ]] ||
@@ -118,8 +82,6 @@ else
   fail "expiry version arm matches N.N.N shape" "N.N.N" "${expiry_version:-empty}"
 fi
 
-# iso_day_number <YYYY-MM-DD>: days since 1970-01-01 (days-from-civil), so the
-# marker age needs neither GNU nor BSD date.
 iso_day_number() {
   local y=$((10#${1:0:4})) m=$((10#${1:5:2})) d=$((10#${1:8:2}))
   ((m <= 2)) && y=$((y - 1))
@@ -129,10 +91,6 @@ iso_day_number() {
   echo $((era * 146097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719468))
 }
 
-# nesting_invariant_marker_honored <marker-YYYY-MM-DD> <today-YYYY-MM-DD>
-# <max-age-days>: return 0 while the marker is at most max-age days old. One day
-# of future skew is tolerated (a marker dated in a timezone ahead of UTC); a
-# marker dated further ahead is not honored.
 nesting_invariant_marker_honored() {
   local age=$(($(iso_day_number "$2") - $(iso_day_number "$1")))
   ((age >= -1 && age <= $3))
@@ -178,8 +136,6 @@ else
     "30 days honored, 31 not" "boundary off"
 fi
 
-# nesting_invariant_version_passed <expiry-N.N.N> <installed-N.N.N> — return 0
-# when installed is at or past the expiry version.
 nesting_invariant_version_passed() {
   local -a e i
   local n

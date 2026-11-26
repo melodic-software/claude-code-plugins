@@ -1,9 +1,5 @@
 ---
-type: llm
+type: regex
+flags: i
+pattern: '^(?=[\s\S]*?work-items:track[\s`*"]*(?:(?:Arg|arg)(?:ument)?s[\s:=*`"]*)?done\s+(?:<?(?:item|issue)\s+)?\S*?\b47\b[^\n]*(?:not-planned|not planned|moot))[\s\S]*?work-items:track[\s`*"]*(?:(?:Arg|arg)(?:ument)?s[\s:=*`"]*)?(?:done|edit)\s+(?:<?(?:item|issue)\s+)?\S*?\b47\b(?:(?!work-items:track)[^\n]|\n(?![ \t]*(?:\d+[.)][ \t]|#{1,6}[ \t]|\n))){0,1200}?(?:\[Decide invoice numbering\]|\]\(<?[^)\s]*\b44\b|https?://[^\s)>]*/44\b|<[^>\n]*\b44\b[^>\n]*>)'
 ---
-
-On map #200 'Map: billing overhaul', #44 'Decide invoice numbering' just resolved to per-tenant numbering. That makes open item #47 'Pick the global invoice sequence store' pointless and shows closed decision #39 'Share one invoice table across tenants' was wrong. A Not-yet-specified fog note ('something feels off about how tenants share invoice data') is now sharp enough to chart as 'Choose per-tenant invoice storage'. The user asked to finish the close-out. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the reply closes #47 as moot (or rewrites its question), and a close carries a comment linking #44's resolution.
-
-FAIL if it leaves #47 open and unchanged, or closes it without a comment linking #44's resolution.

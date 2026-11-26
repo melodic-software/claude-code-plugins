@@ -85,7 +85,6 @@ check_fail_closed "a trailing empty list item" \
 check_fail_closed "an only, empty list item" \
   $'pre_ready:\n  -\n' "pre_ready holds an empty item"
 
-# The parser accepts a uniform base indent and a byte-order mark, so the text scan must too.
 VERIFY_ONLY_OFF=$'source\tconfig\nbase-merge\tenabled\nplan-evidence\tenabled\ncode-review\tenabled\nsecurity-review\tenabled\nverify\tdisabled\nevidence\tenabled'
 out=$(read_doc $'  pr_open_state: ready\n  pre_ready:\n    - step: verify\n      enabled: false\n  other: 1\n')
 assert_eq "a document indented two spaces is read" "$VERIFY_ONLY_OFF" "$out"
@@ -96,7 +95,6 @@ check_fail_closed "a trailing empty item under a two-space base indent" \
 check_fail_closed "an empty value under a two-space base indent" \
   $'  pre_ready:\n    - step: verify\n      enabled: false\n      why: []\n' "pre_ready item has a key with no value"
 
-# Names the reader uses inside must not be read from the environment it inherits.
 out=$(printf 'pre_ready:\n  - step: verify\n' | env item_0_enabled=false bash "$SCRIPT" "${ON_DEFAULT[@]}" - 2>/dev/null)
 assert_eq "an inherited item_0_enabled does not fill a missing enabled value" \
   $'source\tfail-closed\tstep \'verify\' has no enabled value in pre_ready\n'"$ALL_ON" "$out"
@@ -121,8 +119,6 @@ out=$(read_response '')
 assert_eq "no response fails closed and runs every step" \
   $'source\tfail-closed\tthe base read returned no response\n'"$ALL_ON" "$out"
 
-# The list is honored only on the base repository's default branch: any other
-# base is one the PR's author may have pushed unreviewed.
 VERIFY_OFF=$'pre_ready:\n  - step: verify\n    enabled: false\n'
 out=$(printf '%s' "$VERIFY_OFF" | bash "$SCRIPT" --base stack/layer-2 --default-branch main - 2>/dev/null)
 assert_eq "a base other than the default branch fails closed and runs every step" \
@@ -137,7 +133,6 @@ out=$(printf '%s' "$VERIFY_OFF" | bash "$SCRIPT" --base '' --default-branch main
 assert_eq "an unread base branch fails closed and runs every step" \
   $'source\tfail-closed\tthe pull request\'s base branch could not be read\n'"$ALL_ON" "$out"
 
-# A NUL byte would vanish in a shell variable, turning `fal\0se` into `false`.
 out=$(printf 'pre_ready:\n  - step: verify\n    enabled: fal\000se\n' | bash "$SCRIPT" "${ON_DEFAULT[@]}" - 2>/dev/null)
 assert_eq "a NUL byte in the document fails closed and runs every step" \
   $'source\tfail-closed\tthe input holds a NUL byte\n'"$ALL_ON" "$out"

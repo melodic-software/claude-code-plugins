@@ -1,25 +1,4 @@
 #!/usr/bin/env node
-// post-unarmed-status.mjs: posts the `pr-merge/unarmed` commit statuses that
-// enable-auto-merge.mjs hands on (UNARMED_OUTPUT): `failure` on a lanes App
-// pull request's head whose refusal the lanes clear has stood
-// merge.risk-escalation-minutes unchanged, `success` on a head it armed. No
-// model.
-//
-// The status shows a hold the lanes own on the pull request, in place of the
-// human-gated label (when a person is needed:
-// docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner). It is informational:
-// its context is not `ci-status`, the only check the main ruleset requires,
-// so it neither holds nor passes a merge. Each head's newest status in the
-// context is read first, trusted only when the GitHub Actions bot posted it
-// (any token with statuses: write can post the context): one already in that
-// state with that description gets no write, and a `success` is written only
-// over a status already there, so an unchanged run writes nothing.
-//
-// Environment:
-//   GH_TOKEN            the job's own token, with statuses: write
-//   GITHUB_REPOSITORY   owner/repo
-//   STATUSES            enable-auto-merge's UNARMED_OUTPUT, a JSON array
-//   GITHUB_RUN_ID, GITHUB_SERVER_URL, GITHUB_API_URL
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -30,7 +9,6 @@ import { UNARMED_CONTEXT } from "./enable-auto-merge.mjs";
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA = /^[0-9a-f]{40}$/;
 const STATES = new Set(["failure", "success"]);
-// GitHub's limit on a status description.
 const DESCRIPTION_CHARS = 140;
 export const MAX_STATUSES = 100;
 
@@ -67,7 +45,6 @@ export async function main({ env = process.env, github } = {}) {
     let written = 0;
     for (const status of parse(env.STATUSES ?? "")) {
       try {
-        // Newest first, so the first in the context is the one shown.
         const listed = await github("GET", `/repos/${repo}/commits/${status.sha}/statuses?per_page=100`);
         const newest = (Array.isArray(listed) ? listed : []).find((item) => item?.context === UNARMED_CONTEXT);
         const current = newest?.creator?.id === ACTIONS_BOT_ID ? newest : undefined;

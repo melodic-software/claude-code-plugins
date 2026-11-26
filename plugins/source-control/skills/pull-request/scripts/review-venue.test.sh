@@ -104,12 +104,6 @@ set_total() {
     mv "$TEST_TMPDIR/total.tmp" "$TEST_TMPDIR/$1"
 }
 
-# wf <id> <status:conclusion:hours-ago[:event[:class]]>... -> wf-id.json,
-# newest first, event pull_request unless given; the workflow itself reads
-# active. A failed run gets one failed lane job whose annotations carry
-# `failure-class=<class>` as the reusable workflow's last step writes it
-# (ci-workflows .github/workflows/pr-review.yml), class `other` unless given;
-# a startup_failure run has no jobs.
 NEXT_RUN=1000
 wf() {
   local id="$1" spec runs=() rid
@@ -135,7 +129,6 @@ wf() {
   wf_state "$id" active
 }
 
-# wf_state <id> <state> -> the workflow's state, as GET .../actions/workflows/<id> returns it
 wf_state() { jq -nc --arg s "$2" '{state: $s}' >"$TEST_TMPDIR/wfmeta-$1.json"; }
 
 NEXT_CHECK=1
@@ -187,8 +180,6 @@ assert_contains "a lane whose newest verdict failed runs locally" "$out" "code-r
 assert_contains "the failing line names the conclusion" "$out" "concluded failure"
 assert_contains "the other lane keeps its own verdict" "$out" "security-review ci healthy"
 
-# #8867: a pull request that edits a review caller workflow ends both lanes red
-# by design (failure-class=skipped-validation); that says nothing about the lane.
 reset
 page 1 "${BOTH_PAGE[@]}"
 wf 11 completed:failure:1::skipped-validation completed:success:3
@@ -388,8 +379,6 @@ echo 'not json' >"$TEST_TMPDIR/page-1.json"
 run >/dev/null 2>&1
 assert_exit "an unparsable run listing fails closed" 2 "$?"
 
-# #9086: a listing page that parses but is not whole says nothing about the
-# lanes: it reads unreadable, never absent or stale.
 reset
 echo '{"total_count": 3}' >"$TEST_TMPDIR/page-1.json"
 out=$(run)
@@ -477,7 +466,6 @@ assert_contains "the code line names its own caller" "$out" \
 assert_contains "the security lane keeps its own caller's verdict" "$out" \
   "security-review local failing"
 
-# pr-review-cli writes the class after the lane id: still a skipped-validation red.
 reset
 page 1 "${BOTH_PAGE[@]}"
 wf 11 completed:success:2
@@ -503,9 +491,6 @@ assert_contains "the tests line names each lane once" "$out" "(Test Bash, Test N
 assert_eq "the tests line comes last" "tests" "$(tail -n1 <<<"$out" | cut -d' ' -f1)"
 assert_contains "every check run on the head is read" "$(cat "$TEST_TMPDIR/calls")" "commits/$HEAD_SHA/check-runs?filter=all"
 
-# A label or body edit re-runs the workflow on the same commit and posts each
-# test lane skipped; that skip must not hide the lane's failure. The lanes go by
-# their job ids, as on a head tested before the jobs got display names.
 reset
 page 1 "${BOTH_PAGE[@]}"
 wf 11 completed:success:1

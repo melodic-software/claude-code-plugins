@@ -1,51 +1,4 @@
 #!/usr/bin/env bash
-# worktree-remove-gate.sh — WorktreeRemove hook: reap the project- and local-scope
-# plugin install records of a worktree Claude Code is removing, then remove it.
-#
-# This plugin's WorktreeCreate hook (worktree-create-gate.sh) creates every
-# worktree Claude Code makes, so Claude Code hands their removal to this hook
-# instead of running git itself. Removal is the last moment the worktree's
-# install records are both identifiable and provably dead, so the reap
-# `/source-control:worktree cleanup` runs at its own teardown
-# (scripts/reap-project-plugin-records.sh) runs here too.
-#
-# Rules this hook keeps:
-#   * It acts only on the payload's `worktree_path`, so it never removes a path
-#     the payload did not name, and it refuses a lock whose reason does not
-#     name the payload's `session_id`, so it never takes a worktree another
-#     session still claims.
-#   * It exits 0 only once the directory is gone, so a success never leaves the
-#     worktree on disk; it deletes the directory itself rather than relying on
-#     anything to run after it.
-#   * Every refusal exits 1 with the directory still on disk and leads stderr
-#     with the remedy, so the first line says what to do.
-#   * A worktree this hook is not run for is left to
-#     `/source-control:worktree cleanup` and the audit's Step 2b remedy.
-#   Pointer: when checking which removals run this hook, what its payload
-#   carries, or how its exit code is read, fetch
-#   <https://code.claude.com/docs/en/hooks#worktreeremove> and
-#   <https://code.claude.com/docs/en/hooks#worktreeremove-input> live.
-#
-# Refused before anything is reaped (exit 1, directory left in place):
-#   * a path that is relative, a symlink, not a directory, a main working tree,
-#     or not a linked worktree git can resolve;
-#   * uncommitted or untracked changes, or a merge, rebase, cherry-pick, revert,
-#     sequencer or bisect in progress;
-#   * submodules, which plain `git worktree remove` refuses;
-#   * a detached HEAD holding commits no branch, tag or remote-tracking ref holds;
-#   * a lock whose reason does not name the payload's session (any other
-#     session's claim, however old, is left for cleanup's stale proof).
-# After the guards, a reap that exits non-zero, its exit 3 (no claude CLI, no
-# jq, or no enumeration) included, leaves the directory (deleting it would put
-# the surviving records out of reach), and so does a failed
-# `git worktree remove`; both exit 1, as does a directory still on disk after
-# the removal. A path already gone exits 0: there is nothing left to remove.
-#
-# The worktree's branch is kept: Claude Code never deletes it, and deleting it
-# here would destroy commits nothing else holds. Carried gitignored files are not
-# compared (`/source-control:pull-request create` owns that sync), and the
-# Workspace environment `down` never runs here.
-
 set -uo pipefail
 
 _WT_DIR="${BASH_SOURCE[0]%/*}"
@@ -84,8 +37,6 @@ session_id="${session_id//$'\r'/}"
   gate::refuse 'run /source-control:worktree cleanup to remove the worktree' \
     'the WorktreeRemove payload carried no worktree_path string'
 
-# Every trailing separator the platform recognizes; off Windows a trailing `\`
-# is part of the name.
 case "${OSTYPE:-}" in
 msys* | cygwin*)
   while [[ ${#path} -gt 1 && ("$path" == */ || "$path" == *\\) ]]; do path="${path%?}"; done
@@ -150,8 +101,6 @@ if [[ -n "$status" ]]; then
     "${#changed[@]} uncommitted or untracked path(s) in $path, so it was left on disk; first: ${changed[0]}"
 fi
 
-# Plain `git worktree remove` refuses a worktree with submodules, and the reap
-# must not run for a removal that is going to fail.
 [[ ! -e "$path/.gitmodules" && ! -d "$git_dir/modules" ]] ||
   gate::refuse 'remove it with /source-control:worktree cleanup, which confirms before forcing' \
     "$path has submodules, which plain git worktree remove refuses"
@@ -191,8 +140,6 @@ if ((reap_rc != 0)); then
     "${reap_lines[@]}"
 fi
 
-# Step out of the worktree first: a process whose cwd is inside it holds the
-# directory open on Windows.
 cd -- "$common_dir" 2>/dev/null || cd / || true
 
 if ((locked)); then

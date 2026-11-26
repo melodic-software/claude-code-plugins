@@ -10,8 +10,6 @@ SCRIPT="$SELF_DIR/check-standards-contract-bump.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
 CANONICAL="" CHANGELOG="" SCHEMA=""
@@ -60,8 +58,6 @@ base_fixture() {
 
 git_fixture() {
   local fixture="$1"
-  # On refusal (e.g. TMPDIR inside the checkout) stop before add/commit can
-  # resolve to the enclosing real repository.
   git_init_test_repo "$fixture" || return 1
   git -C "$fixture" add -A
   git -C "$fixture" commit -qm base

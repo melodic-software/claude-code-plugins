@@ -4,10 +4,6 @@ const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, 
 
 export class BudgetSpent extends Error {}
 
-// `call(method, path, body)` against GITHUB_API_URL with GITHUB_TOKEN. Each
-// call spends one of `budget`, then waits for `pace`. A GET's 404 and any 204
-// answer null; another failure throws with its `status`; a /zip path answers
-// a Buffer, anything else its JSON.
 export function budgetedClient(env, { budget = Number.POSITIVE_INFINITY, pace = async () => {} } = {}) {
   let used = 0;
   const call = async (method, path, body) => {
@@ -37,8 +33,6 @@ export function budgetedClient(env, { budget = Number.POSITIVE_INFINITY, pace = 
   return call;
 }
 
-// Every page of a list endpoint, until a short page. `key` names the array in
-// an object answer (jobs, workflow_runs); more than `max` pages throws.
 export async function pages(call, path, { key, max = 20 } = {}) {
   const items = [];
   for (let page = 1; page <= max; page += 1) {

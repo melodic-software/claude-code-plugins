@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "In a non-interactive session the needs-human items drop out, so the frontier is empty: all remaining decisions need a human.",
+      "why": "reports the empty frontier"
+    },
+    {
+      "answer": "**Frontier (unattended):** empty. Every open item carries `needs-human`, so every remaining decision needs a human. Stopping.",
+      "why": "bold label form"
+    },
+    {
+      "answer": "Stopping: no workable items for an unattended run; each needs your intent.",
+      "why": "paraphrase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Picking #146 and starting it.",
+      "why": "proceeds as though an item were workable"
+    },
+    {
+      "answer": "Every item is labeled needs-human, but you asked, so: `/work-items:track start 146`.",
+      "why": "restates the label, then claims one"
+    },
+    {
+      "answer": "All remaining decisions need a human, so I'll stand in.\n> Resolved: REST. Basis: the clients already speak it.",
+      "why": "says it, then resolves one anyway"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply reports nothing"
+    },
+    {
+      "answer": "The frontier is empty for an unattended run: all remaining decisions need a human. You asked, so I'll pick #146 and decide it: REST.",
+      "why": "wrong: reports the empty frontier, then proceeds anyway"
+    }
+  ]
+}

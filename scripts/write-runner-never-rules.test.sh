@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# Structure test: pr-run-activity-write.yml keeps every clause of the
-# apply-conflict-patch `never` row in .github/actions/resolve-config/activity-rules.json
-# ("Runs a model or head code, force-pushes, or pushes a model edit outside the
-# conflicted paths"), and hands the report-escalation script the base's tracker
-# config.
-#
-# Reads the workflow as YAML (the runner-policy `yaml` package, which CI
-# installs for check-read-caller-keys.test.sh) and asserts on step order,
-# conditions and step bodies. What it cannot assert from this file:
-#   - That apply-patch.mjs refuses every workflow change a merge pushes;
-#     apply-patch.test.mjs owns that.
 # test-scope: .github/workflows/pr-run-activity-write.yml .github/actions/resolve-config/activity-rules.json .github/actions/collect-base-activity/action.yml .github/scripts/merge-base/run-prepare.sh .github/scripts/apply-patch/apply-patch.mjs .github/actions/resolve-config/patch-rules.json scripts/ci-deps/package.json
 set -uo pipefail
 

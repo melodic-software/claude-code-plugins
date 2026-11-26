@@ -1,7 +1,3 @@
-// Pure core of resolve-config: parse and validate a pr-pipeline.yaml, apply the
-// lane rules the schema cannot carry, and resolve one lane (and optionally one
-// activity) with every default applied. Any rejection throws; nothing here
-// reads a file or the network.
 import { posix } from "node:path";
 
 import Ajv2020 from "ajv/dist/2020.js";
@@ -262,9 +258,6 @@ function checkAppliedBy(doc) {
   }
 }
 
-// A runner names the applied-by keys it hands on (applied-by-supported, a
-// comma- or space-separated list); an applying leaf with any other key would
-// hand nothing on, so it fails before the head checkout.
 export function checkAppliedBySupported(selected, supported = "") {
   const kinds = new Set(String(supported).split(/[\s,]+/).filter(Boolean));
   const missing = Object.keys(selected?.["applied-by"] ?? {}).filter((key) => !kinds.has(key));
@@ -327,7 +320,6 @@ const dimensionedBy = (activity, models) =>
   (activity.inputs ?? []).includes("issue") &&
   activity["applied-by"]?.["triage-verdict"] === undefined;
 
-// Rejections 1, 2, 4-9 and 3 over the whole file, whichever lane the run asked for.
 export function loadConfig(files, { configPath }) {
   checkConfigPath(configPath);
   const doc = parseConfig(files.config, configPath);
@@ -467,9 +459,6 @@ function expand(doc, slots, parent) {
   });
 }
 
-// Each leaf of the lane, with its activity, predicates and enabled flag.
-// pr-refine's select-passes job (plan-passes.mjs) reads them too, so a pass is planned
-// from the predicates its runner applies.
 export function laneSlots(doc, lane) {
   const section = laneSection(doc, lane);
   return expand(doc, section.slots ?? [], {
@@ -478,8 +467,6 @@ export function laneSlots(doc, lane) {
   });
 }
 
-// Whether the lane holds a slot for the activity, in a config that passes
-// every check loadConfig makes; a config that does not is a Rejection.
 export function laneHasActivity(files, { lane, activity, configPath }) {
   const doc = loadConfig(files, { configPath });
   return laneSlots(doc, lane).some((entry) => entry.name === activity);
@@ -503,8 +490,6 @@ function selectedIndex(entries, lane, activity) {
 
 const decides = (index, selected) => selected < 0 || index === selected;
 
-// The facts the decided enabled slots read. Rejects the same files and request
-// resolve() would, before any fact is fetched.
 export function neededFacts(files, { lane, activity, configPath, pinnedDimensions }) {
   const doc = loadConfig(files, { configPath });
   const entries = laneSlots(doc, lane);
@@ -530,9 +515,6 @@ export function neededFacts(files, { lane, activity, configPath, pinnedDimension
   return [...needed];
 }
 
-// Files Claude Code or a plugin loads as instructions. Target selection, not a
-// control: a write activity is not asked to fix them, though its token and
-// tools can change any file and the PR reviews what it did.
 const INSTRUCTION_SURFACES = [
   "**/claude.md",
   "**/claude.local.md",
@@ -564,11 +546,6 @@ function codeownersGlobs(text) {
   });
 }
 
-// The changed-paths input: the PR's changed files that still exist, that match
-// the slot's `paths` predicate when it has one, and that have a safe name. For
-// an activity that edits (an effect other than `read`, or a patch it hands
-// on), instruction surfaces and every path CODEOWNERS lists are left out of
-// what it is asked to fix. Sorted, without duplicates.
 export function changedPathTargets({
   paths,
   predicate,
@@ -616,8 +593,6 @@ function activityGrantOf(laneRules, lane, activity) {
   return isObject(grants) && Object.hasOwn(grants, activity) ? grants[activity] : {};
 }
 
-// An empty or partial grant would mint a token with every App permission, so a
-// row must name exactly the three scopes, each read or write.
 function grantFor(effectGrants, effect, extra = {}) {
   if (typeof effect !== "string" || !Object.hasOwn(effectGrants, effect)) {
     throw new Rejection(
@@ -706,9 +681,6 @@ function profileModels(models, start, roleMapText, rung = 0) {
   };
 }
 
-// The Claude Code arguments a resolved profile sets: `--model`, `--max-turns`,
-// and `--effort` only when the profile sets one. Every value is a routed
-// alias, a schema enum or an integer, never free text.
 export function modelArgs(models) {
   return [
     "--model",
@@ -719,8 +691,6 @@ export function modelArgs(models) {
   ].join(" ");
 }
 
-// The settings JSON a resolved profile sets: the subagent model as settings
-// env, or empty for `inherit`.
 export function modelSettings(models) {
   return models["subagent-model"] === "inherit"
     ? ""
@@ -737,8 +707,6 @@ function checkRung(rung) {
   return rung ?? 0;
 }
 
-// The resolved profile of a run that is no lane activity (MODEL_ROUTES), after
-// the same file checks as resolve().
 export function resolveRoute(files, { route, configPath }) {
   if (!MODEL_ROUTES.has(route)) {
     throw new Rejection(
@@ -749,9 +717,6 @@ export function resolveRoute(files, { route, configPath }) {
   return routeModels(loadConfig(files, { configPath }).models, route, files.roleMap);
 }
 
-// The changed paths a laneSlots entry with the changed-paths input is asked
-// to work on: those its ancestors' and its own predicates let through, less
-// what changedPathTargets keeps from it. pr-refine's select-passes job reads it too.
 export function slotTargets({ activity, predicate, predicates }, changedTargets, codeowners) {
   const ancestors = predicate === undefined ? predicates : predicates.slice(0, -1);
   return changedPathTargets({
@@ -848,8 +813,6 @@ function resolveSlot(
   };
 }
 
-// The token broker's entry point: the same file and lane checks as resolve(),
-// for one required activity, deciding no predicate, so it needs no facts.
 export function resolveGrant(files, { lane, activity, configPath }) {
   const doc = loadConfig(files, { configPath });
   const entries = laneSlots(doc, lane);
@@ -950,22 +913,14 @@ const loopOf = (loop = {}) => ({
   "fix-ci-rounds": loop["fix-ci-rounds"] ?? 3,
 });
 
-// The resolved loop caps alone, after the same file checks as resolve(), for
-// a job that resolves no lane slot (pr-unblock.yml's fix-ci-context).
 export function resolveLoop(files, { configPath }) {
   return loopOf(loadConfig(files, { configPath }).loop);
 }
 
-// The resolved limits alone, after the same file checks as resolve(), for a
-// run that resolves no lane slot (pr-unblock-dispatch.yml).
 export function resolveLimits(files, { configPath }) {
   return limitsOf(loadConfig(files, { configPath }).limits);
 }
 
-// The wip leaf as set, after the same file checks as resolve(), for the WIP
-// cap check. Its defaults have one copy, WIP_DEFAULTS in
-// .github/scripts/work-resolve-issue/limits.mjs, which its readers apply;
-// this module imports nothing outside this action's sparse checkout.
 export function resolveWipLeaf(files, { configPath }) {
   return loadConfig(files, { configPath }).wip ?? {};
 }
