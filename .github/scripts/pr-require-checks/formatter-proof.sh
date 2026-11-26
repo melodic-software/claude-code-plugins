@@ -140,6 +140,7 @@ while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
       no "$path: the proof runs this file, so a change to it needs review"
       continue
       ;;
+    *) ;;
   esac
   want[$path]=$new_blob was[$path]=$old_blob
   if [[ -n ${is_copy[$path]:-} ]]; then
