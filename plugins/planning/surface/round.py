@@ -54,9 +54,11 @@ ops, and supersede and resolve read their text from a file.
                   reaches it at any depth, printing each; --rechecked Q<N>... clears recheck::
                   from those rows. Needs no data dir; backs up and prints the verdict as supersede
   show            print a saved round file at --level full (every line), standard or minimal, its
-                  citation labels per --links plain|vscode|file
+                  citation labels per --links plain|vscode|file, its held-back block as the
+                  Next round and Later: lines
   scope-check     print a round header's Scope check: line from --ledger F, a Wayfind: line on the
-                  two-round signal, and record the round counts under F's ## Round counts
+                  two-round signal from the round files' held-back blocks (--rounds-dir), and
+                  record the round counts under F's ## Round counts
                   (next-id --round n prints the same after the ids, the new rows counted)
   measures        print rounds, median lines per shown round, reopened rows and those after a
                   lookup, from --ledger F and --rounds-dir D (show, scope-check and measures need no
@@ -2933,7 +2935,72 @@ def eol_of(line):
     return line[len(line.rstrip("\r\n")) :]
 
 
-def render_round(text, level):
+HELD_WAITS = ("next", "later")
+
+
+def read_held_back(text, where):
+    """(entries, first line, last line, question ids) of a round file: entries is the header's
+    held-back list (each {"title", "waits"}), or None when the file has none; the lines are the
+    block's fence lines (None without one); the ids are the questions the file asks."""
+    lines = text.splitlines(keepends=True)
+    fence, start, end, body, asked = None, None, None, [], []
+    for i, line in enumerate(lines):
+        bare = line.rstrip("\r\n")
+        opened = fence is None
+        fence, fenced = fence_step(fence, bare)
+        if fenced:
+            if opened and not asked and start is None and ROUND_FENCE.match(bare).group(2).strip() == "held-back":
+                start = i
+            elif start is not None and end is None:
+                if fence is None:
+                    end = i
+                else:
+                    body.append(bare)
+            continue
+        if q := question_id(bare):
+            asked.append(q)
+    if start is None:
+        return None, None, None, asked
+    if end is None:
+        sys.exit(f"refused: {where}: the held-back block is never closed")
+    try:
+        entries = json.loads("\n".join(body))
+    except ValueError as e:
+        sys.exit(f"refused: {where}: the held-back block is not JSON: {e}")
+    ok = isinstance(entries, list) and all(
+        isinstance(x, dict)
+        and set(x) == {"title", "waits"}
+        and isinstance(x["title"], str)
+        and x["title"].strip()
+        and x["waits"] in HELD_WAITS
+        for x in entries
+    )
+    if not ok:
+        sys.exit(
+            f"refused: {where}: the held-back block is a JSON list of "
+            '{"title": "<question>", "waits": "next" | "later"} entries'
+        )
+    return entries, start, end, asked
+
+
+def expand_held_back(text, where):
+    """`text` with its held-back block printed as the header's `Next round (over the cap of
+    <n>):` and `Later:` lines, <n> being the questions the round asks."""
+    entries, start, end, asked = read_held_back(text, where)
+    if entries is None:
+        return text
+    lines = text.splitlines(keepends=True)
+    eol = eol_of(lines[start]) or "\n"
+    shown = []
+    for waits, label in (("next", f"Next round (over the cap of {len(asked)})"), ("later", "Later")):
+        titles = [x["title"].strip() for x in entries if x["waits"] == waits]
+        if titles:
+            shown.append(f"{label}: {', '.join(titles)}{eol}")
+    return "".join(lines[:start] + shown + lines[end + 1 :])
+
+
+def render_round(text, level, where="round file"):
+    text = expand_held_back(text, where)
     if level == "full":
         return text
     out = []
@@ -3040,7 +3107,7 @@ def link_citations(text, form, round_file):
 
 
 def cmd_show(d, a):
-    text = render_round(read_round(a.round_file), a.level)
+    text = render_round(read_round(a.round_file), a.level, a.round_file)
     write_raw(link_citations(text, a.links, a.round_file))
 
 
@@ -3057,18 +3124,50 @@ def shown_rounds(rounds_dir):
 
 
 ROUND_COUNTS_HEADING = "## Round counts"
-ROUND_COUNT = re.compile(r"^(?:[-*+][ \t]+)?round ([0-9]+) \| opened ([0-9]+) \| closed ([0-9]+)[ \t]*$")
+ROUND_COUNT = re.compile(
+    r"^(?:[-*+][ \t]+)?round ([0-9]+) \| opened ([0-9]+|unknown) \| closed ([0-9]+)[ \t]*$"
+)
 WAYFIND = (
     "Wayfind: the last two rounds each opened more questions than they settled; "
     "/planning:wayfind chart can map what is left."
 )
 
 
-def round_counts(rows, n, new=0):
-    """(opened, closed) of round n: its register rows (plus `new` not yet registered) and how
-    many of them are settled."""
-    mine = [status for _, status, rnd, _, _, _ in rows if rnd == n]
-    return len(mine) + new, sum(status in exporters.SETTLED for status in mine)
+def title_key(title):
+    return re.sub(r"\s+", " ", title.replace("*", "")).strip().rstrip("?.!:").strip().casefold()
+
+
+def saved_rounds(rounds_dir):
+    """Round number -> (held-back entries or None, question ids asked) for each round file in
+    rounds_dir; {} without one."""
+    out = {}
+    for n, path in (shown_rounds(rounds_dir) if rounds_dir else {}).items():
+        entries, _, _, asked = read_held_back(read_round(path), path)
+        out[n] = (entries, asked)
+    return out
+
+
+def round_counts(rows, saved, n, new=0):
+    """(opened, closed) of round n. opened counts the questions round n first names: its new
+    register rows (plus `new` not yet registered) and its held-back entries, less those an
+    earlier round's held-back list already named; None when round n has no saved list. closed
+    counts the rows settled while round n was the last round to show them (a row no round file
+    shows, while its register round)."""
+    last = {}
+    for k in sorted(saved):
+        for qid in saved[k][1]:
+            last[qid] = k
+    closed = sum(
+        status in exporters.SETTLED and last.get(f"Q{qn}", rnd) == n
+        for qn, status, rnd, _, _, _ in rows
+    )
+    held = saved.get(n, (None,))[0]
+    if held is None:
+        return None, closed
+    waiting = {title_key(x["title"]) for k, (h, _) in saved.items() if k < n and h for x in h}
+    fresh = [t for _, _, rnd, t, _, _ in rows if rnd == n and title_key(t) not in waiting]
+    named = {title_key(x["title"]) for x in held} - waiting
+    return len(fresh) + new + len(named), closed
 
 
 def upsert_round_counts(text, counts):
@@ -3095,14 +3194,18 @@ def upsert_round_counts(text, counts):
     for i in range(at + 1, end):
         m = ROUND_COUNT.match(lines[i].rstrip("\r\n"))
         if m:
-            merged[int(m.group(1))] = (int(m.group(2)), int(m.group(3)))
+            opened = None if m.group(2) == "unknown" else int(m.group(2))
+            merged[int(m.group(1))] = (opened, int(m.group(3)))
             slot = len(keep) if slot is None else slot
         else:
             keep.append(lines[i])
     merged.update(counts)
     if slot is None:
         slot = 1 if keep and not keep[0].strip() else 0
-    body = [f"round {n} | opened {o} | closed {c}{eol}" for n, (o, c) in sorted(merged.items())]
+    body = [
+        f"round {n} | opened {'unknown' if o is None else o} | closed {c}{eol}"
+        for n, (o, c) in sorted(merged.items())
+    ]
     return "".join(lines[: at + 1] + keep[:slot] + body + keep[slot:] + lines[end:])
 
 
@@ -3113,13 +3216,14 @@ def scope_lines(text, a, new=0):
     if a.round < 1:
         sys.exit(f"refused: --round must be 1 or more, not {a.round}")
     rows = exporters.parse_register(text)
+    saved = saved_rounds(a.rounds_dir)
     if a.rounds_dir:
-        earlier = sorted((n for n in shown_rounds(a.rounds_dir) if n < a.round), reverse=True)
+        earlier = sorted((n for n in saved if n < a.round), reverse=True)
     else:
         earlier = range(a.round - 1, 0, -1)
-    counts = {n: round_counts(rows, n) for n in list(earlier)[:2]}
-    fog = len(counts) == 2 and all(o > c for o, c in counts.values())
-    counts[a.round] = round_counts(rows, a.round, new)
+    counts = {n: round_counts(rows, saved, n) for n in list(earlier)[:2]}
+    fog = len(counts) == 2 and all(o is not None and o > c for o, c in counts.values())
+    counts[a.round] = round_counts(rows, saved, a.round, new)
     path = Path(a.ledger)
     replace_text(path, upsert_round_counts(read_input(path, "ledger", newline=""), counts), "counts")
     return [f"Scope check: {len(rows) + new} questions asked so far", *([WAYFIND] if fog else [])]
@@ -3135,7 +3239,7 @@ def cmd_measures(d, a):
     text = read_input(a.ledger, "ledger")
     exporters.check_ledger(text, a.ledger)
     counts = sorted(
-        len(render_round(read_round(path), a.level).splitlines())
+        len(render_round(read_round(path), a.level, path).splitlines())
         for path in shown_rounds(a.rounds_dir).values()
     )
     mid = len(counts) // 2
@@ -3662,8 +3766,8 @@ def main(argv=None):
 
     s = sub.add_parser(
         "show",
-        help="print a saved round file at a detail level; full keeps every line (no data dir "
-        "needed)",
+        help="print a saved round file at a detail level, its held-back block as the Next "
+        "round and Later: lines; full keeps every other line (no data dir needed)",
     )
     s.add_argument("--level", required=True, choices=LEVELS, help="detail level")
     s.add_argument(
@@ -3680,8 +3784,9 @@ def main(argv=None):
         "scope-check",
         help="print the round header's Scope check: line (every register row, as questions "
         "asked so far), then a Wayfind: line when each of the two rounds before --round opened "
-        "more rows than it settled (answered, deferred, withdrawn or blocked); record those "
-        "rounds' counts and this one's under the ledger's ## Round counts (no data dir needed)",
+        "more questions (new rows and held-back entries no earlier round named) than it settled "
+        "(answered, deferred, withdrawn or blocked); record those rounds' counts and this one's "
+        "under the ledger's ## Round counts (no data dir needed)",
     )
     s.add_argument("--ledger", required=True, help="ledger markdown file")
     s.add_argument("--round", type=int, required=True, help="the round being shown")
@@ -3689,7 +3794,8 @@ def main(argv=None):
         "--rounds-dir",
         dest="rounds_dir",
         help="count the two highest rounds below --round that have a round-<N>.md here, "
-        "instead of the two numbers below it",
+        "instead of the two numbers below it, reading each file's held-back block (without "
+        "one, a round's opened count is unknown)",
     )
     s.set_defaults(fn=cmd_scope_check)
 

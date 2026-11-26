@@ -453,7 +453,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "7a301d7f292dd2b8e6a6cdcb9c5de2b7aa85fa0d19b2a3679669ea3891765aac"
+  "524280d07cd73f9047994d662462a5e4e261968633e483e82511eb5247d76d8b"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -709,7 +709,7 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## The open-question register" \
-  "fb0a247394b181d313ff50343639d9441a66831eed74c43349454aff606a29a8"
+  "eb770f87ec367bef2fa370800d078e72fb053a083a5343cfb798149f27c18156"
 # Re-pinned for #8314: adds the coined-term category, item-shape value, disposition and a glossary dispatch input; every existing category and disposition is unchanged, so the open-decision (case A) and resolved-but-one (case B) plants survive.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Re-pin for #8293: adds the quoted-source rule and fresh-context quote check for fact-settled items, a `decision` line that is never settled from facts, and the `## Assumption sweep` record the gate grades; every category, item-shape field and existing disposition is unchanged, and a decision still becomes a register row, so cases A and B survive.

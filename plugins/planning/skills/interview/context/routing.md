@@ -70,7 +70,8 @@ lines are the new ids; the next line is `Scope check: <n> questions asked so far
 row with this round's new rows counted in, and a `Wayfind:` line follows it when the fog trigger
 below fired. Paste both into the round header as printed. The same call records the round's
 counts as `round <n> | opened <a> | closed <s>` lines under the ledger's `## Round counts`,
-rewriting a round's line on a rerun. On the page lane the call adds `--dir '<data_dir>'`. For a
+rewriting a round's line on a rerun; `<a>` is `unknown` for a round whose file has no held-back
+block (SKILL.md "The round header"). On the page lane the call adds `--dir '<data_dir>'`. For a
 round that adds no row, `round.sh scope-check` with the same `--round` and `--rounds-dir` prints
 and records the same lines. With no Bash, count the same from the ledger by the rules of
 `scope-check` in [`../../../surface/README.md`](../../../surface/README.md) and write the lines
@@ -83,9 +84,11 @@ turn out larger or foggier than it looked at entry? Wayfind has three triggers, 
 question above and the first and third below; the second recommends `/session-flow:workflow`:
 
 - **Fog: two rounds running opened more than they closed → `/planning:wayfind chart`.** `round.sh`
-  decides it from the ledger's `## Round counts`: when each of the last two rounds registered more
-  new rows than it settled (answered, deferred, withdrawn or blocked), its `Scope check:` call
-  prints the `Wayfind:` line, which goes in the round header as printed. One round is noise. This
+  decides it from the round files and the ledger: a round opens the questions it first names,
+  asked as new rows or held back in its file's held-back block, and closes the rows settled
+  (answered, deferred, withdrawn or blocked) while it was the last round to show them. When each
+  of the last two rounds opened more than it closed, its `Scope check:` call prints the `Wayfind:`
+  line, which goes in the round header as printed. One round is noise. This
   is the fog evidence wayfind's too-big AND foggy stop rule needs, so a recommendation to chart
   always rests on it.
 - **Size alone: the context zone has worsened → `/session-flow:workflow`.** The session's

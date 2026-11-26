@@ -11,7 +11,7 @@ Every other section is added when its first entry is written, never as an empty 
 - `## Self-answered facts`: one line per decision or fact settled without asking, `F<N> | answered-from-<tag> | <question> | <fact> | <basis>`; it takes no `Q<N>` ("Self-answer gate").
 - `## Assumption sweep`: before each sweep, `sweep <M> | register through Q<N>`; then one line per item, `S<N> | sweep <M> | <category> | <class> | <source> | <disposition>`, the `S<N>` ids running on across sweeps and identical items merged (`context/assumption-sweep.md` "Disposition"); a sweep that returned nothing gets `none`.
 - `## ADR outcomes`: one line per answered decision, `Q<N> (<decision>) | record: <why>` or `| declined: <reason>` (or `| ADR candidate, not checked`); a closing `every other decision | declined: <reason>` line covers the rest (SKILL.md "ADR outcome lines"). The Step 4 cross-check fails on an answered row no line covers.
-- `## Round counts`: `round <N> | opened <a> | closed <s>`, written by `round.sh next-id --round` and `scope-check`, one line per round, never by hand.
+- `## Round counts`: `round <N> | opened <a> | closed <s>` (`<a>` is `unknown` for a round file with no held-back block), written by `round.sh next-id --round` and `scope-check`, one line per round, never by hand.
 - `## Reopened answers`: `Q<N> | round <N> | was: <old answer> | fact: <the fact and its source>`, written by `round.sh reopen` (`context/lookups.md`).
 - `**Session shorthand:**`: one `<term>: <definition>` line per coinage ("Session-shorthand glossary").
 

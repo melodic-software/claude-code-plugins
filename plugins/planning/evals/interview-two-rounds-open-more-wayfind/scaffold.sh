@@ -37,6 +37,19 @@ MD
 MD
 } >"$topic/interview-checklist.md"
 
-for n in 5 6; do
-  printf 'Round %d\n\nThe round as it was shown.\n' "$n" >"$topic/round-$n.md"
-done
+cat >"$topic/round-5.md" <<'MD'
+Round 5
+```held-back
+[{"title": "Which ledger do disputed charges land in?", "waits": "later"}]
+```
+
+The round as it was shown.
+MD
+cat >"$topic/round-6.md" <<'MD'
+Round 6
+```held-back
+[{"title": "Which ledger do disputed charges land in?", "waits": "later"}, {"title": "Who reconciles the merged revenue reports?", "waits": "later"}]
+```
+
+The round as it was shown.
+MD
