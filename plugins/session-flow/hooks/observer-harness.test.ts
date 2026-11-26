@@ -3,6 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { commandKey, harness, harnessInitial, type HarnessEvent, type HarnessState, hookRunsFrom, p95, sessionCommand, type Where } from './observer-harness.ts'
 import { fixText, ledgerSection, noteFor, summarize } from './observer-live.ts'
 import { initial, readOptions, step } from './observer-machine.ts'
+import HOOK_LOG from './observer-harness.hook-log.ts'
 
 const opts = (raw: Record<string, unknown> = {}) => readOptions({ observer_harness_check: true, ...raw }).options
 const WSL: Where = { repo: '/srv/repo', platform: 'wsl' }
@@ -50,15 +51,22 @@ test('a hook at its budget, or with too few runs, is not reported', () => {
   expect(run([hooks('few', [9000, 9000])], { observer_hook_min_runs: 2 }).findings).toHaveLength(1)
 })
 
-test('hookRunsFrom keeps only envelope rows with a hook and a numeric duration', () => {
+test('hookRunsFrom reads the rows session-telemetry\'s hook-telemetry-sink.sh writes', () => {
+  expect(hookRunsFrom(HOOK_LOG)).toEqual([
+    { hook: 'block-dangerous-git', ms: 3 },
+    { hook: 'merge-guard', ms: 9400 },
+    { hook: 'block-no-verify', ms: 7 },
+  ])
+})
+
+test('hookRunsFrom skips rows that are not envelope rows with a hook and a numeric duration', () => {
   const text = [
-    '{"source":"envelope","hook":"a","duration_ms":12}',
     '{"source":"event-log","hook_event_name":"Stop","duration_ms":3}',
     '{"source":"envelope","hook":"b","duration_ms":null}',
     'not json',
     '',
   ].join('\n')
-  expect(hookRunsFrom(text)).toEqual([{ hook: 'a', ms: 12 }])
+  expect(hookRunsFrom(text)).toEqual([])
 })
 
 test('a mid-session cache rewrite with no break, compaction or model switch is reported with a session route', () => {
@@ -74,6 +82,18 @@ test('a cache write that only covers the context the turn added is no miss', () 
   const r = run([...turn(0, 1000, 20_000), measured(100_000), ...turn(60_000, 61_000, 90_000), measured(190_000)])
   expect(r.findings).toEqual([])
   expect(r.rows).toEqual([])
+})
+
+test('a measurement mid-turn does not move the turn\'s growth baseline', () => {
+  const r = run([...turn(0, 1000, 20_000), measured(100_000), { kind: 'turn-started', at: 60_000 }, measured(150_000), { kind: 'turn-completed', at: 61_000, usage: { cache_read_input_tokens: 90_000, cache_creation_input_tokens: 60_000, model: 'm1' } }, measured(160_000)])
+  expect(r.findings).toEqual([])
+  expect(r.rows).toEqual([])
+})
+
+test('a measurement between compaction and the turn\'s end keeps the compaction explanation', () => {
+  const r = run([...turn(0, 1000, 20_000), measured(100_000), { kind: 'compacted' }, { kind: 'turn-started', at: 60_000 }, measured(30_000), { kind: 'turn-completed', at: 61_000, usage: { cache_read_input_tokens: 1000, cache_creation_input_tokens: 160_000, model: 'm1' } }, measured(40_000)])
+  expect(r.findings).toEqual([])
+  expect(r.rows).toEqual([expect.objectContaining({ harness: 'cache-miss', cause: 'compaction' })])
 })
 
 test('the first turn of a session is never a miss', () => {

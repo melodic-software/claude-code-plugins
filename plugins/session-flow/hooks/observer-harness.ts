@@ -32,7 +32,8 @@ export type HarnessState = {
   ttlMinutes: number
   model?: string
   compacted: boolean
-  pending?: { usage: Usage; idleMinutes?: number }
+  turnContext?: number
+  pending?: { usage: Usage; idleMinutes?: number; from?: number }
   turns: number
   misses: readonly string[]
 }
@@ -106,13 +107,13 @@ const missCause = (s: HarnessState, usage: Usage, idleMinutes: number | undefine
 
 const settle = (s: HarnessState, tokens: number | undefined, o: HarnessOptions, where: Where): HarnessResult => {
   const p = s.pending
-  const next: HarnessState = { ...s, pending: undefined, compacted: false, context: tokens ?? s.context, turns: s.turns + (p ? 1 : 0) }
-  if (p === undefined) return { state: next, findings: [], rows: [] }
+  if (p === undefined) return { state: { ...s, context: tokens ?? s.context }, findings: [], rows: [] }
+  const next: HarnessState = { ...s, pending: undefined, compacted: false, context: tokens ?? s.context, turns: s.turns + 1 }
   const usage = p.usage
   next.model = usage.model ?? s.model
   next.ttlMinutes = (usage.ephemeral_1h_input_tokens ?? 0) > 0 ? 60 : s.ttlMinutes
   const written = usage.cache_creation_input_tokens ?? 0
-  const growth = tokens !== undefined && s.context !== undefined ? Math.max(0, tokens - s.context) : written
+  const growth = tokens !== undefined && p.from !== undefined ? Math.max(0, tokens - p.from) : written
   const rewritten = written - growth
   if (s.turns === 0 || rewritten < o.cacheMissTokens) return { state: next, findings: [], rows: [] }
   const cause = missCause(s, usage, p.idleMinutes)
@@ -180,10 +181,10 @@ export const harness = (s: HarnessState, e: HarnessEvent, o: HarnessOptions, whe
     case 'hook-runs':
       return hookRuns(s, e, o, where)
     case 'turn-started':
-      return none({ ...s, turnStartedAt: e.at })
+      return none({ ...s, turnStartedAt: e.at, turnContext: s.context })
     case 'turn-completed': {
       const idleMinutes = s.lastTurnEndedAt !== undefined && s.turnStartedAt !== undefined ? (s.turnStartedAt - s.lastTurnEndedAt) / 60_000 : undefined
-      return none({ ...s, lastTurnEndedAt: e.at, pending: e.usage ? { usage: e.usage, idleMinutes } : s.pending })
+      return none({ ...s, lastTurnEndedAt: e.at, pending: e.usage ? { usage: e.usage, idleMinutes, from: s.turnContext } : s.pending })
     }
     case 'compacted':
       return none({ ...s, compacted: true })
