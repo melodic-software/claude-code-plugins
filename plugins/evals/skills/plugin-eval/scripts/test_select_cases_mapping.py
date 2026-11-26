@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# test-scope: plugins/evals/skills/plugin-eval/scripts/select-cases.py plugins/evals/skills/plugin-eval/scripts/select_mapping.py plugins/evals/scripts/case_skills.py plugins/evals/skills/validate/scripts/validate-cases.py
+# test-scope: plugins/evals/skills/plugin-eval/scripts/select-cases.py plugins/evals/skills/plugin-eval/scripts/select_mapping.py plugins/evals/skills/plugin-eval/scripts/no_run_text.py plugins/evals/scripts/case_skills.py plugins/evals/skills/validate/scripts/validate-cases.py
 """Mapping and regression unit tests for plugins/evals/skills/plugin-eval/scripts/select-cases.py."""
 
 import os

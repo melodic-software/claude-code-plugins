@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# test-scope: plugins/evals/skills/plugin-eval/scripts/select-cases.py plugins/evals/skills/plugin-eval/scripts/select_mapping.py plugins/evals/scripts/case_skills.py plugins/evals/skills/validate/scripts/validate-cases.py
+# test-scope: plugins/evals/skills/plugin-eval/scripts/select-cases.py plugins/evals/skills/plugin-eval/scripts/select_mapping.py plugins/evals/skills/plugin-eval/scripts/no_run_text.py plugins/evals/scripts/case_skills.py plugins/evals/skills/validate/scripts/validate-cases.py
 """Unit tests for plugins/evals/skills/plugin-eval/scripts/select-cases.py.
 
 Builds throwaway two-plugin git repositories in temporary directories so every
@@ -490,45 +490,6 @@ class SelectCasesTest(unittest.TestCase):
             blocks["plugins/alpha"]["affected-no-run"],
         )
         self.assertEqual("0", blocks["plugins/alpha"]["agent-runs"])
-
-    def _base_with_next_section(self):
-        path = self.repo / "plugins/alpha/skills/one/SKILL.md"
-        text = path.read_text(encoding="utf-8") + (
-            "\n## Next\n\n- Done, when available: /alpha:two\n- Stuck: /alpha:three\n"
-            "\n## Gotchas\n\n- Keep it short.\n"
-        )
-        path.write_text(text, encoding="utf-8")
-        _commit_all(self.repo, "add Next section")
-        _git(self.repo, "branch", "-f", "base", "HEAD")
-        return path
-
-    def test_next_section_edit_is_no_run(self):
-        path = self._base_with_next_section()
-        text = path.read_text(encoding="utf-8").replace(
-            "- Done, when available: /alpha:two\n", "- Done: /alpha:two.\n"
-        )
-        path.write_text(text.replace("- Stuck: /alpha:three\n", ""), encoding="utf-8")
-        _commit_all(self.repo, "trim Next")
-
-        res = _run_select(self.repo)
-        self.assertEqual(0, res.returncode, res.stderr)
-        blocks = _parse_blocks(res.stdout)
-        self.assertNotIn("cases", blocks["plugins/alpha"])
-        self.assertEqual("0", blocks["plugins/alpha"]["agent-runs"])
-
-    def test_edit_outside_next_section_still_cuts(self):
-        path = self._base_with_next_section()
-        text = path.read_text(encoding="utf-8").replace("- Keep it short.\n", "- Keep it long.\n")
-        path.write_text(text.replace("- Stuck: /alpha:three\n", ""), encoding="utf-8")
-        _commit_all(self.repo, "trim Next and reword a gotcha")
-
-        res = _run_select(self.repo)
-        self.assertEqual(0, res.returncode, res.stderr)
-        blocks = _parse_blocks(res.stdout)
-        self.assertEqual(
-            "control-no-fire one-basic one-trigger",
-            blocks["plugins/alpha"]["cases"],
-        )
 
     def test_rewrap_with_an_inserted_word_is_cut(self):
         path = self.repo / "plugins/alpha/skills/one/SKILL.md"
