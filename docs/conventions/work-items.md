@@ -36,7 +36,7 @@ these rules shape (`.github/scripts/intake-triage/apply-verdict.mjs` and `admit.
   any other shape holds the issue.
 - **Re-entry after a recorded decision.** When a comment's first line is exactly
   `**Decision recorded.**` and its author's login does not end in `[bot]`, the newest such comment
-  is the decision. Quote it verbatim in the comment, every line as a Markdown quote (`> `), the first
+  is the decision. Quote it verbatim in the comment, every line as a Markdown quote line opening `>`, the first
   line included, followed by its link from the comment's `url` in `issue.json` (when that is empty,
   name it as the decision comment by its author). Never paraphrase or reword it; keep the whole
   comment under 2800 characters, and when the quote would not fit, quote its opening lines and end
