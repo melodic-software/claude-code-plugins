@@ -32,7 +32,7 @@ here sweeps the references after a rename someone already made.
   the skills' scripts strip CRLF and avoid Windows-hostile constructs).
 - **The repository's markdown linter** (optional). `/docs-hygiene:compress`
   resolves the consuming repository's own markdown lint command and runs it
-  on each edited file; when none resolves, it skips the lint step and says so.
+  scoped to each edited file; when none resolves, it skips the lint step and says so.
 - **`caveman` plugin** (optional), a compression backend for `compress`,
   detected with `claude` and `jq` when both are on `PATH`; absent, an in-session
   fallback applies and every verification gate still runs.
