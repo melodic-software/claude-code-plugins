@@ -166,7 +166,6 @@ EFFECTS = (
     "batching",
 )
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-# An id reaches a shell line in the main session (adopt --id), so it holds no shell syntax.
 ID_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
 OVERENGINEERING = "/overengineering:audit"
 
@@ -746,10 +745,7 @@ def cmd_compare(args: argparse.Namespace) -> int:
 
 
 INVOKED = "<command-name>/performance:go-faster"
-# A background task's output file grows while the task runs, so reading it again is never a repeat.
 TASK_OUTPUT = re.compile(r"(?:^|[/\\\s'\"=])tasks[/\\][^/\\\s'\"]+\.output(?![\w.])")
-# A Read of a file unchanged since its last Read returns a stub instead of the file; the stub
-# vouches for the earlier result, so it counts as that result.
 UNCHANGED = "file_unchanged"
 
 
@@ -808,7 +804,6 @@ def parse_ts(value: object) -> float | None:
 SHOWN_MAX = 60
 VALUE = r"""("[^"]*"|'[^']*'|\S+)"""
 SECRET_WORD = r"(?:key|token|secret|passw(?:or)?d|cookie|auth\w{0,16}|credential)"
-# Every quantifier ahead of a match is bounded, so a long word cannot make a pattern quadratic.
 SECRETS = (
     (
         re.compile(rf"(?i)\b([\w-]{{0,32}}{SECRET_WORD}[\w-]{{0,32}}:\s*)[^\"'\n]*"),
@@ -827,7 +822,6 @@ SECRETS = (
         r"\1***",
     ),
     (re.compile(r"(?<!\S)(-p)(?=\S)\S+"), r"\1***"),
-    # A standalone -p before a value is often a password; `mkdir -p dir` over-redacts, accepted.
     (re.compile(r"(?<!\S)(-p\s{1,16})(?!-)" + VALUE), r"\1***"),
     (re.compile(r"(?i)(\blogin\b[^|;&\n]{0,100}?\s-p\s+)" + VALUE), r"\1***"),
     (
@@ -1152,8 +1146,6 @@ def cmd_transcript_counts(args: argparse.Namespace) -> int:
 
 STOP_SUMMARY = "stop_hook_summary"
 P50_FLOOR, P95_FLOOR = 2, 20
-# Notification hooks carry their secret in the URL path (webhook ids, topics), so a hook label
-# keeps only the host. The cap bounds redaction time; labels are cut far shorter anyway.
 URL_PATH = re.compile(r"\b(\w{1,32}://[^/\s\"']{1,253})/[^\s\"']*")
 HOOK_INPUT_MAX = 4096
 
@@ -1287,7 +1279,6 @@ def cmd_status_timing(args: argparse.Namespace) -> int:
     with writing(trace):
         trace.parent.mkdir(parents=True, exist_ok=True)
         trace.unlink(missing_ok=True)
-    # The column layout parsed below is the non-brief form; a caller's BRIEF setting would drop it.
     env = {**os.environ, "GIT_TRACE2_PERF": str(trace), "GIT_TRACE2_PERF_BRIEF": "0"}
     for _ in range(args.runs):
         result = subprocess.run(
@@ -1406,11 +1397,6 @@ def ci_timing(repo: str, runs: int, job_runs: int) -> dict:
         ["run", "list", "--repo", repo, "--limit", str(runs), "--status", "completed"]
         + ["--json", RUN_FIELDS]
     )
-    # Each workflow is its own pipeline, and a failed or cancelled run stops early, so a median
-    # over every run listed describes whichever workflows and failures finished last. Runs are
-    # grouped by workflow, and only successful ones are timed.
-    # A ruleset workflow's run has no workflowName, so runs group on the workflow's id, then its
-    # name, then the run itself; the name is only the label.
     groups: dict[str, tuple[str, list[dict]]] = {}
     for run in listed:
         wf_id, wf_name = run.get("workflowDatabaseId"), run.get("workflowName")
@@ -1549,8 +1535,6 @@ def pr_timing(limit: int) -> dict:
         if created is None:
             no_first += 1
             continue
-        # A pending review has no submittedAt; one stamped before the PR opened is not a wait.
-        # An unparsable stamp could be the earliest review, so the PR is left out.
         stamps = [
             r.get("submittedAt")
             for r in pr.get("reviews") or []

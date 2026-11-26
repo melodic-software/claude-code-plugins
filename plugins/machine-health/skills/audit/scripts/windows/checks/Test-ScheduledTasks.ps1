@@ -11,7 +11,6 @@ $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 
 function Test-IsNeverRunScheduledTask {
-    # 267011 = SCHED_S_TASK_HAS_NOT_RUN; FILETIME-zero shows as pre-2000 dates.
     [CmdletBinding()]
     [OutputType([bool])]
     param([Parameter()] [AllowNull()] $TaskInfo)
@@ -31,7 +30,6 @@ function Test-IsNeverRunScheduledTask {
     return $false
 }
 
-# Dot-source guard: lets Pester test the helper in isolation; & invocation skips it.
 if ($MyInvocation.InvocationName -eq '.') { return }
 
 $id = 'scheduled-tasks'
@@ -43,8 +41,6 @@ $commands = @(
 $FailureSummary = 'Scheduled task check failed.'
 $PassThru = $false
 $CheckBody = {
-    # \Microsoft\* tasks are OS housekeeping noise. 267014 (SCHED_S_TASK_TERMINATED) is
-    # deliberately not filtered: termination is a real event worth surfacing.
     $tasks = @(Get-ScheduledTask -ErrorAction Stop |
             Where-Object { $_.TaskPath -notlike '\Microsoft\*' -and $_.State -eq 'Ready' })
 

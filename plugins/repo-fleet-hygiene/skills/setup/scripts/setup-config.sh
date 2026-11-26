@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Non-interactive writer for the repo-fleet-hygiene config file (`setup apply`).
 # Exit 0 on success, 2 on a validation error; nothing is written on error.
 set -uo pipefail
 
@@ -74,8 +73,6 @@ fi
 mkdir -p -- "$(dirname -- "$config")" || die "cannot create the config directory"
 cfg_dir="$(cd -- "$(dirname -- "$config")" && pwd -P)"
 
-# Prefer a path relative to the config directory (portable in tracked config); fall back to the
-# absolute path where no relative form exists (another volume) or realpath lacks --relative-to.
 target_value() {
   local abs rel
   abs="$(cd -- "$1" && pwd -P)"

@@ -10,17 +10,12 @@ const canonical = ({ actorId, titleSha256, bodySha256 }) =>
 
 export const recordBody = ({ actorId, title, body }) => canonical({ actorId, titleSha256: contentHash(title), bodySha256: contentHash(body) });
 
-// Always a new comment, never an edit: an edited record does not count.
 export async function writeAdmissionRecord(github, repository, number, { actorId, title, body }) {
   await github("POST", `/repos/${repository}/issues/${number}/comments`, { body: recordBody({ actorId, title, body }) });
 }
 
 export const timeOf = (value) => (typeof value === "string" ? Date.parse(value) : Number.NaN);
 
-// The lanes App's admission records, oldest first, each {at, record}. A
-// comment counts only when the App's user id wrote it (never its login), its
-// body is exactly the canonical record and it was never edited; an App
-// comment that opens with the marker and is anything else throws.
 export function admissionRecords(comments, appId) {
   const out = [];
   for (const comment of comments ?? []) {
@@ -52,11 +47,8 @@ export function admissionRecords(comments, appId) {
   return out.sort((a, b) => a.at - b.at);
 }
 
-// The newest admission record, or null.
 export const readAdmissionRecord = (comments, appId) => admissionRecords(comments, appId).at(-1) ?? null;
 
-// A listed human's Work status sets of `state` (resolve-config.mjs
-// fieldEvents' shape), oldest first, each {at, actorId}.
 export function personAdmissions(fieldEvents, { fieldId, state = "agent-ready", humans }) {
   return (fieldEvents ?? [])
     .filter(
@@ -68,16 +60,6 @@ export function personAdmissions(fieldEvents, { fieldId, state = "agent-ready", 
     .sort((a, b) => a.at - b.at);
 }
 
-// The admission a run anchors on: {at, kind: "record"|"person", record}.
-// Candidates are the App's records and a listed human's agent-ready sets;
-// with `sender`, which must be the App or a listed human, a human sender's
-// own sets are the only ones that count, records left out, since that
-// set is itself the admission (an older record must never win when the
-// trigger's update time predates the set); the App's restart counts every
-// record and every listed human's set. With `triggerAt`, the newest candidate at
-// or before it, else the first after it (the trigger's update time can
-// predate its own event); a later admission never moves the anchor. Neither
-// found throws.
 export function admittedAt({ comments, appId, fieldEvents, fieldId, state = "agent-ready", humans, sender, triggerAt }) {
   if (sender != null && sender !== appId && !humans.has(sender)) {
     throw new Error("the run's sender is neither the lanes App nor a listed human");
@@ -98,5 +80,4 @@ export function admittedAt({ comments, appId, fieldEvents, fieldId, state = "age
   return bounded;
 }
 
-// Whether `title` and `body` are the text `record` admitted.
 export const matchesRecord = (record, { title, body }) => contentHash(title) === record.titleSha256 && contentHash(body) === record.bodySha256;

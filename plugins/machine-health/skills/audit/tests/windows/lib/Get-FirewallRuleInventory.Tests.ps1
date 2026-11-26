@@ -18,8 +18,6 @@ BeforeAll {
     function Get-TestRule {
         param([string] $Name, [string] $Source = 'Local', [string] $Enabled = 'True',
             [string] $Direction = 'Inbound', [string] $Action = 'Allow')
-        # A real (offline) CimInstance: the cmdletized port-filter cmdlet converts
-        # -AssociatedNetFirewallRule to CimInstance even when mocked.
         $rule = [Microsoft.Management.Infrastructure.CimInstance]::new('MachineHealthTestRule')
         $rule.CimInstanceProperties.Add([Microsoft.Management.Infrastructure.CimProperty]::Create(
                 'InstanceID', $Name, [Microsoft.Management.Infrastructure.CimFlags]::Key))
@@ -29,8 +27,6 @@ BeforeAll {
             Profile = 'Any'; DisplayGroup = 'Vendor'
         }
         foreach ($k in $props.Keys) { $rule | Add-Member -NotePropertyName $k -NotePropertyValue $props[$k] }
-        # The parameter also checks this type name; added last so the class's
-        # type-data members do not collide with the note properties above.
         $rule.PSObject.TypeNames.Insert(0, 'Microsoft.Management.Infrastructure.CimInstance#root/standardcimv2/MSFT_NetFirewallRule')
         $rule
     }

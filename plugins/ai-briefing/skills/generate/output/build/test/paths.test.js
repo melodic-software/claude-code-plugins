@@ -91,8 +91,6 @@ test("state and project paths remain under their configured roots", () => {
   );
 });
 
-// Another plugin's SessionStart hook can export its own data dir into every Bash
-// call as CLAUDE_PLUGIN_DATA; build state must never land there.
 test("state root ignores a CLAUDE_PLUGIN_DATA that names another plugin", () => {
   let unset;
   withEnvironment({ CLAUDE_PLUGIN_DATA: undefined }, () => {

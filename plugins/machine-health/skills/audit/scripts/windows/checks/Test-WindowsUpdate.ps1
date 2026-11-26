@@ -27,10 +27,6 @@ function Test-PfroPending {
     [OutputType([bool])]
     param()
 
-    # The registry property exists on most systems but usually holds an
-    # empty value array, so a presence test (`$null -ne (Get-ItemProperty ...)`)
-    # reports a permanent reboot_pending=true. Authoritative check: the
-    # VALUE is a non-empty string array.
     try {
         $prop = Get-ItemProperty `
             'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' `

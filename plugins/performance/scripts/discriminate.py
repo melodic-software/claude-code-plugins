@@ -117,10 +117,6 @@ def run_check(check: dict[str, object]) -> subprocess.CompletedProcess[str]:
     argv = check.get("argv")
     if not isinstance(argv, list) or not argv:
         raise HarnessError("config `check.argv` must be a non-empty list")
-    # `cwd` is handed to the OS process launcher, so on Windows it needs the
-    # NATIVE spelling. `argv` is deliberately left untouched: argv[0] is usually
-    # bash, and bash needs the MSYS spelling for its own arguments. Converting
-    # both would break one of them, and this is the one place the two rules meet.
     cwd = check.get("cwd")
     resolved_cwd: str | None = None
     if cwd:
@@ -173,10 +169,6 @@ def last_line(text: str) -> str:
 
 
 def warn_uncommitted(target: pathlib.Path) -> None:
-    # `-C` changes directory, it does not isolate. An inherited absolute GIT_DIR
-    # overrides repository discovery and GIT_CONFIG replaces the file git reads,
-    # so an ambient environment would make this warning describe a different
-    # repository than the one holding the target.
     environment = {
         key: value
         for key, value in os.environ.items()
@@ -325,15 +317,8 @@ def main() -> int:
                 f"copy is at {backup.resolve()}; restore it by hand before doing anything "
                 f"else in this tree."
             )
-            # Printed here as well as raised below, because an exception already in
-            # flight would otherwise swallow the one message that names the sidecar.
             print(f"HARNESS FAIL: {restore_failure}", file=sys.stderr)
         elif not args.keep_backup:
-            # Removed HERE rather than after the try, so a check that could not be
-            # launched does not strand a *.discriminate-backup beside a source file
-            # in a live worktree, where the next `git add -A` would sweep it up. The
-            # copy is kept for exactly the one case that needs it: a restore that
-            # did not verify.
             backup.unlink(missing_ok=True)
 
     if restore_failure is not None:
@@ -391,14 +376,6 @@ def main() -> int:
     )
 
     if negative_signal == positive_signal:
-        # Identical arms split on WHETHER THE SHARED OUTCOME IS A FAILURE, and the
-        # split is the whole point. Two arms that both FAILED the same way are
-        # indistinguishable from two arms that never ran: 127 is only the most
-        # visible spelling of that, and with no `signal` regex the signal is the
-        # exit code, so any shared non-zero code lands here. Scoring it as a
-        # discrimination verdict would be a confident claim about a check that may
-        # never have executed. Two arms that both PASSED are a different and
-        # genuinely knowable finding: the check cannot fail.
         if negative_ok:
             return verdict(
                 2,

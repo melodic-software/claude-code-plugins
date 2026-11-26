@@ -1,22 +1,4 @@
 #!/usr/bin/env node
-// The one SessionStart prerequisites row for every enabled plugin
-// (docs/contracts/prerequisites/README.md#hook-notices). For each enabled plugin whose
-// prerequisites.json declares session_probe, it runs that plugin's own lib/prerequisites.mjs probe
-// as a child, with that plugin's CLAUDE_PLUGIN_ROOT and CLAUDE_PLUGIN_DATA, so the probe's latch,
-// its git-hook drift check and the plugin's hook::notice_once all see the plugin's own directories.
-// The notices print as one systemMessage. Always exits 0.
-//
-//   prerequisites-fleet.mjs        (SessionStart hook input on stdin)
-//
-// Enabled plugins come from enabledPlugins in the user, project and managed settings (managed
-// wins; a managed file it cannot parse probes nothing) plus installed_plugins.json, the settings path of check-prerequisites.mjs; never from
-// `claude plugin list`, which would start a nested claude on every session start. The config
-// directory is the prefix of this install's own path (plugin-options.mjs resolveInstall), else
-// CLAUDE_CONFIG_DIR or ~/.claude for a --plugin-dir checkout.
-//
-// A plugin's kill switch, session_probe.run_if_unset_or_true, is read from the operator's settings
-// (pluginConfigs, channel F of docs/contracts/hook-config-delivery), else the option's declared
-// default. Anything but true skips the plugin; so does a settings file that cannot be read.
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
@@ -116,7 +98,6 @@ export async function main({ env = process.env, input = "", ownRoot = OWN_ROOT, 
       return "";
     }
   }
-  // A managed policy this row cannot read could disable a plugin, so it probes nothing.
   for (const file of managedFiles.filter((f) => existsSync(f))) {
     try {
       const plugins = JSON.parse(readFileSync(file, "utf8"))?.enabledPlugins ?? {};

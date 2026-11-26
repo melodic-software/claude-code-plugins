@@ -1,86 +1,14 @@
 name: PR Review Main
 
-# Both AI review lanes, again, from the default branch, for a pull request
-# that changes a lane source (babysit_review_evidence.lane_source): a
-# workflow, Claude Code configuration or the review criteria. The
-# pull_request review lanes run the head's copy of their callers and post as
-# github-actions[bot], so a head can rewrite or forge their result; the merge
-# gate binds such a pull request's review only on this run's verdict
-# (babysit_review_evidence `_main_bound`), never on a comment.
-#
-# workflow_run runs this file from main, never a head's copy. No pull request
-# code runs here: the diff, the trusted pull request text and the lane's
-# criteria (copied from main) are data files in pr-review-main-data, and the
-# model reads them with the Read tool alone. A diff over one review's size
-# cap is reviewed in chunks of whole files, one run each, and one verdict
-# sums their findings and takes the most CRITICAL ones in a chunk. Each
-# lane uploads its verdict as the artifact pr-review-main-<lane>-<pr>-<tree>
-# (write-verdict.mjs); only a
-# run's own steps can upload its artifacts, so the gate authenticates the
-# name through this run's record (path, workflow_run event, main, completed
-# success). The review job's token can only read; the report-review-counts job, which runs
-# no model, posts only each verdict's counts as a check run.
-#
-# Each lane runs one leg on the reviews role's credentials, in the review
-# lanes' order (pr-review-hosted.yml's secrets): the review job on the API
-# key; review-subscription on the role's subscription token for a lane whose
-# key leg handed off (run-claude-cli's handoff: a credit stop, a 401 or 402)
-# or whose key is empty, and for every lane while review-handoffs-credit
-# finds the key's credit stop recent, which skips the review job;
-# review-fallback on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
-# for a lane the subscription leg handed off (a limit stop, a credit stop, a
-# 401 or 402, or an empty token, with the fallback token set). Each leg is
-# its own job on a new VM holding one credential, and repeats every step from
-# a fresh checkout of the main commit the lane's key leg recorded, the tip
-# when that leg started (workflow.test.mjs holds them equal). A matrix job's
-# outputs merge, so each lane's handoff reason is its own output, set after
-# run-claude-cli restored the step files; review-handoffs and
-# collect-subscription-handoffs, which hold no secret and run no model, check each
-# reason against a closed set and give the next leg fixed lane rows. Every
-# leg writes the same verdict, so the report-review-counts job and the gate never see
-# which leg ran; the lane record names the credential and why it ran. A
-# lane no leg leaves a verdict for (a kill switch, a failure, the last leg
-# stopping) stays unbound, as it was before this workflow. A run that failed
-# before any lane's verdict write started is re-run once, recorded, by the
-# lost-run reconciler (maintenance-reconcile-lost-runs.yml), and so is a
-# first attempt held green on a file list it could not read (Note the hold);
-# otherwise the next push reviews again.
-#
-# The check-trigger job reads the PR's files, then runs the trigger gate only for a
-# lane-source PR whose head both lanes have not already reviewed (a verdict the
-# merge gate binds), once per run; no leg starts otherwise. The key leg
-# takes its result, a boolean, the PR number and two SHAs checked against
-# fixed shapes, only from the same run attempt, and gates
-# itself otherwise. The later legs gate themselves at their own start. The
-# collect-trusted-text job reads the trusted pull request text once per run; a leg
-# takes it only when it matches the leg, and otherwise reads its own.
-#
-# Every local action runs from the main checkout at ./.base. zizmor's
-# self-repository advice (`$/...`) is ignored on those lines, as in
-# pr-verify.yml.
-
-# API_BUDGET_HOLD (outage posture element 2): no step here sets it. A file
-# list still unread holds green with a `held: ` notice and Note the hold, which
-# the lost-run reconciler reads to re-run the run once (reconcile.mjs
-# faultHeld); any other failed read or no verdict ends the review red, which it
-# re-runs once too (RECORDED_LANES).
-# A step opts in only once its script is shown to hold green with a notice on
-# a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
-# a hold would pass what it could not read, so the rest still end red on a
-# rate limit past the guard's budget.
 on:
   # workflow_run runs this file from the default branch, never a PR's copy.
   workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [PR Require Checks]
     types: [completed]
-    # Only a pull_request run is reviewed, so a merge-queue or main run would
-    # only start a run that skips.
     branches-ignore: [main, 'gh-readonly-queue/**']
 
 permissions: {}
 
-# One review per PR and head at a time, never cancelled once running: a
-# later run for the same head queues behind it.
 concurrency:
   group: pr-review-main-${{ github.event.workflow_run.pull_requests[0].number || 'none' }}-${{ github.event.workflow_run.head_sha }}
   cancel-in-progress: false
@@ -90,22 +18,10 @@ defaults:
     shell: bash
 
 env:
-  # How old the collect-trusted-text job's read may be when a leg takes it
-  # (take-shared-text.sh): past it the leg reads its own. It covers the read
-  # job's 10-minute timeout and the key leg's start; a later leg that waited
-  # out a key leg's 22-minute model step reads its own.
   SHARED_TEXT_MAX_AGE_MINUTES: "20"
   BABYSIT_VERIFY_LEGACY_FAILS: ${{ github.workspace }}/.base/.github/verify-legacy-fails.json
 
 jobs:
-  # The PR's file list and, for a lane-source PR, the trigger gate, read once
-  # per run for both of the review job's lanes. Its outputs are fixed shapes
-  # only (booleans, the PR number, SHAs, the run attempt), each checked
-  # against a fixed shape by the lane; never head-ref or other PR text. A lane uses them only from this run attempt: a lane a person re-runs
-  # alone ("re-run failed jobs" or one job) keeps an earlier attempt's check-trigger
-  # job, so it gates itself, as every later leg does. The lost-run reconciler
-  # re-runs a lane run in full (reconcile.mjs, the lane kind), so this job
-  # re-runs too and its own gate checks the reconciler's record.
   check-trigger:
     name: Check Trigger
     if: >-
@@ -126,9 +42,6 @@ jobs:
       review: ${{ steps.select.outputs.review || steps.files.outputs.review }}
       pr-number: ${{ steps.gate.outputs.pr-number }}
       head-sha: ${{ steps.gate.outputs.head-sha }}
-      # The PR's own base, the review's diff base: for a stack layer the
-      # layer below, so the review reads this layer's change alone. Code
-      # comes from .base, the main checkout, never from it.
       base-sha: ${{ steps.gate.outputs.pr-base-sha }}
       judged: ${{ steps.judged.outputs.judged }}
       held: ${{ steps.select.outputs.held }}
@@ -147,9 +60,6 @@ jobs:
           path: .base
           persist-credentials: false
 
-      # The main commit the collect-trusted-text job checks out, and a lane's later
-      # leg when the credit gate skipped its key leg, which would have
-      # recorded its own.
       - name: Record the main commit
         id: main
         run: echo "main-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
@@ -176,12 +86,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # The file list first, for the one PR the event names at the run's head,
-      # so a PR that changes no lane source skips the gate's reads. The number
-      # is the event's, not the gate's: it can only skip a review, and the
-      # merge gate holds a lane-source PR with no main-run verdict unbound
-      # (babysit_review_evidence `_main_lane`). With no single PR, or a failed
-      # read, no result leaves this step and the gate runs as before.
       - name: Read the changed files
         id: files
         if: steps.kill.outputs.proceed == 'true' && (vars.CLAUDE_REVIEW_DISABLED != 'true' || vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true')
@@ -224,32 +128,6 @@ jobs:
           { echo "pr-number=$pr"; echo "review=$review"; } >>"$GITHUB_OUTPUT"
           echo "lane source changed: $review"
 
-      # A head both lanes already reviewed from main is not reviewed again:
-      # pr-require-checks completes several times on one head (a re-run after
-      # each review, a label or body edit), and each completion starts this
-      # run. judged=true only when the merge gate's own predicate
-      # (babysit_review_evidence `_main_bound`) binds both lanes at this head
-      # on what this step reads as the gate does (babysit_gh
-      # collect_main_reviews, collect_main_review_counts): a verdict artifact
-      # for the PR and the head's tree, from a pr-review-main run on main that
-      # completed with success, naming this head, beside the report-review-counts job's
-      # check run with its counts. A verdict counts only when its run's main
-      # commit (the run's head_sha) has no diff from main's tip over the paths
-      # criteria.txt lists, so one judged under other criteria reviews again;
-      # the run need not be at the tip itself. A verdict also counts only when
-      # it records the standards commit this run resolved (Download
-      # standards), so an org-layer change reviews again; a verdict with no
-      # standards commit never counts. That commit is fetched, when the
-      # one-commit checkout lacks it, anonymously, since this repository is
-      # public. A verdict also binds only from a run created after the PR's
-      # newest base change (babysit_merge `_retargeted_at`, from the PR's
-      # issue events, read only once both lanes have a counted verdict;
-      # https://docs.github.com/en/rest/using-the-rest-api/issue-event-types#base_ref_changed),
-      # so a retarget with no push reviews again. A failed or cancelled run, a
-      # verdict for another head of the same tree, a lane with no verdict, a
-      # retarget with no readable time, or any failed read, fetch or diff
-      # leaves no output, and the review runs as before. The tree is the
-      # event's, for the event's head.
       - name: Find a head both lanes already reviewed
         id: judged
         if: steps.files.outputs.review == 'true'
@@ -384,9 +262,6 @@ jobs:
           echo "both lanes already reviewed this head: $judged"
           if [ "$judged" = true ]; then echo "judged=true" >>"$GITHUB_OUTPUT"; fi
 
-      # The upstream run's actors, the re-runner and the PR author must all be
-      # on the trusted-actor list. Skipped when no lane would review, when
-      # the PR changes no lane source, or when both lanes reviewed this head.
       - name: Check the trigger
         id: gate
         if: steps.kill.outputs.proceed == 'true' && (vars.CLAUDE_REVIEW_DISABLED != 'true' || vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true') && steps.files.outputs.review != 'false' && steps.judged.outputs.judged != 'true'
@@ -399,9 +274,6 @@ jobs:
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
           ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
 
-      # Only a pull request that changes a lane source is reviewed here; the
-      # predicate is the merge gate's own, read from main. The file list read
-      # above stands only for the gate's own PR; any other PR is read again.
       - name: Select a lane-source pull request
         id: select
         if: steps.gate.outputs.proceed == 'true' && (steps.files.outputs.review != 'true' || steps.files.outputs.pr-number != steps.gate.outputs.pr-number)
@@ -440,8 +312,6 @@ jobs:
           echo "review=$review" >>"$GITHUB_OUTPUT"
           echo "lane source changed: $review"
 
-      # Runs only on a held select: the step the lost-run reconciler reads
-      # beside the `held: ` notice (reconcile.mjs faultHeld, HELD_STEP).
       - name: Note the hold
         id: note-hold
         if: steps.select.outputs.held == 'true'
@@ -468,23 +338,6 @@ jobs:
         with:
           tokens: github-token
 
-  # Whether the reviews role's key, which both lanes' key legs share, is still
-  # out of credit, and so which leg runs first: a key-leg credit stop in this
-  # workflow inside the credit gate's window names the subscription leg, which
-  # skips the review job, and review-handoffs hands both lanes to
-  # review-subscription as credit-stop (ci-workflows select-model-credential,
-  # its start call: check-key-credit, gate.cjs). review-handoffs, the job that
-  # routes a key leg's credit stop, uploads the artifact the gate's `marker`
-  # output names, and the gate lists that one name, so the window counts
-  # from the credit stop, not the last skip, and a topped-up or rotated key
-  # is tried once it ends. Once that stop is past the window but still kept,
-  # a second read lists the probing marker: the first gate after the window
-  # uploads it and passes the key, and later gates skip while it is fresh, so
-  # one run tries the key. Only a run whose check-trigger job starts the key legs
-  # reports them skipped or hands them on. It holds no secret, checks
-  # nothing out and reads only this repository's marker artifacts. Every
-  # failure runs the key and writes no probe: the review job's `if` starts
-  # with !cancelled().
   review-handoffs-credit:
     name: Review Handoffs Credit
     needs: check-trigger
@@ -519,16 +372,6 @@ jobs:
           window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
 
-      # Read by the next runs' gates: the probing marker the gate names
-      # (gate.cjs probeName) when this run tries the key first after a credit
-      # stop's window, so they skip while this run's key legs do. Uploaded
-      # right after the read to keep the gap short; a key leg's credit stop
-      # makes review-handoffs upload the credit-stop marker, which takes over.
-      # Written only when this run's key legs start (the review job's trigger
-      # terms, proceed included), so a run that reviews nothing never holds the
-      # key off. The name is written out so its retention row claims it. This
-      # job checks nothing out, so the scan is ci-workflows' own action. An
-      # artifact upload uses the runner's token, so the job keeps actions: read.
       - name: Write the key's probing marker
         id: probe-marker
         if: always() && steps.gate.outputs.probing-marker == 'key-credit-probing-REVIEWS_CLAUDE_API_KEY' && needs.check-trigger.outputs.proceed == 'true' && needs.check-trigger.outputs.review != 'false' && needs.check-trigger.outputs.judged != 'true' && needs.check-trigger.outputs.held != 'true'
@@ -559,8 +402,6 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      # Each skipped key leg's lane record: outcome skip, class credit-stop,
-      # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped claude-review key leg
         if: steps.gate.outputs.next-leg == 'subscription' && needs.check-trigger.outputs.proceed == 'true' && needs.check-trigger.outputs.review == 'true' && needs.check-trigger.outputs.judged != 'true' && needs.check-trigger.outputs.held != 'true' && vars.CLAUDE_REVIEW_DISABLED != 'true'
         continue-on-error: true
@@ -593,13 +434,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The PR's trusted text, read once per run for every leg (outage posture
-  # element 6), on this attempt's trigger gate result and under the legs' kill
-  # switch and upstream status. It uploads context.json after a leak scan and
-  # outputs its sha256 with the main commit, PR number, head and run attempt it
-  # was read for; a leg takes it only when all of those match its own, and
-  # otherwise reads its own (take-shared-text.sh). It never fails the run: a
-  # read, scan or upload that fails leaves no hash, so each leg reads its own.
   collect-trusted-text:
     name: Collect Trusted Text
     needs: check-trigger
@@ -667,7 +501,6 @@ jobs:
         timeout-minutes: 2
         uses: ./.base/.github/actions/check-upstream-status # zizmor: ignore[self-repository]
 
-      # A notice, never an error: each leg reports its own stop.
       - name: Report the kill switch
         id: switch
         env:
@@ -703,8 +536,6 @@ jobs:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/pr-review-main-text/context.json
 
-      # The name is written out so its retention row claims it, and sits
-      # outside the pr-review-main-* verdict names the merge gate reads.
       - name: Upload the trusted PR text
         id: upload
         if: (steps.select.outcome == 'success') && steps.scan.outputs.clean == 'true'
@@ -717,7 +548,6 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      # Only fixed shapes leave this job: no PR text is an output.
       - name: Record what was read
         id: hash
         if: steps.upload.outcome == 'success'
@@ -745,10 +575,6 @@ jobs:
         with:
           tokens: github-token
 
-  # No leg starts when the check-trigger job of this attempt found no lane source
-  # or a head both lanes already reviewed: the leg would review nothing. A
-  # leg re-run alone in a later attempt starts and gates itself. With the
-  # key out of credit, review-handoffs-credit skips this job.
   review:
     name: Review
     needs: [check-trigger, review-handoffs-credit, collect-trusted-text]
@@ -775,16 +601,12 @@ jobs:
             route: review-security
             switch: CLAUDE_SECURITY_REVIEW_DISABLED
     runs-on: ubuntu-24.04
-    # Each chunk's review has 22 minutes.
     timeout-minutes: 100
     cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its files, comments and reviews
       actions: read # the upstream run the trigger gate reads
-    # One output per lane, since a matrix job's outputs merge: why the lane
-    # was handed to the next leg (empty when it was not), the main commit
-    # this leg checked out, and the designed stop with the head it names.
     outputs:
       claude-review: ${{ steps.handoff.outputs.claude-review }}
       claude-security-review: ${{ steps.handoff.outputs.claude-security-review }}
@@ -803,15 +625,10 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@v7
         with:
-          # The tip when the run starts, never an older commit a re-run of an
-          # old run would bring back; later legs check out the commit this
-          # leg recorded.
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
 
-      # The main commit this leg checked out, under the lane's own output
-      # name: a later leg for the lane checks out the same commit.
       - name: Record the main commit
         id: base
         env:
@@ -842,9 +659,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # Skips the review while Actions or npm installs list an outage, with a
-      # logged reason; fails open
-      # (.github/actions/check-upstream-status).
       - name: Check upstream status
         id: upstream
         if: steps.kill.outputs.proceed == 'true'
@@ -872,8 +686,6 @@ jobs:
             echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable} cause ${CAUSE:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
           fi
 
-      # The upstream run's actors, the re-runner and the PR author must all be
-      # on the trusted-actor list.
       - name: Check the trigger
         id: gate
         if: steps.switch.outputs.proceed == 'true' && needs.check-trigger.outputs.run-attempt != github.run_attempt
@@ -886,8 +698,6 @@ jobs:
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
           ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
 
-      # Only a pull request that changes a lane source is reviewed here; the
-      # predicate is the merge gate's own, read from main.
       - name: Select a lane-source pull request
         id: select
         if: steps.gate.outputs.proceed == 'true'
@@ -926,8 +736,6 @@ jobs:
           echo "review=$review" >>"$GITHUB_OUTPUT"
           echo "lane source changed: $review"
 
-      # Runs only on a held select: the step the lost-run reconciler reads
-      # beside the `held: ` notice (reconcile.mjs faultHeld, HELD_STEP).
       - name: Note the hold
         id: note-hold
         if: steps.select.outputs.held == 'true'
@@ -936,15 +744,10 @@ jobs:
           # The hold's marker for monitor signal 13 (lane-hold-marker.mjs).
           { mkdir -p "$RUNNER_TEMP/lane-hold" && echo "pr-review-main $GITHUB_RUN_ID" >"$RUNNER_TEMP/lane-hold/pr-review-main"; } || true
 
-      # One source for the gate's result: the check-trigger job's, or this leg's
-      # own gate when it ran. Each value must have its fixed shape, so no
-      # other text leaves this step. A held select leaves none, so the lane
-      # reviews nothing.
       - name: Take the gate's result
         id: trigger
         if: steps.switch.outputs.proceed == 'true' && steps.select.outputs.held != 'true'
         env:
-          # The check-trigger job's result, only from this run attempt.
           CARRIED: ${{ needs.check-trigger.outputs.run-attempt == github.run_attempt }}
           CARRIED_PROCEED: ${{ needs.check-trigger.outputs.proceed }}
           CARRIED_REVIEW: ${{ needs.check-trigger.outputs.review }}
@@ -972,33 +775,6 @@ jobs:
           fi
           { echo "review=$review"; echo "pr-number=$pr"; echo "head-sha=$head"; echo "base-sha=$base"; } >>"$GITHUB_OUTPUT"
 
-      # A blobless fetch of the two commits into its own repository outside
-      # the workspace. git diff reads no attributes or diff drivers from it,
-      # so nothing in the PR runs; the patch is a data file (write-diff.py).
-      # `--text` shows a file git would call binary (a NUL byte early in a
-      # script) as text, so the reviewer sees what node or bash would run.
-      # Every file prints whole (`--no-renames`), so a partial rename into a
-      # lane source is reviewed as the new file. Only a patch over the size
-      # cap shows a file moved unchanged as its rename lines alone; a move
-      # into or out of a lane source, a mode change, a symlink or submodule,
-      # a move that may run or load (an executable, a skills, agents,
-      # commands or hooks path, a file a tool reads by name), and a move an
-      # added line names still print whole. A patch over the size cap is
-      # split into chunks of at most the cap at file boundaries, each file
-      # whole but one over the cap, cut at its hunks (a hunk over the cap
-      # between its lines) into pieces (diff_chunking.py,
-      # https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/diff-chunking/diff_chunking.py),
-      # and each chunk is reviewed by its own run; the
-      # verdict sums their findings and takes the most CRITICAL ones in a
-      # chunk. Each chunk's prompt names manifest.txt, every file of the diff
-      # with its chunk, so a reference across chunks is a finding. A
-      # patch that still shows a binary file, holds a line over the
-      # cap, or needs more than MAX_CHUNKS chunks gets no verdict: the step
-      # stops green with the reason
-      # as an output, the report-review-counts job posts it as `verdict=none
-      # reason=<reason>` on the head, and the lanes stay unbound under that
-      # reason. Any other failure fails the step. The tree the verdict is
-      # keyed on comes from git, never from the model.
       - name: Write the diff
         id: diff
         if: steps.trigger.outputs.review == 'true'
@@ -1009,16 +785,9 @@ jobs:
           PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
           DATA: ${{ github.workspace }}/pr-review-main-data
           SRC: ${{ runner.temp }}/pr-review-main-src
-          # About 75k tokens of patch: room in the lane's turn budget to read
-          # it whole beside the criteria (judgment).
           MAX_DIFF_BYTES: "300000"
-          # The most chunks, each one review: at most the leg's Review chunk
-          # steps (workflow.test.mjs holds them equal).
           MAX_CHUNKS: "4"
-          # One Read returns at most 25,000 tokens
-          # (https://code.claude.com/docs/en/tools-reference#large-files), and
-          # a token is at least a byte, so a part this size with its line
-          # numbers comes back whole.
+          # One Read returns at most 25,000 tokens by default: https://code.claude.com/docs/en/tools-reference#large-files
           PART_BYTES: "15000"
           PART_LINES: "1000"
         run: |
@@ -1068,9 +837,6 @@ jobs:
           echo "::notice title=pr-review-main chunks::lane=$LANE pr=$PR_NUMBER chunks=$chunks bytes=$bytes manifest_paths=$paths"
           echo "diff: $(cat "$DATA"/diff/chunk-*/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
 
-      # The collect-trusted-text job's read, used only when it matches this leg
-      # (take-shared-text.sh); a missing or mismatched one leaves the leg to
-      # read its own.
       - name: Download the shared trusted PR text
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && needs.collect-trusted-text.outputs.sha256 != '' && needs.collect-trusted-text.outputs.run-attempt == github.run_attempt
         continue-on-error: true
@@ -1110,11 +876,6 @@ jobs:
           output-path: ${{ github.workspace }}/pr-review-main-data/context.json
           github-token: ${{ github.token }}
 
-      # The lane's criteria and the repository's standards, from main, as
-      # criteria.txt lists them. The skill keeps its place under the plugin's
-      # layout, so a relative pointer in it (`../../reference/...`) resolves
-      # inside the data directory; the rules the code lane names go beside the
-      # standards.
       - name: Copy the review criteria
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         env:
@@ -1151,10 +912,6 @@ jobs:
           output-path: ${{ runner.temp }}/pr-review-main-models.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Only whether the secrets are set reaches this step, never a value
-      # (ci-workflows select-model-credential). An empty credential with a
-      # later leg's set hands the lane on as no-key; with none set, nothing
-      # reviews and the lane stays unbound.
       - name: Check the credential
         id: credential
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
@@ -1165,8 +922,6 @@ jobs:
           credential-set: ${{ secrets.REVIEWS_CLAUDE_API_KEY != '' }}
           key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
-      # run-claude-cli refuses to run without these root-owned settings, which
-      # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.credential.outputs.present == 'true'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
@@ -1177,10 +932,6 @@ jobs:
         with:
           install-subprocess-isolation: true
 
-      # Files, not step outputs: run-claude-cli reads both. One prompt per
-      # chunk, naming that chunk's parts; a chunked one also names
-      # manifest.txt, whose paths the pull request's author chose: they stay
-      # in that file, read as data, so the prompt holds only trusted text.
       - name: Write the prompt and schema
         id: prompt
         if: steps.credential.outputs.present == 'true'
@@ -1223,20 +974,6 @@ jobs:
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
           printf '%s\n' '{"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"severity":{"enum":["CRITICAL","IMPORTANT","SUGGESTION"]},"path":{"type":"string"},"line":{"type":"integer","minimum":0},"title":{"type":"string"},"body":{"type":"string"}},"required":["severity","path","line","title","body"],"additionalProperties":false}},"summary":{"type":"string"}},"required":["findings","summary"],"additionalProperties":false}' >"$SCHEMA_FILE"
 
-      # Under dontAsk only the allow rule's directory is readable; the deny
-      # rules hold if the tools or the working directory change. The model
-      # may share its job with the upload: it has Read alone and the job
-      # token can only read.
-      # continue-on-error keeps a launcher failure from ending the job before
-      # the outcome report; "Fail without a verdict" carries the red. A
-      # handoff skips the verdict; the outcome report records the leg as
-      # handed off, and the next leg reviews the lane.
-      # One run per chunk, in order, each on its own prompt: chunk k runs
-      # only when the diff has k chunks and chunk k-1 reviewed and handed
-      # nothing on, so a handoff hands the whole lane on and the next leg
-      # reviews every chunk again. Each run leaves its own lane record and
-      # its sealed transcript (failed runs included, kept 7 days for the
-      # puller; a failed upload never fails the job).
       - name: Review chunk 1
         id: review-1
         if: steps.prompt.outcome == 'success'
@@ -1244,7 +981,6 @@ jobs:
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
         env:
-          # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: pr-review-main
@@ -1315,7 +1051,6 @@ jobs:
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
         env:
-          # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: pr-review-main
@@ -1386,7 +1121,6 @@ jobs:
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
         env:
-          # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: pr-review-main
@@ -1457,7 +1191,6 @@ jobs:
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
         env:
-          # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: pr-review-main
@@ -1516,11 +1249,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-${{ matrix.lane }}-4
 
-      # The leg the next job runs for this lane, from this leg's credential
-      # decision and any chunk's launcher handoff (select-model-credential).
-      # always(), so it decides even in a job that hit its own timeout; the
-      # step after it writes the answer only when every step before it
-      # succeeded.
       - name: Pick the next leg
         id: next
         if: ${{ always() }}
@@ -1532,8 +1260,6 @@ jobs:
           handoff: ${{ steps.review-1.outputs.handoff == 'true' || steps.review-2.outputs.handoff == 'true' || steps.review-3.outputs.handoff == 'true' || steps.review-4.outputs.handoff == 'true' }}
           handoff-reason: ${{ steps.review-1.outputs.handoff-reason || steps.review-2.outputs.handoff-reason || steps.review-3.outputs.handoff-reason || steps.review-4.outputs.handoff-reason }}
 
-      # The lane's handoff reason under the lane's own output name, since a
-      # matrix job's outputs merge.
       - name: Hand the lane on
         id: handoff
         if: steps.next.outputs.next-leg != ''
@@ -1548,14 +1274,10 @@ jobs:
           echo "$LANE=$REASON" >>"$GITHUB_OUTPUT"
           echo "::notice::$LANE handed on ($REASON); the next leg reviews it"
 
-      # The structured output is untrusted model text: read from the file and
-      # checked by the script, never interpolated into a command.
       - name: Write the verdict
         id: verdict
         if: steps.review-1.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.review-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.review-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.review-4.outcome == 'success') && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true'
         env:
-          # Each chunk's execution file in chunk order; it runs only when
-          # every chunk's review succeeded and handed nothing on.
           EXECUTION_FILES: |
             ${{ steps.review-1.outputs.execution-file }}
             ${{ steps.review-2.outputs.execution-file }}
@@ -1572,10 +1294,6 @@ jobs:
           DIFF_DIR: ${{ github.workspace }}/pr-review-main-data/diff
         run: node .base/.github/scripts/pr-review-main/write-verdict.mjs
 
-      # A chunked review that wrote no verdict and handed nothing on (a
-      # chunk's review failed, or one left no result or skipped a part) is a
-      # designed stop too: no chunk's counts bind, and the report-review-counts job names
-      # it on the head. The job still fails.
       - name: Record a failed chunk
         id: chunk-stop
         if: ${{ !cancelled() && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.review-1.outcome != 'skipped' && steps.verdict.outcome != 'success' && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true' }}
@@ -1603,7 +1321,6 @@ jobs:
         with:
           name: ${{ steps.verdict.outputs.name }}
           path: ${{ runner.temp }}/pr-review-main-verdict/verdict.json
-          # The longest: an expired verdict with findings would lower the count.
           retention-days: 90
           if-no-files-found: error
 
@@ -1621,8 +1338,6 @@ jobs:
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
 
-      # Note the hold's marker, on a green job only, as monitor signal 13
-      # reads holds; matrix legs share the name and overwrite each other.
       - name: Keep the lane hold marker
         if: steps.note-hold.outcome == 'success'
         continue-on-error: true
@@ -1642,19 +1357,12 @@ jobs:
         with:
           tokens: github-token
 
-      # A reviewed pull request that left no verdict and handed nothing on
-      # fails here, so the run shows it; the lane stays unbound either way.
       - name: Fail without a verdict
         if: always() && steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && steps.credential.outputs.present == 'true' && steps.verdict.outcome != 'success' && steps.handoff.outcome != 'success'
         run: |
           echo "::error::the review left no verdict for this head"
           exit 1
 
-  # The lanes the key leg handed on, as review-subscription's matrix: fixed
-  # lane rows, each reason checked against the closed set the key leg hands
-  # on with. With the review job skipped by review-handoffs-credit, every
-  # enabled lane is handed on as credit-stop, at the check-trigger job's main
-  # commit. It holds no secret, runs no model and checks nothing out.
   review-handoffs:
     name: Review Handoffs
     needs: [check-trigger, review-handoffs-credit, review]
@@ -1690,13 +1398,6 @@ jobs:
           echo "matrix=$matrix" >>"$GITHUB_OUTPUT"
           echo "handed on: $(jq -r '[.include[].lane] | join(", ")' <<<"$matrix")"
 
-      # Read by the next runs' review-handoffs-credit gate: the artifact its
-      # `marker` output names (gate.cjs markerName), written only when a key
-      # leg that ran handed on with a credit stop, never on a lane the gate
-      # itself handed on. Its upload time starts the window; it is kept one
-      # day, and a marker that expires first only ends the window sooner
-      # (gate.cjs). It holds only this run's id, so
-      # no leak scan runs over it (.github/artifact-retention.json).
       - name: Write the key's credit-stop marker
         id: credit-marker
         if: ${{ !cancelled() && needs.review-handoffs-credit.outputs.marker != '' && (needs.review.outputs.claude-review == 'credit-stop' || needs.review.outputs.claude-security-review == 'credit-stop') }}
@@ -1717,17 +1418,9 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # The subscription leg, one per lane the key leg handed on, on a new VM:
-  # the key leg's processes, files and environment do not reach it. Its steps
-  # repeat the review job's from a fresh main checkout but for the
-  # credential, fallback-ready and the fallback reason (workflow.test.mjs
-  # holds them equal), so the gates, the kill switch and the hardening run
-  # again. Only this job's launcher steps get the subscription token.
   review-subscription:
     name: Review Subscription
     needs: [collect-trusted-text, review-handoffs]
-    # !cancelled(): the implicit success() also needs every ancestor, so one
-    # lane's failed leg would skip the other lane's next leg.
     if: >-
       !cancelled()
       && needs.review-handoffs.result == 'success'
@@ -1739,16 +1432,12 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.review-handoffs.outputs.matrix) }}
     runs-on: ubuntu-24.04
-    # Each chunk's review has 22 minutes.
     timeout-minutes: 100
     cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its files, comments and reviews
       actions: read # the upstream run the trigger gate reads
-    # One output per lane, since a matrix job's outputs merge: why the lane
-    # was handed to the next leg (empty when it was not), the main commit
-    # this leg checked out, and the designed stop with the head it names.
     outputs:
       claude-review: ${{ steps.handoff.outputs.claude-review }}
       claude-security-review: ${{ steps.handoff.outputs.claude-security-review }}
@@ -1762,14 +1451,10 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@v7
         with:
-          # The main commit this lane's key leg checked out, passed on by the
-          # route job only as 40 hex characters.
           ref: ${{ matrix.base }}
           path: .base
           persist-credentials: false
 
-      # The main commit this leg checked out, under the lane's own output
-      # name: a later leg for the lane checks out the same commit.
       - name: Record the main commit
         id: base
         env:
@@ -1800,9 +1485,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # Skips the review while Actions or npm installs list an outage, with a
-      # logged reason; fails open
-      # (.github/actions/check-upstream-status).
       - name: Check upstream status
         id: upstream
         if: steps.kill.outputs.proceed == 'true'
@@ -1830,8 +1512,6 @@ jobs:
             echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable} cause ${CAUSE:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
           fi
 
-      # The upstream run's actors, the re-runner and the PR author must all be
-      # on the trusted-actor list.
       - name: Check the trigger
         id: gate
         if: steps.switch.outputs.proceed == 'true'
@@ -1844,8 +1524,6 @@ jobs:
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
           ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
 
-      # Only a pull request that changes a lane source is reviewed here; the
-      # predicate is the merge gate's own, read from main.
       - name: Select a lane-source pull request
         id: select
         if: steps.gate.outputs.proceed == 'true'
@@ -1884,8 +1562,6 @@ jobs:
           echo "review=$review" >>"$GITHUB_OUTPUT"
           echo "lane source changed: $review"
 
-      # Runs only on a held select: the step the lost-run reconciler reads
-      # beside the `held: ` notice (reconcile.mjs faultHeld, HELD_STEP).
       - name: Note the hold
         id: note-hold
         if: steps.select.outputs.held == 'true'
@@ -1894,10 +1570,6 @@ jobs:
           # The hold's marker for monitor signal 13 (lane-hold-marker.mjs).
           { mkdir -p "$RUNNER_TEMP/lane-hold" && echo "pr-review-main $GITHUB_RUN_ID" >"$RUNNER_TEMP/lane-hold/pr-review-main"; } || true
 
-      # One source for the gate's result: the check-trigger job's, or this leg's
-      # own gate when it ran. Each value must have its fixed shape, so no
-      # other text leaves this step. A held select leaves none, so the lane
-      # reviews nothing.
       - name: Take the gate's result
         id: trigger
         if: steps.switch.outputs.proceed == 'true' && steps.select.outputs.held != 'true'
@@ -1924,33 +1596,6 @@ jobs:
           fi
           { echo "review=$review"; echo "pr-number=$pr"; echo "head-sha=$head"; echo "base-sha=$base"; } >>"$GITHUB_OUTPUT"
 
-      # A blobless fetch of the two commits into its own repository outside
-      # the workspace. git diff reads no attributes or diff drivers from it,
-      # so nothing in the PR runs; the patch is a data file (write-diff.py).
-      # `--text` shows a file git would call binary (a NUL byte early in a
-      # script) as text, so the reviewer sees what node or bash would run.
-      # Every file prints whole (`--no-renames`), so a partial rename into a
-      # lane source is reviewed as the new file. Only a patch over the size
-      # cap shows a file moved unchanged as its rename lines alone; a move
-      # into or out of a lane source, a mode change, a symlink or submodule,
-      # a move that may run or load (an executable, a skills, agents,
-      # commands or hooks path, a file a tool reads by name), and a move an
-      # added line names still print whole. A patch over the size cap is
-      # split into chunks of at most the cap at file boundaries, each file
-      # whole but one over the cap, cut at its hunks (a hunk over the cap
-      # between its lines) into pieces (diff_chunking.py,
-      # https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/diff-chunking/diff_chunking.py),
-      # and each chunk is reviewed by its own run; the
-      # verdict sums their findings and takes the most CRITICAL ones in a
-      # chunk. Each chunk's prompt names manifest.txt, every file of the diff
-      # with its chunk, so a reference across chunks is a finding. A
-      # patch that still shows a binary file, holds a line over the
-      # cap, or needs more than MAX_CHUNKS chunks gets no verdict: the step
-      # stops green with the reason
-      # as an output, the report-review-counts job posts it as `verdict=none
-      # reason=<reason>` on the head, and the lanes stay unbound under that
-      # reason. Any other failure fails the step. The tree the verdict is
-      # keyed on comes from git, never from the model.
       - name: Write the diff
         id: diff
         if: steps.trigger.outputs.review == 'true'
@@ -1961,16 +1606,9 @@ jobs:
           PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
           DATA: ${{ github.workspace }}/pr-review-main-data
           SRC: ${{ runner.temp }}/pr-review-main-src
-          # About 75k tokens of patch: room in the lane's turn budget to read
-          # it whole beside the criteria (judgment).
           MAX_DIFF_BYTES: "300000"
-          # The most chunks, each one review: at most the leg's Review chunk
-          # steps (workflow.test.mjs holds them equal).
           MAX_CHUNKS: "4"
-          # One Read returns at most 25,000 tokens
-          # (https://code.claude.com/docs/en/tools-reference#large-files), and
-          # a token is at least a byte, so a part this size with its line
-          # numbers comes back whole.
+          # One Read returns at most 25,000 tokens by default: https://code.claude.com/docs/en/tools-reference#large-files
           PART_BYTES: "15000"
           PART_LINES: "1000"
         run: |
@@ -2020,9 +1658,6 @@ jobs:
           echo "::notice title=pr-review-main chunks::lane=$LANE pr=$PR_NUMBER chunks=$chunks bytes=$bytes manifest_paths=$paths"
           echo "diff: $(cat "$DATA"/diff/chunk-*/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
 
-      # The collect-trusted-text job's read, used only when it matches this leg
-      # (take-shared-text.sh); a missing or mismatched one leaves the leg to
-      # read its own.
       - name: Download the shared trusted PR text
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && needs.collect-trusted-text.outputs.sha256 != '' && needs.collect-trusted-text.outputs.run-attempt == github.run_attempt
         continue-on-error: true
@@ -2062,11 +1697,6 @@ jobs:
           output-path: ${{ github.workspace }}/pr-review-main-data/context.json
           github-token: ${{ github.token }}
 
-      # The lane's criteria and the repository's standards, from main, as
-      # criteria.txt lists them. The skill keeps its place under the plugin's
-      # layout, so a relative pointer in it (`../../reference/...`) resolves
-      # inside the data directory; the rules the code lane names go beside the
-      # standards.
       - name: Copy the review criteria
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         env:
@@ -2103,10 +1733,6 @@ jobs:
           output-path: ${{ runner.temp }}/pr-review-main-models.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Only whether the secrets are set reaches this step, never a value
-      # (ci-workflows select-model-credential). An empty credential with a
-      # later leg's set hands the lane on as no-key; with none set, nothing
-      # reviews and the lane stays unbound.
       - name: Check the credential
         id: credential
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
@@ -2118,8 +1744,6 @@ jobs:
           fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           reason: ${{ matrix.reason }}
 
-      # run-claude-cli refuses to run without these root-owned settings, which
-      # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.credential.outputs.present == 'true'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
@@ -2130,10 +1754,6 @@ jobs:
         with:
           install-subprocess-isolation: true
 
-      # Files, not step outputs: run-claude-cli reads both. One prompt per
-      # chunk, naming that chunk's parts; a chunked one also names
-      # manifest.txt, whose paths the pull request's author chose: they stay
-      # in that file, read as data, so the prompt holds only trusted text.
       - name: Write the prompt and schema
         id: prompt
         if: steps.credential.outputs.present == 'true'
@@ -2176,20 +1796,6 @@ jobs:
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
           printf '%s\n' '{"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"severity":{"enum":["CRITICAL","IMPORTANT","SUGGESTION"]},"path":{"type":"string"},"line":{"type":"integer","minimum":0},"title":{"type":"string"},"body":{"type":"string"}},"required":["severity","path","line","title","body"],"additionalProperties":false}},"summary":{"type":"string"}},"required":["findings","summary"],"additionalProperties":false}' >"$SCHEMA_FILE"
 
-      # Under dontAsk only the allow rule's directory is readable; the deny
-      # rules hold if the tools or the working directory change. The model
-      # may share its job with the upload: it has Read alone and the job
-      # token can only read.
-      # continue-on-error keeps a launcher failure from ending the job before
-      # the outcome report; "Fail without a verdict" carries the red. A
-      # handoff skips the verdict; the outcome report records the leg as
-      # handed off, and the next leg reviews the lane.
-      # One run per chunk, in order, each on its own prompt: chunk k runs
-      # only when the diff has k chunks and chunk k-1 reviewed and handed
-      # nothing on, so a handoff hands the whole lane on and the next leg
-      # reviews every chunk again. Each run leaves its own lane record and
-      # its sealed transcript (failed runs included, kept 7 days for the
-      # puller; a failed upload never fails the job).
       - name: Review chunk 1
         id: review-1
         if: steps.prompt.outcome == 'success'
@@ -2197,7 +1803,6 @@ jobs:
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
         env:
-          # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: pr-review-main
@@ -2245,7 +1850,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-1.outputs.lane-class }}
           handoff: ${{ steps.review-1.outputs.handoff }}
-          # Why this leg ran, for its lane record.
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Upload chunk 1's sealed transcript
@@ -2271,7 +1875,6 @@ jobs:
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
         env:
-          # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: pr-review-main
@@ -2319,7 +1922,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-2.outputs.lane-class }}
           handoff: ${{ steps.review-2.outputs.handoff }}
-          # Why this leg ran, for its lane record.
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Upload chunk 2's sealed transcript
@@ -2345,7 +1947,6 @@ jobs:
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
         env:
-          # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: pr-review-main
@@ -2393,7 +1994,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-3.outputs.lane-class }}
           handoff: ${{ steps.review-3.outputs.handoff }}
-          # Why this leg ran, for its lane record.
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Upload chunk 3's sealed transcript
@@ -2419,7 +2019,6 @@ jobs:
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
         env:
-          # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: pr-review-main
@@ -2467,7 +2066,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-4.outputs.lane-class }}
           handoff: ${{ steps.review-4.outputs.handoff }}
-          # Why this leg ran, for its lane record.
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Upload chunk 4's sealed transcript
@@ -2481,11 +2079,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-${{ matrix.lane }}-4
 
-      # The leg the next job runs for this lane, from this leg's credential
-      # decision and any chunk's launcher handoff (select-model-credential).
-      # always(), so it decides even in a job that hit its own timeout; the
-      # step after it writes the answer only when every step before it
-      # succeeded.
       - name: Pick the next leg
         id: next
         if: ${{ always() }}
@@ -2497,8 +2090,6 @@ jobs:
           handoff: ${{ steps.review-1.outputs.handoff == 'true' || steps.review-2.outputs.handoff == 'true' || steps.review-3.outputs.handoff == 'true' || steps.review-4.outputs.handoff == 'true' }}
           handoff-reason: ${{ steps.review-1.outputs.handoff-reason || steps.review-2.outputs.handoff-reason || steps.review-3.outputs.handoff-reason || steps.review-4.outputs.handoff-reason }}
 
-      # The lane's handoff reason under the lane's own output name, since a
-      # matrix job's outputs merge.
       - name: Hand the lane on
         id: handoff
         if: steps.next.outputs.next-leg != ''
@@ -2513,14 +2104,10 @@ jobs:
           echo "$LANE=$REASON" >>"$GITHUB_OUTPUT"
           echo "::notice::$LANE handed on ($REASON); the next leg reviews it"
 
-      # The structured output is untrusted model text: read from the file and
-      # checked by the script, never interpolated into a command.
       - name: Write the verdict
         id: verdict
         if: steps.review-1.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.review-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.review-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.review-4.outcome == 'success') && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true'
         env:
-          # Each chunk's execution file in chunk order; it runs only when
-          # every chunk's review succeeded and handed nothing on.
           EXECUTION_FILES: |
             ${{ steps.review-1.outputs.execution-file }}
             ${{ steps.review-2.outputs.execution-file }}
@@ -2537,10 +2124,6 @@ jobs:
           DIFF_DIR: ${{ github.workspace }}/pr-review-main-data/diff
         run: node .base/.github/scripts/pr-review-main/write-verdict.mjs
 
-      # A chunked review that wrote no verdict and handed nothing on (a
-      # chunk's review failed, or one left no result or skipped a part) is a
-      # designed stop too: no chunk's counts bind, and the report-review-counts job names
-      # it on the head. The job still fails.
       - name: Record a failed chunk
         id: chunk-stop
         if: ${{ !cancelled() && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.review-1.outcome != 'skipped' && steps.verdict.outcome != 'success' && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true' }}
@@ -2568,7 +2151,6 @@ jobs:
         with:
           name: ${{ steps.verdict.outputs.name }}
           path: ${{ runner.temp }}/pr-review-main-verdict/verdict.json
-          # The longest: an expired verdict with findings would lower the count.
           retention-days: 90
           if-no-files-found: error
 
@@ -2586,8 +2168,6 @@ jobs:
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
 
-      # Note the hold's marker, on a green job only, as monitor signal 13
-      # reads holds; matrix legs share the name and overwrite each other.
       - name: Keep the lane hold marker
         if: steps.note-hold.outcome == 'success'
         continue-on-error: true
@@ -2607,15 +2187,12 @@ jobs:
         with:
           tokens: github-token
 
-      # A reviewed pull request that left no verdict and handed nothing on
-      # fails here, so the run shows it; the lane stays unbound either way.
       - name: Fail without a verdict
         if: always() && steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && steps.credential.outputs.present == 'true' && steps.verdict.outcome != 'success' && steps.handoff.outcome != 'success'
         run: |
           echo "::error::the review left no verdict for this head"
           exit 1
 
-  # The lanes the subscription leg handed on, as review-fallback's matrix.
   collect-subscription-handoffs:
     name: Collect Subscription Handoffs
     needs: review-subscription
@@ -2648,16 +2225,9 @@ jobs:
           echo "matrix=$matrix" >>"$GITHUB_OUTPUT"
           echo "handed on: $(jq -r '[.include[].lane] | join(", ")' <<<"$matrix")"
 
-  # The fallback leg, on the central fallback token, one per lane the
-  # subscription leg handed on. Its steps repeat the review job's but for the
-  # credential and the fallback reason, and it hands nothing on: it is the
-  # last leg, so a launcher stop here (credit, limit, auth) leaves the lane
-  # unbound and fails the job.
   review-fallback:
     name: Review Fallback
     needs: [collect-trusted-text, collect-subscription-handoffs]
-    # !cancelled(): the implicit success() also needs every ancestor, so one
-    # lane's failed leg would skip the other lane's next leg.
     if: >-
       !cancelled()
       && needs.collect-subscription-handoffs.result == 'success'
@@ -2669,15 +2239,12 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.collect-subscription-handoffs.outputs.matrix) }}
     runs-on: ubuntu-24.04
-    # Each chunk's review has 22 minutes.
     timeout-minutes: 100
     cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its files, comments and reviews
       actions: read # the upstream run the trigger gate reads
-    # One output per lane, since a matrix job's outputs merge: the designed
-    # stop that left the lane without a verdict, and the head it names.
     outputs:
       claude-review-stop: ${{ steps.diff.outputs.claude-review-stop || steps.chunk-stop.outputs.claude-review-stop }}
       claude-security-review-stop: ${{ steps.diff.outputs.claude-security-review-stop || steps.chunk-stop.outputs.claude-security-review-stop }}
@@ -2687,14 +2254,10 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@v7
         with:
-          # The main commit this lane's key leg checked out, passed on by the
-          # route job only as 40 hex characters.
           ref: ${{ matrix.base }}
           path: .base
           persist-credentials: false
 
-      # The main commit this leg checked out, under the lane's own output
-      # name, as the earlier legs record it; no later leg reads it here.
       - name: Record the main commit
         id: base
         env:
@@ -2725,9 +2288,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # Skips the review while Actions or npm installs list an outage, with a
-      # logged reason; fails open
-      # (.github/actions/check-upstream-status).
       - name: Check upstream status
         id: upstream
         if: steps.kill.outputs.proceed == 'true'
@@ -2755,8 +2315,6 @@ jobs:
             echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable} cause ${CAUSE:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
           fi
 
-      # The upstream run's actors, the re-runner and the PR author must all be
-      # on the trusted-actor list.
       - name: Check the trigger
         id: gate
         if: steps.switch.outputs.proceed == 'true'
@@ -2769,8 +2327,6 @@ jobs:
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
           ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
 
-      # Only a pull request that changes a lane source is reviewed here; the
-      # predicate is the merge gate's own, read from main.
       - name: Select a lane-source pull request
         id: select
         if: steps.gate.outputs.proceed == 'true'
@@ -2809,8 +2365,6 @@ jobs:
           echo "review=$review" >>"$GITHUB_OUTPUT"
           echo "lane source changed: $review"
 
-      # Runs only on a held select: the step the lost-run reconciler reads
-      # beside the `held: ` notice (reconcile.mjs faultHeld, HELD_STEP).
       - name: Note the hold
         id: note-hold
         if: steps.select.outputs.held == 'true'
@@ -2819,10 +2373,6 @@ jobs:
           # The hold's marker for monitor signal 13 (lane-hold-marker.mjs).
           { mkdir -p "$RUNNER_TEMP/lane-hold" && echo "pr-review-main $GITHUB_RUN_ID" >"$RUNNER_TEMP/lane-hold/pr-review-main"; } || true
 
-      # One source for the gate's result: the check-trigger job's, or this leg's
-      # own gate when it ran. Each value must have its fixed shape, so no
-      # other text leaves this step. A held select leaves none, so the lane
-      # reviews nothing.
       - name: Take the gate's result
         id: trigger
         if: steps.switch.outputs.proceed == 'true' && steps.select.outputs.held != 'true'
@@ -2849,33 +2399,6 @@ jobs:
           fi
           { echo "review=$review"; echo "pr-number=$pr"; echo "head-sha=$head"; echo "base-sha=$base"; } >>"$GITHUB_OUTPUT"
 
-      # A blobless fetch of the two commits into its own repository outside
-      # the workspace. git diff reads no attributes or diff drivers from it,
-      # so nothing in the PR runs; the patch is a data file (write-diff.py).
-      # `--text` shows a file git would call binary (a NUL byte early in a
-      # script) as text, so the reviewer sees what node or bash would run.
-      # Every file prints whole (`--no-renames`), so a partial rename into a
-      # lane source is reviewed as the new file. Only a patch over the size
-      # cap shows a file moved unchanged as its rename lines alone; a move
-      # into or out of a lane source, a mode change, a symlink or submodule,
-      # a move that may run or load (an executable, a skills, agents,
-      # commands or hooks path, a file a tool reads by name), and a move an
-      # added line names still print whole. A patch over the size cap is
-      # split into chunks of at most the cap at file boundaries, each file
-      # whole but one over the cap, cut at its hunks (a hunk over the cap
-      # between its lines) into pieces (diff_chunking.py,
-      # https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/diff-chunking/diff_chunking.py),
-      # and each chunk is reviewed by its own run; the
-      # verdict sums their findings and takes the most CRITICAL ones in a
-      # chunk. Each chunk's prompt names manifest.txt, every file of the diff
-      # with its chunk, so a reference across chunks is a finding. A
-      # patch that still shows a binary file, holds a line over the
-      # cap, or needs more than MAX_CHUNKS chunks gets no verdict: the step
-      # stops green with the reason
-      # as an output, the report-review-counts job posts it as `verdict=none
-      # reason=<reason>` on the head, and the lanes stay unbound under that
-      # reason. Any other failure fails the step. The tree the verdict is
-      # keyed on comes from git, never from the model.
       - name: Write the diff
         id: diff
         if: steps.trigger.outputs.review == 'true'
@@ -2886,16 +2409,9 @@ jobs:
           PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
           DATA: ${{ github.workspace }}/pr-review-main-data
           SRC: ${{ runner.temp }}/pr-review-main-src
-          # About 75k tokens of patch: room in the lane's turn budget to read
-          # it whole beside the criteria (judgment).
           MAX_DIFF_BYTES: "300000"
-          # The most chunks, each one review: at most the leg's Review chunk
-          # steps (workflow.test.mjs holds them equal).
           MAX_CHUNKS: "4"
-          # One Read returns at most 25,000 tokens
-          # (https://code.claude.com/docs/en/tools-reference#large-files), and
-          # a token is at least a byte, so a part this size with its line
-          # numbers comes back whole.
+          # One Read returns at most 25,000 tokens by default: https://code.claude.com/docs/en/tools-reference#large-files
           PART_BYTES: "15000"
           PART_LINES: "1000"
         run: |
@@ -2945,9 +2461,6 @@ jobs:
           echo "::notice title=pr-review-main chunks::lane=$LANE pr=$PR_NUMBER chunks=$chunks bytes=$bytes manifest_paths=$paths"
           echo "diff: $(cat "$DATA"/diff/chunk-*/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
 
-      # The collect-trusted-text job's read, used only when it matches this leg
-      # (take-shared-text.sh); a missing or mismatched one leaves the leg to
-      # read its own.
       - name: Download the shared trusted PR text
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && needs.collect-trusted-text.outputs.sha256 != '' && needs.collect-trusted-text.outputs.run-attempt == github.run_attempt
         continue-on-error: true
@@ -2987,11 +2500,6 @@ jobs:
           output-path: ${{ github.workspace }}/pr-review-main-data/context.json
           github-token: ${{ github.token }}
 
-      # The lane's criteria and the repository's standards, from main, as
-      # criteria.txt lists them. The skill keeps its place under the plugin's
-      # layout, so a relative pointer in it (`../../reference/...`) resolves
-      # inside the data directory; the rules the code lane names go beside the
-      # standards.
       - name: Copy the review criteria
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         env:
@@ -3028,10 +2536,6 @@ jobs:
           output-path: ${{ runner.temp }}/pr-review-main-models.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Only whether the secrets are set reaches this step, never a value
-      # (ci-workflows select-model-credential). An empty credential with a
-      # later leg's set hands the lane on as no-key; with none set, nothing
-      # reviews and the lane stays unbound.
       - name: Check the credential
         id: credential
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
@@ -3042,8 +2546,6 @@ jobs:
           credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           reason: ${{ matrix.reason }}
 
-      # run-claude-cli refuses to run without these root-owned settings, which
-      # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.credential.outputs.present == 'true'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
@@ -3061,10 +2563,6 @@ jobs:
         with:
           install-subprocess-isolation: true
 
-      # Files, not step outputs: run-claude-cli reads both. One prompt per
-      # chunk, naming that chunk's parts; a chunked one also names
-      # manifest.txt, whose paths the pull request's author chose: they stay
-      # in that file, read as data, so the prompt holds only trusted text.
       - name: Write the prompt and schema
         id: prompt
         if: steps.credential.outputs.present == 'true'
@@ -3107,20 +2605,6 @@ jobs:
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
           printf '%s\n' '{"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"severity":{"enum":["CRITICAL","IMPORTANT","SUGGESTION"]},"path":{"type":"string"},"line":{"type":"integer","minimum":0},"title":{"type":"string"},"body":{"type":"string"}},"required":["severity","path","line","title","body"],"additionalProperties":false}},"summary":{"type":"string"}},"required":["findings","summary"],"additionalProperties":false}' >"$SCHEMA_FILE"
 
-      # Under dontAsk only the allow rule's directory is readable; the deny
-      # rules hold if the tools or the working directory change. The model
-      # may share its job with the upload: it has Read alone and the job
-      # token can only read.
-      # continue-on-error keeps a launcher failure from ending the job before
-      # the outcome report; "Fail without a verdict" carries the red. A
-      # handoff skips the verdict; the outcome report records the leg as
-      # handed off, and the next leg reviews the lane.
-      # One run per chunk, in order, each on its own prompt: chunk k runs
-      # only when the diff has k chunks and chunk k-1 reviewed and handed
-      # nothing on, so a handoff hands the whole lane on and the next leg
-      # reviews every chunk again. Each run leaves its own lane record and
-      # its sealed transcript (failed runs included, kept 7 days for the
-      # puller; a failed upload never fails the job).
       - name: Review chunk 1
         id: review-1
         if: steps.prompt.outcome == 'success'
@@ -3128,7 +2612,6 @@ jobs:
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
         env:
-          # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: pr-review-main
@@ -3174,7 +2657,6 @@ jobs:
           credential: ${{ steps.review-1.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-1.outputs.lane-class }}
-          # Why this leg ran, for its lane record.
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Upload chunk 1's sealed transcript
@@ -3200,7 +2682,6 @@ jobs:
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
         env:
-          # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: pr-review-main
@@ -3246,7 +2727,6 @@ jobs:
           credential: ${{ steps.review-2.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-2.outputs.lane-class }}
-          # Why this leg ran, for its lane record.
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Upload chunk 2's sealed transcript
@@ -3272,7 +2752,6 @@ jobs:
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
         env:
-          # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: pr-review-main
@@ -3318,7 +2797,6 @@ jobs:
           credential: ${{ steps.review-3.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-3.outputs.lane-class }}
-          # Why this leg ran, for its lane record.
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Upload chunk 3's sealed transcript
@@ -3344,7 +2822,6 @@ jobs:
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
         env:
-          # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: pr-review-main
@@ -3390,7 +2867,6 @@ jobs:
           credential: ${{ steps.review-4.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-4.outputs.lane-class }}
-          # Why this leg ran, for its lane record.
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Upload chunk 4's sealed transcript
@@ -3404,14 +2880,10 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-${{ matrix.lane }}-4
 
-      # The structured output is untrusted model text: read from the file and
-      # checked by the script, never interpolated into a command.
       - name: Write the verdict
         id: verdict
         if: steps.review-1.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.review-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.review-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.review-4.outcome == 'success') && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true'
         env:
-          # Each chunk's execution file in chunk order; it runs only when
-          # every chunk's review succeeded and handed nothing on.
           EXECUTION_FILES: |
             ${{ steps.review-1.outputs.execution-file }}
             ${{ steps.review-2.outputs.execution-file }}
@@ -3428,10 +2900,6 @@ jobs:
           DIFF_DIR: ${{ github.workspace }}/pr-review-main-data/diff
         run: node .base/.github/scripts/pr-review-main/write-verdict.mjs
 
-      # A chunked review that wrote no verdict and handed nothing on (a
-      # chunk's review failed, or one left no result or skipped a part) is a
-      # designed stop too: no chunk's counts bind, and the report-review-counts job names
-      # it on the head. The job still fails.
       - name: Record a failed chunk
         id: chunk-stop
         if: ${{ !cancelled() && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.review-1.outcome != 'skipped' && steps.verdict.outcome != 'success' && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true' }}
@@ -3459,7 +2927,6 @@ jobs:
         with:
           name: ${{ steps.verdict.outputs.name }}
           path: ${{ runner.temp }}/pr-review-main-verdict/verdict.json
-          # The longest: an expired verdict with findings would lower the count.
           retention-days: 90
           if-no-files-found: error
 
@@ -3477,8 +2944,6 @@ jobs:
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
 
-      # Note the hold's marker, on a green job only, as monitor signal 13
-      # reads holds; matrix legs share the name and overwrite each other.
       - name: Keep the lane hold marker
         if: steps.note-hold.outcome == 'success'
         continue-on-error: true
@@ -3498,35 +2963,21 @@ jobs:
         with:
           tokens: github-token
 
-      # A reviewed pull request that left no verdict fails here, so the run
-      # shows it; the lane stays unbound either way.
       - name: Fail without a verdict
         if: always() && steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && steps.credential.outputs.present == 'true' && steps.verdict.outcome != 'success'
         run: |
           echo "::error::the review left no verdict for this head"
           exit 1
 
-  # Each verdict's counts as a check run on the reviewed head, which no token
-  # can delete (the checks API has no delete), so a later tree's clean review
-  # cannot hide an earlier CRITICAL finding once its artifact is gone: the
-  # merge gate takes the most CRITICAL findings any of this PR's commits
-  # carries (babysit_review_evidence `_main_lane`). A forged one can only add
-  # a hold. No model runs in this job; it reads only the legs' stop outputs
-  # and the counts write-verdict.mjs checked, from this run's own artifacts.
   report-review-counts:
     name: Report Review Counts
     needs: [review, review-subscription, review-fallback]
-    # A key leg skipped by its own gate reviewed nothing, so no later leg ran:
-    # nothing to record. One the credit gate skipped handed every lane on.
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (needs.review.result != 'skipped' || needs.review-subscription.result != 'skipped') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       checks: write # the per-lane count check run on the reviewed head
     steps:
-      # A designed stop (a diff the review cannot read whole) leaves no
-      # verdict and no artifact; its record names the reason on the head,
-      # neutral like the counts. Only the leg that stopped sets a lane's pair.
       - name: Record the stops
         env:
           GH_TOKEN: ${{ github.token }}
@@ -3585,9 +3036,6 @@ jobs:
             echo "recorded $lane $head findings=$findings critical=$critical"
           done
 
-      # The hub's api-calls notice, in log-api-budget's api_budget_emit_calls
-      # shape: this job has no checkout of that action, and its only calls are
-      # the check-run POSTs of the two record steps, counted as they are sent.
       - name: Log the API calls at the end
         if: always()
         run: |

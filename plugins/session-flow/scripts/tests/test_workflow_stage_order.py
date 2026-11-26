@@ -8,6 +8,7 @@ from pathlib import Path
 WORKFLOW = Path(__file__).resolve().parents[2] / "skills" / "workflow"
 SKILL = WORKFLOW / "SKILL.md"
 STEPS = WORKFLOW / "context" / "steps.md"
+STAGES = WORKFLOW / "reference" / "stages.yaml"
 
 
 def _stage_names() -> dict[int, str]:
@@ -28,15 +29,16 @@ def test_steps_headings_run_in_order_from_interview():
     assert names[1] == "Interview"
 
 
-def test_at_a_glance_block_matches_steps_and_names_no_contract_stage():
+def test_stage_map_matches_steps_and_names_no_contract_stage():
     glance = _section(
         SKILL.read_text(encoding="utf-8"), "### 1. Show the workflow at a glance"
     )
-    block = glance.split("```text", 1)[1].split("```", 1)[0]
-    listed = {int(n): name for n, name in re.findall(r"(\d+)\. (\w+)", block)}
+    stages = STAGES.read_text(encoding="utf-8")
+    names = re.findall(r"^    name: (\w+)", stages, re.M)
 
-    assert "Contract" not in block
-    assert listed == _stage_names()
+    assert "reference/stages.yaml" in glance
+    assert "Contract" not in stages
+    assert dict(enumerate(names, 1)) == _stage_names()
 
 
 def test_detection_list_names_stages_in_steps_order():

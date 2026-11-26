@@ -120,8 +120,9 @@ repository's launch config when that config pins it.
 
 Each source the run needs and cannot reach becomes a request to the user for scoped access: read
 access to that log, a redacted export, a seat on that dashboard. Never ask for a secret itself. A
-subagent cannot ask the user, so it reports the request to its parent; under `--unattended`, the
-request goes into the output. A missing surface does not lift the rule below: with no loop, the
+subagent reports the request to its parent instead of asking the user (what a subagent can call:
+[available tools](https://code.claude.com/docs/en/sub-agents#available-tools)); under
+`--unattended`, the request goes into the output. A missing surface does not lift the rule below: with no loop, the
 run stops.
 
 ### Picking a loop
@@ -434,7 +435,6 @@ four-part records live in [reference/native-debug.md](reference/native-debug.md)
 - An artifact with no reproduction: `/debugging:analyze-profile`.
 - The root cause is a design flaw that a focused patch cannot fix: `/planning:interview`.
 - No feedback loop could be built and the failure needs recording for later: `/bugs:write --file`.
-- Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
 ## Related
 

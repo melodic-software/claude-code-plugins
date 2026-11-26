@@ -1,48 +1,7 @@
 name: Post Merge Test Mutation
 
-# The post-merge mutation lane: after a push to main that changes a source
-# file, runs /mutation-testing:audit on the lines that push changed and writes
-# the killed and surviving mutants to the job summary. Mutation testing runs
-# post-merge only, never on a pull request. Advisory: it gates nothing, and
-# surviving mutants never fail it.
-#
-# post-merge-select-mutation-range.yml takes the push (with the source-path
-# filter) and records its range; this workflow runs on that run's
-# workflow_run event.
-#
-# Jobs:
-# - check-range: no model. Checks the kill switch and reads the range artifact.
-# - check-key-credit: no model, no secret. Skips a chain's key after a recent
-#   credit stop (ci-workflows select-model-credential's start call).
-# - generate, generate-subscription, generate-fallback: the model returns the
-#   mutants for the lines the push changed (/mutation-testing:audit
-#   --phase generate), on the automations API key, then its subscription
-#   token, then FALLBACK_CLAUDE_CODE_OAUTH_TOKEN, one credential per job, each
-#   after the one before hands off (run-claude-cli). Contents: read, and no
-#   test or mutant runs there.
-# - run-mutants: no model and no secret. Applies each mutant and runs its covering
-#   tests (execute.mjs), so mutated code never runs beside a Claude
-#   credential or a write token.
-# - triage, triage-subscription, triage-fallback: the same chain classifies the
-#   survivors (--phase triage), runs no test, and starts only when one
-#   survived.
-# - report: no model. Assembles the result from the run-mutants job's states and
-#   triage's verdicts (assemble.mjs), finds the pull request that merged the
-#   head, and writes the job summary. When exactly one pull request merged the
-#   head, a second step posts the report there as one comment with
-#   GITHUB_TOKEN, editing the lane's earlier one. It is the only job that
-#   writes.
-#
-# Each job passes the next its data as one artifact pinned by the SHA-256 the
-# job recorded.
-#
-# How to stop it: set the organization or repository lanes kill-switch
-# variable to anything but "false".
-
 on:
-  # The triggering run is main's own gate workflow; this file checks out the
-  # pushed head, which is on main, and runs main's code only. Each guard below
-  # reads the event's fields.
+  # The triggering run is main's own gate workflow; this file runs main's code only.
   workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [Post Merge Select Mutation Range]
     types: [completed]
@@ -126,7 +85,6 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}
 
-      # The artifact's head must be the triggering run's head.
       - name: Check the range
         id: range
         if: steps.kill.outputs.proceed == 'true'
@@ -147,8 +105,6 @@ jobs:
             echo "proceed=true"
           } >>"$GITHUB_OUTPUT"
 
-      # The range download reads another run's artifacts through
-      # download-artifact's own client, which no counter sees.
       - name: Log the API budget at the end
         if: always()
         continue-on-error: true
@@ -286,8 +242,6 @@ jobs:
           output-path: ${{ runner.temp }}/mutation-models.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Only whether each secret is set leaves this step, never its value.
-      # `present` is whether this leg runs the model.
       - name: Check the credential
         id: credential
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
@@ -298,8 +252,6 @@ jobs:
           selected: ${{ needs.check-key-credit.outputs.generate-next-leg }}
           key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
-      # The plugin loads from a read-only copy of main's under the workspace,
-      # the one tree run-claude-cli's file tools reach.
       - name: Stage the plugin and the prompt
         id: prompt
         if: steps.credential.outputs.present == 'true'
@@ -311,8 +263,6 @@ jobs:
           MODEL: ${{ steps.models.outputs.model }}
         run: bash .base/.github/scripts/post-merge-test-mutation/stage-plugin-prompt.sh generate
 
-      # run-claude-cli refuses to run without these root-owned settings, which
-      # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.prompt.outcome == 'success'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
@@ -323,9 +273,6 @@ jobs:
         with:
           install-subprocess-isolation: "true"
 
-      # A push to main lands through the merge queue; the run executes main's
-      # own code, and no mutant runs in this job. Bash runs read-only git and
-      # the plugin's suppression lint.
       - name: Run the generate leg
         id: run
         if: steps.prompt.outcome == 'success'
@@ -456,8 +403,6 @@ jobs:
               ;;
           esac
 
-      # The leg's structured output, read from the launcher's file only after
-      # its init message reports dontAsk; the next job checks it again.
       - name: Keep the generate result
         id: keep
         if: steps.run.outcome == 'success' && steps.run.outputs.structured-output-file != ''
@@ -491,11 +436,6 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      # The leg the next job runs, from this job's credential decision and
-      # the launcher's handoff (select-model-credential). always(), so a step
-      # that failed, or a job that hit its own timeout, after a handoff or an
-      # empty credential still hands on, as the job outputs did before; the
-      # next job's own !cancelled() still stops a cancelled run.
       - name: Pick the next leg
         id: next
         if: ${{ always() }}
@@ -588,7 +528,6 @@ jobs:
           fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           reason: ${{ needs.generate.outputs.next-reason || needs.check-key-credit.outputs.generate-next-reason }}
 
-      # With neither token set no leg can run, and the job fails.
       - name: Fail when no token is set
         id: no-token
         if: steps.credential.outputs.present != 'true' && steps.credential.outputs.fallback-ready != 'true'
@@ -838,7 +777,6 @@ jobs:
           credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           reason: ${{ needs.generate-subscription.outputs.next-reason }}
 
-      # With the fallback token empty no leg runs, and the job fails.
       - name: Fail when no token is set
         id: no-token
         if: steps.credential.outputs.present != 'true'
@@ -1006,14 +944,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The mutants run here, in a job with no secret, no write grant and no OIDC
-  # grant: the pushed head's covering tests run once per mutant the
-  # generate chain returned, through execute.mjs, which checks each mutant
-  # before applying it and restores every file. The tracked tree must equal the
-  # pushed head afterwards. Its result leaves as one artifact whose SHA-256
-  # the triage and report jobs check. Everything after the first mutant runs
-  # comes from a fresh checkout of main, since a mutant's code can rewrite any
-  # file this job reads later.
   run-mutants:
     name: Run Mutants
     needs: [check-range, generate, generate-subscription, generate-fallback]
@@ -1097,9 +1027,6 @@ jobs:
         with:
           install-subprocess-isolation: true
 
-      # The covering-tests harness runs from a read-only copy of the pushed
-      # head's scripts/, so a mutant of the harness cannot break the harness.
-      # A red baseline makes its file's mutants not-run.
       - name: Run the mutants
         id: execute
         env:
@@ -1129,7 +1056,6 @@ jobs:
             exit 1
           fi
 
-      # The scanner comes from a fresh checkout of main after the mutants.
       - name: Clear the trusted checkout path
         if: steps.execute.outcome == 'success'
         run: rm -rf "${GITHUB_WORKSPACE:?}/.lane-trusted"
@@ -1222,8 +1148,6 @@ jobs:
           output-path: ${{ runner.temp }}/mutation-models.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Only whether each secret is set leaves this step, never its value.
-      # `present` is whether this leg runs the model.
       - name: Check the credential
         id: credential
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
@@ -1241,8 +1165,6 @@ jobs:
           artifact-ids: ${{ needs.run-mutants.outputs.artifact-id }}
           path: ${{ runner.temp }}/executed
 
-      # The run-mutants job's file, by the SHA-256 it recorded, staged in the
-      # workspace, the one tree run-claude-cli reads.
       - name: Check the executed mutants
         if: steps.credential.outputs.present == 'true'
         env:
@@ -1261,8 +1183,6 @@ jobs:
           mkdir -p mutation-data
           cp "$FILE" mutation-data/executed.json
 
-      # The plugin loads from a read-only copy of main's under the workspace,
-      # the one tree run-claude-cli's file tools reach.
       - name: Stage the plugin and the prompt
         id: prompt
         if: steps.credential.outputs.present == 'true'
@@ -1274,8 +1194,6 @@ jobs:
           MODEL: ${{ steps.models.outputs.model }}
         run: bash .base/.github/scripts/post-merge-test-mutation/stage-plugin-prompt.sh triage
 
-      # run-claude-cli refuses to run without these root-owned settings, which
-      # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.prompt.outcome == 'success'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
@@ -1286,9 +1204,6 @@ jobs:
         with:
           install-subprocess-isolation: "true"
 
-      # A push to main lands through the merge queue; the run executes main's
-      # own code, and no mutant runs in this job. Bash runs read-only git and
-      # the plugin's suppression lint.
       - name: Run the triage leg
         id: run
         if: steps.prompt.outcome == 'success'
@@ -1421,8 +1336,6 @@ jobs:
               ;;
           esac
 
-      # The leg's structured output, read from the launcher's file only after
-      # its init message reports dontAsk; the report job checks it again.
       - name: Keep the triage result
         id: keep
         if: steps.run.outcome == 'success' && steps.run.outputs.structured-output-file != ''
@@ -1456,11 +1369,6 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      # The leg the next job runs, from this job's credential decision and
-      # the launcher's handoff (select-model-credential). always(), so a step
-      # that failed, or a job that hit its own timeout, after a handoff or an
-      # empty credential still hands on, as the job outputs did before; the
-      # next job's own !cancelled() still stops a cancelled run.
       - name: Pick the next leg
         id: next
         if: ${{ always() }}
@@ -1553,7 +1461,6 @@ jobs:
           fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           reason: ${{ needs.triage.outputs.next-reason || needs.check-key-credit.outputs.triage-next-reason }}
 
-      # With neither token set no leg can run, and the job fails.
       - name: Fail when no token is set
         id: no-token
         if: steps.credential.outputs.present != 'true' && steps.credential.outputs.fallback-ready != 'true'
@@ -1830,7 +1737,6 @@ jobs:
           credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           reason: ${{ needs.triage-subscription.outputs.next-reason }}
 
-      # With the fallback token empty no leg runs, and the job fails.
       - name: Fail when no token is set
         id: no-token
         if: steps.credential.outputs.present != 'true'
@@ -2071,9 +1977,6 @@ jobs:
           artifact-ids: ${{ needs.triage-fallback.outputs.artifact-id || needs.triage-subscription.outputs.artifact-id || needs.triage.outputs.artifact-id }}
           path: ${{ runner.temp }}/triage
 
-      # Each file by the SHA-256 its job recorded. The result is assembled from
-      # the executor's states and triage's verdicts; both are untrusted, read
-      # by the scripts and never interpolated into a command.
       - name: Write the report
         id: report
         env:
@@ -2105,9 +2008,6 @@ jobs:
           fi
           STRUCTURED_OUTPUT=$result AUDIT_RESULT=$audit node "$tool/report.mjs"
 
-      # Runs after a no-result report too, which the comment then says. The body
-      # is the file report.mjs built from the validated result, without the
-      # model's free-text detail; nothing reaches it through an expression.
       - name: Comment the report on the merged pull request
         if: ${{ !cancelled() && steps.report.outputs.pull != '' }}
         env:

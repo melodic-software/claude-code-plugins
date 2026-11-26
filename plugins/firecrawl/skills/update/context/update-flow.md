@@ -16,6 +16,14 @@ Read when running the update action. The update model, preservation invariants, 
 | `/firecrawl:update --check` | Read-only drift report. Fetches upstream + npm metadata, compares against `upstream.md`. Prints CLI version delta, upstream SHA delta. **No mutations.** |
 | `/firecrawl:update` | Full update pipeline with two approval gates |
 
+`scripts/update.sh` exits under the shared drift-check contract:
+
+| Exit | Meaning |
+|---|---|
+| 0 | No drift, or `--apply` or `--record-upstream` completed |
+| 1 | Drift found in `--check` mode; nothing changed |
+| 2 | Unverifiable: curl, jq or npm missing, a network failure, or a usage error; or `--apply` refused or unconfirmed, because npm's global bin does not hold the `firecrawl` command or the command does not report npm latest after the install |
+
 ## Pipeline (full update)
 
 ```text

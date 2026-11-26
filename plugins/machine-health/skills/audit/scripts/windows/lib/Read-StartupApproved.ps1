@@ -37,7 +37,6 @@ $script:StartupApprovedState = @{
     3 = 'disabled'
 }
 
-# The disabled timestamp follows the value's header.
 $script:StartupApprovedTimeOffset = 4
 
 $script:StartupApprovedSkippedProperty = @('PSPath', 'PSParentPath', 'PSChildName', 'PSDrive', 'PSProvider')

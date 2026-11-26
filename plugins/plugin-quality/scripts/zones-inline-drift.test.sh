@@ -1,32 +1,4 @@
 #!/usr/bin/env bash
-# Drift check: plugin-quality's copy of the context-usage zone floor must stay
-# byte-identical (value-level) to the context-usage reader contract that owns
-# it.
-#
-# This is the consumer-lane drift check the reader contract's "Inline-floor
-# ownership" section names. Two surfaces carry the floor on this side:
-#
-#   scripts/context-zone.sh   the synced resolver, which owns the staleness
-#                             window, both seam paths, the percentage and token
-#                             bands, the occupancy definition and the
-#                             token-shape version floor.
-#   skills/audit/SKILL.md     the evidence-degraded marker path, which the
-#                             resolver does not read: that check is
-#                             consumer-side and stays in the skill body.
-#
-# Whether the resolver matches its canonical is a different gate
-# (scripts/sync-shared-copies.sh --check). This lane covers what that one
-# cannot: a value moving in the reader contract without the resolver moving
-# with it, or the reverse.
-#
-# The contract's combination-rule sentence is deliberately not asserted here.
-# The resolver states the same rule in its own wording, and the resolver is a
-# synced byte-identical file this repo does not reword to satisfy a grep.
-#
-# SKIPs (exit 0) outside the monorepo checkout: an installed plugin cache is
-# per-plugin isolated and cannot see the sibling plugin's contract file --
-# the lane is meaningful only where both files exist (repo CI's plugin-gate).
-
 # shellcheck disable=SC2088,SC2016  # the ~/ and $ strings are contract phrases and resolver code matched as data, never expanded
 set -uo pipefail
 

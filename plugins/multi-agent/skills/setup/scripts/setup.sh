@@ -199,18 +199,12 @@ convention_home() {
     printf 'docs/conventions'
 }
 
-# A repository can commit a symlink at a team or local path, or at a legacy
-# file that seeds one; reading or writing through it would reach a file
-# outside the repository. Refuse <path> when it, or a directory above it
-# inside the repository, is a symlink.
 refuse_symlink() {
   local link
   link="$(symlink_in "$1")" && die "refusing $1: $link is a symlink"
   return 0
 }
 
-# Print the first symlink among <path> and the directories above it inside
-# the repository; status 1 when there is none.
 symlink_in() {
   local p="$1"
   while [[ "$p" == "$ROOT"/* ]]; do

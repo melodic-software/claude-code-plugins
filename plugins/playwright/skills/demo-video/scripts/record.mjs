@@ -1,6 +1,3 @@
-// Capture: Chromium's screencast delivers frames at CSS-pixel size whatever the deviceScaleFactor, so
-// frames come from CDP Page.captureScreenshot with clip.scale = DSF (3840x2160 at DSF 2). That is slow
-// (about 4 fps), so cursor travel and typing run in slow motion (SLOW) and build_edl.py retimes them.
 import { createRequire } from 'node:module';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -17,8 +14,6 @@ function onPath(name) {
   throw new Error(`${name} not on PATH`);
 }
 
-// playwright-core from --playwright-core DIR, the working directory, then the playwright-cli install on
-// PATH (its own copy, so the browser build matches the one `playwright-cli install` provisioned).
 function chromium(dir) {
   if (dir) dir = path.resolve(dir);
   const tries = [
@@ -63,8 +58,6 @@ try { browser = await launcher.launch({ headless: !headed }); } catch (e) {
   process.exit(2);
 }
 const context = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: DSF });
-// backdrop-filter (a DocSearch-style modal blur) drops software-rendered capture to ~3 fps; the text
-// caret's blink keeps a settled page from ever going still. Both go.
 await context.addInitScript(() => {
   document.addEventListener('DOMContentLoaded', () => {
     const s = document.createElement('style');
@@ -82,8 +75,6 @@ let n = 0;
 let capturing = false;
 let grabber = null;
 
-// page.screenshot at scale 'device' renders at device pixels and, unlike a CDP session held across the
-// run, keeps working when a navigation swaps the renderer process (file:// pages, cross-site links).
 function startCapture() {
   capturing = true;
   grabber = (async () => {
@@ -118,7 +109,6 @@ const union = (a, b) => {
 const ease = (u) => (u < 0.5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2);
 let mouse = { x: W * 0.62, y: H * 0.55 };
 
-// A step is settled when the pixels stop changing (networkidle fires before late paint).
 const STILL = 4;
 async function settle(step, extra = {}) {
   await page.waitForLoadState('networkidle').catch(() => {});

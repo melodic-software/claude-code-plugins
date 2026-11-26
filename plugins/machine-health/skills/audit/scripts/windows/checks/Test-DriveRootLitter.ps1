@@ -16,9 +16,6 @@ anything it finds.
 [CmdletBinding()]
 param(
     [switch]$Human,
-    # The overrides below exist for tests and manual scratch-tree runs; the
-    # orchestrator dispatches argument-less (Get-CheckArgument default) and the
-    # defaults resolve the real volumes and the shipped baseline.
     [string]$SystemRootPath,
     [string[]]$DataRootPath,
     [string]$BaselinePath
@@ -93,8 +90,6 @@ function Get-RootResidue {
     $litterDirs = Get-BaselineList -Baseline $Baseline -Section 'data_volume_litter' -Kind 'directories'
     $litterFiles = Get-BaselineList -Baseline $Baseline -Section 'data_volume_litter' -Kind 'files'
 
-    # -ErrorAction Stop: a root that cannot be listed at all must surface as a
-    # failed scan, not as a clean one -- an empty listing reads as zero residue.
     $entries = @(Get-ChildItem -LiteralPath $Root -Force -ErrorAction Stop)
 
     $residue = [System.Collections.Generic.List[pscustomobject]]::new()
@@ -145,8 +140,6 @@ $commands = @(
 
 $FailureSummary = 'Drive-root litter check failed.'
 $PassThru = $false
-# Captured before the body. $PSBoundParameters inside a dot-sourced scriptblock
-# is the scriptblock's own (empty) dictionary, not the script's.
 $CheckBoundParameters = $PSBoundParameters
 $CheckBody = {
     if (-not $BaselinePath) {

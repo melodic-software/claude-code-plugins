@@ -1,32 +1,4 @@
 #!/usr/bin/env bash
-# Print <plugin:skill>@<version> for each <plugin:skill> argument, one line each.
-#   skill-version.sh [--dir <loaded-skill-dir>] <skill> [[--dir <dir>] <skill>]...
-#
-# Version source, first hit wins:
-#   1. --dir <path> before an argument: the directory the running session loaded that skill
-#      from (the Skill tool's "Base directory for this skill"). The nearest
-#      .claude-plugin/plugin.json at or above it, when its "name" is the plugin, supplies
-#      "version"; with no "version" there, the <version> segment of a
-#      .../cache/<marketplace>/<plugin>/<version>/... path does. When that differs from the
-#      installed_plugins.json record, stderr says so: the plugin updated mid-session.
-#   2. REPO_SWEEP_PLUGIN_DIRS: colon-separated plugin dirs (as loaded with --plugin-dir).
-#      The dir whose .claude-plugin/plugin.json "name" is the plugin supplies its
-#      "version" (unknown when it has none).
-#   3. REPO_SWEEP_INSTALLED_PLUGINS (default ~/.claude/plugins/installed_plugins.json):
-#      installs under keys <plugin>@<marketplace>. A project- or local-scope install whose
-#      projectPath is this repo's main checkout wins, else the user-scope install.
-# Versions print verbatim (SHA-style included). Nothing found: @unknown.
-#
-# An argument with no plugin prefix names a bundled skill unless a same-named skill replaces
-# it, first hit wins: @personal for ${CLAUDE_CONFIG_DIR:-~/.claude}/skills/<name>/SKILL.md,
-# @project for .claude/skills/<name>/SKILL.md at this checkout's top level. Otherwise
-# @builtin-<version> from `claude --version`, @unknown when that prints no version. A bundled
-# skill's existence is not checked: nothing outside a running session lists them. --dir does
-# not apply to a bare name.
-#
-# The upstream behavior these rules rest on (same-name skill precedence, a session keeping the
-# plugin versions it loaded) is recorded with its docs pointers in ../SKILL.md#gotchas.
-# Recheck these rules when a commit changes that section's precedence or auto-update bullets.
 set -euo pipefail
 
 installed=${REPO_SWEEP_INSTALLED_PLUGINS:-$HOME/.claude/plugins/installed_plugins.json}

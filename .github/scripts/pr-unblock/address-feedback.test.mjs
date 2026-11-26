@@ -176,8 +176,6 @@ test("a thread with a human reply is never kept", async () => {
   assert.equal(result.escalationReason, "feedback-untaken-threads");
 });
 
-// The thread on #7794: the reviewer bot's finding, the lanes App's UNCERTAIN
-// reply (publish-feedback.mjs renderReply), then the owner's decision.
 const ESCALATION = "**pr-unblock / address-feedback: UNCERTAIN, left open for a person**\n\nEvidence: `src/a.js:5`";
 const DECISION = "Owner decision: drop the forward reference and state what the step does today.";
 const at = (minute) => `2026-10-17T20:${String(minute).padStart(2, "0")}:00Z`;
@@ -294,7 +292,6 @@ test("a reply not created after the escalation, or with no readable time, is not
   assert.equal((await run(fakeApi(unreadable))).decision, "escalate");
 });
 
-// The phrase the owner's replies on #8044, #8065 and eleven other PRs use.
 const REQUEST = "*Owner reply, posted by AI from the owner's answer.*\n\nPR-fix lane: please fix this finding. Drop the reference.";
 
 test("on a needs-human PR, a write-access trusted person's fix request is kept", async () => {
@@ -382,8 +379,6 @@ test("without needs-human nothing changes and no permission is read", async () =
   assert.deepEqual(api.permissionReads, []);
 });
 
-// The thread on #8031: the reviewer bot's finding, then the owner's fix
-// request, with no reply from the lanes App.
 function asked(replies, edits = {}) {
   const rows = [[100, REVIEWER, "finding 100"], ...replies];
   return {
@@ -441,7 +436,6 @@ for (const [label, overrides] of [
   });
 }
 
-// #8031: the thread's review is on an earlier head than the one the markers name.
 const OLD_REVIEW = { reviews: [{ id: 10, user: { id: REVIEWER }, commit_id: OLD_HEAD }] };
 
 test("a fix request works a thread whose review is on an earlier head, in the select step and the re-read", async () => {
@@ -485,8 +479,6 @@ test("a kept thread's is_outdated is true only when GitHub reports isOutdated tr
   }
 });
 
-// #8233: the reviewer bot's finding, the lanes App's UNCERTAIN reply, then the
-// owner's fix request, all on a review of an earlier head.
 for (const [label, overrides] of [
   ["a trusted reply to the lane's escalation", escalated()],
   ["a trusted fix request after the lane's escalation", escalated({ replies: [[102, HUMAN, REQUEST]] })],
@@ -571,9 +563,6 @@ test("resolved threads are dropped", async () => {
   assert.equal(result.decision, "skip");
 });
 
-// Review finding on #10252: once a person resolves every thread, a failing
-// pr-unblock/address-feedback status (feedback-untaken-threads and the other
-// thread stops) must come off the same head; nothing else resolves it.
 test("a head with no unresolved thread resolves the address-feedback stop", async () => {
   const handResolved = fakeApi({
     reviewComments: [comment(100, REVIEWER), comment(101, HUMAN)],
@@ -631,8 +620,6 @@ test("a comment whose review another account submitted is dropped", async () => 
   assert.equal(result.decision, "escalate");
 });
 
-// verify-notes.mjs posts a pr-verify FAIL's notes as github-actions[bot]
-// review comments whose first line is the verifier note marker.
 const VERIFY_NOTE = "<!-- pr-verify:fail-note -->\nThe pr-verify verifier failed head.";
 const verifierNote = (extra = {}) =>
   fakeApi({
@@ -692,9 +679,6 @@ test("a github-actions[bot] thread without the note marker, or in another accoun
   assert.equal((await run(forged)).decision, "escalate");
 });
 
-// The pr-review-cli reusable posts each finding as github-actions[bot], the
-// body ending `\n\nclaude-lane: <lane>` (ci-workflows
-// .github/actions/publish-review/publish.cjs commentBody at v0.63.0).
 const LANE_FINDING = "severity: IMPORTANT\nThe input reaches the shell unquoted.\n\nclaude-lane: claude-security-review";
 const laneFinding = (body, reviewer = ACTIONS_BOT, lane = "claude-security-review") =>
   fakeApi({
@@ -717,9 +701,6 @@ test("the code lane's github-actions[bot] finding is kept as the reviewer's", as
   assert.deepEqual(result.threads[0].comments, [{ id: 100, author: "reviewer", lane: "claude-review", body }]);
 });
 
-// The lane comes from the github-actions[bot] author whose footer the review
-// lanes write; claude[bot] writes its own body, so a footer it ends with
-// names no lane.
 test("a claude[bot] finding ending in a lane footer carries no lane", async () => {
   const body = "The loop skips the last item.\n\nclaude-lane: claude-review";
   const result = await run(fakeApi({ reviewComments: [comment(100, REVIEWER, { body })] }));
@@ -928,10 +909,6 @@ test("at the cap, the code lane's findings go to a fresh fixer: every thread run
   assert.deepEqual(result.file.threads.map((row) => row.id), ["PRRT_1", "PRRT_2"]);
 });
 
-// The owner's rule (decision on #11020): only a CRITICAL security finding
-// holds for a person. An IMPORTANT one is a code fix: it gets the fresh
-// fixer's round, and if that round leaves it open the head fails as any
-// unconverged finding does, with no person.
 for (const [label, roots] of [
   ["an IMPORTANT security lane finding", [LANE_FINDING]],
   ["an IMPORTANT security lane finding beside a code lane one", [CODE_FINDING, LANE_FINDING]],
@@ -1005,9 +982,6 @@ test("at the cap, a SUGGESTION or IMPORTANT security lane finding goes to a fres
   }
 });
 
-// The reviewer bot's own finding (claude[bot]) names no lane, and a footer it
-// ends with is model text, so it is ruled as the code lane's: the fresh
-// fixer's round, then a failing status, never a person.
 test("at the cap, the reviewer bot's own finding, with no lane footer or with a model-written one, goes to the fresh fixer and then fails the head", async () => {
   for (const body of ["The loop skips the last item.", CODE_FINDING]) {
     const after = (rounds) =>
@@ -1304,8 +1278,6 @@ test("createGitHubApi follows rel=next pages and sends the token", async () => {
   );
 });
 
-// The activity API ignores `page`: page n answers `after=c<n>` and links the
-// next one, so the fixtures serve by cursor as GitHub does (#11016).
 const activityFetch = (pages, urls = []) => async (url) => {
   urls.push(url);
   const at = Number(/[?&]after=c(\d+)/.exec(url)?.[1] ?? 0);
@@ -1368,9 +1340,6 @@ test("createGitHubApi lists review comments since a time when given one, and all
   ]);
 });
 
-// A contract-only pr-require-checks run posts a lane skipped after the real
-// run failed it. A latest-only listing returns only the skip, which hid the
-// failure from failingChecks and let stop-resolved clear pr-unblock/fix-ci.
 const SKIP_OVER_FAILURE = (url) => {
   const failed = { id: 1, name: "Test Node", status: "completed", conclusion: "failure" };
   const skipped = { id: 2, name: "Test Node", status: "completed", conclusion: "skipped" };
@@ -1437,9 +1406,6 @@ test("createGitHubApi sends reads, GraphQL queries and repeatable writes again a
   ]);
 });
 
-// #8116's thread PRRT_kwDOTCGFQM6tojDu: the reviewer bot's finding on
-// write-transcript.js, then the owner's fix request naming run-transcript.js,
-// refused at 2026-10-19T02:31Z as outside every kept thread's scope.
 const T = "plugins/knowledge/skills/video-digest/extraction/transcript";
 const OWNER_8116 =
   "*Owner reply, posted by AI from the owner's answer in an attended session on 2026-10-18.*\n\n" +
@@ -1573,9 +1539,6 @@ test("a leading or trailing _ that belongs to the name is kept; only a matched _
   assert.deepEqual([...result.file.threads[0].named_paths].sort(), [`${T}/__init__.py`, `${T}/_utils.js`, `${T}/run-transcript.test.js`]);
 });
 
-// Review bots listed in pr-pipeline.yaml review-threads.reviewer-ids, keyed on
-// the account id GitHub records. Codex's id and login are the ones its threads
-// on #10092 carry.
 const CODEX = 199175422;
 const CODEX_LOGIN = "chatgpt-codex-connector[bot]";
 const OTHER_BOT = 206951365;
@@ -1723,8 +1686,6 @@ test("needsPerson: a listed review bot's or the reviewer bot's own undirected fi
   }
 });
 
-// The reviewer bot's footer is model text, so its security claim is read from
-// the content: a missing, malformed or trailed footer never loosens the hold.
 test("claimsSecurity holds the reviewer bot's rated or security-lane finding whatever its footer says", () => {
   const holds = (body, floor) => needsPerson({ comments: [{ id: 100, author: "reviewer", body }] }, REVIEWER, floor);
   for (const body of [
@@ -1779,10 +1740,6 @@ test("claimsSecurity holds the reviewer bot's rated or security-lane finding wha
   }
 });
 
-// #8284: anyone can comment `@codex` on a public repository, so a listed
-// bot's thread no trusted person directed is worked only when the `@codex`
-// request behind the bot's review came from a person on the trusted-actor
-// list; any other request, or none, leaves it for a person.
 const askedBy = (asks, extra = {}) => {
   const base = botThread();
   return fakeApi({ ...base, issueComments: [base.issueComments[0], ...asks], ...extra });
@@ -1850,10 +1807,6 @@ test("a Codex thread whose @codex request cannot be found is skipped (fail close
   assert.equal(answered.result.decision, "proceed");
 });
 
-// An automatic Codex review (no @codex comment in the window) counts as asked
-// by whoever triggered it: the PR's author for one on opening, the actor of
-// the newest ready-for-review event for one on the ready flip. A trusted
-// person or the lanes App (APP_SENDER_ID) is trusted; anyone else is not.
 const OPENED = "2026-10-17T07:00:00Z";
 const readied = (actor, at = "2026-10-17T09:00:00Z") => ({ event: "ready_for_review", actor: { id: actor }, created_at: at });
 
@@ -1877,11 +1830,7 @@ test("an automatic Codex review a stranger triggered is skipped, and an untruste
   for (const [label, asks, extra, line] of [
     ["a stranger-authored PR's opening", [], { opener: STRANGER, openedAt: OPENED }, untrusted("opening of the pull request")],
     ["a ready flip by a stranger, after an owner's opening", [], { opener: HUMAN, openedAt: OPENED, timeline: [readied(HUMAN, "2026-10-17T08:00:00Z"), readied(STRANGER)] }, untrusted("ready-for-review event")],
-    // Which event triggered the review cannot be told apart, so every one in
-    // the window must be trusted.
     ["a stranger's PR an owner marked ready", [], { opener: STRANGER, openedAt: OPENED, timeline: [readied(HUMAN)] }, untrusted("opening of the pull request")],
-    // github-actions[bot]'s edits are exempt (the lanes' markers), but it is
-    // no trusted trigger: only the lanes App is.
     ["a ready flip by github-actions[bot]", [], { opener: HUMAN, openedAt: OPENED, timeline: [readied(ACTIONS_BOT)] }, untrusted("ready-for-review event").replace(String(STRANGER), String(ACTIONS_BOT))],
     ["a stranger's @codex on an owner PR", [codexAsk(STRANGER)], { opener: HUMAN, openedAt: OPENED }, untrusted("@codex request")],
   ]) {
@@ -1935,12 +1884,6 @@ test("a CodeQL thread on a stranger's PR or with unreadable triggers is skipped;
   assert.notEqual(unlisted.decision, "proceed");
 });
 
-// A request read after the fact can have been edited out or deleted, so the
-// check fails closed on the history it can read: an untrusted comment or
-// review edited since the window opened counts whatever it says now, a
-// review body edited into a request counts by its GraphQL edit time, and a
-// deleted untrusted comment counts. Our own bots' edits (the review lanes
-// edit their marker in place) count only for what they say.
 test("an untrusted request edited out, deleted, or edited into a review body still skips the thread", async () => {
   const earlier = { id: 9, user: { id: CODEX }, commit_id: OLD_HEAD, submitted_at: "2026-10-17T09:00:00Z" };
   const strangerReview = (extra) => ({ id: 8, user: { id: STRANGER }, commit_id: HEAD, ...extra });
@@ -2006,10 +1949,6 @@ test("select asks for model rung 1 only after a lane stop on the head's reply ch
   assert.equal(await rungOf([{ ...stop, output: { title: "Skipped: no-model-turn" } }]), "");
 });
 
-// #10092's silent stall: an unresolved thread the lane does not take left
-// the head with a neutral stop-resolved skip, no stop and no signal. The
-// select job now ends it in feedback-untaken-threads (routed to a failing
-// status); only a PR with no unresolved thread still skips.
 test("an unresolved thread the lane does not take escalates feedback-untaken-threads", async () => {
   const codex = await run(
     fakeApi({
@@ -2072,11 +2011,6 @@ test("a queued stop still clears once no thread is unresolved, and a person's ho
   assert.deepEqual([held.decision, held.skipReason], ["skip", "awaiting-human"]);
 });
 
-// #12809: the merge gate refuses the head verify:earlier-fail and every
-// fail-note thread of the FAILed head is resolved. The select job used to end
-// stop-resolved, the round pushed nothing, and the head never moved. With the
-// dispatcher's FAILed heads it now reads their notes from the verdict
-// artifacts as the model's work items, and fails closed when it cannot.
 const NOTES = [
   { id: "VNOTE_1", head: OLD_HEAD, path: "src/a.js", body: `${VERIFY_NOTE_MARKER}\nSummary and note, as data` },
   { id: "VNOTE_2", head: OLD_HEAD, path: "src/b.js", body: `${VERIFY_NOTE_MARKER}\nanother note` },
@@ -2330,9 +2264,6 @@ test("on an owner PR a thread a person opened is never kept", async () => {
   assert.notEqual(result.decision, "proceed");
 });
 
-// The head's covering check runs, for a tests-only finding (#10075): the
-// lanes come from scripts/plan-test-lanes.sh, never from a list here.
-// Leg names follow pr-require-checks.yml's matrix (`leg` over bash_legs).
 const PLAN = { bash: "true", bash_legs: "[0,1]", python: "false", node: "true", node_legs: "[0]", windows_jobs: '["test-windows-lib"]' };
 const checkRun = (id, name, conclusion = "success", extra = {}) => ({
   id,
@@ -2368,15 +2299,11 @@ test("ciSnapshot is red when a covering check failed, and unsettled when one was
     const red = await snapshot([...GREEN.filter((run) => run.name !== "Test Bash (1)"), checkRun(6, "Test Bash (1)", conclusion)]);
     assert.equal(red.state, "red", conclusion);
   }
-  // fix-ci does not take a cancelled-only head, so a cancelled run leaves the
-  // finding to end feedback-unadjudicated, not to wait on fix-ci (#11041 review).
   assert.equal((await snapshot([...GREEN.filter((run) => run.name !== "Test Bash (1)"), checkRun(6, "Test Bash (1)", "cancelled")])).state, "unsettled");
   assert.equal((await snapshot([...GREEN, checkRun(8, "Test Windows Hooks", "cancelled")])).state, "unsettled");
   assert.equal((await snapshot([...GREEN.filter((run) => run.name !== "Test Bash (1)"), checkRun(7, "Test Bash (1)", "failure")], { complete: false })).state, "red");
 });
 
-// The plan is read from the base tree, so the head's select-tests job can run
-// lanes it does not name (#11041 review).
 test("ciSnapshot is red when any test lane on the head failed, planned or not, and cites the failed runs", async () => {
   const red = await snapshot([...GREEN, checkRun(20, "Test Python (0)", "failure"), checkRun(21, "Test Windows Hooks", "timed_out")]);
   assert.equal(red.state, "red");
@@ -2486,8 +2413,6 @@ test("select records the ci snapshot for run.json; with no snapshot function it 
   assert.equal(Object.hasOwn(JSON.parse(runRecord(plain.file, plain.reviewedHeads, plain.ci)), "ci"), false);
 });
 
-// #12346: the fix to lib/hook-utils.sh had to regenerate its copies; the
-// select job reads them from the base copy's scripts/shared-copies.txt.
 const HOOK_UTILS = new URL("../../../lib/hook-utils.sh", import.meta.url);
 test("copyPathsFor lists the registered copies of the canonicals a PR changes", { skip: !existsSync(HOOK_UTILS) && "no lib/hook-utils.sh canonical in this repository" }, () => {
   const copies = copyPathsFor([{ filename: "lib/hook-utils.sh" }, { filename: "README.md" }]);
@@ -2496,10 +2421,6 @@ test("copyPathsFor lists the registered copies of the canonicals a PR changes", 
   assert.deepEqual(copyPathsFor([{ filename: "README.md" }]), []);
 });
 
-// L469 (#14539, #14637): the code-review lane's advisory asked for a test the
-// closing issue's Out of scope list excludes, the lane added it, and the same
-// lane then blocked the PR. Only an unanswered advisory the code-review lane
-// posted may take a follow-up reply, and only with a closing issue's text read.
 test("an advisory code-review thread carries may_follow_up and the closing issues' text; a blocking one, a bot's own, or no issue text does not", async () => {
   const laneBody = (first) => `${first}\n\nThe change has no test.\n\nclaude-lane: claude-review`;
   const api = () =>
@@ -2684,7 +2605,6 @@ test("bodySectionNames takes the listed sections, then the base's template, then
 test("runRecord pins each offered section's text by SHA-256 and never copies the text", () => {
   const file = { head_sha: HEAD, pr_paths: [], copy_paths: [], threads: [], body_sections: [{ heading: "Verification", text: "\nRan the unit suite.\n" }] };
   const run = JSON.parse(runRecord(file));
-  // sha256 of "\nRan the unit suite.\n", by `printf '\nRan the unit suite.\n' | sha256sum`.
   assert.deepEqual(run.body_sections, [{ heading: "Verification", sha256: "ec2843419a369ae8ad6942a47380f6d20dce87c1e93570cced345d44df1b384d" }]);
 });
 

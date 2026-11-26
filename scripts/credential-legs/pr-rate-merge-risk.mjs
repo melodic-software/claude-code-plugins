@@ -29,9 +29,6 @@ export default {
       job: "rate-merge-risk-subscription",
       drop: KEY_ONLY,
       move: MOVE,
-      comments: {
-        "Check the credential": "Only whether each secret is set reaches this step, never its value.\n`present` is whether this leg runs the model.",
-      },
       replace: [
         ["  rate-merge-risk:\n    name: Rate Merge Risk\n", "  rate-merge-risk-subscription:\n    name: Rate Merge Risk Subscription\n    needs: rate-merge-risk\n", 1],
         [HEAD_REPO, `${HEAD_REPO}      && needs.rate-merge-risk.result == 'success'\n      && needs.rate-merge-risk.outputs.next-leg == 'subscription'\n`, 1],
@@ -51,9 +48,6 @@ export default {
       job: "rate-merge-risk-fallback",
       drop: [...KEY_ONLY, "Pick the next leg"],
       move: MOVE,
-      comments: {
-        "Check the credential": "Only whether the secret is set reaches this step, never its value.\n`present` is whether this leg runs the model.",
-      },
       replace: [
         ["  rate-merge-risk:\n    name: Rate Merge Risk\n", "  rate-merge-risk-fallback:\n    name: Rate Merge Risk Fallback\n    needs: rate-merge-risk-subscription\n", 1],
         [

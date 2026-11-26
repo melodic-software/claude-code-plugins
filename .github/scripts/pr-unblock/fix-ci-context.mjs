@@ -1,28 +1,3 @@
-// The pr-unblock lane's fix-ci context: run by pr-unblock.yml's fix-ci-context
-// job, from the default branch tip, before the fix-ci model job and with a
-// read-only token. It checks out no PR head and runs no head code.
-//
-// It skips a pull request the human-gated label holds (awaiting-human) unless
-// another lane's escalation put the label on (gate-source.mjs prHold), skips
-// one from a head branch a workflow owns and rebuilds (owned-branch, the base
-// config's merge.refire-skip-branches: the rebuild is its fix and moves the
-// branch under any push), skips a closed pull request or a head with no failing check (one cancelled
-// past its time limit counts), escalates `ci-fix-round-cap` once the lanes App
-// has pushed `loop.fix-ci-rounds` fix-ci commits to the pull request, and
-// otherwise writes the context
-// file the `source-control:pull-request ci --ci` skill reads: each failing
-// check's name, the workflow file that defines its job, its annotations and
-// the end of its log, and the review findings address-feedback would work
-// (keepThreads with no trusted person's direction: unresolved threads the
-// reviewer bot or a verifier note opened on a reviewed head and only it
-// wrote), so a fix the reviewer already named is not escalated. It also
-// carries the linked issues' trusted spec text (`spec`, pr-verify's
-// linkedIssues) and the lines the pull request's last address-feedback commit
-// added (`feedback_lines`), so a fix does not cut a line a criterion needs
-// just to pass another check. Check names, annotations, logs, findings, spec and
-// feedback lines are data: they are copied into the file, capped, and never
-// logged or run. After a weaken retry stop on the head (WEAKEN_RETRY) the file
-// also carries the runner's fixed `retry` brief.
 import { createHash } from "node:crypto";
 import { appendFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -48,9 +23,6 @@ const MAX_EXCERPT = 3000;
 const MAX_EXCERPT_LINES = 80;
 const MAX_FINDINGS = 10;
 const MAX_FINDING = 2000;
-// The read job refuses a context file over 1 MiB (pr-run-activity-read.yml,
-// "Check the CI context"). Spec and feedback lines each get a byte budget;
-// select drops both when the whole file would still pass the limit.
 export const CONTEXT_MAX_BYTES = 1048576;
 export const MAX_SPEC_BYTES = 196608;
 export const MAX_FEEDBACK_BYTES = 65536;
@@ -65,9 +37,6 @@ export const WEAKEN_BRIEF =
 
 const earlierAttempt = (run) => run?.status === "completed" && run.app?.id === ACTIONS_APP_ID;
 
-// Whether the head carries the pr-unblock/fix-ci status a weaken retry stop
-// posted, by the GitHub Actions bot. Statuses are never removed, so a stop a
-// later run cleared still counts.
 export const weakenStopped = (statuses) =>
   statuses.some(
     (row) => row?.context === "pr-unblock/fix-ci" && row.creator?.login === "github-actions[bot]" && String(row.description ?? "").startsWith(WEAKEN_STOPPED),
@@ -100,9 +69,6 @@ export function specField(specText, max = MAX_SPEC_BYTES) {
   return withinBytes(spec, max);
 }
 
-// The non-blank lines a commit's diff adds, by file, from the commits API's
-// `patch` (which carries no file header lines). A file that adds lines but
-// comes with no patch leaves the lines unknown: null.
 export function feedbackLines(files, max = MAX_FEEDBACK_BYTES) {
   const kept = [];
   for (const file of files ?? []) {
@@ -124,7 +90,6 @@ export function feedbackLines(files, max = MAX_FEEDBACK_BYTES) {
   return withinBytes(kept, max);
 }
 
-// The last lines of a job log, without the runner's timestamps or ANSI color.
 export function logExcerpt(text) {
   const lines = String(text)
     .replace(/\u001b\[[0-9;]*[A-Za-z]/g, "")
@@ -142,9 +107,6 @@ const annotationOf = (row) => ({
   message: String(row.message ?? "").slice(0, MAX_MESSAGE),
 });
 
-// A GitHub Actions check run is a job, with the same id. One that is no job
-// was posted through the checks API: a lane's own check, never a CI failure.
-// notes are the run's annotations when select already read them.
 async function contextOf(api, run, notes) {
   let workflow = null;
   let excerpt = "";
@@ -225,8 +187,6 @@ export async function select({ api, pr, repository, appId, reviewerId, reviewerI
     if (checks.length === MAX_CHECKS) {
       break;
     }
-    // A job past its timeout-minutes ends cancelled; its time-limit note is
-    // the cause the model reads (#9828). Any other cancel has nothing to fix.
     let notes;
     if (run.conclusion === "cancelled") {
       notes = await api.listAnnotations(run.id);
@@ -269,8 +229,6 @@ export async function select({ api, pr, repository, appId, reviewerId, reviewerI
   if (modelRung === "1" && weakenStopped(await api.listCommitStatuses(headSha))) {
     file.retry = { after: WEAKEN_RETRY, brief: WEAKEN_BRIEF };
   }
-  // Some fields are capped by count and length, not bytes, and text that
-  // escapes long in JSON (control characters) can push them past the limit.
   if (Buffer.byteLength(contextText(file)) > CONTEXT_MAX_BYTES) {
     file.spec = null;
     file.feedback_lines = null;

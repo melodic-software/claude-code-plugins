@@ -1,200 +1,6 @@
 #!/usr/bin/env bash
-# Static skill-authoring quality gate for a single Claude Code skill.
-#
-# Runs static checks against one skill directory with NO model invocation. The
-# trigger-keyword preservation check (check 3) is ADVISORY: a rewrite that
-# drops a `description` trigger phrase surfaces as a WARN naming each dropped
-# phrase, so the reviewer confirms the description still names the intent the
-# phrase carried (a deliberate consolidation of near-synonym triggers into
-# intent categories) or restores it. Check 3 never fails the run.
-#
 # Exit 0 = all checks pass; 1 = one or more check failures; 2 = usage/env error;
 # 3 = no failure, but PLUGIN_TEST_DEADLINE left script tests unrun.
-#
-# Usage:
-#   bash check-skill.sh [--require-evals] <skill-name>
-#   bash check-skill.sh [--require-evals] <root> [<root> ...]
-#   bash check-skill.sh --help
-#
-# Root form: every positional that names an existing directory is a skills
-# root. Each root is walked in argument order under a `=== <root> ===` header,
-# the gate runs once per immediate subdirectory holding a SKILL.md, and the run
-# ends with a `N passed, M failed` rollup. A path that does not exist exits 2
-# naming it (never a silently omitted subtree), whether or not another root in
-# the same call resolved. A directory holding its own SKILL.md is a SKILL
-# directory, not a skills root, and exits 2 pointing at its parent: walking it
-# would report no skills at exit 0 and leave a CI lane written that way green
-# forever. A root that exists but genuinely holds no skills is named and is not
-# an error. A skill name and a root cannot be mixed in one call. When a child
-# hits an environment error the rollup keeps its wording and a separate stderr
-# line says so, since that run is in neither tally. Nothing is pooled across
-# roots: each skill is gated by its own
-# child run carrying its own root, so the cross-skill scans (checks 3 and 5,
-# and the plugin-root detection behind check 14's warrant lookup) stay per
-# root by construction.
-#
-# Each child also runs WITH ITS CWD AT ITS ROOT, so its git context is the
-# dispatched tree's and never the caller's. The git-backed checks (3, 8, 9, 13)
-# each join a repo root with a path inside it and both come from cwd, so a run
-# driven from one repo against a root in another would report the caller's
-# tracked paths against the dispatched skill. A root outside any repo therefore
-# resolves to no git and skips those checks with their named notes rather than
-# borrowing the caller's repo; CHECK_SKILL_BASE_REF is resolved against the
-# dispatched repo.
-#
-# --require-evals (or CHECK_SKILL_REQUIRE_EVALS=1) FAILs when evals/evals.json
-# is absent for any skill shape, unless the skill has a recorded skip in
-# scripts/evals-warrant-exemptions.txt (walked up from the repo root; absent
-# file = no skips). Without --require-evals, check 14 WARNs only on
-# action-router-shaped skills — the legacy fleet posture.
-#
-# CHECK_SKILL_SKIP_MARKDOWNLINT=1 skips check 6 (markdownlint) for callers with
-# no Node toolchain.
-#
-# CHECK_SKILL_SKIP_SCRIPT_TESTS=1 skips check 7 (the skill's scripts/*.test.sh)
-# for callers whose test tier runs those suites itself, such as
-# scripts/check-affected.sh without --tests.
-#
-# PLUGIN_TEST_DEADLINE=<epoch seconds>, which scripts/check-affected.sh --tests
-# sets, ends check 7 at that time: a script test not started by then never
-# starts and prints `SKIP <path> (past the deadline, left to CI)`. Tests that ran
-# keep their verdict, and with no failure the run ends INCOMPLETE at exit 3,
-# never PASS. A script test does not inherit it. Unset, every script test runs.
-#
-# Skills root resolution (first hit wins):
-#   1. CHECK_SKILL_SKILLS_ROOT env var (explicit override)
-#   2. ${CLAUDE_PROJECT_DIR}/.claude/skills (plugin runtime)
-#   3. <git-root>/.claude/skills (default, when cwd is inside a git repo)
-#
-# A git repository is OPTIONAL. Marketplace plugin-cache installs are plain
-# directory trees (no .git). When cwd is not inside a git repo, set
-# CHECK_SKILL_SKILLS_ROOT (or CLAUDE_PROJECT_DIR) and the non-git checks still
-# run; git-backed checks (3, 8, 9, 13) skip with a note.
-#
-# Base ref for the git-backed diff checks (3, 8, 9):
-#   CHECK_SKILL_BASE_REF (default HEAD). These checks diff the WORKING TREE
-#   against this ref, so the default catches an uncommitted rewrite. For a
-#   post-commit audit (where HEAD == tree hides an already-committed change),
-#   run on a clean tree with CHECK_SKILL_BASE_REF pointing before the change
-#   (e.g. HEAD^ or a merge-base). Ignored when not in a git repo.
-#
-# NOT covered here: the SHARED listing budget (skillListingBudgetFraction) that
-# every loaded skill draws from together, a different cross-skill limit from
-# check 2's per-skill entry cap below. See the companion
-# check-listing-budget.sh for that aggregate report (always advisory).
-#
-# Checks:
-#   1. Frontmatter parses; description present; a declared name matches the dir
-#      (and, in a plugin skill, WARNs as redundant); the effective name (the
-#      declared field, else the directory) is at most 64 codepoints (FAIL;
-#      Agent Skills spec portability) and carries neither "anthropic" nor
-#      "claude" (WARN; Skills API upload portability). Claude Code itself
-#      enforces neither.
-#   2. description + when_to_use <= 1536 chars (per-skill listing-entry cap;
-#      counts the literal " - " joiner the harness inserts when when_to_use is
-#      populated)
-#  2b. description alone <= 1024 Unicode codepoints (Agent Skills spec FIELD
-#      maximum — a separate limit at a separate layer from check 2's listing cap;
-#      FAIL over the maximum, WARN inside a 32-codepoint approach margin at or
-#      below it; counted locale-independently via iconv, as check 22 does).
-#      CHECK_SKILL_DESC_FIELD_BASELINE records skills whose breach predates the
-#      FAIL, downgrading those to a WARN; the list can only shrink.
-#   3. Trigger-keyword preservation vs the base ref (ADVISORY, never a FAIL;
-#      skipped for new skills; tracks 'quoted' phrases and unquoted "Use when"
-#      items). A phrase moved verbatim to a sibling skill's
-#      listing text, one the sibling did not carry at the base ref, WARNs as a
-#      move since the marketplace listing still routes it; a phrase dropped
-#      with no sibling host (including coincidental overlap with a sibling
-#      that carried it all along) WARNs asking the reviewer to confirm the
-#      description still names that intent, or to restore the phrase
-#   4. SKILL.md < 500 lines (hard cap; counted over the whole file, the stricter
-#      of the two upstream scopes)
-#   5. Backtick-cited skill-internal supporting files resolve (a path that misses
-#      here but resolves under a SIBLING skill also names that sibling and the
-#      `${CLAUDE_PLUGIN_ROOT}/skills/<sibling>/…` cross-skill form, without
-#      dropping the hand-verify caveat — the hit may be a name collision); a
-#      cited path with a backslash separator FAILs (rejected at plugin load on
-#      macOS and Linux)
-#   6. markdownlint clean (markdownlint-cli2; WARN-skip if npx absent)
-#   7. scripts/*.test.sh pass where present and inside the current repository
-#   8. vendor/ byte-identical vs HEAD, unless paired with an upstream-version
-#      bump (a legitimate maintainer-run sync) (vendor-backed skills only); a
-#      pure rename inside vendor/ keeps the bytes and passes
-#   9. Stale-tracking metadata keys preserved vs HEAD (upstream-version/synced/upstream-sha)
-#  10. (retired slot; numbering kept stable so later checks keep their names)
-#  11. Gotchas surface present (WARN; inline `## Gotchas` or context|reference/gotchas.md)
-#  12. description carries "Use when" trigger phrasing (WARN)
-#  13. No committed cache/build artifacts (__pycache__, *.pyc, node_modules) (FAIL)
-#  14. evals/evals.json presence (WARN for action-router shape; FAIL with
-#      --require-evals / CHECK_SKILL_REQUIRE_EVALS=1 for any shape, unless a
-#      recorded skip exists in scripts/evals-warrant-exemptions.txt)
-#  15. Companion spoke dirs referenced from SKILL.md (WARN; orphan-spoke direction)
-#  16. metadata.category present (INFO only)
-#  17. Vendor-backed: metadata.synced not older than 180 days (WARN)
-#  18. Precompute opportunity: a fenced shell block gathers read-only context
-#      the skill could inline at load time via `!` injection (WARN; heuristic)
-#  19. shell: declared when `!` dynamic-context injections carry bash-only syntax
-#      (FAIL bash-only syntax + no shell:; WARN portable-looking but undeclared)
-#  20. `!`-injected commands carry a `|| <fallback>` (WARN; undocumented injection
-#      failure semantics — degrade to a known string, not a surprise)
-#  21. Fresh-eyes declaration conformance: same-context judgment language carries
-#      fresh-context delegation wording or a fresh-eyes-exempt directive nearby
-#      (WARN; heuristic); malformed/reason-less directives FAIL
-#      (spec: skills/check/reference/fresh-eyes-declarations.md)
-#  22. metadata.summary <= 100 Unicode codepoints (FAIL; the key is
-#      the generated skill cheat sheet's row source — the cap keeps rows
-#      scannable. Absent key = no finding)
-#  23. Completion-criteria signal on a 3+ step numbered procedure (WARN)
-#  24. disable-model-invocation stated explicitly (FAIL in plugins/; WARN
-#      elsewhere)
-#  25. Description/verb-contract polarity: read-only vs mutate (FAIL;
-#      description lead vs Naming verb vs body; #2896)
-#  26. Long spoke files carry a table of contents: a reference|references|context
-#      markdown file over 300 lines whose first 40 lines hold fewer than three
-#      `](#` in-page anchor links WARNs (advisory heuristic)
-#  27. `## Next` successor section: absent is INFO (a terminal skill has
-#      none), except on a stage-bearing skill (metadata.workflow-stage explore
-#      through retro, not interview, prd or design) with no Handoff/Routing/Integration/Skill
-#      chaining heading either, where it is WARN (27b); present but after
-#      `## Gotchas`, last in the file, neither
-#      the one-invocation nor the two-to-four-outcome-bullet shape, or
-#      carrying operative-chain phrasing (Skill tool, installed, an enabled
-#      gate, fallback, otherwise) anywhere in the block is WARN
-#  28. Every metadata key is listed in scripts/metadata-registry.txt with the
-#      consumer that reads it (WARN on a key missing from it)
-#  29. No bare `#N` history reference in the SKILL.md body (WARN; code spans,
-#      fenced blocks, cross-repo owner/repo#N, link anchors, a #N its block
-#      cites upstream, and stored-value blocks carrying an as-of date and a
-#      recheck trigger are exempt)
-#  30. Skill size: description above the description_warn setting (default
-#      419; description_target, default 250, prints as INFO) or body above 160
-#      lines (Pocock's measured max; his medians print as INFO), SKILL.md above the
-#      5000-token router cap (estimated at 4 chars/token), or description or
-#      body grown vs CHECK_SKILL_BASE_REF, else the merge-base with origin
-#      (WARN; growth is skipped with an INFO when no base resolves or the skill
-#      is new)
-#  31. A `${user_config.KEY}` token used as the subject of a condition ("When
-#      `${user_config.x}` is true") with no inline fallback for the unexpanded
-#      token, in SKILL.md or any skill `.md` prose (FAIL where a baseline
-#      applies: CHECK_SKILL_SETTINGS_TOKEN_BASELINE, or the default
-#      scripts/settings-token-baseline.txt when the checker sits in the skill's
-#      repository; a file recorded there with its hit count WARNs while the
-#      count holds. WARN wherever no baseline applies)
-#
-# Notes (static, git-diff-based design):
-#   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
-#     HEAD) when a git repo is available. Outside a repo (plugin-cache install)
-#     those checks — and check 13's committed-artifact scan — skip with a note;
-#     every other check still runs. The default catches an uncommitted rewrite;
-#     a post-commit audit sets the base ref before the change and runs on a
-#     clean tree (see above).
-#   - Frontmatter must open with `---` on line 1; content before the fence is
-#     not treated as frontmatter.
-#   - A block-scalar `description: |` / `>-` is unfolded before checks 2/3/12/25,
-#     so they see the text rather than the marker. A single-line quoted
-#     description is still preferred (the listing budget encourages this).
-#   - Trigger-drop protection (check 3) tracks single-quoted 'phrase' triggers
-#     and each unquoted comma-separated item of a field's "Use when" clause.
 
 set -uo pipefail
 
@@ -202,7 +8,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_PATH="$SCRIPT_DIR/$(basename -- "${BASH_SOURCE[0]}")"
 
 usage() {
-  awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
+  cat <<'EOF'
+Static quality gate for Claude Code skills: one skill by name, or every skill under one or more skills roots.
+
+Usage:
+  bash check-skill.sh [--require-evals] <skill-name>
+  bash check-skill.sh [--require-evals] <root> [<root> ...]
+  bash check-skill.sh --help
+
+  --require-evals                   FAIL when a skill has no evals/evals.json (or CHECK_SKILL_REQUIRE_EVALS=1)
+  CHECK_SKILL_SKILLS_ROOT           skills root for the <skill-name> form
+  CHECK_SKILL_BASE_REF              ref the git-backed checks diff against (default HEAD)
+  CHECK_SKILL_SKIP_MARKDOWNLINT=1   skip the markdownlint check
+  CHECK_SKILL_SKIP_SCRIPT_TESTS=1   skip the skill's scripts/*.test.sh
+  PLUGIN_TEST_DEADLINE=<epoch>      leave script tests unrun past this time
+
+Exit 0 = all checks pass; 1 = one or more check failures; 2 = usage/env error;
+3 = no failure, but PLUGIN_TEST_DEADLINE left script tests unrun.
+EOF
 }
 
 REQUIRE_EVALS="${CHECK_SKILL_REQUIRE_EVALS:-0}"
@@ -244,11 +67,6 @@ if [[ -n "$REPO_ROOT" && -d "$REPO_ROOT" ]]; then
   HAVE_GIT=1
 fi
 
-# Check 7 runs a skill's script tests only when the skill sits in the invoking
-# shell's repository, so checking an installed plugin copy never executes its
-# code. Root mode runs each child at its dispatched root, so the parent hands
-# its own answer down; empty means the invoker is in no repository. These
-# probes ignore an exported GIT_DIR or GIT_WORK_TREE, which could name any repo.
 GIT_UNSET=(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR -u GIT_PREFIX)
 INVOKING_TOPLEVEL="$("${GIT_UNSET[@]}" git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 [[ -n "$INVOKING_TOPLEVEL" ]] && INVOKING_TOPLEVEL="$(cd -- "$INVOKING_TOPLEVEL" && pwd -P)"
@@ -300,16 +118,6 @@ for dispatch_arg in "$@"; do
     printf 'Pass its parent directory as the root, or its bare leaf name as the skill.\n' >&2
     exit 2
   elif [[ -d "$dispatch_arg" ]]; then
-    # Absolutize. A relative CHECK_SKILL_SKILLS_ROOT is anchored at the project
-    # or repo root above, never at the cwd, so a relative root handed straight
-    # to a child would have the parent walk one tree and the child check
-    # another. `cd && pwd` also drops a trailing slash (which would otherwise
-    # defeat the /plugins/<x>/skills$ match) and normalizes a Git Bash
-    # backslash path. CDPATH is cleared because `cd` consults it BEFORE `.` and
-    # echoes the directory it landed in, which would both resolve a different
-    # tree and capture two lines into the root string; `--` guards a leading
-    # dash; and the failure is caught, since without it an unreadable directory
-    # would append an empty root and walk `/*/`.
     if ! dispatch_abs="$(CDPATH='' cd -- "$dispatch_arg" && pwd)"; then
       printf 'Error: skills root exists but could not be entered: %s\n' "$dispatch_arg" >&2
       exit 2
@@ -353,23 +161,6 @@ if ((${#DISPATCH_ROOTS[@]} > 0)); then
       dispatch_found=1
       dispatch_leaf="${dispatch_dir%/}"
       dispatch_leaf="${dispatch_leaf##*/}"
-      # REQUIRE_EVALS is passed through VERBATIM (the option loop sets 1, and
-      # anything else the caller put in CHECK_SKILL_REQUIRE_EVALS survives
-      # unchanged), and the child seeds itself from the same variable and tests
-      # it against "1", so the child's verdict is exactly the parent's. Every
-      # other CHECK_SKILL_* seam is read from the environment and inherits. `--`
-      # keeps a leaf beginning with `-` off the child's unknown-option arm.
-      #
-      # The child runs with its cwd AT the dispatched root, which is what makes
-      # its git context the DISPATCHED tree's rather than the caller's. Both
-      # halves of every git-backed check derive from cwd: REPO_ROOT from
-      # `rev-parse --show-toplevel`, SKILL_REL from `rev-parse --show-prefix`
-      # inside the skill dir. Left at the caller's cwd those two come from
-      # DIFFERENT repositories and checks 3, 8, 9 and 13 join them, so a path
-      # tracked in the caller's repo is reported against a skill that lives
-      # somewhere else entirely. Running at the root also makes a root outside
-      # any repo resolve to HAVE_GIT=0, so the git-backed checks skip with their
-      # documented notes instead of silently answering from the caller's repo.
       (
         CDPATH='' cd -- "$dispatch_root" || exit 2
         CHECK_SKILL_SKILLS_ROOT="$dispatch_root" \
@@ -423,87 +214,23 @@ fi
 SKILL_DIR="$SKILLS_ROOT/$SKILL_NAME"
 SKILL_MD="$SKILL_DIR/SKILL.md"
 
-# SKILL_REL is the skill dir relative to the git root, so the git-backed checks
-# (3, 8, 9, 13) address the right tree entry even when the skills root is not
-# the conventional .claude/skills. Ask git for the prefix rather than
-# string-stripping REPO_ROOT — on Git Bash `git rev-parse` and `pwd` can differ
-# in drive-letter case / slash form, which would silently break the strip.
-# Empty when not in a git repo, or when the skill dir is outside the repo
-# (git-backed checks then no-op).
 SKILL_REL=""
 if [[ "$HAVE_GIT" == 1 ]]; then
   SKILL_REL="$(git -C "$SKILL_DIR" rev-parse --show-prefix 2>/dev/null | tr -d '\r')"
   SKILL_REL="${SKILL_REL%/}"
 fi
 
-# Tunables (listing description cap; description field cap; SKILL.md line cap;
-# vendor sync age).
-# DESC_CHAR_CAP is this checker's per-entry listing cap, set to the harness
-# default of skillListingMaxDescChars. Pointer: for the listing truncation and
-# its default, see https://code.claude.com/docs/en/skills#frontmatter-reference
-# and https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars.
-# As of: 2026-10-11. Recheck trigger: either page moving the default
-# re-derives this constant (a script cannot fetch upstream at runtime, so the
-# constant is our decision, recorded with pointer, as-of date and trigger per
-# the marketplace's upstream-drift convention).
 DESC_CHAR_CAP=1536
-# Agent Skills spec field maximum for `description` ALONE — a different limit at a
-# different layer from DESC_CHAR_CAP above, which bounds the assembled listing entry
-# (description + " - " + when_to_use). The two do not unify and are checked separately.
-# Enforced by the Skills API at package/upload; NOT enforced locally — measured
-# 2026-08-23, `claude plugin validate --strict` (Claude Code 2.1.241) passes a
-# 1248-char description clean. A breach is therefore latent for filesystem/plugin
-# skills and hard for any skill uploaded through the Skills API. This checker
-# treats 1024 as CONFORMING and 1025 as the first breach, so the comparison
-# below is `>` and never `>=`. Pointer: for the field maximum, see
-# https://agentskills.io/specification#description-field. As of: 2026-08-31.
-# Recheck trigger: the spec moving the field maximum re-derives this constant.
 DESC_FIELD_CAP=1024
 DESC_FIELD_WARN_MARGIN=32
 DESC_FIELD_BASELINE="${CHECK_SKILL_DESC_FIELD_BASELINE:-}"
-# NAME_MAX_LEN is this checker's `name` limit, 64 characters of lowercase
-# alphanumerics and hyphens matching the directory, taken from the Agent Skills
-# spec's `name` field and its `skills-ref` validator. NAME_RESERVED_WORDS is a
-# Skills API upload rule, not a spec rule. Pointer: for the spec field, see
-# https://agentskills.io/specification#name-field; for the upload rule, see
-# https://platform.claude.com/docs/en/build-with-claude/skills-guide#creating-a-skill,
-# https://platform.claude.com/docs/en/build-with-claude/skills-guide#limits-and-constraints
-# and https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#skill-structure.
-# As of: 2026-09-10. Claude Code enforces neither rule, measured on Claude Code
-# 2.1.263: `claude plugin validate` passes an
-# 88-codepoint name containing "claude" (2026-09-10), and a `--plugin-dir`
-# load probe (`claude -p`, 2026-09-11) loaded and invoked that same skill and a
-# 608-line SKILL.md; Claude Code also ships bundled skills named `claude-api`
-# and `claude-in-chrome`. So the 64 limb is a PORTABILITY FAIL (loads here,
-# fails the spec's validator elsewhere) and the reserved-word limb is a WARN
-# (loads here and everywhere except a Skills API upload). Recheck trigger: the
-# spec's validator gaining a word list, the upload requirements changing, or a
-# Claude Code release rejecting either form re-derives this constant, the word
-# list, and the severities.
 NAME_MAX_LEN=64
 NAME_RESERVED_WORDS='anthropic claude'
 LINE_HARD_CAP=500
 SYNCED_MAX_AGE_DAYS=180
-# Check 26: a spoke file this long gets a table of contents. This check WARNs
-# at 300 lines, its own setting; the 100-to-300 band is judgment
-# `docs-hygiene:audit-progressive-disclosure` owns (its missing-toc finding).
-# Pointer: the bundled skill-creator
-# (https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md)
-# and the platform best-practices page
-# (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#structure-longer-reference-files-with-table-of-contents)
-# disagree on the threshold. As of: 2026-09-10. Recheck trigger: either
-# source moving its threshold re-derives this constant. The TOC heuristic below
-# mirrors that skill's `has_toc` (three or more `](#` anchor links in the first
-# 40 lines) so the two never disagree on what counts as a TOC.
 TOC_LINE_THRESHOLD=300
 TOC_HEAD_LINES=40
 TOC_MIN_ANCHORS=3
-# Check 30: Pocock's measured skill sizes, the concise style the rollout aims
-# at. The max is the largest description (characters) and SKILL.md body (lines
-# after the frontmatter) in his skills repo; the medians are printed as INFO
-# only. Pointer: https://github.com/mattpocock/skills at commit 6fd9479. As of:
-# 2026-10-06. Recheck trigger: a re-measure of that repo moves the max or the
-# medians.
 POCOCK_DESC_MAX=419
 POCOCK_BODY_MAX=160
 POCOCK_DESC_MEDIAN=130
@@ -584,24 +311,7 @@ base_ref_fm() {
 }
 
 if [[ ! -d "$SKILL_DIR" ]]; then
-  # A `plugin:skill` argument is a common miss: the operator wants to gate a
-  # marketplace-INSTALLED skill, but this checker resolves a bare skill name
-  # under one skills root and deliberately does NOT walk Claude Code's plugin
-  # cache to find it: more than one installed version can sit on disk at once,
-  # and the checker will not guess which one the caller means. Point the root
-  # at the installed version's skills dir explicitly instead.
-  # Pointer: when locating an installed copy or judging which versions stay on
-  # disk, fetch https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk
-  # and https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions
-  # live.
-  # Note the cache is a COPY, not a git checkout, so the
-  # git-backed checks (3 trigger-preservation, 8 vendor, 9 stale-metadata)
-  # correctly no-op there — a "new skill / skipped" result is expected, not a
-  # defect (this is why check 3 cannot compare an installed skill against HEAD).
   if [[ "$SKILL_NAME" == *:* ]]; then
-    # %q makes the leaf a paste-safe shell token — a malformed name whose leaf
-    # carries shell syntax must not become an executable substitution when the
-    # operator copies the suggested command.
     q_leaf=$(printf '%q' "${SKILL_NAME##*:}")
     err "Skill not found: '$SKILL_NAME'. This looks like a plugin:skill name — the checker resolves a bare skill name under one skills root, not Claude Code's internal plugin-cache layout. To gate a marketplace-installed skill, point the root at its installed skills dir:
     CHECK_SKILL_SKILLS_ROOT=~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/skills bash \"\${CLAUDE_PLUGIN_ROOT}/scripts/check-skill.sh\" $q_leaf
@@ -616,12 +326,6 @@ if [[ ! -f "$SKILL_MD" ]]; then
   exit 1
 fi
 
-# Is this skill bundled in a PLUGIN, or a loose skill under some skills root?
-# A plugin manifest two levels up (<plugin>/skills/<skill>/) is the marker.
-# Several checks branch on it — check 1 (a declared `name` also registers a bare
-# alias there) and check 5 (a cross-skill citation anchors at
-# ${CLAUDE_PLUGIN_ROOT}, which is undefined outside a plugin) — so the layout
-# convention is asserted in ONE place rather than restated per call site.
 IS_PLUGIN_SKILL=0
 PLUGIN_DIR=""
 [[ -f "$SKILL_DIR/../../.claude-plugin/plugin.json" ]] && IS_PLUGIN_SKILL=1
@@ -642,29 +346,6 @@ summarize() {
   printf 'CHECK-SKILL %s: PASS — 0 errors, %d warning(s)\n' "$SKILL_NAME" "$WARNINGS"
   exit 0
 }
-
-# --- Check 25: description/verb-contract polarity (FAIL) --------------------
-# Runs in its numbered slot after check 24; defined here so CHECK_SKILL_ONLY=25
-# (below) can run it alone.
-# plugin-philosophy Naming fixes verb meanings: audit/scan are read-only
-# findings reports (mutation only behind an explicit override such as --fix);
-# clean/tidy/fix mutate the target. This check flags a description that tells
-# a different story than that verb contract, or than the body — the two
-# directions in #2896. Narrow by design:
-#   - polarity is read from the description LEAD (before "Use when:"), so a
-#     trigger phrase like 'fix the formatting' never advertises mutation;
-#   - override language (--fix, explicit override, never on bare) anywhere in
-#     the listing text is the compliant harness-config:audit [--fix] shape and
-#     clears a report-only verb;
-#   - "read-only by default" is a default-then-override shape, not a
-#     never-mutates claim;
-#   - "remediation" as a noun and a negated "or rewrites" list are not
-#     mutate-advertising.
-# FAIL: the fleet corpus is green under this check (#4586); a mismatch is a
-# factual defect in the listing surface being routed on. Hand-verify before
-# exempting; --fix in the description is the compliant override shape.
-# Fenced code blocks are ignored in the body so a literal example cannot
-# satisfy or trip the body limbs.
 
 vc_strip_negated_mutate() {
   printf '%s' "$1" | sed -E \
@@ -713,11 +394,6 @@ vc_body_never_mutate() {
 
 check_25() {
   local VC_BODY VC_LEAF VC_LEAD VC_LEAD_LC VC_ALL_LC VC_HIT
-  # Body limbs are fence-aware (frontmatter + both CommonMark fence forms).
-  # Close is character-only, same as check 23 — not CommonMark run-length
-  # matching. A nested shorter fence of the same character can unmask the
-  # rest of an illustrative block; accepted recall limit for an advisory check.
-  # NO ERE INTERVALS — same mawk-portability rule as checks 21 and 23.
   VC_BODY="$(awk '
     NR == 1 && /^---[ \t]*$/ { fm = 1; next }
     fm { if (/^---[ \t]*$/) fm = 0; next }
@@ -760,9 +436,6 @@ FRONTMATTER="$(skill_frontmatter::extract <"$SKILL_MD")"
 CUR_DESC="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$FRONTMATTER")")"
 CUR_WTU="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$FRONTMATTER")")"
 
-# CHECK_SKILL_ONLY=25 runs check 25 alone and prints the usual summary. The
-# marketplace's whole-corpus verb-contract gate sets it: it reads only check-25
-# lines, and the other checks cost minutes across every skill.
 if [[ "${CHECK_SKILL_ONLY:-}" == 25 ]]; then
   check_25
   summarize
@@ -773,49 +446,18 @@ if [[ -z "$FRONTMATTER" ]]; then
 else
   grep -qE '^description:[[:space:]]*[^[:space:]]' <<<"$FRONTMATTER" || err "frontmatter missing 'description:'"
 
-  # The checker treats `name` as optional and resolves a skill by its
-  # directory either way (pointer: for the field's default, see
-  # https://code.claude.com/docs/en/skills#frontmatter-reference). A DIVERGENT name is
-  # the defect this branch exists for: it silently relocates the invocation the
-  # doctrine says the skill has. A matching one is merely redundant — and in a
-  # plugin skill, not inert (see the warning below).
   RAW_NAME="$(skill_frontmatter::field name <<<"$FRONTMATTER")"
-  # A trailing `# comment` is legal on a YAML scalar and is not part of the
-  # value. Skill names are kebab-case per the Agent Skills spec, so a '#' can
-  # never belong to the name itself — strip from the first whitespace-then-hash,
-  # before unquoting, so a quoted name with a trailing comment also resolves.
   RAW_NAME="${RAW_NAME%%[[:space:]]#*}"
   RAW_NAME="${RAW_NAME%"${RAW_NAME##*[![:space:]]}"}"
   CUR_NAME="$(skill_frontmatter::strip_quotes "$RAW_NAME")"
-  # Constrain the accepted syntax rather than reimplementing a YAML decoder in
-  # bash: the Agent Skills spec restricts a name to lowercase alphanumerics and
-  # hyphens, so anything else (an escape sequence like "\x2d", whitespace, an
-  # unresolved quote) is a name defect in its own right. Reporting it as one
-  # keeps the directory comparison below working on literal text, and stops a
-  # decodable-but-undecoded scalar from surfacing as a confusing mismatch.
   if [[ -n "$CUR_NAME" && ! "$CUR_NAME" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
     err "frontmatter name '$CUR_NAME' is not kebab-case ([a-z0-9] and hyphens, per the Agent Skills spec)"
   elif [[ -n "$CUR_NAME" && "$CUR_NAME" != "$SKILL_NAME" ]]; then
     err "frontmatter name '$CUR_NAME' does not match skill directory '$SKILL_NAME'"
   elif [[ -n "$CUR_NAME" && "$IS_PLUGIN_SKILL" == 1 ]]; then
-    # In a PLUGIN skill a matching `name` is not inert: this check treats a
-    # declared name as registering a bare `/<name>` alias (pointer: for how a
-    # skill gets its command name, see
-    # https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name).
-    # Omitting the field leaves the namespaced command identical and drops the alias.
-    # Advisory, not a defect: the bare alias is a legitimate thing to want, and
-    # declaring a matching name is the only way to register it.
     warn "frontmatter name '$CUR_NAME' repeats the plugin skill's directory — omit it unless the bare /$CUR_NAME alias is wanted"
   fi
 
-  # Spec portability limbs on the EFFECTIVE name: the declared field when there
-  # is one, else the directory leaf, which this check takes as the name when
-  # the field is absent (pointer: https://code.claude.com/docs/en/skills#frontmatter-reference).
-  # Run outside the chain above so an over-long or reserved directory leaf is
-  # caught even with no `name:` line. Pointer, and the measurement that Claude
-  # Code enforces neither rule: NAME_MAX_LEN above. Counted in codepoints by the
-  # shared library helper checks 2b and 22 also use, so the count is the spec's
-  # unit on any locale.
   EFFECTIVE_NAME="${CUR_NAME:-$SKILL_NAME}"
   name_source="directory name"
   [[ -n "$CUR_NAME" ]] && name_source="declared name"
@@ -829,14 +471,6 @@ else
     fi
   done
 
-  # Frontmatter `model`: the defect this check flags is an empty or spaced
-  # value. It accepts any other non-empty token and enforces no character
-  # class, so a provider-format id (Bedrock `anthropic.claude-...-v1:0`, an
-  # inference profile ARN, a Vertex `name@date` id) passes. What happens at run
-  # time when the named model is unsupported is not a finding here.
-  # Pointer: for the values the field accepts, see
-  # https://code.claude.com/docs/en/skills#frontmatter-reference, the `model`
-  # row.
   if grep -qE '^model:' <<<"$FRONTMATTER"; then
     RAW_MODEL="$(skill_frontmatter::field model <<<"$FRONTMATTER")"
     CUR_MODEL="$(skill_frontmatter::strip_quotes "$RAW_MODEL")"
@@ -849,14 +483,6 @@ else
     fi
   fi
 
-  # An unquoted ": " in a plain description scalar, or a colon ending a line, is
-  # a YAML mapping indicator, on the header line or any continuation line; a
-  # trailing ` #` comment is not part of the value and is stripped first. A
-  # quoted scalar or a block scalar may contain it. This check fails it so every
-  # skill's frontmatter parses (pointer: for how Claude Code loads a skill whose
-  # frontmatter does not parse, see
-  # https://code.claude.com/docs/en/skills#frontmatter-reference). This is the plugin's one pointer for
-  # that behavior; the summary contract below and the README point here.
   desc_lines="$(awk '
     !seen && /^description:/ { seen = 1; sub(/^description:[[:space:]]*/, ""); sub(/[[:space:]]+#.*$/, ""); print; next }
     seen && /^[^[:space:]]/ { exit }
@@ -874,11 +500,6 @@ else
     ;;
   esac
 
-  # compatibility is optional, and absence is success. When present, this check
-  # holds it to 1-500 characters, the spec's range (pointer:
-  # https://agentskills.io/specification#compatibility-field); for how Claude
-  # Code treats the field, see
-  # https://code.claude.com/docs/en/skills#frontmatter-reference.
   if grep -qE '^compatibility:[[:space:]]*' <<<"$FRONTMATTER"; then
     RAW_COMPAT="$(skill_frontmatter::field compatibility <<<"$FRONTMATTER")"
     CUR_COMPAT="$(skill_frontmatter::strip_quotes "$RAW_COMPAT")"
@@ -889,12 +510,6 @@ else
   fi
 fi
 
-# --- Check 2: description + when_to_use <= DESC_CHAR_CAP chars --------------
-# Cap is per-skill listing entry (description + when_to_use combined) — overflow
-# truncates the listing and degrades auto-invocation. The harness assembles the
-# entry as description + " - " + when_to_use — a literal 3-char joiner — so the
-# combined length must include it whenever when_to_use is populated, or this
-# check under-counts by 3 and can pass an entry that actually overflows.
 JOINER_LEN=0
 CUR_TRIG="$(listing_triggers "$CUR_DESC" "$CUR_WTU")"
 DESC_LEN=${#CUR_DESC}
@@ -909,27 +524,6 @@ else
   note "description length $DESC_LEN/$DESC_CHAR_CAP chars"
 fi
 
-# --- Check 2b: description field alone <= DESC_FIELD_CAP codepoints ----------
-# The spec's per-FIELD maximum, distinct from check 2's listing-entry cap: a
-# description can sit under 1536 combined and still breach 1024 on its own. The
-# Skills API rejects that at upload; nothing local does (see DESC_FIELD_CAP above).
-# Three bands:
-#
-#   > cap                       FAIL (spec breach), unless the skill is on the
-#                               recorded baseline, which downgrades it to WARN
-#   > cap - margin, <= cap      WARN: still legal, but the next added clause
-#                               breaches. This is the band the guard exists for
-#   <= cap - margin             note only
-#
-# A baseline row whose skill is no longer over the cap FAILs as stale, so the list
-# is shrink-only and cannot quietly re-license a description that was fixed once.
-#
-# Counted in CODEPOINTS, not bytes: the spec's maximum is in characters (pointer
-# at DESC_FIELD_CAP above), and a byte count would false-positive on any non-ASCII description under a
-# byte-oriented locale — measured, 600 'é' characters report as 1200 under
-# LC_ALL=C. The count comes from the shared library helper check 22 also uses.
-# DESC_LEN stays a byte count for check 2, whose 1536 listing cap is a separate
-# measure.
 DESC_CP_LEN="$(skill_frontmatter::codepoint_len "$CUR_DESC")"
 
 DESC_FIELD_BASELINED=0
@@ -1009,19 +603,6 @@ else
   note "no $BASE_REF version (new skill) — keyword-preservation check skipped"
 fi
 
-# --- Check 4: SKILL.md < LINE_HARD_CAP lines -------------------------------
-# Counted over the WHOLE file, frontmatter included (`grep -c ''`), at this
-# check's own cap of 500. Pointer: the platform best-practices page
-# (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#progressive-disclosure-patterns)
-# and the Claude Code skills page
-# (https://code.claude.com/docs/en/skills#add-supporting-files) disagree on
-# what the 500 covers. As of: 2026-09-10. Whole-file is the stricter reading,
-# so a skill that passes here satisfies both, and it stays. Neither surface
-# enforces the number: a `--plugin-dir` load probe on Claude Code 2.1.263
-# (2026-09-11) loaded and invoked a 608-line SKILL.md. Recheck trigger: either
-# page moving the number or its scope, or a Claude Code release rejecting a
-# long file, re-derives LINE_HARD_CAP.
-
 LINE_COUNT="$(grep -c '' "$SKILL_MD")"
 if ((LINE_COUNT >= LINE_HARD_CAP)); then
   err "SKILL.md is $LINE_COUNT lines (hard cap $LINE_HARD_CAP)"
@@ -1029,39 +610,6 @@ else
   note "SKILL.md $LINE_COUNT/$LINE_HARD_CAP lines"
 fi
 
-# --- Check 5: skill-internal supporting files resolve ----------------------
-
-# Match BOTH backtick refs (`context/foo.md`) AND markdown-link refs
-# ([label](context/foo.md#anchor)) into known skill-internal dirs. Scoping to
-# these dir names avoids matching prose-example paths; link-form `#anchor`
-# suffixes are stripped before the existence check. Process substitution (not a
-# pipe) keeps the loop in this shell so `err` increments FAILED.
-#
-# A placeholder-segment path (`context/<topic>.md`) is ignored: the grep
-# char-class below excludes `<` and `>`, so it never enters this loop. A
-# gitignored runtime-output path is auto-skipped (not a tracked supporting file,
-# so skipping cannot mask a real tracked ref).
-#
-# DECIDED, do not re-litigate (#2179 deferred this as "a separate call"; settled
-# here). Narrowing extraction to markdown-link targets only — dropping the
-# backtick branch — was rejected on measurement, not taste. Two premises usually
-# offered for narrowing are both false:
-#
-#   1. "It matches bare paths in prose." It does not. Both generators below are
-#      delimited — backtick-wrapped, or a `](…)` link target — and both are
-#      scoped to the INTERNAL_DIRS allowlist. Naked prose never matches.
-#   2. "The backtick branch is redundant with the link branch." Measured over
-#      the 196-skill corpus: 122 unique backtick-form refs across 39 skills have
-#      no link form anywhere in the same SKILL.md, so narrowing would drop them
-#      from coverage entirely. All 122 resolve to a real file today, i.e. the
-#      backtick branch contributes 122 refs' worth of real coverage at zero
-#      false positives on the current corpus.
-#
-# The false-positive risk that motivated the proposal is real but latent, not
-# observed: a generic path in an illustrative example could collide. That is
-# handled by message wording — every failure below carries `hand-verify the line
-# before fixing, may be an illustrative example` — rather than by deleting
-# coverage of 39 skills. Reopen only if a false positive is actually observed.
 INTERNAL_DIRS='context|templates|scripts|reference|references|actions|evals|lanes|catalog|vendor'
 while IFS= read -r ref; do
   [[ -z "$ref" ]] && continue
@@ -1099,11 +647,6 @@ while IFS= read -r ref; do
         err "broken skill-internal ref: $ref (no such file under the skill dir; cited at SKILL.md:${ref_line:-?} — hand-verify the line before fixing, may be an illustrative example)"
       fi
     else
-      # Plugin-shaped root: bundled plugin assets are anchored at the plugin
-      # root, so that is the form to name. Outside a plugin
-      # ${CLAUDE_PLUGIN_ROOT} is undefined, so name the layout-free
-      # sibling-relative form rather than advertise a variable that resolves to
-      # nothing.
       if [[ "$IS_PLUGIN_SKILL" == 1 ]]; then
         ref_fix="\${CLAUDE_PLUGIN_ROOT}/skills/$REF_HOST/$check_ref"
       else
@@ -1120,22 +663,6 @@ done < <(
   } | sort -u
 )
 
-# A backslash-separated pointer is a defect in its own right, not a miss: this
-# check treats a plugin component path containing a backslash as one Claude
-# Code rejects at load on macOS and Linux. Pointer: for plugin path rules, see
-# https://code.claude.com/docs/en/plugins/loading#paths-that-escape-the-plugin-directory.
-# The resolve loop above never sees such a path (its
-# char-class has no backslash), so without this limb a Windows-authored
-# `scripts\helper.py` skipped the check silently and shipped. The pattern is
-# deliberately tight: a known internal dir token, one or more backslash-led
-# segments, and a final filename with a known extension. A prose escape (`\_`,
-# `\n`, `[--check\|--apply]`) has no such shape and never matches.
-# The scan covers SKILL.md and every markdown spoke under the routed dirs
-# (reference|references|context, at any depth): a spoke is loaded on demand and
-# its pointers resolve against the same skill root, so a backslash there ships
-# the same load-time defect, and the authoring checklist's forward-slash row
-# counts as mechanically decided only if the spokes are read too.
-# Two literal backslashes, the ERE spelling of one literal backslash.
 BS="\\\\"
 BACKSLASH_EXTS='md|sh|bash|py|json|jsonc|txt|yaml|yml|mjs|js|ts|ps1|csv|toml|xml|html'
 while IFS= read -r bs_file; do
@@ -1162,15 +689,6 @@ done < <(
   } | sort -u
 )
 
-# --- Check 6: markdownlint clean -------------------------------------------
-
-# CHECK_SKILL_SKIP_MARKDOWNLINT=1 is a test seam: fixture SKILL.md files may
-# live outside a repo with markdownlint config, so the tool applies defaults
-# (MD041/MD013) that real skills intentionally violate.
-#
-# Check 6 runs from the repo top level (below), which hides a workspace-local
-# install (e.g. packages/foo/node_modules) from npx, so the nearest install
-# above the skill is taken first and npx is the fallback when there is none.
 ML_CMD=(npx --no-install markdownlint-cli2)
 ml_d="$(CDPATH='' cd -- "$SKILL_DIR" && pwd)"
 while [[ -n "$ml_d" ]]; do
@@ -1183,15 +701,6 @@ done
 if [[ "${CHECK_SKILL_SKIP_MARKDOWNLINT:-}" == "1" ]]; then
   note "markdownlint check skipped (CHECK_SKILL_SKIP_MARKDOWNLINT=1)"
 elif [[ "${ML_CMD[0]}" != npx ]] || command -v npx >/dev/null 2>&1; then
-  # --no-install: never trigger a remote fetch. A genuine lint failure emits
-  # file:line findings; a non-zero exit WITHOUT such findings means the package
-  # is unavailable (not installed / offline), which downgrades to a WARN-skip
-  # rather than a hard FAIL on an otherwise valid skill.
-  #
-  # markdownlint-cli2 discovers config only from its cwd downward, never above
-  # it, so a skill in a git repo is linted from that repo's top level: a config
-  # at the repo root applies even when the run starts in a subdirectory such as
-  # plugins/<x>/skills. Outside any repo it runs where it stands.
   ML_CWD="$(git -C "$SKILL_DIR" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
   ML_FILE="$SKILL_MD"
   if [[ -n "$ML_CWD" ]]; then
@@ -1248,15 +757,6 @@ elif [[ -d "$SKILL_DIR/scripts" ]]; then
       SCRIPT_TESTS_LEFT=$((SCRIPT_TESTS_LEFT + 1))
       continue
     fi
-    # env -u: this gate may run inside git-hook chains where git exports
-    # GIT_DIR/GIT_INDEX_FILE — a fixture `git init` in a test would then mutate
-    # the real repo. Strip before exec.
-    # Output is captured rather than discarded so a FAILURE can be replayed. A test
-    # that only ever reports "it failed" is undiagnosable wherever it cannot be
-    # reproduced by hand — a gate whose one CI-visible signal is its own name sends
-    # the reader guessing at environment differences instead of reading the case that
-    # broke. Success stays silent: the reason to suppress was log noise, and that
-    # reason does not apply to the run that just went red.
     test_out=""
     if test_out="$("${GIT_UNSET[@]}" -u CHECK_SKILL_INVOKING_TOPLEVEL -u PLUGIN_TEST_DEADLINE bash "$test_sh" 2>&1 </dev/null)"; then
       note "script test passed: ${test_sh#"$SKILL_DIR"/}"
@@ -1346,22 +846,6 @@ if ! grep -qEi '^##+[[:space:]]+(gotchas|quirks)' "$SKILL_MD" &&
   warn "no Gotchas surface (inline '## Gotchas' or context/gotchas.md) — confirm the skill has no observed failure history"
 fi
 
-# --- Check 12: description carries trigger phrasing --------------------------
-
-# The standing 4-skill warning floor is INTENTIONAL, and no dmi carve-out is
-# wanted here (#2181 left them; re-reviewed and confirmed). `discipline:wait-what`,
-# `firecrawl:update`, `playbooks:update`, and `github:setup` are all
-# `disable-model-invocation: true`, and this check treats such a skill's
-# description as absent from the model's context (pointer:
-# https://code.claude.com/docs/en/skills#control-who-invokes-a-skill), so trigger phrasing on them can never route anything. Each was re-checked for a STRANDED
-# phrase (one a user would type that no model-invocable skill can receive) and
-# none is stranded: the two `update` skills are maintainer-only with
-# consumer-facing siblings that carry the phrases, `github:setup` is a declared
-# slash-command-only contract with `advise`/`audit` model-invocable beside it,
-# and `wait-what` triggers on self-observation the model cannot detect. Adding a
-# dmi exemption branch would suppress a warning that is doing no harm while
-# hiding the kindle-dedrm failure mode (a phrase reachable only from a dmi-true
-# skill), so the warning stays and the exemptions stay documented instead.
 if [[ -n "$CUR_DESC" ]]; then
   if ! grep -qi 'use when' <<<"$CUR_DESC$CUR_WTU" &&
     [[ -z "$(printf '%s\n' "$CUR_WTU" | skill_frontmatter::extract_triggers)" ]]; then
@@ -1377,11 +861,6 @@ else
     err "committed cache/build artifact(s) under the skill dir: $(printf '%s' "$CACHE_HITS" | head -3 | tr '\n' ' ')"
   fi
 fi
-
-# --- Check 14: evals/evals.json presence -------------------------------------
-# Legacy fleet: action-router shape without evals WARNs (evals warranted, not
-# mandatory). Changed-skill CI passes --require-evals so any touched SKILL.md
-# must ship evals/evals.json unless a recorded skip exists (#3135).
 
 evals_warrant_exemptions_file() {
   local d="${1:-}" parent
@@ -1457,29 +936,6 @@ if [[ -d "$SKILL_DIR/vendor" ]]; then
   fi
 fi
 
-# --- Check 18: precompute opportunity (WARN; advisory heuristic) --------------
-# Flags a SKILL.md that gathers deterministic, read-only context by telling
-# Claude to run shell commands at invocation, when that output could instead be
-# inlined at load time via `!`command`` / ```! dynamic-context injection (one
-# preprocessing pass, no per-invocation tool round-trip). Advisory only: a
-# static scan cannot tell an instruction-to-run block from an illustrative
-# example, and it reads fenced shell blocks only (not prose "run `git status`").
-# The whole-file gate below (silent when the skill already injects with `!`)
-# is deliberate — it suppresses per-block opportunities in a skill that already
-# precomputes something, an accepted recall limit for an advisory check.
-
-# Read-only context-gathering command line? The design FAILS CLOSED: the
-# first-token check below only sees the head of the line, so any shell construct
-# that can hide a second command or a write disqualifies the line up front —
-# redirection (`>`/`<`), command/process substitution (`$(...)`, backticks),
-# backgrounding/chaining (`&`, `&&`, `;`), and a bare pipe (`| tee`) — as does a
-# side-effecting option that survives an allowlisted reader (`find -exec`,
-# `find -delete`, `git diff --output`). `|| echo` is the one sanctioned
-# continuation (our fallback form), so `||` is stripped before the pipe test.
-# git/gh are matched by a read-only subcommand/verb allowlist, never wholesale,
-# so an unlisted mutation (`git stash`, `gh pr merge`) is never read-only. Every
-# miss lands on the safe side — a missed opportunity, never advice to auto-run a
-# mutation at load time.
 precompute_readonly_line() {
   local line="$1"
   line="${line#"${line%%[![:space:]]*}"}"
@@ -1497,12 +953,6 @@ precompute_readonly_line() {
   sanitized="$(sed -E 's/\|\|[[:space:]]*echo([[:space:]]|$)/ /g' <<<"$line")"
   case "$sanitized" in *'|'*) return 1 ;; *) ;; esac
 
-  # Side-effecting options that survive the head-command allowlist: command- or
-  # file-writing find primaries, a git reader's file-output flag, and git's
-  # external-program diff options (`--ext-diff` runs a configured diff.external
-  # helper; `--textconv` runs a configured textconv filter). Repo config can
-  # still attach programs to a plain `git diff` (default diff.external / textconv
-  # on configured paths) — that is inherent to git and beyond a static line scan.
   # shellcheck disable=SC2016  # single quotes are deliberate: $ is an ERE end anchor, not a shell expansion
   grep -qE '(^|[[:space:]])(-exec|-execdir|-ok|-okdir|-delete|-fprintf|-fprint0|-fprint|-fls|--output|--ext-diff|--textconv|rm|mv|cp|tee|sed|mkdir|touch)([[:space:]=]|$)' <<<"$line" && return 1
 
@@ -1529,16 +979,9 @@ precompute_readonly_line() {
   esac
 }
 
-# Does the skill already use `!` dynamic-context injection anywhere? Inline form
-# is recognized only at line start or after whitespace (per the skills docs); a
-# ```! opening fence is the multi-line form. Either presence silences check 18.
 PRECOMPUTE_CANDIDATE=0
 # shellcheck disable=SC2016  # single quotes are deliberate: the backticks are literal regex
 if ! grep -qE '(^|[[:space:]])!`|^[[:space:]]*```+!' "$SKILL_MD"; then
-  # Single-level fence scan. A fenced code block is opened by a run of >=3
-  # backticks and closes on a bare fence of at least that many; content inside
-  # never opens a nested block (CommonMark), so inner ``` examples inside a
-  # wider ```` wrapper are treated as literal content, not scanned as commands.
   # shellcheck disable=SC2016  # single quotes are deliberate: backticks and $ are literal regex, not shell expansion
   fence_open_re='^(```+)([^`]*)$'
   in_block=0
@@ -1586,14 +1029,6 @@ if ((PRECOMPUTE_CANDIDATE == 1)); then
   warn 'precompute opportunity: a fenced shell block runs read-only context-gathering commands the skill could inline at load time via `!`command`` / ```! dynamic-context injection (preprocessed once at load, no per-invocation tool call). If the block runs on every invocation to gather context, convert it; if it is an illustrative example, ignore. Heuristic over fenced shell blocks — see https://code.claude.com/docs/en/skills#inject-dynamic-context'
 fi
 
-# --- Checks 19-20: dynamic-context injection portability + fallback ----------
-# Both checks scan the INJECTED command text only — never prose or a plain
-# ```bash example that merely shows the syntax. Collect it once: every inline
-# !`cmd` occurrence, plus the body lines of each ```! fenced block. Lines inside
-# a NON-injection fenced block are literal examples, so inline !` there is
-# skipped too (a general-fence state gates the inline scan). The inline form is
-# recognized only at line start or after whitespace (per the injection docs), so
-# a mid-token `!`` such as an inline `#!` code span in prose is not an injection.
 INJECTIONS=()
 inj_in_fence=0
 inj_fence_len=0
@@ -1623,11 +1058,6 @@ while IFS= read -r il || [[ -n "$il" ]]; do
     fi
     continue
   fi
-  # Outside any fence: collect every inline injection on the line. grep -oE
-  # emits each anchored `<boundary>!`cmd`` match on its own line; strip the
-  # boundary + opening !` and the closing backtick to leave the command. Fixed
-  # literals do the stripping (never the command text), so a command carrying
-  # glob metacharacters is captured verbatim.
   # shellcheck disable=SC2016  # single quotes deliberate: the backticks are literal delimiters, not shell expansion
   while IFS= read -r inj_match; do
     inj_match="${inj_match#*'!`'}"
@@ -1637,20 +1067,6 @@ while IFS= read -r il || [[ -n "$il" ]]; do
 done <"$SKILL_MD"
 
 if ((${#INJECTIONS[@]} > 0)); then
-  # --- Check 19: shell declaration for bash-only injection syntax ------------
-  # A `!` injection defaults to bash; on a host without Git Bash it falls
-  # through to the PowerShell tool, so a bash-only pipeline silently breaks.
-  # Declaring `shell:` is the author taking explicit responsibility for the
-  # shell (we trust it — no per-shell syntax validation, so `shell: pwsh` with
-  # bash-only commands is out of scope). With no declaration, bash-only syntax
-  # is a FAIL; portable-looking commands are an unprovable WARN.
-  #
-  # Bash-only token set is deliberately narrow (tight avoids a false FAIL that
-  # blocks; anything missed degrades to the WARN path, never a false negative):
-  # `/dev/null` (PowerShell is `$null`), `command -v` (a bash builtin;
-  # PowerShell is `Get-Command`), and a pipe into a Unix text tool with no
-  # same-named PowerShell cmdlet. `sort`/`tee` are excluded — PowerShell aliases
-  # them, so a pipe there is not a clean break.
   # shellcheck disable=SC2016  # single quotes deliberate: \| and $ are literal ERE, not shell expansion
   bash_only_re='/dev/null|(^|[[:space:]])command[[:space:]]+-v([[:space:]]|$)|\|[[:space:]]*(head|tail|grep|sed|awk|cut|tr|wc|xargs|rev|nl|fold|paste|comm|join|column|uniq)([[:space:]]|$)'
   if grep -qE '^shell:[[:space:]]*[^[:space:]]' <<<"$FRONTMATTER"; then
@@ -1666,12 +1082,6 @@ if ((${#INJECTIONS[@]} > 0)); then
     fi
   fi
 
-  # --- Check 20: injected commands carry a defensive fallback ----------------
-  # An unguarded injected command can inline an error string (or nothing) into
-  # the prompt. Pointer: for how an injected command fails, times out and reports
-  # stderr, see https://code.claude.com/docs/en/skills#when-an-injected-command-fails.
-  # The pinned convention is a `|| <fallback>` on every injected command; match the `||`
-  # continuation, not the literal `echo` (`|| printf`/`|| true` are valid too).
   missing_fallback=0
   for inj in "${INJECTIONS[@]}"; do
     [[ "$inj" == *'||'* ]] || missing_fallback=$((missing_fallback + 1))
@@ -1682,25 +1092,7 @@ if ((${#INJECTIONS[@]} > 0)); then
   fi
 fi
 
-# --- Check 21: fresh-eyes declaration conformance ---------------------------
-# Deterministic proxy for the fresh-eyes rule: a step whose output judges work
-# produced in the same context declares either fresh-context delegation or an
-# exemption directive IN THE SKILL'S OWN FILES. The judgment-language detector
-# is a curated heuristic (WARN-only); directive syntax errors FAIL. Contract
-# spec for authors: skills/check/reference/fresh-eyes-declarations.md.
-# Scan surface excludes vendor/ (byte-frozen per check 8 — findings would be
-# permanently unclearable) and evals/ (fixtures contain arbitrary prose).
-# Fenced code blocks are ignored by both detectors so docs can show literal
-# examples (self-reference guard); lines with backtick runs or backslash-escaped
-# `<` are structurally ambiguous and skipped per the parsing contract. A
-# trailing \r is tolerated per line (third-party checkouts without eol=lf normalization).
 FRESH_EYES_PROXIMITY_LINES=8
-# Lowercase POSIX ERE (matched against the lowercased, span-stripped line).
-# Seeded from the phrasing of the audited skills and their exempted steps;
-# curation policy (triggers + disposition ladder) lives in the reference page.
-# [[:space:]] instead of \t: awk -v escape processing differs across awks, a
-# POSIX class does not. (^|[^a-z]) boundary guards keep substrings quiet —
-# "upgrade your own", "underscore its own" must not read as grade/score.
 FRESH_EYES_JUDGE_RE='(^|[^a-z])self[- ](review|audit|assess|score|grade|verif)|(^|[^a-z])(review|verify|assess|grade|score|judge|critique)[a-z]*[[:space:]]+(your|its|their)[[:space:]]+own|(^|[^a-z])spot[- ]check|(^|[^a-z])outcome[[:space:]]+gate|(^|[^a-z])score[[:space:]]+each|(^|[^a-z])(called|calling[[:space:]]+(it|them|the[[:space:]]+[a-z]+))[[:space:]]+done([^a-z]|$)'
 
 FRESH_EYES_FILES=("$SKILL_MD")
@@ -1972,39 +1364,6 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
   ' "$fe_file")
 done
 
-# --- Check 22: metadata.summary contract -------------------------------------
-# The key is the generated skill cheat sheet's row source. This check enforces
-# the SAME contract as the cheat-sheet generator's shared guard
-# (scripts/cheatsheet-config.mjs, summaryError) rather than a laxer subset of
-# it. That guard is not reachable from here: it is repo-internal JavaScript and
-# this script ships inside an installable plugin that runs with no Node and no
-# repository scripts beside it. So the rule set is restated in bash and the two
-# statements are held together by a shared case table
-# (summary-contract-cases.json) that both readers are run against.
-#
-# The contract is a FIXED POINT: the literal text after `summary:` must be what
-# every reader recovers, whether it reads with a real YAML parser or a regex.
-# This check treats a value a parser rejects as costing the skill its whole
-# frontmatter (https://code.claude.com/docs/en/skills#frontmatter-reference).
-# Requiring a plain, unquoted, colon-free scalar is the largest subset a regex
-# reader can recover exactly, which is why it is stricter than YAML alone.
-#
-# The value is read RAW: no quote stripping (a quoted scalar is a rejection, not
-# a value to unwrap) and no trailing-comment stripping (the generator treats a
-# trailing comment as an error, so stripping it would hide a real divergence).
-#
-# Length is Unicode CODEPOINTS, not bytes, counted locale-independently: UTF-8
-# -> UTF-32BE via iconv makes every codepoint exactly 4 bytes, so byte-count/4
-# is the codepoint count on any host — a locale-pinned ${#var} silently degrades
-# to byte counting where the pinned locale does not exist, tightening the cap
-# for multi-byte summaries. Hosts without iconv fall back to the UTF-8-locale
-# form.
-#
-# Deliberately NOT enumerated here: values a YAML resolver reads as a non-string
-# (`true`, `017`, `12:34`, `2026-08-23`). A denylist of resolver spellings only
-# holds the ones someone was already burned by; the parity test's YAML oracle
-# catches that whole class mechanically instead.
-
 if skill_frontmatter::has_metadata_field summary <<<"$FRONTMATTER"; then
   CUR_SUMMARY="$(skill_frontmatter::metadata_field summary --raw <<<"$FRONTMATTER")"
   if SUMMARY_ERR="$(skill_frontmatter::summary_error "$CUR_SUMMARY")"; then
@@ -2015,13 +1374,6 @@ if skill_frontmatter::has_metadata_field summary <<<"$FRONTMATTER"; then
 fi
 
 CC_SIGNAL='done|complete|verified|verify|confirm|assert|exit|pass|green|criteria|criterion|until|settle|expect|observable|observed|succeed|fail'
-# Blank lines separate LOOSE list items without closing the block — but a
-# numbered item that RESTARTS numbering (its number <= the previous item's)
-# after a blank line is a new, independent list, and merging the two would
-# both fire a spurious warn on adjacent short lists and let one list's signal
-# clear the other. Side effect, accepted: an all-ones-numbered LOOSE list
-# (CommonMark lazy numbering, blank lines between items) closes at every item
-# and so under-reports — consistent with the advisory posture above.
 CC_BLOCKS="$(awk -v sigre="$CC_SIGNAL" '
   function close_block() {
     if (steps >= 3 && !sig) bad = bad (bad ? "," : "") start "-" last
@@ -2061,41 +1413,7 @@ else
   note "completion-criteria signal present (or no 3+-step numbered procedure)"
 fi
 
-# --- Check 24: explicit invocation mode --------------------------------------
-# Every skill states its invocation mode explicitly. This check takes the default
-# for an absent key as `false` (pointer:
-# https://code.claude.com/docs/en/skills#frontmatter-reference; as of
-# 2026-10-11; recheck trigger: the `disable-model-invocation` row changing
-# its default), so this is an
-# auditability rule rather than a behavior change: an explicit key
-# makes the choice reviewable, and a `true` reviewable against the exception
-# classes in the rubric that owns this decision —
-# docs/contracts/invocation-mode/README.md.
-#
-# Severity is scoped by tree, deliberately. A marketplace plugin skill
-# (plugins/*/skills/*) FAILs: the rubric is this fleet's convention and the fleet
-# is normalized to it. A skill outside that tree — a consumer's project or user
-# skill — WARNs instead, because the harness default already makes an absent key
-# behave as `false`, and failing someone else's tree over a house convention
-# would be wrong.
-#
-# The exception class a `true` claims is NOT machine-checkable: a static scan
-# cannot tell class (i) manual-timing from an unjustified hide. Only class (ii)
-# is deterministic — the plugin-philosophy setup contract names `setup` skills —
-# so every other `true` emits a note for hand-verification against the rubric
-# rather than a warning nothing can clear.
-
 INVOCATION_RUBRIC='docs/contracts/invocation-mode/README.md'
-# Validated as a BARE YAML boolean, deliberately WITHOUT quote stripping: `"false"`
-# is a YAML string, not the boolean this key takes, and normalizing the quotes
-# away would ship malformed invocation metadata while reporting PASS. Only
-# leading/trailing whitespace is trimmed — deleting whitespace wholesale would
-# splice a scalar broken by an internal space back into a passing boolean. A
-# trailing `# comment` is already removed by skill_frontmatter::field, so an
-# author may annotate the exception class inline. Pointer: for the spellings a
-# boolean field accepts, fetch
-# https://code.claude.com/docs/en/skills#frontmatter-reference live. As of:
-# 2026-11-04. Recheck trigger: that section changing its accepted spellings.
 DMI_RAW="$(skill_frontmatter::field disable-model-invocation <<<"$FRONTMATTER")"
 DMI_TRIMMED="${DMI_RAW#"${DMI_RAW%%[![:space:]]*}"}"
 DMI_TRIMMED="${DMI_TRIMMED%"${DMI_TRIMMED##*[![:space:]]}"}"
@@ -2144,6 +1462,38 @@ done < <(
   done | sort
 )
 
+SKILL_TOKEN='/[a-z0-9-]+:[a-z0-9-]+'
+
+section_block() {
+  awk -v s="$1" 'NR > s { if ($0 ~ /^## /) exit; print }' "$SKILL_MD"
+}
+
+bullet_shapes() {
+  awk -v tok="$SKILL_TOKEN" '
+    function flush(   rest, n, lead, t) {
+      if (b == "") return
+      n = 0; rest = b; lead = ""; split("", seen)
+      while (match(rest, tok)) {
+        t = substr(rest, RSTART, RLENGTH)
+        if (n == 0 && !(t in seen)) lead = substr(rest, 1, RSTART - 1)
+        if (!(t in seen)) { seen[t] = 1; n++ }
+        rest = substr(rest, RSTART + RLENGTH)
+      }
+      if (n == 0) notoken++
+      else {
+        if (n > 1) multi++
+        sub(/^- /, "", lead)
+        if (lead !~ /[[:alnum:]][^:]*:[[:space:]]/) nolead++
+      }
+      if (tolower(b) ~ /unsure/ && b ~ /\/session-flow:workflow/) filler++
+      b = ""
+    }
+    /^- / { flush(); b = $0; next }
+    /^[[:space:]]+[^[:space:]]/ { if (b != "") b = b " " $0; next }
+    { flush() }
+    END { flush(); print notoken + 0, multi + 0, nolead + 0, filler + 0 }'
+}
+
 NEXT_STAGE_BEARING='^(explore|research|plan|implement|test|review|verify|pr|retro)$'
 NEXT_ROUTING_HEADING='^##[[:space:]]+(handoff|routing|integration|skill chaining)'
 
@@ -2164,26 +1514,31 @@ else
   elif [[ -z "$NEXT_GOTCHAS_LINE" ]] && ((NEXT_LINE == NEXT_LAST_H2)); then
     NEXT_HIT="is the last section; the rule places it before the last H2"
   fi
-  NEXT_BLOCK="$(awk -v s="$NEXT_LINE" 'NR > s { if ($0 ~ /^## /) exit; print }' "$SKILL_MD")"
+  NEXT_BLOCK="$(section_block "$NEXT_LINE")"
   NEXT_BULLETS="$(grep -cE '^- ' <<<"$NEXT_BLOCK" || true)"
-  NEXT_TOKEN='/[a-z0-9-]+:[a-z0-9-]+'
   if ((NEXT_BULLETS == 0)); then
     NEXT_FIRST="$(grep -vE '^[[:space:]]*$' <<<"$NEXT_BLOCK" | head -1 || true)"
     if [[ -z "$NEXT_FIRST" ]]; then
       NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }body is empty"
-    elif ! grep -qE "^\`?${NEXT_TOKEN}(\`|[[:space:]]|[.,;:]|$)" <<<"$NEXT_FIRST"; then
+    elif ! grep -qE "^\`?${SKILL_TOKEN}(\`|[[:space:]]|[.,;:]|$)" <<<"$NEXT_FIRST"; then
       NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }first line does not open with a /plugin:skill invocation"
     fi
   else
-    if ((NEXT_BULLETS < 2 || NEXT_BULLETS > 4)); then
-      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }$NEXT_BULLETS bullet(s); the outcome-bullet shape carries two to four"
+    if ((NEXT_BULLETS == 1)); then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }a single bullet; write it as the one-line form"
     fi
-    NEXT_BAD="$(awk -v tok="$NEXT_TOKEN" '
-      /^- / { if (b != "" && b !~ tok) n++; b = $0; next }
-      /^[[:space:]]+[^[:space:]]/ { b = b " " $0; next }
-      END { if (b != "" && b !~ tok) n++; print n + 0 }' <<<"$NEXT_BLOCK")"
-    if ((NEXT_BAD > 0)); then
-      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }$NEXT_BAD bullet(s) name no /plugin:skill successor"
+    read -r NEXT_NOTOKEN NEXT_MULTI NEXT_NOLEAD NEXT_FILLER <<<"$(bullet_shapes <<<"$NEXT_BLOCK")"
+    if ((NEXT_NOTOKEN > 0)); then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }$NEXT_NOTOKEN bullet(s) name no /plugin:skill successor"
+    fi
+    if ((NEXT_MULTI > 0)); then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }$NEXT_MULTI bullet(s) name more than one skill; one target per bullet"
+    fi
+    if ((NEXT_NOLEAD > 0)); then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }$NEXT_NOLEAD bullet(s) do not open with a '<result>: ' lead"
+    fi
+    if ((NEXT_FILLER > 0)); then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }carries the 'unsure where this leaves the work' bullet; /session-flow:workflow is the fallback without it"
     fi
   fi
   NEXT_OPERATIVE="$(grep -oiE 'skill tool|installed|(^|[^[:alnum:]_])(is|are|if|when)( not)? enabled([^[:alnum:]_]|$)|fall ?back|otherwise' <<<"$NEXT_BLOCK" | head -1 | sed -E -e 's/^[^[:alpha:]]+//' -e 's/[^[:alpha:]]+$//' || true)"
@@ -2191,11 +1546,34 @@ else
     NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }carries operative-chain phrasing ('$NEXT_OPERATIVE'); a successor is a mention, with no Skill-tool phrasing, availability gate, or fallback clause"
   fi
   if [[ -n "$NEXT_HIT" ]]; then
-    warn "'## Next' section $NEXT_HIT. The skill-bodies rule wants one /plugin:skill line, or two to four '<outcome>: /plugin:skill' bullets, placed before '## Gotchas'"
+    warn "'## Next' section $NEXT_HIT. The skill-bodies rule wants one /plugin:skill line, or two or more '<result>: <target>.' bullets with one target each, placed before '## Gotchas'"
   else
     note "'## Next' section present and in the mention-only shape"
   fi
 fi
+
+RELATED_LINE="$(grep -nE '^## Related[[:space:]]*$' "$SKILL_MD" | head -1 | cut -d: -f1)"
+if [[ -n "$RELATED_LINE" ]]; then
+  read -r RELATED_NOTOKEN _ RELATED_NOLEAD _ <<<"$(section_block "$RELATED_LINE" | bullet_shapes)"
+  if ((RELATED_NOTOKEN + RELATED_NOLEAD > 0)); then
+    warn "'## Related' has $((RELATED_NOTOKEN + RELATED_NOLEAD)) bullet(s) not in the '<condition>: /plugin:skill [args].' form (skill-bodies rule)"
+  fi
+fi
+
+SEE_ALSO_LINE="$(grep -nE '^## See also[[:space:]]*$' "$SKILL_MD" | head -1 | cut -d: -f1)"
+if [[ -n "$SEE_ALSO_LINE" ]]; then
+  SEE_ALSO_SKILL="$(section_block "$SEE_ALSO_LINE" | grep -oE "$SKILL_TOKEN" | head -1 || true)"
+  if [[ -n "$SEE_ALSO_SKILL" ]]; then
+    warn "'## See also' names the skill $SEE_ALSO_SKILL; it holds files only, and a skill goes under '## Next' or '## Related' (skill-bodies rule)"
+  fi
+fi
+
+DESC_PLUGINS_ROOT="$(cd "$SKILL_DIR/../../.." 2>/dev/null && pwd || true)"
+while IFS= read -r desc_bare; do
+  [[ -n "$desc_bare" && -f "$DESC_PLUGINS_ROOT/${desc_bare%%:*}/skills/${desc_bare#*:}/SKILL.md" ]] || continue
+  warn "description names '$desc_bare' without the slash; write a skill token as /$desc_bare (skill-bodies rule)"
+  break
+done < <(grep -oE "(^|[[:space:](,;'\"])[a-z][a-z0-9-]*:[a-z][a-z0-9-]*([[:space:]).,;'\"]|$)" <<<"$CUR_DESC" | sed -E "s/^[[:space:](,;'\"]//; s/[[:space:]).,;'\"]$//" || true)
 
 META_REGISTRY="$SCRIPT_DIR/metadata-registry.txt"
 META_KEYS="$(awk '
@@ -2331,8 +1709,6 @@ elif ((DESC_CP_LEN > DESC_TARGET)); then
 fi
 ((BODY_LINES > POCOCK_BODY_MAX)) &&
   warn "SKILL.md body is $BODY_LINES lines, above Pocock's measured max $POCOCK_BODY_MAX (/playbooks:skill-authoring, Body)"
-# Read from the file, not a command substitution, so trailing newlines count;
-# -c drops an invalid UTF-8 byte instead of stopping the count at it.
 if command -v iconv >/dev/null 2>&1; then
   ROUTER_CHARS=$(($(iconv -c -f UTF-8 -t UTF-32BE <"$SKILL_MD" 2>/dev/null | wc -c) / 4))
 else
@@ -2374,26 +1750,6 @@ else
     warn "SKILL.md body grew vs $SIZE_BASE_LABEL: $SIZE_BASE_BODY -> $BODY_LINES lines (/playbooks:skill-authoring, Body)"
 fi
 
-# --- Check 31: settings token as a condition with no fallback (FAIL/WARN) -----
-# A `${user_config.KEY}` token is substituted when the user set the key and can
-# arrive as the literal token when they did not, so "When `${user_config.x}` is
-# true" reads as neither true nor false. The convention is a value stated with
-# an inline fallback in the same sentence, e.g. "(unexpanded, empty, or any
-# other value means `false`)". This flags a sentence that opens a condition
-# (when, if, unless), uses the token as its subject (the token directly followed
-# by `is true`, `is on` or `is false`), and carries neither that fallback (a
-# clause naming `unexpanded` or `unset` and then `means`) nor prose about
-# substitution itself. Read: SKILL.md and every other skill `.md`, prose only:
-# frontmatter, fenced blocks, and inline code spans other than one holding the
-# token are skipped; evals/ and vendor/ are not read. Severity: a file listed in
-# SETTINGS_TOKEN_BASELINE with a hit count WARNs while its count holds, and FAILs
-# when the count rises, falls (lower the row) or reaches zero (remove it), so the
-# list only shrinks; every hit in an unlisted file FAILs. Those rules apply only
-# where a baseline applies to the run: one named by
-# CHECK_SKILL_SETTINGS_TOKEN_BASELINE, or the default file when the checker sits
-# in the same repository as the skill. Anywhere else (a consumer repository with
-# no baseline of its own, a plain tree such as a plugin-cache install) every hit
-# WARNs.
 SETTINGS_TOKEN_BASELINE="${CHECK_SKILL_SETTINGS_TOKEN_BASELINE:-$SCRIPT_DIR/settings-token-baseline.txt}"
 settings_token_hits() { # one .md file; prints "<line>\t<key>" per hit
   awk '

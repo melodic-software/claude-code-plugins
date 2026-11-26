@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-// Exit 0 built, 1 the record or the page fails its checks, 2 usage or environment.
-
 import { chmodSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";

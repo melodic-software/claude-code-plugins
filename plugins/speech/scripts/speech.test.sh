@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
-# Contract tests for the speech scripts narrate.py, elevenlabs.py, assets.py, check.py and pydeps.py.
-# test_assets, test_speech_pydeps and most of test_narrate need only the standard library and always run (test_speech_pydeps
-# skips without pip). test_narrate's timing tests need numpy (../requirements.in pins it, ../requirements.txt
-# hash-locks it) and skip without it, so SPEECH_REQUIRE_DEPS=1 fails the run instead: a lane that provisions the
-# pinned requirements sets it, and a missing numpy then reads as a broken environment, not as passing coverage.
-# SPEECH_E2E_DATA_DIR opts into the real end-to-end narration (see test_narrate.py).
 # test-scope: plugins/speech/skills/*/SKILL.md plugins/speech/hooks/*.sh plugins/speech/scripts/*.json
 # test-scope: plugins/speech/scripts/*.py plugins/speech/prerequisites.json plugins/speech/requirements.txt
 # test-scope: plugins/speech/.claude-plugin/plugin.json
+# test-scope: plugins/speech/vendor/gitleaks/gitleaks-rules.json
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1

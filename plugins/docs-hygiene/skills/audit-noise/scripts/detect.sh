@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Noise findings for /audit-noise. Read-only.
-#
-# Output: File, Finding tier/shape/line/excerpt; Summary lines.
-# Exit: always 0 on audit paths — a read-only audit must never fail the caller,
-# so -e is omitted; 2 on unknown arguments.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -73,12 +68,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Reject non-integer offset/limit early (unknown-arg class → exit 2).
 if [[ ! "$OFFSET" =~ ^[0-9]+$ || ! "$LIMIT" =~ ^[0-9]+$ ]]; then
   echo "detect.sh: --offset and --limit require non-negative integers" >&2
   exit 2
 fi
-# Strip leading zeros so values like 08 are decimal, not octal, under arithmetic.
 OFFSET=$((10#$OFFSET))
 LIMIT=$((10#$LIMIT))
 
@@ -98,27 +91,16 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
       TARGETS+=("$(resolve_existing_path "$line")")
     done <"$PATHS_FILE"
   elif [[ -n "$repo_root" ]]; then
-    # Uncommitted .md files: modified/added/renamed/untracked. Read the
-    # NUL-delimited `-z` form, which git documents as performing no quoting and
-    # no backslash-escaping: every byte of the path arrives verbatim, so there
-    # is nothing left to unquote or decode. The v1 form C-quotes any path
-    # holding a space, a quote, a backslash, or a non-ASCII/control byte, and a
-    # parse that misses one of those escapes drops the file from the target list
-    # silently — a clean run over a dirty tree.
     while IFS= read -r -d '' record; do
       [[ -z "$record" ]] && continue
-      # XY + space + path. Under -z a rename/copy puts the NEW path in this
-      # record and the ORIGINAL in a following record — the reverse of v1's
-      # `old -> new` display order. Consume that second record and discard it,
-      # or the audit targets a path that no longer exists. The rename is decided
-      # by the status letter alone; no arrow ever appears under -z, so an
-      # ordinary path containing " -> " cannot be mistaken for one.
       local_path="${record:3}"
       if [[ "${record:0:1}" == [RC] || "${record:1:1}" == [RC] ]]; then
         IFS= read -r -d '' _rename_origin || true
       fi
       [[ "$local_path" == *.md ]] || continue
       TARGETS+=("$local_path")
+    # With -z, git status prints pathnames as is, without quoting.
+    # https://git-scm.com/docs/git-status
     done < <(git status --porcelain -z 2>/dev/null)
   fi
 else
@@ -145,8 +127,6 @@ for target in ${TARGETS[@]+"${TARGETS[@]}"}; do
 done
 TARGETS=(${EXPANDED[@]+"${EXPANDED[@]}"})
 
-# The empty-run contract: three lines, in the order consumers parse them, with
-# only the Note varying. Kept in one place so the two exits cannot drift apart.
 no_targets() {
   echo "status: no-targets"
   echo "Summary total: files=0 T1=0 T2=0 T3=0"
@@ -158,9 +138,6 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
   no_targets "no markdown targets — pass file paths or edit some .md files"
 fi
 
-# Keep NUL delimiters through sort/dedup so a path that itself contains a
-# newline (a control byte the -z read just recovered) is not split into two
-# nonexistent targets.
 mapfile -d '' -t SORTED < <(printf '%s\0' "${TARGETS[@]}" | LC_ALL=C sort -uz)
 
 if [[ "$LIMIT" -gt 0 ]]; then
@@ -175,8 +152,6 @@ fi
 
 total_t1=0 total_t2=0 total_t3=0 files_audited=0
 
-# Record one finding into a nameref array as a US-delimited row so the file
-# can emit in line-number order after paragraph-scoped negation is flushed.
 audit_noise_record_finding() {
   local at_line="$1" shape="$2" excerpt="$3" marker="${4:-}"
   local -n _rows="$5"
@@ -193,8 +168,7 @@ audit_noise_record_finding() {
 
 audit_noise_print_findings() {
   local file="$1"
-  # nameref to the caller's finding_rows; the string assignment is the name,
-  # not a scalar overwrite of the array.
+  # _rows is a nameref to the caller's array; assigning it is not a scalar overwrite.
   # shellcheck disable=SC2178
   local -n _rows="$2"
   local at_line tier shape excerpt marker
@@ -235,7 +209,6 @@ audit_file() {
   local shape excerpt line heading_text trimmed uwrapped
   local fence_delim fence_dchar fence_dlen
   local is_heading=0
-  # Held in a variable so the unquoted `)` in `[.)]` is not parsed as bash syntax.
   local list_item_re='^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]'
   local neg_unwrapped=""
   local -a neg_line_nums=() neg_line_texts=() neg_offsets=()
@@ -254,10 +227,6 @@ audit_file() {
       reset_negation
       return 0
     }
-    # Every qualifying sentence in the paragraph is a finding. Returning after
-    # the first would drop a later imperative on its own physical line.
-    # Walk a cursor so two identical sentences attribute to their own lines:
-    # `${var%%"$s"*}` always anchors at the earliest match.
     audit_noise_split_sentences_into sentences "$neg_unwrapped"
     for s in "${sentences[@]}"; do
       rest="${neg_unwrapped:cursor}"
@@ -301,16 +270,7 @@ audit_file() {
       continue
     fi
 
-    # Fenced code blocks (``` or ~~~): never scan fence lines or their body.
-    # CommonMark closes a fence only with the same character at a run length
-    # greater than or equal to the opener, so a four-backtick outer fence
-    # wrapping a three-backtick example stays open through the inner close.
-    # A bare toggle keyed on "line starts with 3+" treats the inner fence as
-    # the outer close and then scans the remaining example as prose.
     if [[ "$line" =~ ^(\`{3,}|~{3,}) ]]; then
-      # Capture before flushing: flush_negation runs its own [[ =~ ]] matches,
-      # which overwrite BASH_REMATCH. Reading it afterwards aborts under set -u
-      # whenever a fence closes a paragraph that had pending negation text.
       fence_delim="${BASH_REMATCH[1]}"
       flush_negation
       fence_dchar="${fence_delim:0:1}"
@@ -332,7 +292,6 @@ audit_file() {
     fi
 
     if [[ "$line" =~ ^(#{1,6})[[:space:]]+(.*)$ ]]; then
-      # Capture before flushing, for the same reason as the fence branch above.
       heading_text="${BASH_REMATCH[2]}"
       flush_negation
       is_heading=1
@@ -342,8 +301,6 @@ audit_file() {
       else
         in_exempt=0
       fi
-      # A heading ends any marker-ignored paragraph even without a preceding
-      # blank line (unreachable in MD022-clean markdown; robustness only).
       in_ignored_para=0
     fi
     if audit_noise_is_ignore_line_marker "$line"; then

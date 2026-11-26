@@ -10,8 +10,6 @@ export const HELD_HOURS = 24;
 export const STALL_HOURS = 3;
 export const STALLED_HOURS = 2;
 export const SWEEP_MAX_AGE_MINUTES = 70;
-// The owner's threshold (#9170): this many pr-merge sweeps in a row whose
-// post-merge check exited 3 (unreadable), about an hour at the 15-minute cron.
 export const POST_MERGE_UNREADABLE_SWEEPS = 4;
 export const LISTING_HELD_SWEEPS = 4;
 const MAX_FACTS = 25;
@@ -47,10 +45,6 @@ function finding({ key, signal, title, area, summary, facts, evidence, observedA
   };
 }
 
-// pr-merge's api-budget notices, from .github/actions/log-api-budget: at
-// start `<phase> <name> core remaining=R used=U limit=L reset=<ISO> ...`, at
-// end `token=<name> workflow=... limit=L remaining=R used=U ... resource=core ...`
-// (a graphql or search reading is not the REST quota).
 export function parseBudget(message) {
   const text = String(message);
   const m = /^([a-z]+) ([a-z][a-z0-9-]*) core remaining=(\d+) used=(\d+) limit=(\d+) /.exec(text);
@@ -153,8 +147,6 @@ export function throttleFindings({ windowStart, failedRuns = [], budgetReadings 
   );
 }
 
-// GitHub's own runner messages name the flake class; anything else is not
-// known.
 function flakeClass(job) {
   if (job.conclusion === "timed_out") return "timeout";
   const text = (job.annotations ?? []).map((a) => a.message).join(" ");
@@ -385,15 +377,6 @@ export function listingHeldFindings({ heldSweeps = [] }) {
   ];
 }
 
-// work-unblock's publish-lane-level fails red when the lane token's Variables
-// write changed any repository variable but the level variable, or when its
-// check could not list them (publish-lane-level.mjs check). Either is a
-// security signal: a repository variable can shadow an organization one, such
-// as the lanes kill switch. collect's "lane variable runs" source keeps only
-// main's failed scheduled work-unblock runs, and only their failed
-// publish-lane-level job, so the event and workflow are checked there. A
-// variable step that ended without success and with no annotation (a timeout)
-// counts too: a check that did not finish must not read as clear.
 const LANE_VARIABLES = /^lane-variables-(?:changed|unread):/;
 
 export function laneVariableFindings({ laneVariableRuns = [] }) {
@@ -433,17 +416,7 @@ const holdJobs = (workflow, entries) => {
 };
 export const HOLD_LANES = [
   { lane: "work-resolve-issue", ...holdJobs("work-resolve-issue.yml", [["report-outcome", "run"], "pick-slot"]), area: "Issue lane (work-resolve-issue)" },
-  // The 24 hours to 2026-11-05T22:00Z had 165 green runs, a mean of 6.9 an
-  // hour over the default cap of 6, and a peak of 51; 20 covers every hour
-  // but that one, whose rest later runs read.
   { lane: "work-unblock", ...holdJobs("work-unblock.yml", ["label-unblocked"]), area: "Unblock lane (work-unblock)", holdRuns: 20 },
-  // A failed Refine pass reds its run, so this lane's red runs are read too,
-  // for record-passes's refine-failed warning. The 24 hours to
-  // 2026-11-23T04:40Z had about 105 green and red runs, 7 hours over the
-  // default cap of 6, and a peak of 14 completed in one hour. 12 covers
-  // every hour but that one, whose remaining runs a later pass reads from
-  // where the carry stopped. The raise from 6 to 12:
-  // https://github.com/melodic-software/claude-code-plugins/issues/16656
   {
     lane: "pr-refine",
     ...holdJobs("pr-refine.yml", ["fix-docs-head-held", "fix-docs-handoff", "fix-docs-subscription-handoff", "record-passes"]),
@@ -451,17 +424,7 @@ export const HOLD_LANES = [
     holdRuns: 12,
     statuses: ["success", "failure"],
   },
-  // One run per triaged issue: the 7 days to 2026-11-05 had a mean of 9.9
-  // green runs per 65-minute window and a peak of 49; 40 leaves 2 of 168
-  // windows over it.
   { lane: "intake-triage", ...holdJobs("intake-triage.yml", ["apply-verdict"]), area: "Intake lane (intake-triage apply-verdict)", holdRuns: 40 },
-  // One run per checks run: the 24 hours to 2026-11-06T12:00Z had 504 green
-  // runs, a peak of 58 created in one hour and 267 in one 7-hour created span.
-  // 80 a window and 5 list pages leave headroom over both. Both notices print
-  // only when `Note the hold` runs (its `if:` is the resolver's `held` or the
-  // gate's `read-fault`), so a GraphQL list, which has no steps, has each
-  // green hold job's annotations read, and a REST list only a job whose
-  // `Note the hold` ran (`holdStep`).
   {
     lane: "pr-verify",
     ...holdJobs("pr-verify.yml", ["check-intent", "check-intent-subscription", "check-intent-fallback"]),
@@ -470,14 +433,6 @@ export const HOLD_LANES = [
     listPages: 5,
     holdStep: "Note the hold",
   },
-  // One run per pr-require-checks run, as pr-verify: 425 green runs on
-  // 2026-11-05. Scaled by pr-verify's measured shape (a peak hour 2.8 times
-  // its mean, a peak 7-hour created span 53% of its day), that is about 50
-  // an hour and 225 a span, so 70 a window and 4 list pages leave headroom.
-  // The legs are matrix jobs, listed as `Review (claude-review, ...)`, so a
-  // job matches by name or as a matrix leg (holdJob). Each select step that
-  // prints the notice sets `held`, which runs `Note the hold`, so its
-  // annotations are read as pr-verify's are.
   {
     lane: "pr-review-main",
     ...holdJobs("pr-review-main.yml", ["check-trigger", "review", "review-subscription", "review-fallback"]),
@@ -489,56 +444,29 @@ export const HOLD_LANES = [
   { lane: "pr-merge", ...holdJobs("pr-merge.yml", ["merge", "enable-auto-merge"]), area: "Merge lane (pr-merge lane token)", holdRuns: 80, listPages: 5 },
 ];
 
-// Whether a listed job is one of `jobs`: by name, or as a matrix leg of one,
-// which GitHub lists as `<job> (<matrix values>)`.
 export const holdJob = (jobs, name) => jobs.some((job) => name === job || String(name).startsWith(`${job} (`));
 const NAME = "[a-z]+(?:-[a-z]+)*";
 const HOLD_NOTICES = [
-  // report-outcome.mjs: a fault stop whose counted retries were all faults.
   { title: "report-outcome", pattern: new RegExp(`^issue #(\\d+) stopped on a fault \\((${NAME})\\), and every retry`), hold: (m) => ({ item: `#${m[1]}`, reason: `fault ${m[2]}` }) },
-  // label-unblocked.mjs reportHold: a listing the sweep could not read.
   { title: "label-unblocked", pattern: new RegExp(`^the (${NAME}) listing failed \\(`), hold: (m) => ({ item: null, reason: `${m[1]} listing failed` }) },
-  // label-unblocked.mjs failedFor: one issue's read met a GitHub fault. The
-  // reason names only the status, never the fault's text.
   { title: "label-unblocked", pattern: /^#(\d+): (?:.*\bstatus (\d{3})\b)?.*; holding, and the next sweep reads it again$/, hold: (m) => ({ item: `#${m[1]}`, reason: `read fault${m[2] ? ` HTTP ${m[2]}` : ""}` }) },
-  // handoff-evidence.sh: a fix-docs read that failed.
   { title: "Handoff evidence hold", pattern: new RegExp(`^handoff evidence for (${NAME}) still missing`), hold: (m) => ({ item: null, reason: `${m[1]} handoff evidence missing` }) },
-  // pr-refine.yml fix-docs-head-held: the PR head, or its human-gated hold
-  // (lane-hold.mjs), could not be read.
   { title: "PR head hold", pattern: /^the head of #(\d+) could not be read/, hold: (m) => ({ item: `#${m[1]}`, reason: "PR head unread" }) },
   { title: "PR head hold", pattern: /^the human-gated hold of #(\d+) could not be read/, hold: (m) => ({ item: `#${m[1]}`, reason: "PR hold unread" }) },
-  // pr-refine.yml fix-docs-head-held after a plan hold: the PR's changed
-  // files could not be read.
   { title: "PR head hold", pattern: /^the changed files of #(\d+) could not be read/, hold: (m) => ({ item: `#${m[1]}`, reason: "PR files unread" }) },
-  // check-wip-cap.mjs, or pick-slot's step when the check did not finish: the
-  // pause could not be read, so the run started no work. A fixed reason per
-  // cause, and no item, since the hold is the lane's, not one issue's.
   {
     title: "WIP cap hold",
     pattern: /^(?:WIP cap hold: the (base config) could not be read|WIP cap hold: the (open lane PRs) could not be listed|the (WIP cap check) did not finish), so the pause is unknown/,
     hold: (m) => ({ item: null, reason: m[1] ? "WIP cap base config unread" : m[2] ? "WIP cap open listing failed" : "WIP cap check unfinished" }),
   },
-  // pr-verify: resolve-pr.mjs closing, or pr-verify.yml's `Note the hold` for
-  // a trigger gate stopped with read-fault. A fixed reason per cause, and no
-  // item: the PR is the run's, read from its URL.
   {
     title: "pr-verify",
     pattern: /^held: (?:pr-verify's trigger gate met a GitHub fault|pr-verify could not resolve the pull request)/,
     hold: (m) => ({ item: null, reason: m[0].includes("trigger gate") ? "trigger gate fault" : "resolver fault" }),
   },
-  // pr-review-main.yml's four `Select a lane-source pull request` steps: the
-  // file list did not read after retry_call's 3 reads.
   { title: "pr-review-main", pattern: /^held: the file list did not read /, hold: () => ({ item: null, reason: "file list unread" }) },
-  // request-lane-token's rate-limit-hold-ok: the broker's last answer was a
-  // rate limit, whether the budget or the 3 requests ended the retries. One
-  // fixed reason, never the notice's reset time.
   { title: "Lane token hold", pattern: /^lane-token-held: the broker answered 503 github-rate-limited /, hold: () => ({ item: null, reason: "lane token rate-limited" }) },
-  // apply-verdict.mjs closing: a GitHub fault held the verdict. The reason is
-  // a closed set, never the fault's own text, so the finding's fingerprint
-  // stays put; the issue a path names may be a blocker, so no item.
   { title: "apply-verdict", pattern: /^held: (admission failed: )?(?:.*\bstatus (\d{3})\b)?/, hold: (m) => ({ item: null, reason: `${m[1] ? "admission " : ""}fault${m[2] ? ` HTTP ${m[2]}` : ""}` }) },
-  // log-pass-records.mjs: a Refine pass that failed. A warning, since the
-  // pass did not hold but failed; its reason is already a closed set.
   { title: "refine-failed", level: "warning", pattern: new RegExp(`^pass=(${NAME}) reason=(${NAME})$`), hold: (m) => ({ item: null, reason: `${m[1]} failed: ${m[2]}` }) },
 ];
 

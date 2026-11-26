@@ -1,84 +1,20 @@
 #!/usr/bin/env bash
-# Collect an entity-relationship record from committed schema declarations.
-#
-# WHY. An ERD is a fact only when every box and every cardinality comes from a
-# declaration in a named file. This script reads those declarations. It does
-# not open a database connection, even when --live is passed: a live adapter
-# is not shipped, and the record says so instead of drawing.
-#
-# Usage:
-#   collect-data.sh [--repo <path>] [--out <file>] [--generated-on <date>] [--live]
-#   collect-data.sh --help
-#
-# Tracked files only (`git ls-files`). Source tiers, first that is present wins
-# the diagram. Every other shipped tier that is also present is compared, and
-# a disagreement is a mismatch row, not a silent choice.
-#
-#   1. model      Prisma schema (*.prisma)
-#   2. orm        Entity Framework fluent one-to-many and one-to-one chains, from Entity<T>() or from
-#                 the one IEntityTypeConfiguration<T> class in a file (builder.HasOne/HasMany)
-#   3. migration  SQL under a migrations directory (root or nested), replayed from a stated statement subset
-#
-# The EF reader takes HasOne/HasMany with a generic argument or, for one-to-many
-# only, a lambda navigation (HasMany(e => e.Posts), HasOne(e => e.Blog)) whose
-# target type comes from the property declared on the configured entity's class
-# (ICollection/List/IList/IEnumerable/HashSet<T> for a collection, T or T? for a
-# reference). The foreign key is one column, HasForeignKey("Col") or
-# HasForeignKey(e => e.Col); HasPrincipalKey is one column the same way.
-# Requiredness is IsRequired(), IsRequired(true) or IsRequired(false) and, when none is
-# written, the foreign-key property's declared type on the dependent class: T?,
-# Nullable<T> and string? are optional, a built-in value type is required.
-# Unreadable: a composite key, a navigation with no single declared type, an
-# IsRequired argument other than true or false, and a
-# foreign key with no IsRequired whose property is undeclared or has any other
-# type (a plain string is nullable or not by project setting).
-#
-# A recognized mechanism this script does not extract (Django models, SQLAlchemy
-# columns, EF [ForeignKey] annotations, implicit
-# Prisma many-to-many) refuses the record, as does an EF chain or an ALTER TABLE
-# action it cannot read when that tier wins; stderr names what stopped the EF
-# read. A losing tier it cannot read is a
-# not-compared mismatch row. A shipped diagram plus an unread
-# mechanism would be a partial read.
-#
-# Output: data-model.json, schema_version 1, one object per line.
-#
-#   {
-#     "schema_version": 1,
-#     "generated_on": "YYYY-MM-DD",
-#     "subject": "<github.com origin repository name, else directory basename>",
-#     "status": "drawn" | "refused",
-#     "reason": "",
-#     "source_tier": "model" | "orm" | "migration" | "none",
-#     "source_tool": "prisma" | "ef-fluent" | "sql-migration" | "none",
-#     "mechanisms": [ one {"name":...} object per line, or [] ],
-#     "modules": [ one {"id":...} object per line, or [] ],
-#     "entities": [ one {"id":...} object per line, or [] ],
-#     "attributes": [ one {"entity":...} object per line, or [] ],
-#     "relationships": [ one {"from":...} object per line, or [] ],
-#     "mismatches": [ one {"kind":...} object per line, or [] ]
-#   }
-#
-# Relationship "from" is the foreign-key entity. "to" is the referenced entity.
-# cardinality is the mermaid token with the referenced entity on the left
-# (||--o{ is one referenced row to zero-or-more foreign-key rows). A foreign key
-# covered by a unique or primary-key column set is one-to-one: ||--o| when
-# required, |o--o| when optional. "references" is the referenced column list,
-# empty when the declaration does not name it. A composite foreign key with no
-# unique column set inside it has no readable cardinality, so the record refuses
-# with unknown-cardinality instead of drawing one-to-many.
-#
-# Portability: bash plus POSIX awk. No jq, no python, no database client.
-#
-# Exit: 0 = a record was written (including a refusal); 1 = the path is not a
-# readable directory; 2 = usage.
 set -uo pipefail
 
 # shellcheck source=../../../lib/github-remote.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/github-remote.sh"
 
 usage() {
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Collect an entity-relationship record from committed schema declarations.
+Usage: collect-data.sh [--repo <path>] [--out <file>] [--generated-on <date>] [--live]
+  --repo <path>          repository to read (tracked files only)
+  --out <file>           where data-model.json is written (default stdout)
+  --generated-on <date>  date recorded in the record
+  --live                 accepted; no live adapter ships, so the record says so
+Writes data-model.json, schema_version 1, one object per line.
+Exit: 0 a record was written (including a refusal); 1 the path is not a readable directory; 2 usage.
+EOF
 }
 
 die() {

@@ -1,8 +1,3 @@
-// The entry tail of a lane script: run(), which resolves to the exit code,
-// runs only when the importing module is the process entry point, so a test
-// that imports the module runs nothing. A rejection prints `::error::<label>
-// failed: <message>` and exits 1.
-
 import { pathToFileURL } from "node:url";
 
 export function runAsScript(metaUrl, label, run) {

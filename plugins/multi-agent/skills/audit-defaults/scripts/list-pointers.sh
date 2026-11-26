@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# list-pointers.sh [--json] [<role>|fanout]: print every bundled default's
-# provenance as TSV (owner, key, value): pointer*, as_of and recheck per role
-# and for the fan-out guard, then the resolved values those pointers back. With
-# an owner, both blocks keep only that owner's rows. --json prints both blocks
-# as one array of {owner, key, value} for the drift-audit workflow's
-# args.pointers; a value row's key is its full dotted key.
 set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../.."

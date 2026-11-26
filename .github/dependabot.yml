@@ -1,32 +1,9 @@
-# Dependabot keeps this repo's dependencies current with pull requests — GitHub-native,
-# no third-party app and no PAT. It covers the GitHub Actions (first-party `melodic-software/*`
-# refs track `@main`, vendor actions `actions/*`, `github/*` and `anthropics/*` use major tags, and
-# other third-party actions stay hash-pinned and move by Dependabot:
-# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0129-reference-first-party-actions-at-main-and-vendor-actions-by-major-tag.md),
-# the root locked Node CI toolchain, the hash-locked Python CI
-# toolchain, the lockfile-backed npm roots of the resolve-config action and the plugin skills and
-# evals, and the Node MCP servers of the miro and sql-server plugins. The plugin hooks
-# still use each consuming repository's tools; these manifests exist only to make this repository's
-# validation reproducible. The pr-merge lane (.github/workflows/pr-merge.yml, ADR 0073) merges
-# Dependabot PRs of verified commits once `ci-status` passes: a non-major bump from an allowed
-# Actions publisher (tier auto) as is, and anything riskier (tier review: another publisher, a red
-# `ci-status`) once the pr-unblock lane's AI review leaves a merge verdict at its head. Majors, and
-# updates whose version cannot be read, wait for a human (`merge.dependabot.majors: hold`; ADR 0073
-# addendum 2026-10-18). A dependency joins the first
-# group that matches it, so majors fall through to the `github-actions` group, whose title and
-# metadata then name a major update.
 version: 2
 updates:
-  # "/" scans .github/workflows; the glob also scans each composite action's own action.yml
-  # (check-wip-cap pins actions/setup-node), which Dependabot does not reach from "/" alone.
   - package-ecosystem: github-actions
     directories:
       - /
       - /.github/actions/*
-    # Only the `dependencies` label (already in the governed taxonomy). This overrides
-    # Dependabot's defaults, suppressing the auto-created snake_case `github_actions`
-    # ecosystem label — the label every downstream tool ignores anyway (release notes
-    # group on `dependencies`; auto-merge keys on fetch-metadata outputs).
     labels:
       - dependencies
     schedule:
@@ -34,10 +11,6 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: build
-    # Let a brand-new release settle before proposing it (supply-chain caution); security-advisory
-    # updates bypass cooldown and still surface immediately. claude-code-action is excluded from
-    # the cooldown, so its release lands at the next weekly check with no soak:
-    # https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference#cooldown-
     cooldown:
       default-days: 3
       exclude:
@@ -57,14 +30,9 @@ updates:
     labels:
       - dependencies
     schedule:
-      # GitHub defines daily as every weekday. This executable compatibility
-      # dependency intentionally tracks the latest Claude Code release.
       interval: daily
     open-pull-requests-limit: 5
     cooldown:
-      # Biome waits out the supply-chain settle window like every other locked
-      # dependency. Claude Code is excluded so it keeps tracking the latest
-      # release immediately, matching this root's daily schedule.
       default-days: 3
       exclude:
         - "@anthropic-ai/claude-code"
@@ -91,11 +59,6 @@ updates:
         update-types:
           - "minor"
           - "patch"
-  # The miro plugin ships a Node MCP server; its runtime + build dependencies are
-  # pinned by plugins/miro/server/package-lock.json, from which the server installs its
-  # runtime dependencies on first launch, so a bump reaches users as a reviewed lockfile
-  # change. The project sits under server/ so the plugin root carries no lockfile and
-  # Claude Code's automatic install never runs for it.
   - package-ecosystem: npm
     directory: /plugins/miro/server
     labels:
@@ -112,11 +75,6 @@ updates:
         update-types:
           - "minor"
           - "patch"
-  # The sql-server plugin's database driver (tedious, @azure/identity). Nothing is
-  # vendored, so a bump here is the release (docs/contracts/on-demand-dependencies/).
-  # The code holds SQL credentials, so the standards Dependabot policy lists both under
-  # autoMerge.reviewOnly and their bumps take the review tier, never auto-merge
-  # (docs/conventions/pr-pipeline/README.md#review-only-dependencies).
   - package-ecosystem: npm
     directory: /plugins/sql-server
     labels:
@@ -133,9 +91,6 @@ updates:
         update-types:
           - "minor"
           - "patch"
-  # The harness-ops inventory's parser packages (acorn, eslint-scope). Nothing is
-  # vendored: the committed lockfile is what `npm ci` installs on first use
-  # (docs/contracts/on-demand-dependencies/), so a bump here is the release.
   - package-ecosystem: npm
     directory: /plugins/harness-ops/skills/inventory/scripts/js
     labels:
@@ -152,9 +107,6 @@ updates:
         update-types:
           - "minor"
           - "patch"
-  # The harness-ops control-claude-code driver's terminal engine (@microsoft/tui-test).
-  # Nothing is vendored: the committed lockfile is what `npm ci` installs on first use
-  # (docs/contracts/on-demand-dependencies/), so a bump here is the release.
   - package-ecosystem: npm
     directory: /plugins/harness-ops/skills/control-claude-code/driver
     labels:
@@ -171,9 +123,6 @@ updates:
         update-types:
           - "minor"
           - "patch"
-  # The testing check-visual-parity skill's pixelmatch and pngjs. Nothing is
-  # vendored: the committed lockfile is what `npm ci` installs on first use
-  # (docs/contracts/on-demand-dependencies/), so a bump here is the release.
   - package-ecosystem: npm
     directory: /plugins/testing/skills/check-visual-parity/scripts
     labels:
@@ -310,18 +259,6 @@ updates:
         update-types:
           - "minor"
           - "patch"
-  # The explainer-video plugin's hash-locked Python packages (ManimCE). Nothing is vendored:
-  # the SessionStart hook installs requirements.txt on demand
-  # (docs/contracts/on-demand-dependencies/), so a bump here is the release.
-  # Version updates skip manim, so bump it by hand with Rule P1's command. Dependabot's pip-compile
-  # cannot resolve it: manimpango has no Linux wheel, and building its metadata needs pangocairo.
-  # update-types leaves security updates on; a bare ignore would stop those too.
-  # lib/media-render's lock pins the same playwright (CI fails when the pins differ), so both
-  # directories share this entry and its playwright group (group-by, in
-  # https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference).
-  # Dependabot's pip-compile cannot relock explainer-video, so the group's pull request can bump
-  # lib/media-render alone; the pr-unblock lane then relocks explainer-video to the same pin with uv
-  # (dependency-relock.mjs).
   - package-ecosystem: pip
     directories:
       - /plugins/explainer-video
@@ -366,10 +303,10 @@ updates:
         update-types:
           - "minor"
           - "patch"
-  # Ruff is a CI-only executable pinned to the Ubuntu x64 wheel and its PyPI
-  # digest. Dependabot must update both the version and reviewed hash.
   - package-ecosystem: pip
-    directory: /.github
+    directories:
+      - /.github
+      - /.github/scripts/diff-chunking
     labels:
       - dependencies
     schedule:
