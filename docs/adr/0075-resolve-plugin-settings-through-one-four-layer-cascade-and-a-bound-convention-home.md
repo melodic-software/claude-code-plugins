@@ -2,7 +2,8 @@
 
 - Status: accepted; amended 2026-10-24 (the convention-home bullet on always-loaded content, see the amendment below); the D100 floor is narrowed by the owner approval and tighten-only skip the [PR pipeline convention](../conventions/pr-pipeline/README.md#owner-pull-requests) records
 - Date: 2026-10-18
-- Supersedes: ADR 0061 (retired) for its layers and paths (the five-layer list, the user-global `~/docs/conventions/` layer and its
+- Supersedes: [ADR 0061](0061-adopt-a-five-layer-plugin-config-cascade-read-through-one-shared-resolver.md)
+  for its layers and paths (the five-layer list, the user-global `~/docs/conventions/` layer and its
   "lower layer keeps the key" invalid-value rule);
   [ADR 0064](0064-home-plugin-customization-in-docs-conventions-yaml.md) Decisions 2 and 3 (the fixed
   `docs/conventions` root) and Decision 8 (its layer list);
@@ -159,7 +160,7 @@ context". The values land with the threads that use them.
 
 ## Consequences
 
-- ADR 0064 carries a status line that links this record; ADR 0061 and ADR 0015 are retired.
+- ADR 0061 and ADR 0064 carry a status line that links this record; ADR 0015 is retired.
 - The config-cascade contract lists the four layers, the pointer region and the `Floor direction`
   column, and its `CHANGELOG.md` records a major `contract_version` bump, because the layer set and
   precedence change.
