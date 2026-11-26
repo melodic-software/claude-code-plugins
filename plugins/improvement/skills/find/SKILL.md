@@ -144,8 +144,9 @@ file's merge semantics, root rule and dual-read window. While an old file
 read it as that file says and print its one warning line in the run's output, naming each old
 file, its new location and `/improvement:setup apply`.
 
-The `userConfig` layer, as substituted into this skill (empty, or a literal `${user_config.…}`
-placeholder, means unset):
+The `userConfig` layer, read from this text, where Claude Code substitutes it
+([reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value));
+empty, or a literal `${user_config.…}` placeholder, means unset:
 
 | Option | Value |
 |---|---|

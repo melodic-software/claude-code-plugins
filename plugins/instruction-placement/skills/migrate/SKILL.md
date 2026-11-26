@@ -317,9 +317,9 @@ older cached build advises it straight back to the old shape), unless `cutover-c
 `[MET]` in that same run, and unless every instruction directory is already at the target shape. A
 zero-byte `AGENTS.md` cannot be canaried, so it is never de-shimmed.
 
-Root and nested shims come out **together**: a lone nested `AGENTS.md` never attaches while a root
-`CLAUDE.md` exists, so removing one without the other leaves files that review as correct and load
-nothing.
+Root and nested shims come out **together**, since a root `CLAUDE.md` decides whether a lone nested
+`AGENTS.md` is read ([when Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md)):
+removing one without the other leaves files that review as correct and load nothing.
 
 **The nested canary runs from the nested directory, and its line has to be unique.** A session
 started there loads that directory's `AGENTS.md` and every ancestor's, measured on 2.1.278 with no
