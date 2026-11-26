@@ -11,7 +11,8 @@ files and below every team-tracked standard; a repository that is also the org l
 there. Subscriptions add no `REVIEW.md`. `org-standards.sh subscriptions` prints each subscribed
 layer with its checkout and its (topic-filtered) index, reports malformed entries, refusals and
 index drift, and prints the index diff when a pin moves; `STANDARDS_SUBSCRIPTIONS_DISABLED=true`
-skips them for a session. A user index that uses the list declares 1.3.0. Validation tightens:
+skips them for a session. A user index that uses the list declares 1.3.0; one declaring an older
+version is still read and reported. Validation tightens:
 a repository name made only of dots (`.`, `..`) is not `<owner>/<repo>`, for `standards_repository`
 and for every subscription entry, so a cache path cannot resolve outside its cache root. A layer
 read from another repository (the org layer and each subscription) is confined to its checkout:
@@ -32,7 +33,9 @@ each single-backtick code span on one line shaped `<path>.md#<heading>` (letters
 as the citation, a tab, and `<absolute path>#<heading>`. `review` prints the criteria text alone,
 so no `REVIEW.md` text can add to the citations. Consumers open a `REVIEW.md` citation only from
 `citations`, never by resolving the criteria text.
-A `trusted_owners` that is not a block list trusts no owner and is reported. `index` and
+The `trusted_owners` and `standards_repositories` keys are found however YAML lets them be written
+(quoted, or with a space before the colon); a `trusted_owners` that is not a block list trusts no
+owner and is reported. `index` and
 `subscriptions` now print a new index written under the reader's cache state, never inside a checkout, built only from the `standards-contract`
 version, the table header and each well-formed row of the `Surface | Applies when | File` table
 rebuilt from its cells (no prose or other line is copied; every other line holding a `|` is
@@ -49,7 +52,8 @@ in the cache directory, reading no config of the repository the reader runs from
 enclosing the cache, and no transport but `https`, `ssh`, `git` and `file` runs. A symbolic link at
 an owner directory or an entry of the cache is removed before the entry is read or built, so every
 checkout is built inside the cache. Every value the reader's reports quote, from a repository, the
-user-global index or the environment, has its control characters removed.
+user-global index or the environment, shows each C0, DEL and C1 control character and each byte
+outside valid UTF-8 as `\xNN`, and a `STANDARDS_DIR` or cache directory holding one is refused.
 A `ref` naming an annotated tag object reads the commit it tags. Reader
 state moves to `.state/` in the cache directory. An index at 1.2.0 is
 older than the bundled contract, so setup offers the guided migration, which changes nothing but

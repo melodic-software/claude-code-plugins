@@ -3,14 +3,15 @@
 # edit the canonical source, then rerun the script.
 # shellcheck disable=SC2310  # every function here answers through its return code; callers branch on it
 set -euo pipefail
+export LC_ALL=C
 
 REPLACE_MARKER='<!-- review-base: replace -->'
 SUBSCRIPTIONS_SINCE=1.3.0
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 US=$'\037'
 
-die() { printf 'org-standards: %s\n' "$1" >&2; exit "${2:-2}"; }
-note() { printf 'org-standards: %s\n' "$1" >&2; }
+die() { printf 'org-standards: %s\n' "$(printable "$1")" >&2; exit "${2:-2}"; }
+note() { printf 'org-standards: %s\n' "$(printable "$1")" >&2; }
 
 NET_KEYS='^(https?\.proxy|http\.sslcainfo|http\.sslcapath|core\.sshcommand|url\..*\.insteadof|credential\..*)$'
 GIT_ISOLATE=(-c core.hooksPath=/dev/null -c core.fsmonitor=false)
@@ -27,15 +28,31 @@ done < <(for scope in system global; do command git config "--$scope" -z --get-r
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_ALLOW_PROTOCOL=https:ssh:git:file
 git() { command git "${GIT_ISOLATE[@]}" "$@"; }
 
-printable() { printf '%s' "$1" | LC_ALL=C tr -d '\000-\037\177' | no_c1; }
-no_c1() { LC_ALL=C awk '{ gsub(/\302[\200-\237]/, ""); printf "%s%s", sep, $0; sep = "\n" }'; }
+# shellcheck disable=SC2016  # an awk program; awk expands its own $ fields
+ESCAPE='
+function esc(s, tab,    out) {
+  if (!ORDS) { for (ORDS = 1; ORDS < 256; ORDS++) ORD[sprintf("%c", ORDS)] = ORDS }
+  out = ""
+  while (match(s, /[^ -~]/)) {
+    out = out substr(s, 1, RSTART - 1); s = substr(s, RSTART)
+    if (tab && substr(s, 1, 1) == "\t") { out = out "\t"; s = substr(s, 2) }
+    else if (match(s, /^(\302[\240-\277]|[\303-\337][\200-\277]|\340[\240-\277][\200-\277]|[\341-\354\356\357][\200-\277][\200-\277]|\355[\200-\237][\200-\277]|\360[\220-\277][\200-\277][\200-\277]|[\361-\363][\200-\277][\200-\277][\200-\277]|\364[\200-\217][\200-\277][\200-\277])/)) {
+      out = out substr(s, 1, RLENGTH); s = substr(s, RLENGTH + 1)
+    }
+    else if (match(s, /^\302[\200-\237]/)) { out = out sprintf("\\x%02x", ORD[substr(s, 2, 1)]); s = substr(s, 3) }
+    else { out = out sprintf("\\x%02x", ORD[substr(s, 1, 1)]); s = substr(s, 2) }
+  }
+  return out s
+}'
+printable() { ESCAPE_IN=$1 awk "$ESCAPE"' BEGIN { printf "%s", esc(ENVIRON["ESCAPE_IN"], 0) }'; }
+as_is() { [[ "$(printable "$1")" == "$1" ]]; }
 
 cmd=${1:-}; shift || true
 root=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --root) [[ $# -ge 2 ]] || die "--root needs a directory"; root=$2; shift 2 ;;
-    *) die "unknown argument: $(printable "$1")" ;;
+    *) die "unknown argument: $1" ;;
   esac
 done
 case "$cmd" in dir|index|review|citations|subscriptions) ;; *) die "usage: org-standards.sh dir|index|review|citations|subscriptions [--root DIR]" ;; esac
@@ -51,6 +68,7 @@ yaml_value() {
 
 CACHE="${ORG_STANDARDS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/claude-code-plugins/org-standards}"
 [[ "$CACHE" == /* ]] || CACHE="$PWD/$CACHE"
+as_is "$CACHE" || die "the cache directory $CACHE holds a control character or invalid UTF-8"
 STATE="$CACHE/.state"
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
@@ -87,14 +105,15 @@ SHA_RE='^[0-9a-f]{40}([0-9a-f]{24})?$'
 
 org_dir() {
   if [[ -n "${STANDARDS_DIR:-}" ]]; then
-    [[ -d "$STANDARDS_DIR" ]] || { note "STANDARDS_DIR $(printable "$STANDARDS_DIR") is not a directory"; return 4; }
+    as_is "$STANDARDS_DIR" || { note "STANDARDS_DIR $STANDARDS_DIR holds a control character or invalid UTF-8; no org layer"; return 4; }
+    [[ -d "$STANDARDS_DIR" ]] || { note "STANDARDS_DIR $STANDARDS_DIR is not a directory"; return 4; }
     printf '%s\n' "$STANDARDS_DIR"; return 0
   fi
   local repo
   repo=$(yaml_value "$root/docs/conventions/source-control.yaml" standards_repository)
   [[ -n "$repo" ]] || return 3
   if ! [[ "$repo" =~ $REPO_RE ]]; then
-    note "standards_repository $(printable "$repo") is not <owner>/<repo>; no org layer"
+    note "standards_repository $repo is not <owner>/<repo>; no org layer"
     return 3
   fi
   local cache
@@ -119,7 +138,7 @@ org_dir() {
       && checkout_git "$cache" -c core.symlinks=false checkout --quiet --force --detach FETCH_HEAD 2>/dev/null; then
       printf '%s\n' "$now" >"$stamp"
     else
-      printf 'org-standards: refreshing %s failed; using the copy cached at %s\n' "$repo" "$cache" >&2
+      note "refreshing $repo failed; using the copy cached at $cache"
     fi
     printf '%s\n' "$cache"; return 0
   fi
@@ -129,7 +148,7 @@ org_dir() {
   if ! net_git -C "$CACHE" clone --quiet --no-checkout --depth=1 --branch main --config core.symlinks=false "$url" "$tmp" 2>/dev/null \
     || ! checkout_git "$tmp" -c core.symlinks=false checkout --quiet --force main 2>/dev/null; then
     rm -rf "${tmp:?}"
-    printf 'org-standards: cannot clone %s; no org layer this run\n' "$url" >&2
+    note "cannot clone $url; no org layer this run"
     return 4
   fi
   printf '%s\n' "$now" >"$tmp/.git/org-standards-fetched"
@@ -187,7 +206,7 @@ index_of() {
   fi
   dir=$(yaml_value "$conf" standards_dir)
   if why=$(path_problem "$dir"); then
-    note "$conf: standards_dir $(printable "$dir") $why; no usable index"; return 1
+    note "$conf: standards_dir $dir $why; no usable index"; return 1
   fi
   index="$1/${dir:-docs/standards}"; index="${index%/}/README.md"
   [[ -f "$index" ]] || return 1
@@ -229,7 +248,7 @@ state == 1 {
   gsub(/^[ \t]+|[ \t]+$/, "", f)
   print NR "\037row\037" C[2] "\037" C[3] "\037" f
 }'
-BAD_CELL='[[:cntrl:]|`]'
+BAD_CELL='[|`]'
 SURFACE_RE='^[A-Za-z0-9._-]+$'
 
 locate() {
@@ -240,7 +259,7 @@ locate() {
   if ! [[ -e "$cand" || -L "$cand" ]] && [[ -e "$root/$f" || -L "$root/$f" ]]; then cand="$root/$f"; fi
   within "$root" "$cand" || { printf 'resolves outside its checkout'; return 1; }
   [[ ! -e "$cand" ]] || cand=$(phys "$cand") || { printf 'resolves outside its checkout'; return 1; }
-  [[ ! "$cand" =~ $BAD_CELL ]] || { printf 'resolves to a path a table cell cannot hold'; return 1; }
+  if [[ "$cand" =~ $BAD_CELL ]] || ! as_is "$cand"; then printf 'resolves to a path a table cell cannot hold'; return 1; fi
   printf '%s' "$cand"
 }
 
@@ -248,7 +267,7 @@ confine() {
   local root=$1 index=$2 topics=$3 sdir line kind id when f path version text key out
   version=$(yaml_value "$index" standards-contract)
   if ! [[ "$version" =~ ^[0-9A-Za-z.+-]+$ ]]; then
-    note "$index: standards-contract $(printable "$version") is not a version; no usable index"; return 1
+    note "$index: standards-contract $version is not a version; no usable index"; return 1
   fi
   text=$(printf -- '---\nstandards-contract: %s\n---\n\n| Surface | Applies when | File |\n|---|---|---|' "$version")
   sdir=$(dirname "$index")
@@ -257,9 +276,9 @@ confine() {
       head) ;;
       row)
         if ! [[ "$id" =~ $SURFACE_RE ]]; then
-          note "$index:$line: Surface $(printable "$id") is not an id; row dropped"
+          note "$index:$line: Surface $id is not an id; row dropped"
         elif ! path=$(locate "$root" "$sdir" "$f"); then
-          note "$index:$line: File $(printable "$f") $path; row dropped"
+          note "$index:$line: File $f $path; row dropped"
         elif [[ -z "$topics" || " $topics " == *" $id "* ]]; then
           text+=$'\n'"| $id | $(printable "$when") | $path |"
         fi ;;
@@ -338,18 +357,6 @@ BEGIN { for (i = 0; i < 256; i++) HEX[sprintf("%02x", i)] = i }
 }
 END { flush() }'
 INVISIBLE='\302[\240\255]|\330[\200-\205\234]|\333\235|\334\217|\340\242[\220\221]|\340\243\242|\341\232\200|\341\240\216|\342\200[\200-\217\250-\257]|\342\201[\237-\244\246-\257]|\343\200\200|\357\273\277|\357\277[\271-\273]|\360\221\202\275|\360\221\203\215|\360\223\220[\260-\277]|\360\233\262[\240-\243]|\360\235\205[\263-\272]|\363\240\200[\201\240-\277]|\363\240\201[\200-\277]'
-# shellcheck disable=SC2016  # an awk program; awk expands its own $ fields
-ESCAPE_CONTROLS='
-BEGIN {
-  for (i = 1; i < 32; i++) if (i != 9) C[sprintf("%c", i)] = sprintf("\\x%02x", i); C[sprintf("%c", 127)] = "\\x7f"
-  for (i = 128; i < 160; i++) C["\302" sprintf("%c", i)] = sprintf("\\x%02x", i)
-}
-index(drop, " " FNR " ") { next }
-{
-  sub(/\r$/, ""); out = ""; s = $0
-  while (match(s, /[\001-\010\013-\037\177]|\302[\200-\237]/)) { out = out substr(s, 1, RSTART - 1) C[substr(s, RSTART, RLENGTH)]; s = substr(s, RSTART + RLENGTH) }
-  print out s
-}'
 review_drops() {
   local root=$1 file=$2 line cite path why drop=" "
   while IFS="$US" read -r line cite path; do
@@ -358,12 +365,12 @@ review_drops() {
     elif ! within "$root" "$root/$path"; then why="resolves outside the org checkout"
     else continue
     fi
-    note "$file:$line: citation $(printable "$cite") $why; line dropped"
+    note "$file:$line: citation $cite $why; line dropped"
     drop+="$line "
-  done < <(LC_ALL=C awk -v INVISIBLE="$INVISIBLE" "$CITATIONS" "$file" | LC_ALL=C sort -s -n -t "$US" -k1,1)
+  done < <(awk -v INVISIBLE="$INVISIBLE" "$CITATIONS" "$file" | sort -s -n -t "$US" -k1,1)
   printf '%s' "$drop"
 }
-show() { LC_ALL=C awk -v drop=" ${2:-} " "$ESCAPE_CONTROLS" "$1"; }
+show() { awk -v drop=" ${2:-} " "$ESCAPE"' index(drop, " " FNR " ") { next } { sub(/\r$/, ""); print esc($0, 1) }' "$1"; }
 
 CITE_RE='^[A-Za-z0-9][A-Za-z0-9._/-]*\.md#[A-Za-z0-9][A-Za-z0-9._-]*$'
 # shellcheck disable=SC2016  # an awk program; awk expands its own $ fields
@@ -385,7 +392,7 @@ citations() {
     real=$(phys "$base/${c%%#*}" 2>/dev/null) || continue
     [[ -f "$real" && "$real" == "$base"/* && "${real#"$base"/}" =~ ^[A-Za-z0-9._/-]+$ ]] || continue
     printf '%s\t%s#%s\n' "$c" "$real" "${c#*#}"
-  done < <(LC_ALL=C awk -v drop=" ${3:-} " "$SPANS" "$1")
+  done < <(awk -v drop=" ${3:-} " "$SPANS" "$1")
 }
 
 drift() {
@@ -405,28 +412,40 @@ frontmatter() {
   awk 'NR == 1 { if ($0 != "---") exit; print ""; next } $0 == "---" { exit } { print }' "$1"
 }
 
+# shellcheck disable=SC2016  # an awk program run ahead of yaml-subset.awk: ORS appends each record's line, and END reads the parser's keyseen so a key is found under any spelling it accepts
+NUMBERED='
+{ ORS = "\t" NR "\n" }
+END { ORS = "\n"; for (k in keyseen) if (k == "trusted_owners" || k == "standards_repositories") print ".key\t" k "\t" keyseen[k] }'
+parse_yaml() { awk -f <(printf '%s\n' "$NUMBERED") -f "$1"; }
+# shellcheck disable=SC2016  # an awk program; awk expands its own $ fields
+VALUE_ON_KEY_LINE='function on_key_line(s) { sub(/^[^:]*:[ \t]*/, "", s); return s != "" && s !~ /^#/ }'
+
 list_ranges() {
-  awk '
-    /^standards_repositories:/ {
-      v = $0; sub(/^standards_repositories:[ \t]*/, "", v)
-      if (v != "" && v !~ /^#/) { print "flow", NR; exit }
-      inlist = 1; next
-    }
-    inlist {
+  awk -v at="$1" "$VALUE_ON_KEY_LINE"'
+    NR < at { next }
+    NR == at { if (on_key_line($0)) { print "not-block"; exit } match($0, /^[ \t]*/); kind = RLENGTH; next }
+    {
       if ($0 ~ /^[ \t]*(#.*)?$/) next
-      match($0, /^[ \t]*/); ind = RLENGTH; rest = substr($0, ind + 1)
-      if (ind == 0 && rest !~ /^-( |$)/) { inlist = 0; if (start) print start, last; start = 0; next }
-      if (rest ~ /^-( |$)/ && (iind == "" || ind == iind)) { if (iind == "") iind = ind; if (start) print start, last; start = NR }
+      match($0, /^[ \t]*/); ind = RLENGTH; dash = substr($0, ind + 1) ~ /^-( |$)/
+      if (ind < kind || (ind == kind && !dash)) exit
+      if (iind == "" && !dash) { print "not-block"; exit }
+      if (dash && (iind == "" || ind == iind)) { if (iind == "") iind = ind; if (start) print start, last; start = NR }
       last = NR
     }
     END { if (start) print start, last }'
 }
 
 to_records() {
-  awk -F'\t' -v starts="$1" '
+  awk -F'\t' -v starts="$1" "$VALUE_ON_KEY_LINE"'
     BEGIN { n = split(starts, S, " ") }
+    FNR == NR { text[FNR] = $0; next }
+    $1 == ".key" { if ($2 == "trusted_owners") tl = $3; next }
     $1 == "standards-contract" { print "version\t" $2; next }
-    $1 ~ /^trusted_owners(\.[0-9]+)?$/ { print "trusted\t" $2; next }
+    $1 == "trusted_owners" || index($1, "trusted_owners.") == 1 {
+      if ($1 ~ /^trusted_owners\.[0-9]+$/ && text[$NF] ~ /^[ \t]*- /) owners[++no] = $2
+      else bad = 1
+      next
+    }
     $1 ~ /^standards_repositories\./ {
       rest = substr($1, 24); k = rest; sub(/\..*/, "", k); field = substr(rest, length(k) + 2)
       seen[k] = 1
@@ -441,9 +460,11 @@ to_records() {
       prob[k] = "unknown key " key
     }
     END {
+      if (bad || (no && !tl) || on_key_line(text[tl])) print "untrusted\t" (tl ? tl : "?")
+      else for (i = 1; i <= no; i++) print "trusted\t" owners[i]
       for (k = 0; k < n; k++) if (k in seen)
         printf "%s%c%s%c%s%c%s%c%s%c%s%c%s\n", S[k + 1], 31, v[k, "repo"], 31, v[k, "ref"], 31, v[k, "topics"], 31, v[k, "only_in"], 31, v[k, "except_in"], 31, prob[k]
-    }'
+    }' "$2" -
 }
 
 origin_repo() {
@@ -586,10 +607,10 @@ subscription() {
       if [[ -n "$ref" ]]; then
         note "$at: ref of $repo changed from ${last:0:12} to ${sha:0:12}; review the index diff below"
         diff -u --label "$repo@${last:0:12}" --label "$repo@${sha:0:12}" "$old" "$index" \
-          | LC_ALL=C tr -d '\000-\010\013-\037\177' | LC_ALL=C awk '{ gsub(/\302[\200-\237]/, ""); print }' >&2 || true
+          | awk "$ESCAPE"'{ print esc($0, 1) }' >&2 || true
       fi
       while IFS= read -r change; do
-        [[ -z "$change" ]] || note "$repo: index drift since ${last:0:12}: $(printable "$change")"
+        [[ -z "$change" ]] || note "$repo: index drift since ${last:0:12}: $change"
       done < <(drift "$old" "$index")
     fi
   fi
@@ -618,46 +639,50 @@ subscriptions() {
   elif [[ -f "$HERE/../lib/yaml-subset.awk" ]]; then awkf="$HERE/../lib/yaml-subset.awk"
   else note "subscriptions not read: yaml-subset.awk is missing beside $0"; return 0
   fi
-  local text ranges parsed errline msg range
+  local text ranges="" parsed status=0 list_at errline msg range
   text=$(frontmatter "$file")
-  ranges=$(printf '%s\n' "$text" | list_ranges)
-  if [[ "$ranges" == flow* ]]; then
-    note "subscriptions not read: $file:${ranges#flow }: standards_repositories is not a block list; write each entry as a block mapping"
+  parsed=$(printf '%s\n' "$text" | parse_yaml "$awkf") || status=$?
+  list_at=$(printf '%s\n' "$parsed" | awk -F'\t' '$1 == ".key" && $2 == "standards_repositories" { print $3 }')
+  [[ -z "$list_at" ]] || ranges=$(printf '%s\n' "$text" | list_ranges "$list_at")
+  if [[ "$ranges" == not-block ]]; then
+    note "subscriptions not read: $file:$list_at: standards_repositories is not a block list; write each entry as a block mapping"
     return 0
   fi
-  while ! parsed=$(printf '%s\n' "$text" | awk -f "$awkf"); do
+  while [[ "$status" -ne 0 ]]; do
     errline=$(printf '%s\n' "$parsed" | awk -F'\t' '$1 == "error" { print $2; exit }')
     msg=$(printf '%s\n' "$parsed" | awk -F'\t' '$1 == "error" { print $3; exit }')
     range=$(printf '%s\n' "$ranges" | awk -v l="$errline" '$1 <= l + 0 && l + 0 <= $2 { print; exit }')
     if [[ -z "$range" ]]; then
-      note "subscriptions not read: $file:$errline: $(printable "$msg")"; return 0
+      note "subscriptions not read: $file:$errline: $msg"; return 0
     fi
-    note "$file:${range% *}: malformed subscription ($(printable "$msg") at line $errline); entry skipped"
+    note "$file:${range% *}: malformed subscription ($msg at line $errline); entry skipped"
     text=$(printf '%s\n' "$text" | awk -v a="${range% *}" -v b="${range#* }" 'NR >= a && NR <= b { print ""; next } { print }')
     ranges=$(printf '%s\n' "$ranges" | grep -vxF -- "$range" || true)
+    status=0
+    parsed=$(printf '%s\n' "$text" | parse_yaml "$awkf") || status=$?
   done
-  local records version="" trusted="" starts flow_trust
+  local records version="" trusted="" starts untrusted_at=""
   starts=$(printf '%s\n' "$ranges" | awk 'NF { printf "%s%s", sep, $1; sep = " " }')
-  records=$(printf '%s\n' "$parsed" | to_records "$starts")
+  records=$(printf '%s\n' "$parsed" | to_records "$starts" <(printf '%s\n' "$text"))
   [[ -n "$records" ]] || return 0
-  flow_trust=$(printf '%s\n' "$text" | awk '/^trusted_owners:/ { v = $0; sub(/^trusted_owners:[ \t]*/, "", v); if (v != "" && v !~ /^#/) print NR; exit }')
   while IFS=$'\t' read -r kind value; do
     case "$kind" in
       version) version=$value ;;
-      trusted) [[ -n "$flow_trust" ]] || trusted="$trusted $(lower "$value")" ;;
+      trusted) trusted="$trusted $(lower "$value")" ;;
+      untrusted) untrusted_at=$value ;;
       *) ;;
     esac
-  done < <(printf '%s\n' "$records" | grep -E $'^(version|trusted)\t' || true)
+  done < <(printf '%s\n' "$records" | grep -E $'^(version|trusted|untrusted)\t' || true)
   if [[ -z "$version" ]]; then
     note "subscriptions not read: $file has no standards-contract frontmatter key, so it is not an index"; return 0
   fi
   local entries
-  entries=$(printf '%s\n' "$records" | grep -vE $'^(version|trusted)\t' || true)
+  entries=$(printf '%s\n' "$records" | grep -vE $'^(version|trusted|untrusted)\t' || true)
   [[ -n "$entries" ]] || return 0
   if version_lt "$version" "$SUBSCRIPTIONS_SINCE"; then
-    note "$file declares standards-contract $(printable "$version"); standards_repositories needs $SUBSCRIPTIONS_SINCE: update its frontmatter"
+    note "$file declares standards-contract $version; standards_repositories needs $SUBSCRIPTIONS_SINCE: update its frontmatter"
   fi
-  [[ -z "$flow_trust" ]] || note "$file:$flow_trust: trusted_owners is not a block list; no owner is trusted"
+  [[ -z "$untrusted_at" ]] || note "$file:$untrusted_at: trusted_owners is not a block list; no owner is trusted"
   local org cur line repo ref topics only except prob layerfile at
   for layerfile in "$root/docs/conventions/source-control.yaml" "$(index_of "$root" 2>/dev/null || true)"; do
     [[ -f "$layerfile" ]] || continue
@@ -674,7 +699,7 @@ subscriptions() {
       elif [[ -n "$topics" ]] && ! [[ "$topics" =~ ^[A-Za-z0-9._\ -]+$ ]]; then prob="a topic is not a Surface id"
       fi
     fi
-    if [[ -n "$prob" ]]; then note "$file:$line: malformed subscription ($(printable "$prob")); entry skipped"; continue; fi
+    if [[ -n "$prob" ]]; then note "$file:$line: malformed subscription ($prob); entry skipped"; continue; fi
     subscription "$file" "$line" "$repo" "$ref" "$topics" "$only" "$except" "$org" "$cur" "$trusted"
   done <<<"$entries"
 }
@@ -684,8 +709,8 @@ case "$cmd" in
     org_dir ;;
   index)
     org=$(org_dir) || exit $?
-    idx=$(index_of "$org") || { note "$(printable "$org") has no standards index"; exit 5; }
-    confine "$org" "$idx" "" || { note "$(printable "$org") has no usable index"; exit 5; } ;;
+    idx=$(index_of "$org") || { note "$org has no standards index"; exit 5; }
+    confine "$org" "$idx" "" || { note "$org has no usable index"; exit 5; } ;;
   subscriptions)
     subscriptions ;;
   review|citations)
@@ -698,7 +723,7 @@ case "$cmd" in
       org=$(org_dir) || status=$?
       [[ "$status" -eq 0 ]] || [[ "$status" -eq 3 ]] || [[ "$status" -eq 4 ]] || exit "$status"
       if [[ "$status" -eq 0 ]] && [[ -f "$org/REVIEW.md" ]] && ! inside "$org" "$org/REVIEW.md"; then
-        note "$(printable "$org")/REVIEW.md resolves outside its checkout; not read"
+        note "$org/REVIEW.md resolves outside its checkout; not read"
         status=3
       fi
       if [[ "$status" -eq 0 ]] && [[ -f "$org/REVIEW.md" ]]; then

@@ -84,8 +84,8 @@ assert_eq "no standards_repository: the repository criteria only" "# Local" "$(r
 t=$(target malformed 'standards_repository: not a repo\n')
 assert_eq "a malformed standards_repository is no org layer" "3" "$(code dir --root "$t")"
 t=$(target control-repo "standards_repository: x"$'\033]0;TITLE\007y\033[31m\302\233'"/z"$'\n')
-assert_eq "a standards_repository holding ESC, an OSC title sequence, BEL and U+009B reaches stderr with every control character removed" "3|1|0" \
-  "$(code dir --root "$t")|$(errs dir --root "$t" | grep -c '^org-standards: standards_repository x\]0;TITLEy\[31m/z is not <owner>/<repo>; no org layer$')|$(errs dir --root "$t" | LC_ALL=C grep -cE $'[\001-\011\013-\037\177]|\302[\200-\237]')"
+assert_eq "a standards_repository holding ESC, an OSC title sequence, BEL and U+009B reaches stderr with every control character escaped" "3|1|0" \
+  "$(code dir --root "$t")|$(errs dir --root "$t" | grep -cxF 'org-standards: standards_repository x\x1b]0;TITLE\x07y\x1b[31m\x9b/z is not <owner>/<repo>; no org layer')|$(errs dir --root "$t" | LC_ALL=C grep -cE $'[\001-\011\013-\037\177]|\302[\200-\237]')"
 
 for dots in acme/.. acme/. acme/...; do
   t=$(target "dots-${dots##*/}" "standards_repository: $dots"$'\n')
@@ -732,8 +732,8 @@ pin stranger/noisy "$NOISY"
 run subscriptions --root "$tp" >/dev/null
 pin stranger/noisy "$NOISY2"
 noisy=$(errs subscriptions --root "$tp")
-assert_eq "a ref change prints its index diff and drift with every control character removed" "1|1|0" \
-  "$(grep -c '^+| testing | writing tests\]0;owned | testing.md |$' <<<"$noisy")|$(grep -c 'index drift since .*: added new\[31mid$' <<<"$noisy")|$(LC_ALL=C grep -c "[$ESC$BEL]" <<<"$noisy")"
+assert_eq "a ref change prints its index diff and drift with every control character escaped" "1|1|0" \
+  "$(grep -cxF '+| testing | writing tests\x1b]0;owned\x07 | testing.md |' <<<"$noisy")|$(grep -c 'index drift since .*: added new\\x1b\[31mid$' <<<"$noisy")|$(LC_ALL=C grep -c "[$ESC$BEL]" <<<"$noisy")"
 
 export ORG_STANDARDS_CACHE="$TEST_TMPDIR/lazy-cache"
 FILTERED_WORK="$TEST_TMPDIR/work/stranger/filtered"
@@ -798,7 +798,7 @@ lookalike_tree() {
   } >"$1/docs/standards/README.md"
   printf '# ok\n' >"$1/docs/standards/ok.md"
 }
-built() { printf -- '---\nstandards-contract: 1.2.0\n---\n\n| Surface | Applies when | File |\n|---|---|---|\n| ok | writing[31m tests | %s/docs/standards/ok.md |' "$1"; }
+built() { printf -- '---\nstandards-contract: 1.2.0\n---\n\n| Surface | Applies when | File |\n|---|---|---|\n| ok | writing\\x1b[31m tests | %s/docs/standards/ok.md |' "$1"; }
 o="$TEST_TMPDIR/lookalike-org"
 mkdir -p "$o/docs/standards"
 lookalike_tree "$o"
@@ -1001,7 +1001,7 @@ o="$TEST_TMPDIR/c1-org"
 mkdir -p "$o"
 # shellcheck disable=SC2016  # the backticks are the markdown code span under test
 printf '# Org review\n- csi \302\233[31m red\n- cite `../a\302\233.md`\n' >"$o/REVIEW.md"
-assert_eq "org REVIEW.md: a C1 control character is escaped in the criteria and removed from the report" \
+assert_eq "org REVIEW.md: a C1 control character is escaped in the criteria and in the report" \
   "$(listed "$(printf '# Org review\n- csi \\x9b[31m red')")|0" \
   "$(STANDARDS_DIR="$o" composed --root "$tsplit")|$(STANDARDS_DIR="$o" errs review --root "$tsplit" | LC_ALL=C grep -c $'\302[\200-\237]')"
 
@@ -1138,6 +1138,72 @@ assert_eq "a fetch passes the user's proxy setting through and no other global s
 user_index $'trusted_owners: [acme]\nstandards_repositories:\n  - repo: acme/handbook\n'
 assert_eq "a flow-style trusted_owners trusts no owner and is reported with its file and line" "|1" \
   "$(run subscriptions --root "$tp")|$(errs subscriptions --root "$tp" | grep -c "^org-standards: $USER_INDEX:3: trusted_owners is not a block list; no owner is trusted$")"
+
+for spelling in '"trusted_owners": [acme]' "'trusted_owners': [acme]" 'trusted_owners : [acme]' 'trusted_owners: acme' '"trusted_owners": acme' 'trusted_owners: []'; do
+  user_index "$spelling"$'\nstandards_repositories:\n  - repo: acme/handbook\n'
+  assert_eq "trusted_owners written as $spelling trusts no owner and is reported with its file and line" "|1" \
+    "$(run subscriptions --root "$tp")|$(errs subscriptions --root "$tp" | grep -c "^org-standards: $USER_INDEX:3: trusted_owners is not a block list; no owner is trusted$")"
+done
+user_index $'"trusted_owners":\n  - acme\nstandards_repositories:\n  - repo: acme/handbook\n'
+assert_eq "a quoted trusted_owners key over a block list trusts its owners and reports nothing" "acme/handbook@$HANDBOOK2|0" \
+  "$(run subscriptions --root "$tp" | cut -f1)|$(errs subscriptions --root "$tp" | grep -c 'trusted_owners')"
+for spelling in '"standards_repositories":' "'standards_repositories':" 'standards_repositories :'; do
+  user_index "$spelling
+  - repo: stranger/guide
+    ref: $GUIDE
+"
+  assert_eq "a block list under $spelling is read like the plain key" "stranger/guide@$GUIDE" "$(run subscriptions --root "$tp" | cut -f1)"
+done
+user_index $'"standards_repositories": [stranger/guide]\n'
+assert_eq "a flow list under a quoted standards_repositories key reads nothing and is reported with its file and line" "|1" \
+  "$(run subscriptions --root "$tp")|$(errs subscriptions --root "$tp" | grep -c "^org-standards: subscriptions not read: $USER_INDEX:3: standards_repositories is not a block list")"
+
+c1=$(target c1-repo "standards_repository: x"$'\302\302\200\233'"1;31mRED/y"$'\n')
+assert_eq "overlapping C1 bytes in a note are escaped left to right, never re-forming a control: the lone lead byte, the C1 pair and the lone byte after it" \
+  'org-standards: standards_repository x\xc2\x80\x9b1;31mRED/y is not <owner>/<repo>; no org layer' "$(errs dir --root "$c1")"
+u8=$(target utf8-repo "standards_repository: a"$'\377'"b"$'\355\240\200'"c—dé"$'\302\205'"f"$'\n')
+assert_eq "invalid UTF-8 in a note is escaped byte by byte, while valid characters pass unchanged and a C1 character is escaped" \
+  'org-standards: standards_repository a\xffb\xed\xa0\x80c—dé\x85f is not <owner>/<repo>; no org layer' "$(errs dir --root "$u8")"
+
+c1diff_tree() { printf '%s\n' "$HANDBOOK_INDEX" >"$1/docs/standards/README.md"; }
+publish_tree stranger/c1diff c1diff_tree
+C1A=$(head_of stranger/c1diff)
+printf 'Prose \302\302\200\2331;31mRED\n' >>"$TEST_TMPDIR/work/stranger/c1diff/docs/standards/README.md"
+push_main stranger/c1diff c1
+pin stranger/c1diff "$C1A"
+run subscriptions --root "$tp" >/dev/null
+pin stranger/c1diff "$(head_of stranger/c1diff)"
+c1d=$(errs subscriptions --root "$tp")
+assert_eq "a ref change's index diff escapes overlapping C1 bytes left to right and leaves no control byte" "1|0" \
+  "$(grep -cxF '+Prose \xc2\x80\x9b1;31mRED' <<<"$c1d")|$(LC_ALL=C grep -c $'[\001-\010\013-\037\177\200-\237]' <<<"$c1d")"
+
+CTL=$'\033[31m\033]0;T\007\302\233'
+SHOWN='\x1b[31m\x1b]0;T\x07\x9b'
+ctl_org="$TEST_TMPDIR/ctl-org$CTL"
+mkdir -p "$ctl_org/docs/standards"
+printf '# Org\n' >"$ctl_org/REVIEW.md"
+printf -- '---\nstandards-contract: 1.2.0\n---\n\377\n' >"$ctl_org/docs/standards/README.md"
+row_org="$TEST_TMPDIR/ctl-rows"
+mkdir -p "$row_org/docs/standards"
+printf -- '---\nstandards-contract: 1.2.0\n---\n\n| Surface | Applies when | File |\n|---|---|---|\n| a%s | x | a.md |\n| b | x%s\377 | b.md |\n| c | x | c%s.md |\n' \
+  "$CTL" "$CTL" "$CTL" >"$row_org/docs/standards/README.md"
+ctl_root="$TEST_TMPDIR/ctl-root$CTL"
+mkdir -p "$ctl_root/docs/standards"
+printf -- '---\nstandards-contract: 1.3.0\ntrusted_owners:\n  - acme\n---\n\377\n' >"$ctl_root/docs/standards/README.md"
+ctl_repo=$(target ctl-repo "standards_repository: o/r$CTL"$'\n')
+ctl_opted=$(target ctl-opted "$OPTED")
+pin stranger/guide "$GUIDE"
+ctl_out=$(
+  for c in dir index review citations; do LC_ALL=C.UTF-8 STANDARDS_DIR="$ctl_org" bash "$SCRIPT" "$c" --root "$tp" 2>&1; echo "exit=$?"; done
+  for c in dir review; do LC_ALL=C.UTF-8 bash "$SCRIPT" "$c" --root "$ctl_repo" 2>&1; echo "exit=$?"; done
+  for c in dir subscriptions; do LC_ALL=C.UTF-8 ORG_STANDARDS_CACHE="$TEST_TMPDIR/ctl-cache$CTL" bash "$SCRIPT" "$c" --root "$ctl_opted" 2>&1; echo "exit=$?"; done
+  LC_ALL=C.UTF-8 STANDARDS_DIR="$row_org" bash "$SCRIPT" index --root "$tp" 2>&1 >"$TEST_TMPDIR/ctl-rows.out"
+  cat "$TEST_TMPDIR/ctl-rows.out" "$(tail -n 1 "$TEST_TMPDIR/ctl-rows.out")"
+  LC_ALL=C.UTF-8 bash "$SCRIPT" subscriptions --root "$ctl_root" 2>&1
+)
+assert_eq "control characters in STANDARDS_DIR, the cache path, standards_repository, the root and index rows reach neither stdout nor stderr raw" \
+  "0|4|2|4|2|2|2|1|1|1|1|0" \
+  "$(LC_ALL=C grep -c $'[\001-\010\013-\037\177\200-\237]' <<<"$ctl_out")|$(grep -cF "STANDARDS_DIR $TEST_TMPDIR/ctl-org$SHOWN holds a control character or invalid UTF-8; no org layer" <<<"$ctl_out")|$(grep -cx 'exit=4' <<<"$ctl_out")|$(grep -cx 'exit=3' <<<"$ctl_out")|$(grep -cF "standards_repository o/r$SHOWN is not <owner>/<repo>" <<<"$ctl_out")|$(grep -cF "the cache directory $TEST_TMPDIR/ctl-cache$SHOWN holds a control character" <<<"$ctl_out")|$(grep -cx 'exit=2' <<<"$ctl_out")|$(grep -cF "Surface a$SHOWN is not an id" <<<"$ctl_out")|$(grep -cF "| b | x$SHOWN\\xff | " <<<"$ctl_out")|$(grep -cF "File c$SHOWN.md is not a relative forward-slash path" <<<"$ctl_out")|$(grep -cF "$TEST_TMPDIR/ctl-root$SHOWN/docs/standards/README.md:3: trusted_owners is read from the user-global index only" <<<"$ctl_out")|$(grep -c 'warning' <<<"$ctl_out")"
 
 EXT="$TEST_TMPDIR/ext"
 mkdir -p "$EXT"

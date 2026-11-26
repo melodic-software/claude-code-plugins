@@ -138,7 +138,7 @@ explicit confirmation before any conversion (see Setup and migration).
   that header, and follows that header and its delimiter row (carriage
   returns removed first). Its `Surface` must be an id (letters, digits,
   `.`, `_`, `-`); its `Applies when` is copied with control characters
-  removed; its `File` becomes the absolute path the deterministic lookup
+  escaped; its `File` becomes the absolute path the deterministic lookup
   above resolved inside the checkout. Every other line holding a `|` is
   dropped and reported; prose, HTML and lines without a `|` are never
   copied. A consumer reads an index from another repository only through
@@ -229,8 +229,10 @@ A person subscribes to other repositories' standards from the user-global
 index, so the standards they follow reach every repository they work in.
 
 - **List:** the user-global index (`~/.claude/standards/README.md`, passing
-  the presence test at version 1.3.0 or later) names them in its
-  frontmatter, in block YAML style; a flow-style entry is malformed:
+  the presence test) names them in its frontmatter, in block YAML style (a
+  flow-style entry is malformed), and declares version 1.3.0 or later; one
+  declaring an older version is still read and reported, under the
+  Tolerant reader rule (Resolution ladder). For example:
 
   ```yaml
   ---
@@ -425,11 +427,12 @@ starts it, and reads that file in place of `REVIEW.md`.
   angle-bracket placeholder such as `<file>` is a plain segment, so
   `standards/review/<file>.md#<heading>` stays and `../<file>.md` is
   dropped.
-- **Control characters** in the printed criteria and citations, C0, DEL
-  and C1 (U+0080 to U+009F), are shown escaped (`\x1b`, `\x9b`), never
-  passed through, and are removed from every value the reader's reports
-  quote, whether it comes from a repository, the user-global index or the
-  environment.
+- **Control characters** C0, DEL and C1 (U+0080 to U+009F), and each byte
+  outside valid UTF-8, are shown escaped (`\x1b`, `\x9b`, `\xff`), never
+  passed through, in the printed criteria and citations (tab kept) and in
+  every value the reader's reports quote, whether it comes from a
+  repository, the user-global index or the environment. A `STANDARDS_DIR`
+  or cache directory holding one is refused.
 
 ## Concern file: `.claude/standards.yaml`
 
