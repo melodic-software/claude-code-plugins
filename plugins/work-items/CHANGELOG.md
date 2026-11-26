@@ -3,6 +3,23 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.17.0] - 2026-11-25
+
+### Added
+
+- `skills/triage/schemas/ci-verdict.schema.json`: the one shape of a `/work-items:triage --ci` verdict, with an optional `type` (the issue's Issue Type). A lane passes it as the run's output schema, narrowing the dimension keys and the type to enums, and `check-ci-verdict.mjs` reads it, so the shape is defined once.
+- `check-ci-verdict.mjs --schema <path>` holds a verdict to a runner's narrowed copy of that schema; a `type` on a copy that leaves `type` out is reported as an unknown field.
+
+### Changed
+
+- `/work-items:triage --issue <n> --ci` returns its verdict as structured output and runs no script: the lane checks it with `check-ci-verdict.mjs` and `set-dimensions.sh --dry-run`. The run reads the open-issue and merged-pull-request lists from `issue.json` for its duplicate and blocker checks, and the repository's `## Triage rules` in `docs/conventions/work-items.md` when present.
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+### Fixed
+
+- The morning brief's owner-touches section reads a pr-unblock escalation's lane code from its `- Lane code:` line as well as the `- Reason:` line, so a hold comment in the new shape no longer counts as `unspecified`.
+
 ## [15.16.0] - 2026-11-25
 
 ### Added

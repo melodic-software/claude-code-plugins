@@ -26,6 +26,7 @@ guardrails${TAB}PreToolUse${TAB}^mcp__(plugin_.+_)?github__(push_files|create_or
 guardrails${TAB}PreToolUse${TAB}^mcp__.+__(merge_pull_request|enable_pr_auto_merge)\$${TAB}${TAB}block
 guardrails${TAB}PreToolUse${TAB}^mcp__(plugin_.+_)?github__(add_issue_comment|update_issue_comment|issue_write|create_issue|update_issue|create_pull_request|update_pull_request|add_comment_to_pending_review|add_reply_to_pull_request_comment|pull_request_review_write|create_pull_request_review|create_and_submit_pull_request_review|submit_pending_pull_request_review|discussion_comment_write)\$${TAB}${TAB}block
 guardrails${TAB}PreToolUse${TAB}Bash|PowerShell${TAB}${TAB}block
+guardrails${TAB}PreSkillShellCommand${TAB}Bash|PowerShell${TAB}${TAB}block
 multi-agent${TAB}PreToolUse${TAB}WebFetch${TAB}${TAB}block
 multi-agent${TAB}PreToolUse${TAB}Bash${TAB}${TAB}block
 multi-agent${TAB}PreToolUse${TAB}Bash${TAB}${TAB}block"
