@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Runs test_render_review.py so run-plugin-tests.sh discovery (plugins/**/*.test.sh)
-# picks it up. Interpreter discovery follows validate-cases.test.sh: a zero-length
-# WindowsApps stub is the Store alias, never a real interpreter.
-#
 # Exit: 0 all tests passed; 1 a test failed; 2 no usable interpreter.
 set -uo pipefail
 

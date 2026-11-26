@@ -22,16 +22,12 @@ assert_contains "every sample is accounted for" "n=4" "$RUN_OUT"
 assert_contains "the paired ratio is reported for a serial run" "median_paired_ratio" "$RUN_OUT"
 
 # discriminating-skip-required: this is the only end-to-end proof that ab.sh
-# carries the minimum-pairs floor through rather than reporting a ratio drawn
-# from a handful of samples.
 run_ab --a "$NOOP" --b "$NOOP" --iterations 4 --warmup 0
 assert_eq "the default-floor run exits 0" "0" "$RUN_RC"
 assert_contains "the headline ratio is refused below the floor" \
   "median_paired_ratio=REFUSED(pairs=4<20)" "$RUN_OUT"
 
 # discriminating-skip-required: this case is the only end-to-end proof that
-# ab.sh propagates the concurrency suppression rather than reporting a ratio
-# over arms that never shared conditions.
 run_ab --a "$NOOP" --b "$NOOP" --iterations 4 --warmup 0 --concurrency 2
 assert_eq "a concurrent run exits 0" "0" "$RUN_RC"
 assert_contains "the ratio is suppressed" "SUPPRESSED: concurrency=2" "$RUN_OUT"
@@ -61,7 +57,6 @@ assert_eq "a missing EPOCHREALTIME is refused" "2" "$RUN_RC"
 assert_contains "the refusal rejects a date(1) fallback" "Refusing to fall back" "$RUN_OUT"
 
 # discriminating-skip-required: this case is the only cover for the decimal
-# separator, and the simulate seam can only force the failure, never hide one.
 capture env PERF_AB_SIMULATE_COMMA_CLOCK=1 bash "$AB" --a "$NOOP" --b "$NOOP" --iterations 2
 assert_eq "the simulated comma clock is refused" "2" "$RUN_RC"
 assert_contains "the simulated branch declares itself" "SIMULATED:" "$RUN_OUT"
@@ -82,7 +77,6 @@ if [[ -n "$COMMA_LOCALE" ]]; then
   assert_contains "the real refusal declines to change the subject's environment" \
     "alter the environment the SUBJECT runs in" "$RUN_OUT"
   # discriminating-skip-required: a refusal whose suggested remedy does not work
-  # is worse than no remedy, and only this case proves the remedy is right.
   assert_contains "the refusal names LC_ALL as the overriding variable" \
     "it OVERRIDES LC_NUMERIC" "$RUN_OUT"
   capture env LC_ALL=C bash "$AB" --a "$NOOP" --b "$NOOP" \

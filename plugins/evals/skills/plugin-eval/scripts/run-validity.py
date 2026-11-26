@@ -259,9 +259,6 @@ FULL_SCORE = 1.0
 ARMS = ("with", "without")  # cases[].arms.<arm>[]
 ONE_ARM_ABLATION = "none"  # suite.ablation value that runs the with-arm only
 
-# Result-file field paths. Correct them in this block, and nowhere else, if a
-# real result file shows another shape. Every lookup is tolerant: a missing
-# field never raises.
 PARTIAL = "partial"
 PARTIAL_REASON = "partialReason"
 CLAUDE_VERSION = "claudeVersion"
@@ -293,12 +290,9 @@ GRADER_NAME = "name"
 GRADER_TYPE = "type"
 GRADER_PASSED = "passed"
 GRADER_VOTES = "judgeVotes"  # llm graders: one boolean per vote
-# The result file names neither model as of Claude Code 2.1.287; these keys are
-# read at the top level and under suite in case a later schema adds them.
 MODEL_KEYS = ("model",)
 JUDGE_MODEL_KEYS = ("judgeModel", "judge_model")
 
-# Trace (out/trace.jsonl) shapes, one JSON object per line.
 LINE_TYPE, LINE_SUBTYPE = "type", "subtype"
 TRACE_INIT = ("system", "init")  # type, subtype of the line carrying the model
 TRACE_MODEL = "model"
@@ -306,17 +300,10 @@ TRACE_RESULT = "result"  # type of the closing line
 TRACE_ASSISTANT = "assistant"  # type of a model message line, a forked session's too
 TRACE_RESULT_ERROR = "is_error"
 TRACE_DENIALS = "permission_denials"  # on the result line
-# A run's plugin-data directory (CLAUDE_PLUGIN_DATA), under its sandbox, beside out/.
 SANDBOX_PLUGIN_DATA = ("config", "plugins", "data")
-# Where a run's session persists a large tool result it already received:
-# <sandbox>/config/projects/<project>/<session>/tool-results/.
 SANDBOX_PROJECTS, TOOL_RESULTS_DIR = ("config", "projects"), "tool-results"
 TRACE_SESSION, TRANSCRIPT_SUFFIX, SUBAGENTS_DIR = "session_id", ".jsonl", "subagents"
 TOOL_RESULTS_READERS = ("Read", "Grep", "Glob")
-# A Bash pipeline the same reads may take, joined only by `|`: per command, the
-# short flags it may cluster, the flags that take a number (glued, -A40, or the
-# next word), and whether its first operand is a pattern or script, not a path.
-# Any other command, flag, operator or word keeps the call a denial.
 BASH_READERS = {
     "cat": ("nbsvetAET", "", False),
     "head": ("qv", "nc", False),
@@ -326,15 +313,11 @@ BASH_READERS = {
     "fgrep": ("nicvwxoqszHhlLEFGPaI", "ABCm", True),
     "sed": ("nEr", "", True),
 }
-# A grep's -e pattern or -f pattern file, glued or the next word; either one means
-# no operand is a pattern. -- ends its flags.
 GREP_VALUE_FLAGS = {"e": False, "f": True}  # flag -> its value is a path
 GREP_LONG_FLAGS = {"--regexp": "e", "--file": "f"}
 END_OF_FLAGS = "--"
 PIPE = "|"
 SEQUENCE_OPS, CD = (";", "&&"), "cd"
-# Opening assignments a tool-results read may not make: each changes how the shell
-# or a reader finds files or programs, or what it prints.
 ENV_SENSITIVE = frozenset(
     "PATH IFS CDPATH HOME ENV PWD OLDPWD SHELLOPTS GLOBIGNORE PS4 POSIXLY_CORRECT"
     " TMPDIR LANG LANGUAGE NLSPATH TZ".split()
@@ -344,10 +327,7 @@ SAFE_LITERAL = re.compile(r"\A[A-Za-z0-9._:,+=@%-]+\Z")
 NUMBER = re.compile(r"\A[-+]?\d+\Z")
 SED_ADDRESS = r"(?:\d+|\$|/[^/\\]*/)"
 SED_PRINT = re.compile(r"\A%s(?:,%s)?p\Z" % (SED_ADDRESS, SED_ADDRESS))
-# Command substitution or a second line runs something other than the pipeline.
 BASH_EXEC = re.compile(r"`|\$\(|[\r\n]")
-# Outside quotes, a brace, glob or $ can expand into more operands, and $'...' or
-# a backslash quotes the command differently for bash than for shlex.
 QUOTED_SPAN = re.compile(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"")
 UNQUOTED_EXPANSION = re.compile(r"[{*?\[$\\]")
 QUOTED_EXPANSION = re.compile(r"[$`]")  # inside double quotes
@@ -356,25 +336,7 @@ MESSAGE, CONTENT, BLOCK_TYPE = "message", "content", "type"  # message.content[]
 TOOL_USE, USE_ID, USE_NAME, USE_INPUT = "tool_use", "id", "name", "input"
 TOOL_RESULT, RESULT_USE_ID, RESULT_ERROR = "tool_result", "tool_use_id", "is_error"
 DENIAL_TEXT = "denied by your permission settings"  # in an is_error tool_result
-# An is_error Bash tool_result when the session has no Bash tool: the call never
-# reached a permission check or a shell.
-# - Pointer: no docs page covers it; observed as "<tool_use_error>Error: No such
-#   tool available: Bash. Bash is disabled for this session, ..." in with-arm
-#   runs of https://github.com/melodic-software/claude-code-plugins/actions/runs/44475945897
-#   (Claude Code 2.1.328); bash-absent.jsonl in the test fixtures keeps its shape.
-# - As of: 2026-11-19
-# - Recheck trigger: a release note rewording the unknown-tool error.
 ABSENT_TOOL_TEXT = "No such tool available: Bash"
-# A tool result showing that a program the session ran could not start: a mise
-# shim with no tool behind it ("mise ERROR node is not a valid shim"), or the
-# shell finding no such command (bash's "bash: line 1: <name>: command not
-# found", zsh's "zsh:1: command not found: <name>"). Each must open an output
-# line, as the program prints it, so a grep that quotes the text matches neither.
-# - Pointer: https://github.com/melodic-software/claude-code-plugins/issues/16110
-#   counts the shim text in PR 16069's traces; both shell texts were observed on
-#   GNU bash 5.3.9 and zsh 5.9 (`bash -c` and `zsh -c` running a missing name).
-# - As of: 2026-11-17
-# - Recheck trigger: a mise upgrade, or a shell rewording either message.
 SHIM_ERROR = re.compile(
     r"^(?:\S*mise\S*\s+)?(?:\S*ERROR\S*\s+)?([^\s'\"`]+) is not a valid shim", re.M
 )
@@ -383,14 +345,6 @@ NOT_FOUND = re.compile(
     r"(?:(?P<bash>[^\s:'\"`]+): command not found|command not found: (?P<zsh>[^\s'\"`]+))",
     re.M,
 )
-# The prefixes a not-found line carries when the run's own shell printed it, for
-# a command the run typed. Any other prefix is a script path ("/p/lib/go.sh: line
-# 2: node: command not found"): a helper the skill ran needed the program.
-# - Pointer: https://github.com/melodic-software/claude-code-plugins/issues/17351
-#   is the run that needs this; zsh 5.9 prints "(eval):1: command not found: x"
-#   for a missing name in an eval'd command line (`zsh -c 'eval x'`).
-# - As of: 2026-11-19
-# - Recheck trigger: a shell rewording its not-found message.
 RUN_SHELLS = frozenset(
     "bash /bin/bash /usr/bin/bash zsh /bin/zsh /usr/bin/zsh (eval)".split()
 )
@@ -398,36 +352,14 @@ INTERPRETERS = frozenset(
     "node nodejs npx npm python python3 py uv uvx bun bunx deno ruby perl pwsh tsx".split()
 )
 ALLOWED_TOOLS_KEY = re.compile(r"^allowed_tools:(.*(?:\n[ \t]*-.*)*)", re.M)
-# A Bash tool_result's sandbox report, is_error or not, and its network denial
-# lines. Upstream documents no format: observed in a with-arm trace of the x
-# plugin's suite on Claude Code 2.1.317, 2026-11-03; network-denied.jsonl in the
-# test fixtures keeps its shape. Pointer and recheck trigger: SKILL.md, Sources,
-# "Sandbox network denial report".
 SANDBOX_VIOLATIONS = re.compile(r"<sandbox_violations>(.*?)</sandbox_violations>", re.S)
 NETWORK_DENIAL = re.compile(r"^deny network-outbound (\S+)", re.M)
-# Anywhere in a trace line when the shell sandbox never started (Claude Code 2.1.310).
 SANDBOX_FAILURE_TEXT = "Sandbox is required but failed to initialize"
-# A skill's pre-computed (!`command`) line that fails, or that its permission
-# check refuses, aborts the skill's load with one of these texts: in a user
-# line's local-command-stderr when the skill was slash-invoked (Claude Code
-# 2.1.316, #12422), and in the result of the Skill call that loaded it (the
-# 2026-11-14 skill-authoring compare on #15707, #16146).
-# - Pointer: https://code.claude.com/docs/en/skills#inject-dynamic-context
-# - As of: 2026-11-14
-# - Recheck trigger: that section rewords either abort message.
 TRACE_USER = "user"
 PRE_COMMAND_STDERR = "local-command-stderr"
 PRE_COMMAND_FAILURE = re.compile(r"Shell command (?:permission check )?failed for pattern")
 SLASH_LOAD_FAILED = "a slash-invoked skill's pre-computed command failed"
 SKILL_CALL_LOAD_FAILED = "its Skill call returned a failed pre-computed command"
-# A path a failed write reports as read-only, before the phrase ("cannot touch
-# '<p>': Read-only file system", "line 1: <p>: Read-only file system") or after it
-# ("[Errno 30] Read-only file system: '<p>'", Node's "EROFS: read-only file
-# system, mkdir '<p>'"). An unquoted word before the phrase is a path only when
-# it is whole and not an errno name or "Error". In a Bash result it means the
-# run's workspace or TMPDIR is not writable when the path is relative or under the
-# run's sandbox (Claude Code 2.1.316 with TMPDIR under /tmp or /var/tmp, #12422);
-# the sandbox mounts other paths read-only by design.
 _QUOTED = r"[\"'\u2018]([^\"'\u2019\n]+)[\"'\u2019]"
 READ_ONLY_TARGET = re.compile(
     r"(?:%s|(?<![^\s:])(?!(?-i:E[A-Z0-9]+):|errno:|error:)([^\s:\"'\u2018\u2019]+))"
@@ -438,50 +370,29 @@ READ_ONLY_TARGET = re.compile(
 )
 MIN_BASH_CALLS = 2
 EXIT_LINE = re.compile(r"\AExit code -?\d+\s*")  # heads a failed Bash result's text
-# The input a denial line prints: Read's file, or Grep's and Glob's search root,
-# else the call's first input value.
 TARGET_KEYS = ("file_path", "path")
 BASH_TOOL, BASH_COMMAND = "Bash", "command"
-# A Glob with no path searches where its pattern points: the guard checks the
-# directory the pattern's literal part names, cut at its first glob character.
 GLOB_TOOL, GLOB_PATTERN = "Glob", "pattern"
 GLOB_CHAR = re.compile(r"[*?\[{]")
 SHELL_SPLIT = re.compile(r"[<>|;&()'\"=]")  # where one shell word holds several
-# A word the shell would expand, or a path packed after another character (/a,/b).
 UNRESOLVED = re.compile(r"[$`*?\[{]|^~|[^\w./-]/")
-# A path that resolves against the validator's own process, matched normalized.
 OWN_PROCESS = re.compile(r"^/+(proc/(self|thread-self)|dev/fd)(/|$)")
-# Same-command shell variables (shell_words): an unquoted NAME= opening a word,
-# and a $NAME or ${NAME}.
 SHELL_NAME = r"[A-Za-z_][A-Za-z0-9_]*"
 ASSIGNMENT = re.compile(r"(%s)=" % SHELL_NAME)
 EXPANSION = re.compile(r"\$(?:(%s)|\{(%s)\})" % (SHELL_NAME, SHELL_NAME))
-# A value a later $NAME cannot stand for as one literal word: empty, or holding
-# whitespace, an expansion, a glob or brace, a redirect, or a tilde the shell
-# would expand; or a bare name, which a later read "$X" or declare "$X=..."
-# would write through, so $X stays unresolved.
 UNRECORDED_VALUE = re.compile(r"\A\Z|[\s$`*?\[{<>]|\A~|:~|\A%s\Z" % SHELL_NAME)
 BARE_NAME = re.compile(r"\A%s\Z" % SHELL_NAME)
-# A command holding one of these can set or split a variable in a way not traced.
 NO_RESOLVE = ("`", "<<", "IFS")
-# Names the shell sets, ignores assignments to or holds readonly, so an earlier
-# assignment does not fix their value.
 SHELL_SET = frozenset(
     "_ PWD OLDPWD RANDOM SRANDOM SECONDS LINENO REPLY OPTARG OPTIND HISTCMD"
     " EPOCHSECONDS EPOCHREALTIME BASHPID PPID UID EUID GROUPS FUNCNAME"
     " SHELLOPTS MAPFILE PIPESTATUS DIRSTACK COPROC".split()
 )
 RESETS = ("eval", "source", ".")  # run other shell code, which may set any name
-# Words opening or closing a compound command: an assignment inside one may not run.
 COMPOUND = frozenset(
     "if then else elif fi while until for select do done case esac function { }".split()
 )
-# The operators after which an assignment that ran stays set in the shell.
 KEEPS_ASSIGNMENT = (None, ";", "\n", "&&")
-# A redirect word that names no file the command reads or writes: an fd
-# duplication or close (2>&1, >&2, 2>&-) or a redirect to /dev/null, with or
-# without its fd (>/dev/null, 2>/dev/null, &>/dev/null). A bare operator (2>)
-# takes the next word as its operand, dropped only when it is /dev/null.
 REDIRECT = re.compile(r"(?:\d*|&)(?:>>?|<)(&(?:\d+|-)|/dev/null)?")
 DEV_NULL = "/dev/null"
 BARE_WORD = re.compile(r"\A\w[\w.,:@%+-]*\Z")
@@ -489,18 +400,14 @@ SEPARATORS = (";", "&&", "||", "\n")
 NOT_SPLIT = ("&", "(", ")")
 CD = "cd"
 TRAILING, TRAILING_PIPED = ("ls", "echo", "cat"), ("head", "tail")
-# A character the shell may expand: GLOBBING only outside quotes, $ inside too.
 GLOBBING = re.compile(r"[*?\[\]{}~]")
 EXPANDING = re.compile(r"[*?\[\]{}~$]")
-# Command substitution, outside single quotes.
 SUBSTITUTION = re.compile(r"\$\(|`")
 ECHO = "echo"
 SEARCH_COMMANDS = ("find", "grep", "egrep", "fgrep")
 FIND_NAME_TESTS = ("-name", "-iname", "-path", "-ipath", "-wholename", "-iwholename")
 FIND_VALUE_TESTS = ("-type", "-maxdepth", "-mindepth")
 FIND_NEGATIONS = ("!", "-not")
-# No -o: it widens the match past the plugin's name. A negation (FIND_NEGATIONS)
-# is accepted only before a name or path test, where it narrows the search.
 FIND_CONNECTIVES = ("-a", "-and", "-print", "-xdev")
 GREP_SEARCH_FLAGS = "rRIilLnsHhwFEcoqx"
 SEARCH_TERM_ENDS = "*.^$/"
@@ -512,30 +419,16 @@ CONTROL_DESCRIPTION = re.compile(
     r"\bno[- ]trigger\b|\bwithout invoking\b|\bmust not (?:fire|trigger|invoke)\b",
     re.IGNORECASE,
 )
-# A trigger-measurement case (skill-quality's measure-invocation.sh
-# emit-plugin-eval): a miss is the rate it measures, and a run that hit its turn
-# cap after the Skill call was already graded.
 PROBE_TAG = "invocation-probe"
 NO_NETWORK_TAG = "no-network"
-# The whole error text, optionally after the runner's "exit N: " prefix.
 MAX_TURNS_ERROR = re.compile(
     r"(?:exit \d+: )?Reached maximum number of turns \(\d+\)\.?"
 )
 TRACE_ERRORS = "errors"  # on the result line
 TRACE_TOOLS = "tools"  # on the init line: the tools the session could call
-# The init line lists the plugins the session loaded and the ones that failed
-# to load; the check reads both by these keys, takes a missing failure list as
-# none failed, and matches a loaded name with or without an @marketplace suffix.
-# - Pointer: when the init line's plugin fields may have changed, fetch
-#   https://code.claude.com/docs/en/agent-sdk/typescript#sdksystemmessage live.
-# - As of: 2026-11-01
-# - Recheck trigger: the init message renames or drops plugins or
-#   plugin_errors, or renames a field these keys read from their entries.
 TRACE_PLUGINS, LOADED_NAME, LOADED_PATH = "plugins", "name", "path"
 TRACE_PLUGIN_ERRORS = "plugin_errors"
 ERROR_PLUGIN, ERROR_TYPE, ERROR_MESSAGE, ERROR_PATH = "plugin", "type", "message", "path"
-# Tools emit-plugin-eval's README removes from a probe run with --disallow-tools.
-# The init line names the Agent tool Task.
 PROBE_REMOVED_TOOLS = ("Read", "Glob", "Grep", "Agent", "Task")
 
 SCAFFOLD_SCRIPT, HISTORY_FILE = "scaffold_script", "history_file"

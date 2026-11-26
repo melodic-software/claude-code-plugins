@@ -45,7 +45,6 @@ probe_cached_installer() {
   if [[ -f "${installer}" ]]; then
     local size_bytes
     # portability-ok: Windows-only script (Git Bash + PowerShell + LOCALAPPDATA
-    # above already require Windows) — a BSD stat fallback would be dead code.
     size_bytes=$(stat -c%s "${installer}" 2>/dev/null || echo 0)
     echo "present-${size_bytes}b"
   else

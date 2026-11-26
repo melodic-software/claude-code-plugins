@@ -103,7 +103,6 @@ class TestMeasurabilityVerdict(unittest.TestCase):
 
     def test_a_timeout_outranks_the_bimodal_reason(self):
         # discriminating-skip-required: this is the only case where both findings
-        # co-occur, so without it the precedence can silently invert.
         summary = spawn_noise.summarize_spawn_samples([180.0, 1400.0, 20000.0], 1, 900)
         self.assertIn("spawn-probe-timed-out", summary["findings"])
         self.assertIn("bimodal-spawn-latency", summary["findings"])

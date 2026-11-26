@@ -23,7 +23,6 @@ spec.loader.exec_module(cm)
 
 HAS_NODE = shutil.which("node") is not None
 
-# A Bash command string with the token anywhere inside it.
 ANYWHERE = '"command":"(?:[^"\\\\]|\\\\.)*?'
 
 
@@ -191,8 +190,6 @@ class HarnessTests(unittest.TestCase):
         )
 
     def test_a_pattern_python_cannot_grade_fails(self):
-        # `[^]` is any character in JavaScript and an unterminated class in `re`:
-        # the samples are proved by one engine only.
         self.write_case(ANYWHERE + "[^]Force")
         self.write_matchers({"no-force": [{"use": "anywhere"}, "[^]Force"]})
         result = self.run_check()
