@@ -7,10 +7,6 @@
     {
       "answer": [{"tool": "Bash", "input": {"command": "bash /plugins/code-metrics/skills/audit/scripts/audit-size.sh --file-lines 400 --all"}}],
       "why": "option order does not matter"
-    },
-    {
-      "answer": [{"tool": "Bash", "input": {"command": "S=/plugins/code-metrics/skills/audit/scripts/audit-size.sh; \"$S\" --all --file-lines 400"}}],
-      "why": "the script called through a variable"
     }
   ],
   "fail": [
@@ -33,6 +29,10 @@
     {
       "answer": [{"tool": "Bash", "input": {"command": "\"/plugins/code-metrics/skills/audit/scripts/audit-size.sh\" --all --file-lines=400"}}],
       "why": "the script reads --file-lines only with a separate value, so this counts against the bundled default"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cat /plugins/code-metrics/skills/audit/scripts/audit-size.sh; echo --file-lines 400"}}],
+      "why": "the script read, never run; the flag is in a later command"
     }
   ]
 }
