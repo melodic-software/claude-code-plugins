@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Behavior test: the "Revoke the lane token" step in pr-run-activity-write.yml
-# never fails the job (ADR 0058 calls the revoke a backstop). A DELETE other
-# than 204 is a warning; a 204 whose GET read-back is not yet 401 is a notice;
-# a 204 then 401 logs the confirmed revoke. Runs the step's github-script body with a stub `github` that
-# answers each route with a canned status and a stub `core` that records calls.
 # test-scope: .github/workflows/pr-run-activity-write.yml scripts/ci-deps/package.json
 set -uo pipefail
 

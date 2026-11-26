@@ -60,8 +60,6 @@ test("a red full run on a later SHA containing two merges yields gate-failure fo
 });
 
 test("a red run on a commit off the branch is not charged, as in _Context.on_branch", () => {
-  // A run on a tag named main reports head_branch main; its commit descends from the merge but
-  // is not on refs/heads/main.
   const off = shaOf(0xa0ff);
   const pulls = () => [pr(1601, "2026-09-01T00:00:00Z", { rung: "C2" })];
   const red = (offBranch) =>
@@ -79,7 +77,6 @@ test("a red run on a commit off the branch is not charged, as in _Context.on_bra
 });
 
 test("a red run on a commit on top of the tip (compare behind) is not charged", () => {
-  // A tag named main one commit past refs/heads/main: compare <run>...<tip> answers behind.
   const top = shaOf(0xa0fe);
   const pulls = () => [pr(1602, "2026-09-01T00:00:00Z", { rung: "C2" })];
   const result = run({
@@ -106,7 +103,6 @@ test("an unreadable branch tip or run ancestry refuses the publish", () => {
 });
 
 test("a run created before the merge is not its evidence", () => {
-  // Run 3 on #1303's own SHA predates #1303's merge, so it is evidence for #1309 only.
   const result = run({
     pulls: [pr(1309, "2026-09-01T00:00:00Z", { rung: "C2" }), pr(1303, "2026-09-02T00:00:00Z", { rung: "C3" })],
     workflowRuns: { [FULL]: [wfRun(3, "schedule", shaOf(1303), "2026-09-01T12:00:00Z", { conclusion: "failure" })] },
@@ -420,7 +416,6 @@ test("a revert-button PR of an autonomous C2 merge yields reverted-merge at the 
 });
 
 test("a git-revert commit pushed straight to the default branch yields reverted-merge for C3 auto-merge", () => {
-  // No PR merged the revert commit, and its git author can be forged, so it counts.
   const result = run({
     pulls: [pr(201, "2026-09-01T00:00:00Z", { rung: "C3" })],
     history: [shaOf(201), shaOf(999)],
@@ -774,9 +769,6 @@ test("the CLI exits 2 on missing required arguments", () => {
   assert.match(cli.stderr, /--lane-login/);
 });
 
-// Deletion. run_number starts at 1 per workflow, rises with each new run and a re-run keeps it
-// (GitHub's contexts reference, github.run_number), so a missing number between two runs created
-// inside the window is a deleted run. The fake numbers runs that way and drops `deletedRuns`.
 const schedules = (ids, day = 2) => ids.map((id, n) => wfRun(id, "schedule", shaOf(0xb000 + id), `2026-09-${String(day + n).padStart(2, "0")}T00:00:00Z`));
 const refusesWith = (reason) => (error) => error instanceof PublishError && error.failClosedReason?.startsWith(reason) && error.message.startsWith(`refusing to publish: ${reason}`);
 
@@ -786,7 +778,6 @@ test("a run deleted between two runs created inside the window refuses with run-
   assert.throws(() => run({ workflowRuns: { [CANARY]: canaries }, deletedRuns: [42] }), refusesWith(`run-deleted: ${CANARY}`));
 });
 
-// That a re-run keeps its number is GitHub's (the pointer above); the fake only lists it that way.
 test("consecutive run numbers pass, a run on its second attempt among them", () => {
   assert.deepEqual(run({ workflowRuns: { [FULL]: schedules([21, 22, 23]) } }).events, []);
   const rerun = wfRun(31, "schedule", shaOf(0xb031), "2026-09-02T00:00:00Z", { attempt: 2, triggering: LANE });
@@ -808,8 +799,6 @@ test("over 1,000 runs in the window are read in halves, and a deletion among the
   }
 });
 
-// A run listed after page 1 was read shifts every later page by one, so the oldest run falls off the
-// last page and one deletion would fit the count: a count that changes between pages refuses.
 test("a run count that changes between page reads refuses, though one deletion would otherwise fit", () => {
   const runs = Array.from({ length: 202 }, (_, n) => wfRun(200000 + n, "pull_request", shaOf(0xd000), later("2026-09-01T00:00:00Z", n)));
   const shifted = { workflowRuns: { [FULL]: runs }, deletedRuns: [200099], lateRuns: [200201] };
@@ -819,9 +808,6 @@ test("a run count that changes between page reads refuses, though one deletion w
   );
 });
 
-// The alert workflow's record: first body line `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`,
-// filed by github-actions[bot], a repeat failure commented as `The post-merge check found this
-// failure again: <run>/attempts/<n>` (.github/workflows/post-merge-file-demotion-issues.yml).
 const AGAIN = (at, login) => issueComment(`The post-merge check found this failure again: https://github.com/${REPO}/actions/runs/9/attempts/2`, at, login);
 
 test("a demotion issue filed inside the window, open or closed, is a gate-failure on every cell at its creation", () => {
@@ -865,8 +851,6 @@ test("an issue number missing inside the window refuses with issue-deleted on 41
   const moved = { ...REC.issue, number: 7102, repository_url: "https://api.github.com/repos/someone/elsewhere" };
   assert.throws(() => run({ issueList: listed, issues: { 7102: moved } }), refusesWith("issue-missing: #7102"));
   assert.deepEqual(run({ issueList: listed, issues: { 7102: { ...REC.issueListItem, number: 7102 } } }).events, []);
-  // Discussions share the number sequence and read 404 as issues: anyone else's is no gap, a filer's
-  // fails closed, and a 404 that is no discussion is missing.
   assert.deepEqual(run({ issueList: listed, discussions: { 7102: "someone" } }).events, []);
   assert.throws(() => run({ issueList: listed, discussions: { 7102: "github-actions[bot]" } }), refusesWith("issue-missing: #7102"));
   assert.throws(() => run({ issueList: listed, discussions: { 7102: LANE } }), refusesWith("issue-missing: #7102"));

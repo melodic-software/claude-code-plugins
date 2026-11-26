@@ -28,8 +28,6 @@ for d in "$REPO" "$HOME_DIR/proj" "$TEST_TMPDIR/dotfiles-home" "$TEST_TMPDIR/tea
   git init -q "$d"
 done
 
-# mklink <target> <link>: succeeds only when a real symlink came out. Git Bash
-# without native symlink support copies instead, which would prove nothing.
 mklink() {
   MSYS=winsymlinks:nativestrict ln -s "$1" "$2" 2>/dev/null && [[ -L "$2" ]]
 }

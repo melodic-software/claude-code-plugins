@@ -23,9 +23,6 @@ import unittest
 from typing import Any
 from unittest import mock
 
-# An inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would send the git
-# fixtures' identity writes into the caller's repository
-# (scripts/check-fixture-git-isolation.sh). Cleared before any test spawns git.
 for _leaked_git_var in (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -82,8 +79,6 @@ class Fixture:
 
 class LiftBlock(unittest.TestCase):
     def test_a_line_hash_is_the_sha256_prefix_of_its_bytes(self) -> None:
-        # SHA-256 of the empty input is e3b0c442 98fc1c14 ... (FIPS 180-4
-        # test vectors).
         self.assertEqual(policy.line_hash(b""), "e3b0c44298fc")
 
     def test_a_block_round_trips_its_counts(self) -> None:
@@ -340,8 +335,6 @@ class CloseLifted(unittest.TestCase):
         self.assertIn(f"pull request #7 merged at {FIX_MERGE}", gh.writes[0][-1])
 
     def test_a_stack_layer_merged_into_main_lifts_the_record(self) -> None:
-        # An upper layer of a native stack lands with the layers below it and
-        # keeps the lower layer's branch as its base; its stack's base is main.
         layer = merged_pull() | {"baseRefName": "feat/lower", "stack": {"baseRefName": "main"}}
         gh = Gh({9: REVERT}, [layer])
         self.assertEqual(self.run_close(gh), 1)

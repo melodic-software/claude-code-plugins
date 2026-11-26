@@ -74,7 +74,7 @@ const fieldReader = (fields) => {
 };
 import { isPersonReason, parseReason } from "../lib/stop-reason.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
-import { DIFF_TEXT, LISTED } from "../pr-merge/capped-compare.fixture.mjs";
+import { chain, DIFF_TEXT, LISTED } from "../pr-merge/capped-compare.fixture.mjs";
 import { ADMISSION_RECORD_MARKER, recordBody } from "../lib/admission-record.mjs";
 import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 
@@ -2922,6 +2922,20 @@ test("--find-prior names the resumed branch, its tip and the cause, and still ru
   assert.equal(output, `proceed=true\nskip-reason=\nreuse-branch=\nresume-branch=${lane(400)}\nresume-tip=${"a".repeat(40)}\nresume-cause=turn-cap\n`);
 });
 
+test("--find-prior reads a lane branch past the compare's 250 commits in pages before it resumes it, and a page cut short resumes nothing", async () => {
+  const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=turn-cap cap=75 run=400 -->", created_at: "2026-10-16T11:00:00Z" }];
+  const commits = chain(260).map((commit) => ({ ...LANE_TIP, sha: commit.sha, parents: commit.parents }));
+  const comparison = { ahead_by: 260, behind_by: 0, total_commits: 260, commits };
+  const { code, calls, output } = await runPrior({ comments, refs: [refOf(lane(400))], comparison });
+  assert.equal(code, 0);
+  assert.equal(output, `proceed=true\nskip-reason=\nreuse-branch=\nresume-branch=${lane(400)}\nresume-tip=${"a".repeat(40)}\nresume-cause=turn-cap\n`);
+  assert.deepEqual(calls.filter((c) => c.path.includes("/compare/")).map((c) => c.page), [null, "1", "2", "3"]);
+  const cut = await runPrior({ comments, refs: [refOf(lane(400))], comparison: { ...comparison, total_commits: 261 } });
+  assert.equal(cut.output, "proceed=true\nskip-reason=\nreuse-branch=\n");
+  const stranger = commits.map((commit, at) => (at === 255 ? { ...commit, author: { login: "stranger" } } : commit));
+  assert.equal((await runPrior({ comments, refs: [refOf(lane(400))], comparison: { ...comparison, commits: stranger } })).output, "proceed=true\nskip-reason=\nreuse-branch=\n", "a stranger's commit past the first 250");
+});
+
 test("--find-prior runs the model fresh, with no resume outputs, when the marked run's branch is behind main, naming that branch and its tip", async () => {
   const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped run=400 -->", created_at: "2026-10-16T11:00:00Z" }];
   const comparison = { ahead_by: 1, behind_by: 865, total_commits: 1, commits: [LANE_TIP] };
@@ -3106,6 +3120,12 @@ async function runPrior({
         const pageInfo = { hasNextPage: index + 1 < graphqlPages.length, endCursor: `c${index + 1}` };
         const body = { data: { repository: { issue: { closedByPullRequestsReferences: { nodes: graphqlPages[index], pageInfo } } } } };
         return jsonResponse(200, body);
+      }
+      const { pathname, searchParams } = new URL(url);
+      if (pathname.includes("/compare/") && Array.isArray(comparison?.commits)) {
+        calls.push({ method: "GET", path: pathname, page: searchParams.get("page") });
+        const page = Number(searchParams.get("page") ?? 0);
+        return jsonResponse(200, { ...comparison, commits: page ? comparison.commits.slice((page - 1) * 100, page * 100) : comparison.commits.slice(0, 250) });
       }
       return fake.fetch(url, init);
     };

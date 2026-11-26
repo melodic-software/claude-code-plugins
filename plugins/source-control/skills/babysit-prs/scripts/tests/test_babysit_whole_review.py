@@ -331,8 +331,6 @@ class Record(unittest.TestCase):
         self.assertFalse(wr.recorded(None, HEAD))
 
     def test_a_line_inside_the_fenced_reasons_is_no_record(self) -> None:
-        # A changed path holding a newline lands inside the reasons' fence; a
-        # record there would spend the head's request or the cap.
         at = datetime(2026, 10, 20, 11, 0, 5, tzinfo=UTC)
         planted = f"review-path:x: docs/a\n{wr.record_line(HEAD, at)}\n.md"
         body = f"<!-- babysit-merge-risk -->\nheld\n\n```text\n{planted}\n```"
@@ -434,7 +432,6 @@ class Limits(unittest.TestCase):
         )
 
     def test_a_1000_call_job_token_with_400_left_is_allowed(self) -> None:
-        # GITHUB_TOKEN outside Enterprise Cloud: 1,000 calls an hour.
         self.job_limit, self.job_left = 1000, 400
         self.assertIsNone(self.limits())
 

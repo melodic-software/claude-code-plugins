@@ -1,49 +1,4 @@
 #!/usr/bin/env bash
-# fetch-failed-logs.sh — Fetch complete, untruncated GitHub Actions logs
-# for a workflow run via the GitHub REST API.
-#
-# Replaces the truncation-prone `gh run view <id> --log-failed` (CLI display
-# layer caps at ~4MB; cli/cli #11059 #10551 #7771 #7642). Uses direct
-# `gh api .../runs/{id}/logs` (full ZIP via Azure Blob 302) or
-# `gh api .../jobs/{id}/logs` (per-job plain text) — both complete.
-#
-# Default mode greps `##[error]` and `##[warning]` per file. Audit flags
-# expose more observability surface for a CI-log-audit agent (if your
-# environment ships one) and for ad-hoc inline use.
-#
-# Usage:
-#   fetch-failed-logs.sh <run-id>                  # default: ##[error] + ##[warning]
-#   fetch-failed-logs.sh --job <job-id>            # single-job plain-text mode
-#   fetch-failed-logs.sh <run-id> --errors-only    # ##[error] only (no warnings)
-#   fetch-failed-logs.sh <run-id> --notices        # also include ##[notice]
-#   fetch-failed-logs.sh <run-id> --groups         # ##[group]/##[endgroup] step structure
-#   fetch-failed-logs.sh <run-id> --timing         # per-group durations from ISO timestamps
-#   fetch-failed-logs.sh <run-id> --suspicious     # grep retry/deprecation/0-tests/timeout patterns
-#   fetch-failed-logs.sh <run-id> --audit          # macro: warnings + groups + timing + suspicious
-#   fetch-failed-logs.sh <run-id> --keep-zip       # leave ZIP under scratch/ for re-grep
-#   fetch-failed-logs.sh <run-id> --raw            # dump full ZIP contents to stdout (no grep)
-#   fetch-failed-logs.sh <run-id> --max-bytes <n>  # size cap (default 52428800 = 50 MiB) — the
-#                                                  # invoking skill wires the fetch_logs_max_bytes
-#                                                  # userConfig option here
-#   fetch-failed-logs.sh <run-id> --dir <checkout> # the repository of this checkout
-#
-# --dir names any checkout of the run's repository, resolved with target-repo.sh
-# (which honors GH_REPO). Default: `gh repo view` in the current directory.
-#
-# Env overrides:
-#   FETCH_LOGS_REPO        owner/name; wins over --dir and the default
-#   FETCH_LOGS_SCRATCH     destination for cached ZIPs — default
-#                          $CLAUDE_PLUGIN_DATA/scratch when set, else a mktemp -d
-#                          removed on exit (kept on --keep-zip, exit 3 or 4)
-#
-# Exit codes:
-#   0  log fetch + extraction succeeded
-#   1  invalid argument, or --dir names no directory
-#   2  gh api call failed (auth, network, 404 etc.)
-#   3  log payload exceeded the size cap
-#   4  ZIP extraction failed
-#   5  prerequisite missing (gh, unzip)
-
 # portability-scope: fetches GitHub Actions logs through the GitHub REST API with gh; the script is the GitHub provider's log fetch.
 set -uo pipefail
 
@@ -61,7 +16,34 @@ TIMING=0
 SUSPICIOUS=0
 
 usage() {
-  sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+fetch-failed-logs.sh: fetch complete GitHub Actions logs for a workflow run and grep them.
+
+Usage:
+  fetch-failed-logs.sh <run-id> [options]
+  fetch-failed-logs.sh --job <job-id>
+
+  --job <id>       one job's plain-text log
+  --errors-only    ##[error] only (default: ##[error] and ##[warning])
+  --notices        also ##[notice]
+  --groups         ##[group]/##[endgroup] step structure
+  --timing         per-group durations
+  --suspicious     retry, deprecation, zero-test and timeout patterns
+  --audit          warnings, groups, timing and suspicious together
+  --keep-zip       keep the ZIP in the scratch directory
+  --raw            print the whole ZIP's contents, no grep
+  --max-bytes <n>  size cap (default 52428800)
+  --dir <checkout> any checkout of the run's repository (default: the current directory)
+  FETCH_LOGS_REPO=owner/name wins over --dir; FETCH_LOGS_SCRATCH sets the ZIP directory.
+
+Exit codes:
+  0  log fetch + extraction succeeded
+  1  invalid argument, or --dir names no directory
+  2  gh api call failed (auth, network, 404 etc.)
+  3  log payload exceeded the size cap
+  4  ZIP extraction failed
+  5  prerequisite missing (gh, unzip)
+EOF
   exit 0
 }
 
@@ -121,14 +103,8 @@ SUSPICIOUS_RE='(retry|retrying|attempt [0-9]+ of [0-9]+|exponential backoff|depr
 command -v gh >/dev/null 2>&1 || die 5 "gh CLI required"
 command -v unzip >/dev/null 2>&1 || die 5 "unzip required"
 
-# file_size — byte count of a file, with the surrounding whitespace/CR some
-# `wc` builds emit stripped so the value compares numerically.
 file_size() { wc -c <"$1" | tr -d ' \r\n'; }
 
-# emit_group_timing — parse leading ISO 8601 timestamp on each line, compute
-# duration per ##[group]/##[endgroup] section. Pure awk for cross-platform.
-# GH Actions logs prefix every line with `2026-MM-DDThh:mm:ss.NZ ` followed
-# by the message. We diff first/last timestamp inside each group block.
 emit_group_timing() {
   local file="$1"
   awk '
@@ -185,14 +161,6 @@ elif [[ -z "$REPO" ]]; then
 fi
 [[ "$REPO" == */* ]] || die 2 "cannot resolve owner/repo (set FETCH_LOGS_REPO=owner/name)"
 
-# --- Scratch dir resolution --------------------------------------------------
-#
-# Cached ZIPs and extracted logs are transient. Precedence: explicit
-# FETCH_LOGS_SCRATCH override > the plugin's persistent data directory
-# (CLAUDE_PLUGIN_DATA, only when its last path segment names source-control:
-# another plugin's SessionStart hook can export its own data dir under that
-# name into every Bash call) > mktemp.
-
 SCRATCH="${FETCH_LOGS_SCRATCH:-}"
 scratch_owned=0
 if [[ -z "$SCRATCH" ]]; then
@@ -208,8 +176,6 @@ if [[ -z "$SCRATCH" ]]; then
 fi
 mkdir -p "$SCRATCH"
 
-# A mktemp scratch is removed on exit, unless the run keeps a file there on
-# purpose: --keep-zip, or an exit 3 or 4 message that names the file.
 EXTRACT_DIR=""
 # shellcheck disable=SC2329  # invoked via trap, not direct call
 cleanup() {
@@ -270,8 +236,6 @@ if [[ "$size" -gt "$MAX_BYTES" ]]; then
 fi
 
 if [[ "$size" -lt 22 ]]; then
-  # ZIP minimum is 22 bytes (empty central directory). Anything smaller is an
-  # API error response that gh somehow piped through.
   printf 'fetch-failed-logs: response %s bytes — likely an API error, not a ZIP\n' "$size" >&2
   printf '  raw response: %s\n' "$(head -c 200 "$ZIP_PATH" || true)" >&2
   rm -f "$ZIP_PATH"
@@ -282,17 +246,6 @@ EXTRACT_DIR=$(mktemp -d)
 
 unzip -q "$ZIP_PATH" -d "$EXTRACT_DIR" 2>/dev/null || die 4 "unzip failed (corrupt ZIP at $ZIP_PATH)"
 
-# Real GitHub Actions ZIP layout (verified 2026-05-08 against run 25505236665;
-# recheck when GitHub changes the run-log archive layout):
-#   TOP-LEVEL:  <step-num>_<job-name>.txt    consolidated step log (errors live here)
-#   PER-JOB:    <job-name>/system.txt         agent metadata only
-# Errors appear in the top-level consolidated files. Walk all *.txt recursively
-# rather than per-job dirs.
-
-# Enumerated ONCE and reused by every walk below (markers, --raw, the three
-# audit sections, the no-marker fallback), so those consumers do not each
-# re-walk the extracted tree. NUL-delimited to survive filenames with spaces
-# (real ZIPs have them — e.g. "shell _ Bash").
 TXT_FILES=()
 while IFS= read -r -d '' f; do
   TXT_FILES+=("$f")
@@ -337,9 +290,6 @@ else
   [[ "$SUSPICIOUS" -eq 1 ]] && per_file_section "suspicious patterns" grep_suspicious
 
   if [[ "$found_any" -eq 0 ]]; then
-    # No marker found — surface tail of the largest non-system log file. Use
-    # `wc -c` for cross-platform portability (find -printf is GNU-only; macOS
-    # BSD find rejects it).
     largest=""
     largest_size=0
     for f in ${TXT_FILES[@]+"${TXT_FILES[@]}"}; do

@@ -32,17 +32,12 @@ class DependencyAuthorTests(unittest.TestCase):
                 self.assertFalse(fb.is_dependency_author(login))
 
     def test_extra_logins_are_recognized(self) -> None:
-        # A non-dependabot/renovate dependency bot an operator runs keeps the
-        # same hold-merge protection once named. Matching is normalization-
-        # insensitive on both sides (casefold, strip `app/` and `[bot]`).
         extra = frozenset({"MyDepBot"})
         for login in ("mydepbot", "MyDepBot[bot]", "app/mydepbot"):
             with self.subTest(login=login):
                 self.assertTrue(fb.is_dependency_author(login, extra))
 
     def test_extra_login_config_form_is_normalized(self) -> None:
-        # The configured entry itself may carry `app/` / `[bot]`; it still matches
-        # the normalized incoming login.
         self.assertTrue(fb.is_dependency_author("mydepbot", frozenset({"app/MyDepBot[bot]"})))
 
     def test_unconfigured_extra_matches_builtin_set_only(self) -> None:
@@ -126,10 +121,6 @@ class CollectFeedbackTests(unittest.TestCase):
         self.assertEqual(result["blocking"], [])
 
     def test_bot_approval_with_descriptive_blocking_prose_is_ignored(self) -> None:
-        # #499: an Approve verdict whose body uses the word "blocking" only
-        # descriptively ("blocking criteria"/"blocking checks") and carries no
-        # severity marker must be fully non-blocking, matching the readiness
-        # gate's findings=0 — not routed to blocking or even material.
         pr = _pr([
             {"id": 20, "author": {"login": "claude", "__typename": "Bot"},
              "body": "Verdict: Approve. No blocking issues. Checked the REVIEW.md "

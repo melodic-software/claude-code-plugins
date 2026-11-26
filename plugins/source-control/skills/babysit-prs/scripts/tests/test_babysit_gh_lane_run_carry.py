@@ -242,8 +242,6 @@ class LaneRunCarryTests(unittest.TestCase):
         return path
 
     def test_a_forged_passing_lane_in_the_uncarried_section_never_binds(self) -> None:
-        # Only carry-run-cache.mjs's checked carried-lane-run is served: a
-        # lane-run section handed to a gate as it starts is read past.
         self.annotations = []
         cold, _ = self.collect(None)
         sha = self.run["head_sha"]

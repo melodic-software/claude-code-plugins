@@ -1,6 +1,6 @@
 import type { EngineInterface } from 'claude-code'
 
-import type { Finding } from './observer-live.ts'
+import { type Finding, fixText } from './observer-live.ts'
 
 type Elements = ReturnType<EngineInterface['ui']['resolve']>
 export type BandActions = {
@@ -54,6 +54,12 @@ export const band = (ui: Elements, icon: string, f: Finding, source: string, isO
             <Text dimColor>evidence: </Text>
             {f.evidence || 'not given'}
           </Text>
+          {f.fix ? (
+            <Text wrap="wrap">
+              <Text dimColor>fix: </Text>
+              {fixText(f.fix)}
+            </Text>
+          ) : null}
           <Text dimColor wrap="truncate">
             {cost}
           </Text>

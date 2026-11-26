@@ -1,25 +1,4 @@
 #!/usr/bin/env bash
-# Annotate the ai-slop findings of a pull request's changed markdown, as
-# workflow warnings on the lines that carry them.
-#
-#   scripts/ai-slop-report.sh <base-ref>
-#
-# Reports; never gates. Every path exits 0, so the lint job's verdict is
-# unchanged by what the detector finds: the promotion window measures these
-# annotations before anything is allowed to block on them. That is also why
-# this step carries no `continue-on-error` and no aggregator feed row: a step
-# that cannot fail needs neither.
-#
-# The detector is the ai-slop audit skill's own
-# (plugins/ai-slop/skills/audit/scripts/detect.sh), invoked over the changed
-# markdown only, so a finding that predates the pull request is never charged
-# to it. The event branch is HERE rather than in the workflow's `if:` because a
-# push has no base ref to diff against and a step cannot carry both an event
-# gate and the docs-only resolver's.
-#
-# The annotation cap is 50. GitHub renders at most a few dozen annotations per
-# step, and a pull request that would exceed the cap is better served by the
-# total on the summary line than by a wall the reader scrolls past.
 set -u
 
 PROG="ai-slop-report.sh"
@@ -81,9 +60,6 @@ main() {
   return 0
 }
 
-# annotate <findings> <file-count> — one `::warning file=,line=::` per finding
-# up to the cap, then the total. `%` is percent-escaped because a workflow
-# command reads `%xx` in its message as an escape sequence.
 annotate() {
   local findings="$1" files="$2" total
 

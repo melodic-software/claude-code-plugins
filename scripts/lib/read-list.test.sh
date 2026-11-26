@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for scripts/lib/read-list.sh.
-#
-# The load-bearing assertions are the two-mode ones. `inline` and `leading`
-# differ on exactly one input -- a line carrying a non-leading `#` -- and both
-# behaviors are required by real files in this repo, so each mode is asserted
-# against that input AND against the other mode's answer. A test that only
-# checked one mode would pass just as happily against a library that had quietly
-# collapsed the two (#3161).
 set -uo pipefail
 
 TMP_ROOT="$(mktemp -d)"
@@ -60,10 +52,6 @@ expect "leading: keeps a non-leading # as data" leading $'keep me # and this\n' 
 expect "inline: a line that is only an inline comment vanishes" inline $'   # all comment\nreal\n' $'real'
 expect "leading: an ERE containing # survives intact" leading $'^foo#bar$\n' $'^foo#bar$'
 
-# The same input through both modes, asserted as a pair: a trailing `#` is data
-# to one and a comment opener to the other. This is the #1513 shape for a token
-# list — inline mode silently hands the scanner a SHORTER pattern than the file
-# declares, so the gate enforces less than it reports and still exits 0.
 expect "leading: a trailing-# entry survives intact" leading $'a#\nb\n' $'a#\nb'
 expect "inline: the same entry is TRUNCATED to its pre-# text" inline $'a#\nb\n' $'a\nb'
 
@@ -89,21 +77,6 @@ else
   ok "an unknown option is rejected"
 fi
 
-# A BARE `--comments` (the flag present, its mode value missing) must reach the
-# same rc-2 answer, and must reach it AT ALL. The pre-#3363 arm consumed its
-# value with `shift 2 || true`; as the last argument that shifted nothing and
-# returned non-zero, `|| true` hid the failure, `$#` stayed at 1, and the option
-# loop reprocessed `--comments` forever.
-#
-# The WATCHDOG is the load-bearing part of this assertion, not decoration:
-# without a bound, a regression does not FAIL this suite, it HANGS it, and an
-# unbounded stall in CI is worse than a red test. It is hand-rolled from
-# `kill`/`wait` rather than written as `timeout 5` because GNU coreutils
-# `timeout` is absent from a stock macOS userland, which
-# scripts/check-shell-portability.sh names as the platform no runner here
-# covers: on a developer's Mac that invocation would return 127 and fail a
-# correct library. `sleep`, `kill` and `wait` are POSIX, so this bounds the
-# probe everywhere. A killed probe reports 128+SIGKILL, never 2.
 missing_value_rc=0
 # shellcheck disable=SC2016  # $1/$2 are the inner `bash -c` positionals, deliberately unexpanded here
 bash -c '
@@ -112,25 +85,11 @@ bash -c '
   read_list::into probe "$2" --comments
 ' _ "$SELF_DIR/read-list.sh" "$f" 2>/dev/null &
 probe_pid=$!
-# SIGKILL on the watchdog SHELL, and no `wait` for it. SIGTERM would be
-# deferred until its foreground `sleep` returned, costing the suite the full
-# five seconds on the HAPPY path; SIGKILL cannot be deferred. Killing the shell
-# rather than letting it fire against an already-reaped pid is also what keeps
-# this free of a pid-reuse hazard: the orphaned `sleep` has nothing left to run
-# the kill.
-# The `>/dev/null 2>&1` is not cosmetic. Without it the orphaned `sleep`
-# inherits this suite's stdout, and anything reading the suite through a pipe
-# blocks for the full five seconds waiting for that last writer to close.
 (
   sleep 5
   kill -9 "$probe_pid" 2>/dev/null
 ) >/dev/null 2>&1 &
 watchdog_pid=$!
-# `disown` drops the watchdog from the job table so bash does not announce its
-# death. Measured on Git Bash (MSYS2), which prints
-# `<script>: line N: <pid> Killed  ( sleep 5; ... )` to the suite's stderr
-# without it, on the PASSING path; Linux bash stays quiet either way. The
-# probe's own kill IS still announced, but only where this case already FAILs.
 disown "$watchdog_pid" 2>/dev/null
 wait "$probe_pid" || missing_value_rc=$?
 kill -9 "$watchdog_pid" 2>/dev/null
@@ -149,12 +108,6 @@ if read_list::into entries /nonexistent/list.txt --comments inline 2>/dev/null; 
 else
   ok "a missing file returns non-zero rather than an empty list"
 fi
-
-# --- the caller may name its out-array anything ----------------------------
-#
-# Same nameref-shadowing hazard #3144 measured in changed-files.sh: a local
-# declared after the nameref binds and sharing the caller's name swallows the
-# result. The names below are this function's own internals.
 
 f="$(mk $'a\nb\n')"
 for victim in file mode line out; do
@@ -233,8 +186,6 @@ else
   fail "after reset_used, stale_to returned [${stale[*]}]"
 fi
 
-# An empty list under `set -u` must not abort: the zero-entry list is the END
-# state every shrink-only baseline is driving toward.
 read_list::reset_used
 # shellcheck disable=SC2034  # passed to the library BY NAME; the nameref is the use
 declare -a empty_list=()

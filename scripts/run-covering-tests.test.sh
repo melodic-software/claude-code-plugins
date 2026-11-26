@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests scripts/run-covering-tests.sh against stub selection and runner scripts.
-#
-#   bash scripts/run-covering-tests.test.sh
 set -uo pipefail
 script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/run-covering-tests.sh"
 work=$(mktemp -d)

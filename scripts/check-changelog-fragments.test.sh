@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# The gate reads its mode and inputs from the environment, and a CI run exports
-# them (GITHUB_EVENT_NAME=merge_group in the queue). Start every case from none
-# set; a case that needs one sets it itself.
 unset GITHUB_EVENT_NAME MERGE_GROUP_BASE_SHA CHANGELOG_PR_HEAD CHANGELOG_HEAD_REF \
   CHANGELOG_PR_AUTHOR GITHUB_REPOSITORY
 
@@ -344,10 +341,6 @@ else
 fi
 rm -rf "$f"
 
-# The merge queue checks out the group's squash commit, whose one parent holds
-# main and the entries ahead of it, so the release is read from the queued pull
-# request's head (CHANGELOG_PR_HEAD) and judged against the group's base.
-# queue_on <fixture>: a queue branch whose commit stands in for the squash.
 queue_on() {
   git_test_config "$1" checkout -qb "queue-$2" main
   git_test_config "$1" commit -q --allow-empty -m "queued squash"
@@ -473,10 +466,6 @@ base_fixture f alpha
 expect "no arguments exits 2" 2 "usage" "$f"
 rm -rf "$f"
 
-# --- --check-required: a Dependabot-only pull request needs no fragment ---------
-# A gh stub answers the verified-signature lookup: it prints $GH_ANSWER and exits
-# $GH_RC. dependabot_commit makes a commit with Dependabot's author and GitHub's
-# committer, which a pusher can forge; only the signature lookup tells them apart.
 bot_commit() (
   export GIT_AUTHOR_NAME="$3" GIT_AUTHOR_EMAIL="$4"
   export GIT_COMMITTER_NAME=GitHub GIT_COMMITTER_EMAIL=noreply@github.com
@@ -502,8 +491,6 @@ run_dependabot "--check-required exempts a pull request of verified Dependabot c
 run_dependabot "--check-required does not exempt a pull request another author opened" 1 "MISSING FRAGMENT" kyle-sexton true 0
 run_dependabot "--check-required does not exempt a commit whose signature GitHub did not verify" 1 "no signature GitHub verified" 'dependabot[bot]' false 0
 run_dependabot "--check-required does not exempt when the signature lookup fails, and advises a re-run" 1 "could not be checked: the git or GitHub API lookup failed" 'dependabot[bot]' true 1
-# The merge queue checks out its own squash commit; CHANGELOG_PR_HEAD names the
-# queued pull request's head, whose commits are the ones the exemption reads.
 dependabot_head="$(git -C "$f" rev-parse HEAD)"
 git_test_config "$f" checkout -q main
 git_test_config "$f" checkout -qb queue-dependabot
@@ -569,9 +556,6 @@ GIT_AUTHOR_NAME='github-actions[bot]' GIT_AUTHOR_EMAIL='41898282+github-actions[
 run_dependabot "--check-required does not exempt a Dependabot pull request carrying a github-actions[bot] commit" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
 rm -rf "$f"
 
-# A base merge a person's update-branch made stays unexempt, and the gate names
-# it and points at @dependabot recreate instead of a hand-added fragment
-# (https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-pull-request-comment-commands#commands-for-dependabot-pull-requests).
 base_fixture f alpha
 mkdir -p "$f/.git/stub"
 # shellcheck disable=SC2016  # the stub expands these when it runs
@@ -599,10 +583,6 @@ else
 fi
 rm -rf "$f"
 
-# On a runner the signature lookup goes through the api-budget gh wrapper: it
-# adds -i, reads the header block into the token's file and passes only the
-# body on. The stub answers -i with a header block and logs a request when the
-# wrapper's GH_DEBUG asks.
 base_fixture f alpha
 mkdir -p "$f/.git/stub" "$f/.github/actions/log-api-budget" "$f/.git/runner"
 cp "$SELF_DIR/../.github/actions/log-api-budget/api-budget.bash" "$f/.github/actions/log-api-budget/"

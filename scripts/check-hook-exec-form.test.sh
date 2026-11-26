@@ -12,8 +12,6 @@ REQUIREMENTS="$SELF_DIR/../.github/requirements-ci.txt"
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
 new_fixture() {
@@ -32,8 +30,6 @@ run_check() (
   cd "$1" && bash scripts/check-hook-exec-form.sh
 )
 
-# The exact pre-#2570 disk-hygiene wiring: event-keyed `hooks` object, exec form
-# on a bare `bash`, in BOTH the PreToolUse and the Stop entry.
 PRE_2570_HOOKS='{
   "hooks": {
     "PreToolUse": [
@@ -59,8 +55,6 @@ PRE_2570_HOOKS='{
   }
 }'
 
-# The #2570 fix: shell form. `bash` leads the command STRING, which is correct
-# and must never be flagged -- `args` presence is the sole discriminator.
 SHELL_FORM_HOOKS='{
   "hooks": {
     "PreToolUse": [
@@ -93,7 +87,6 @@ ROOTED_EXEC_HOOKS='{
   ]
 }'
 
-# --- the regression this gate exists for: pre-#2570 shape fails -------------
 new_fixture f
 plugin_file "$f" disk-hygiene hooks/hooks.json "$PRE_2570_HOOKS"
 if out="$(run_check "$f" 2>&1)"; then
@@ -108,7 +101,6 @@ else
 fi
 rm -rf "$f"
 
-# --- the #2570 fix passes: shell form with a leading bare `bash` ------------
 new_fixture f
 plugin_file "$f" disk-hygiene hooks/hooks.json "$SHELL_FORM_HOOKS"
 if out="$(run_check "$f" 2>&1)"; then
@@ -172,9 +164,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a matcher entry is not itself a hook object ----------------------------
-# The outer object carries `matcher` and a nested `hooks` list but no command;
-# only the inner dirty entry may be flagged, and the clean sibling must not be.
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"matcher":"Bash","hooks":[
   {"type":"command","command":"${CLAUDE_PLUGIN_ROOT}/bin/ok","args":["--x"]},
@@ -274,7 +263,6 @@ rm -rf "$f"
 
 skill_md() { plugin_file "$@"; }
 
-# The #2568 shape: exec form on a bare python3 in a SKILL.md frontmatter hook.
 FM_EXEC_PYTHON='---
 description: "x"
 hooks:
@@ -303,7 +291,6 @@ hooks:
 ```
 '
 
-# The repo-hygiene shape that #2570 established: shell form, no args.
 FM_SHELL_FORM='---
 description: "x"
 hooks:
@@ -392,11 +379,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: only a TOP-LEVEL hooks key is a declaration ---------------
-# Claude Code reads `hooks` as a top-level frontmatter key. A `hooks:` mapping
-# nested under some other key is data, not a hook registration, and must not be
-# walked as one -- every markdown file reaches the walk now, so a nested match
-# would be a false positive rather than extra coverage.
 new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 description: "x"
@@ -416,9 +398,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: a sequence at the key's own indentation stays in block ----
-# YAML permits a block sequence to sit at the mapping key's indentation, so a
-# zero-indent `- ` under a zero-indent `hooks:` must not close the block.
 new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
@@ -485,11 +464,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: every YAML spelling of the hooks key is a declaration -----
-# Bare, double-quoted, single-quoted, space-before-colon, and the three escape
-# encodings all denote the same key, and only a real parser sees that: the
-# reader hands the document to one instead of matching the token as text, so
-# the scanner has already decoded the key by the time the gate sees it.
 # BS keeps the literal backslash of the escape spellings unambiguous in source.
 # shellcheck disable=SC1003  # a lone backslash IS the intended value here
 BS='\'
@@ -533,10 +507,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: a duplicate hooks key is ambiguous, not a first-wins pass --
-# PyYAML's loader keeps the last value; js-yaml rejects the document. A gate
-# must not pick the reading that clears the file, and #1492 already proved a
-# duplicate key can ship through a green suite.
 new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks: {}
@@ -623,9 +593,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: a trailing comment on the hooks key is not a value --------
-# `hooks:  # why` opens a block like any other; treating the comment as an
-# inline declaration would be a false positive on ordinary YAML.
 new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:  # the skill-scoped belt
@@ -647,11 +614,6 @@ else
 fi
 rm -rf "$f"
 
-# --- the interpreter-led shell form from #2568 must pass --------------------
-# Shell form in a single-quoted YAML scalar, with a comment block and sibling
-# keys inside the hooks block. This is the shape that removed the last
-# violation from this repository; a gate that flagged its own remedy would
-# leave the defect no correct way out.
 new_fixture f
 skill_md "$f" disk-hygiene skills/clean/SKILL.md '---
 description: "x"
@@ -884,11 +846,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a reader that cannot complete is an environment failure, not a finding --
-# The two unreadable classes are graded apart on purpose: a file the reader
-# PARSED and rejected is a finding about the tree (exit 1, above), while a reader
-# that never ran to completion means nothing was inspected at all. Under
-# scripts/README.md, "The check-script contract", that is exit 2.
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$SHELL_FORM_HOOKS"
 printf '%s\n' 'import sys' 'sys.exit(2)' >"$f/scripts/check-hook-exec-form-frontmatter.py"

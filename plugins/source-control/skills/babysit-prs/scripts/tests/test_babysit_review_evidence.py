@@ -53,8 +53,6 @@ RENAMED_JOBS = {
     "claude-review": "pr-review / review-status",
     "claude-security-review": "pr-review-security / review-status",
 }
-# The status job names ci-workflows' pr-review.yml and pr-review-security.yml
-# give, which pr-review-cli.yml gave before ci-workflows#866.
 EARLIER_JOBS = {
     "claude-review": "pr-review / claude-review-status",
     "claude-security-review": "pr-review-security / security-review",
@@ -83,8 +81,6 @@ RATE_LIMIT = {
     "message": "AI review skipped: usage limit reached; re-run after it resets"
     " (failure-class=rate-limit)",
 }
-# report-lane-outcome's rate-limit error (ci-workflows docs/lane-outcome.md's
-# example), whose lane-outcome record names the class.
 RATE_LIMIT_RECORD = dict(
     RATE_LIMIT,
     message="AI review skipped: usage limit reached; re-run after it resets"
@@ -100,23 +96,17 @@ OTHER_FAILURE = {
     "title": "claude-review failed",
     "message": "failure-class=incomplete: no completed review was found on this head",
 }
-# publish-review's failure line (ci-workflows publish.cjs `fail`) for a
-# rejected Claude credential.
 AUTH_FAILURE = dict(
     OTHER_FAILURE,
     message="claude-review: failure-class=auth:"
     " the Claude credential was rejected; the owner replaces the secret",
 )
-# publish-review's failure line (ci-workflows publish.cjs `fail`) for a failed
-# runner isolation or CLI install (ci-workflows#893).
 INSTALL_FAILURE = dict(
     OTHER_FAILURE,
     message="claude-review: failure-class=install-failed: the runner isolation"
     " or the Claude Code CLI install or its integrity check failed",
 )
 
-# publish-review's failure line (ci-workflows publish.cjs `fail`) as a run
-# recorded it when the review's own post hit GitHub's API rate limit.
 PUBLISH_RATE_LIMIT = {
     "path": ".github",
     "annotation_level": "failure",
@@ -584,9 +574,6 @@ class LaneSourceTests(Base):
                     self.assertUnbound(result[lane], "lane-source-changed")
 
     def test_a_review_plugin_change_binds_both_lanes(self) -> None:
-        # The reusable stages the review plugin from the default branch's
-        # tip, never the head (scripts/ci-review-plugin-source.test.sh pins
-        # the callers to that), so a pull request's copy feeds no review.
         for path in (
             "plugins/review/skills/security-review/SKILL.md",
             "plugins/review/skills/code-review/SKILL.md",
@@ -623,9 +610,6 @@ class LaneSourceTests(Base):
             self.assertUnbound(result[lane], "lane-source-changed")
 
     def test_github_files_the_review_takes_from_main_bind(self) -> None:
-        # The callers run every local action from a .base checkout of main
-        # and the reusable runs its composites from its own repository, so a
-        # pull request's copy of these never feeds its own review.
         for path in (
             ".github/actions/resolve-config/action.yml",
             ".github/actions/check-kill-switch/action.yml",
@@ -665,7 +649,6 @@ class LaneSourceTests(Base):
 
 
 BASE = "b0" * 20
-# The gate reads workflow YAML with PyYAML; with none, nothing clears.
 NEEDS_YAML = unittest.skipUnless(
     importlib.util.find_spec("yaml"),
     "PyYAML not installed (CI's check-skills job installs it)",
@@ -829,7 +812,6 @@ class ReadOnlyWorkflowTests(Base):
                 self.assertBinds(self.bound({WORKFLOW: text}))
 
     def test_a_deleted_workflow_stays_a_lane_source(self) -> None:
-        # What a deleted workflow enforced goes with it.
         for path in (
             ".github/workflows/pr-merge.yml",
             ".github/workflows/pr-require-checks.yml",
@@ -973,8 +955,6 @@ class ReadOnlyWorkflowTests(Base):
                 self.assertHeld(self.bound({path: READ_ONLY}))
 
     def test_doubt_about_the_read_stays_a_lane_source(self) -> None:
-        # A rename's old side 404s and the comparison does not show it
-        # removed, so the reader raises; so does any refused read.
         self.assertHeld(self.bound({}, WORKFLOW))
         with mock.patch.dict(sys.modules, {"yaml": None}):
             self.assertHeld(self.bound({WORKFLOW: READ_ONLY}))
@@ -1019,9 +999,6 @@ class ReadOnlyWorkflowTests(Base):
         self.assertEqual(reads, [])
 
     def test_a_forged_marker_workflow_stays_unbound(self) -> None:
-        # A pull request adds a workflow whose token can write pull requests
-        # and that posts a clean reviewed-head marker as github-actions[bot].
-        # Its marker is indistinguishable from the lane's, so no lane binds.
         forger = """\
 name: forge
 on: pull_request
@@ -1165,8 +1142,6 @@ class MainRunReviewTests(Base):
     def test_a_verdict_with_no_matching_record_on_the_head_does_not_bind(
         self,
     ) -> None:
-        # A run cancelled before `record` left a verdict but no check run, so
-        # its CRITICAL would not carry to a later head: it binds nothing.
         reviews = [main_review(lane, findings=1, critical=1) for lane in LANES]
         for records in (
             {lane: [] for lane in LANES},
@@ -1188,9 +1163,6 @@ class MainRunReviewTests(Base):
             self.assertTrue(matched[lane].bound, lane)
 
     def test_a_designed_stop_on_the_head_names_the_unbound_reason(self) -> None:
-        # pr-review-main stopped on a diff too large to read whole and posted
-        # `verdict=none reason=too-large`: no verdict, so nothing binds, and
-        # the reason says why; a CRITICAL another head carried still holds.
         context = dict(
             CONTEXT,
             carried_critical={"claude-review": 0, "claude-security-review": 2},
@@ -1275,8 +1247,6 @@ class MainRunReviewTests(Base):
         self.assertEqual(result["claude-security-review"].blocking_findings, 0)
 
     def test_a_verdict_on_a_diff_with_a_line_past_the_cap_does_not_bind(self) -> None:
-        # Read may cut a 2,500-byte line short, so a review of that diff saw
-        # part of it; a 1,000-byte line is read whole.
         clean = self.main_bind(
             [main_review(lane, max_line_bytes=1000) for lane in LANES]
         )
@@ -1291,8 +1261,6 @@ class MainRunReviewTests(Base):
                     self.assertUnbound(result[lane], "lane-source-changed")
 
     def test_a_forged_marker_on_pull_request_runs_still_unbinds(self) -> None:
-        # Clean pull_request records and markers by github-actions[bot], which
-        # any write-token workflow in the head can post, bind nothing.
         forged = [*both_markers(), marker("claude-security-review", S)]
         result = self.main_bind(None, comments=forged)
         for lane in LANES:
@@ -1381,9 +1349,6 @@ class MainRunReviewTests(Base):
                 self.assertUnbound(result["claude-review"], "lane-source-changed")
 
     def test_a_finding_from_a_failed_run_still_counts(self) -> None:
-        # A run fails as a whole when either lane's job fails, after the
-        # other lane uploaded; its findings still count, as pr-verify's FAIL
-        # does, so failing one lane and re-running cannot clear the other's.
         result = self.main_bind(
             [
                 main_review("claude-review"),
@@ -1401,7 +1366,6 @@ class MainRunReviewTests(Base):
         self.assertEqual((security.open_findings, security.blocking_findings), (1, 1))
 
     def test_findings_count_the_most_any_review_of_the_tree_reported(self) -> None:
-        # A re-run, or an empty commit with the same tree, never clears one.
         result = self.main_bind(
             [
                 main_review("claude-review", findings=2),
@@ -1425,7 +1389,6 @@ class MainRunReviewTests(Base):
         self.assertIn("security-finding", [r.code for r in risk.holding(scored)])
 
     def test_a_critical_thread_the_pull_request_review_left_still_holds(self) -> None:
-        # The pull_request review's own CRITICAL finding can only add a hold.
         threads = [
             thread(
                 "severity: CRITICAL\nbad",
@@ -1748,9 +1711,6 @@ class AttemptRuleTests(Base):
         self.assertTrue(result["claude-review"].bound)
 
     def test_the_legacy_class_token_alone_does_not_bind(self) -> None:
-        # ADR 0087 slice 3: the `class=rate-limit` token report-lane-outcome
-        # writes beside the record is retired; only the record, or the lane's
-        # own failure-class line, marks a usage limit.
         legacy = dict(RATE_LIMIT_RECORD, message="pr-review exited with: failure class=rate-limit")
         first = attempt("claude-review", S, 1, [legacy], "failure")
         result = self.bind([self.lane_run(first, self.ok(2))])
@@ -1774,9 +1734,6 @@ class AttemptRuleTests(Base):
         self.assertTrue(result["claude-review"].bound)
 
     def test_a_warning_level_auth_does_not_bind(self) -> None:
-        # publish.cjs warns `<lane> key: class=auth` when the key leg's
-        # credential is refused, whatever the run then failed on; only a
-        # failure-level line names why the run failed.
         timeout = dict(
             OTHER_FAILURE,
             message="claude-review: failure-class=timeout:"
@@ -2098,9 +2055,6 @@ class LostRerunTests(Base):
         )
 
     def test_a_marker_rewritten_during_attempt_one_does_not_bind(self) -> None:
-        # The producer edits one marker in place, so its creation predates
-        # attempt 1; attempt 1's rewrite shows only as an edit, and attempt
-        # 2's own rewrite, when it posts, comes after attempt 2's start.
         for edits in (
             ["2026-01-01T00:40:00Z"],
             ["2026-01-01T02:30:00Z", "2026-01-01T00:40:00Z"],
@@ -2332,8 +2286,6 @@ class TimeoutRerunTests(Base):
         self.assertNotIn(ev.TIMEOUT, ev.GATE_RERUN_CLASSES)
 
 
-# The caller workflows' `Report the kill switch` notice
-# (pr-review-hosted.yml, pr-review-security-hosted.yml).
 KILL_NOTICE = {
     "claude-review": "a kill switch stops this review"
     " (lanes: kill-switch, CLAUDE_REVIEW_DISABLED: false)",
@@ -2543,8 +2495,6 @@ class KillSwitchRerunTests(Base):
         self.assertUnbound(result["claude-review"], "evidence-missing")
 
     def test_a_changed_caller_workflow_still_binds_no_lane(self) -> None:
-        # The head's copy of a caller runs on pull_request, so a head that
-        # edits one could write the notice itself; any such edit unbinds.
         runs = [
             self.lane_run(lane, kill_switched(lane), self.ok(lane)) for lane in LANES
         ]
@@ -2738,8 +2688,6 @@ class SupersededRunTests(Base):
         self.assertUnbound(result["claude-review"], "count-inconsistent")
 
 
-# The caller workflows' `Stop on upstream status` error (pr-review-hosted.yml,
-# pr-review-security-hosted.yml), which fails the kill-switch job.
 UPSTREAM_STOP = {
     "claude-review": "an upstream outage stops this review"
     " (Actions major_outage); the lost-run reconciler re-runs it",
@@ -2893,9 +2841,6 @@ class RecordTests(Base):
         self.assertUnbound(result["claude-review"], "no-record")
 
     def test_a_subscription_leg_record_binds(self) -> None:
-        # ci-workflows pr-review-cli.yml ends the record ` account=fallback`
-        # when the subscription leg reviewed (publish-review publish.cjs).
-        # Both lanes run on it.
         for lane, other in (LANES, LANES[::-1]):
             with self.subTest(lane=lane):
                 tail = "findings=0 inline=0 scope=whole account=fallback"
@@ -3046,7 +2991,6 @@ class SkipTests(Base):
         return [*runs, run("claude-review", S, f"skip=no-change through={shas[0]}")]
 
     def test_skip_chain_binds_at_the_hop_cap(self) -> None:
-        # ci-status follows the same cap (pr-require-checks.yml `carried`).
         self.assertEqual(ev.SKIP_HOPS, 10)
         self.assertTrue(self.bind(self.skip_chain(10))["claude-review"].bound)
 
@@ -3292,8 +3236,6 @@ class CountTests(Base):
         self.assertEqual(result["claude-security-review"].open_findings, 0)
 
     def rounds(self) -> list[dict[str, Any]]:
-        # #7520's shape: one inline finding at S1 and at S0, each fixed by
-        # the next push; the latest review, at S, raised nothing.
         runs = [
             run("claude-review", S1, "findings=1 inline=1 scope=whole"),
             run(
@@ -3338,7 +3280,6 @@ class CountTests(Base):
         return result["claude-review"].open_findings
 
     def test_insert_above_the_unchanged_line_keeps_the_human_test(self) -> None:
-        # GitHub marks the thread outdated, but the flagged line ships as is.
         shifted = "context\n# unrelated\nrun(user_input)\n"
         self.assertEqual(self.outdated_pusher_resolved(lambda p, o: shifted), 2)
 
@@ -3590,8 +3531,6 @@ class CoveringReviewTests(Base):
     def test_a_clean_whole_rerun_at_the_same_head_keeps_the_earlier_findings(
         self,
     ) -> None:
-        # A reopen or draft toggle re-runs a whole review of the same head;
-        # only a review of a later head supersedes one.
         runs = self.two_reviews(
             "findings=2 inline=0 scope=whole",
             "findings=0 inline=0 scope=whole",
@@ -3652,9 +3591,6 @@ class CoveringReviewTests(Base):
     def test_a_clean_whole_rerun_does_not_clear_an_incremental_finding_at_the_head(
         self,
     ) -> None:
-        # Owner decision 2026-10-20: a finding any review of a head reported
-        # clears only by a new head or a human; re-running the review of the
-        # same head until it comes back clean does not clear it.
         runs = self.incremental_then_whole(S)
         result = self.bind(runs, threads=self.incremental_thread())
         self.assertTrue(result["claude-review"].bound)
@@ -3691,9 +3627,6 @@ class CoveringReviewTests(Base):
         result = self.bind(runs, threads=[])
         self.assertTrue(result["claude-review"].bound)
         self.assertEqual(result["claude-review"].open_findings, 0)
-
-    # #8638: a head is new for closure only when its tree changed, so an
-    # empty commit (new sha, same tree) cannot re-roll the review.
 
     def test_a_clean_whole_review_of_an_empty_commit_keeps_an_incremental_finding(
         self,
@@ -4373,9 +4306,6 @@ class SeverityTests(Base):
     def test_a_rerolled_review_of_the_same_tree_never_lowers_the_count(
         self,
     ) -> None:
-        # #8638: the earlier review of the tree reported the same summary
-        # findings; its line is not read, so the newer one's line cannot
-        # clear them, whether the re-roll is a re-run or an empty commit.
         for sha in (S, S0):
             with self.subTest(earlier=sha):
                 runs = [
@@ -4421,8 +4351,6 @@ class SeverityTests(Base):
                 self.assertEqual(result.open_findings, 2)
                 self.assertEqual(result.blocking_findings, blocking)
 
-    # ci-workflows pr-review-cli.yml posts as github-actions[bot] and foots
-    # each comment `\n\nclaude-lane: <lane>` (publish-review publish.cjs).
     ACTIONS = {"__typename": "Bot", "login": "github-actions"}
 
     def test_a_github_actions_finding_with_the_lane_footer_is_the_lanes(self) -> None:
@@ -4465,8 +4393,6 @@ class SeverityTests(Base):
             }
 
         footed = f"summary\n\ncritical-findings: 0\n\nclaude-lane: {self.SEC}"
-        # REST names the bot `github-actions[bot]` with type Bot; a bare login
-        # or a User account under either login is not the lane's.
         for body, user, blocking in (
             (footed, None, 0),
             ("summary\n\ncritical-findings: 0", None, 2),
@@ -4495,9 +4421,6 @@ class SeverityTests(Base):
         ]
         self.assertEqual(result.blocking_findings, 1)
 
-    # #10817: a whole review at S0 reported one IMPORTANT summary finding with
-    # `critical-findings: 0`, then an incremental review at S found none. The
-    # lane edits one marker in place, so S0's summary lives in its history.
     ACTIONS_BOT = {"__typename": "Bot", "login": "github-actions"}
 
     def earlier_link(self) -> list[dict[str, Any]]:
@@ -4692,7 +4615,6 @@ class EditedCommentTests(Base):
         return [whole(lane, S) for lane in LANES]
 
     def test_a_marker_edited_by_another_identity_unbinds_every_lane(self) -> None:
-        # The edited text cannot say which lane's marker it was.
         for name, edit in (
             ("a person", self.HUMAN_EDIT),
             ("another App", self.APP_EDIT),
@@ -4706,8 +4628,6 @@ class EditedCommentTests(Base):
                     self.assertUnbound(result[lane], "comment-edited")
 
     def test_a_marker_the_producer_edited_still_binds(self) -> None:
-        # ci-workflows publish.cjs writeMarker updates the lane's marker on
-        # each later review; GraphQL names its editor without `[bot]`.
         result = self.bind(self.runs(), self.markers(self.OWN_EDIT))
         for lane in LANES:
             self.assertTrue(result[lane].bound, lane)
@@ -4725,8 +4645,6 @@ class EditedCommentTests(Base):
         self.assertUnbound(result[self.SEC], "comment-edited")
 
     def test_an_edited_thread_finding_fails_closed(self) -> None:
-        # A CRITICAL finding edited down to a SUGGESTION, or with its footer
-        # removed, would leave the count; it unbinds instead.
         runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
         for name, body in (
             ("downgraded", f"x\n\nseverity: SUGGESTION\n`claude-lane: {self.SEC}`"),
@@ -4743,8 +4661,6 @@ class EditedCommentTests(Base):
                 self.assertUnbound(result[self.SEC], "comment-edited")
 
     def test_a_finding_whose_footer_a_person_deleted_fails_closed(self) -> None:
-        # Without its footer the body no longer names the lane; the edit is
-        # read before the body, so it unbinds rather than leaving the count.
         runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
         for name, login in (
             ("github-actions", "github-actions"),

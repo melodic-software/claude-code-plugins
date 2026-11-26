@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# Answers whether a checkout's HEAD and a base ref changed the same paths since
-# their merge-base. Used by skills/pull-request/scripts/push-branch.sh and
-# branch-update-signals.sh.
-#
-#   stale-base-overlap.sh [--paths-only] <checkout> <base-ref>
-#
-# When the base ref holds scripts/check-stale-base-overlap.sh and --paths-only
-# is not given, that copy (with the base's scripts/ beside it) is the rule, run
-# as --check <base-ref>: exit 1 is an overlap, 0 is none, anything else is
-# unknown. The head's copy and the working tree's are never run. Otherwise the
-# paths changed on both sides since the merge-base are compared. A caller passes
-# --paths-only for any base it cannot show is the default branch, since the
-# author may have pushed such a base unreviewed and the rule is code.
-#
-# Stdout is one line: `yes`, `no`, or `unknown <reason>`. The rule's own output
-# goes to stderr. Exit 0, or 2 for a usage error.
 set -uo pipefail
 
 RULE=scripts/check-stale-base-overlap.sh

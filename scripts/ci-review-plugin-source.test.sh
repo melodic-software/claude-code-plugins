@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Structure test: each review caller runs melodic-software/ci-workflows'
-# pr-review-cli.yml at main and passes it no input naming a
-# plugin path. That reusable stages the review plugin from claude-code-plugins'
-# default-branch tip, never the pull request's head, so the review-evidence
-# binder (babysit_review_evidence.py) does not list plugins/review/ as lane
-# source. A caller that loaded the plugin from its checkout would let a pull
-# request change its own review, and this test fails first.
 # test-scope: .github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py scripts/ci-deps/package.json
 set -uo pipefail
 

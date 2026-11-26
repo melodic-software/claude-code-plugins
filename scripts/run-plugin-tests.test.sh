@@ -12,8 +12,6 @@ export PLUGIN_TEST_SUITE_BUDGET=0
 # shellcheck source=lib/fixture-tree.sh
 . "$ROOT/scripts/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 scratch=""
 fixture_tree::build scratch --label run-plugin-tests
 
@@ -113,10 +111,6 @@ assert_output_has "the failing suite is named" "FAIL: plugins/b/b.test.sh"
 assert_output_has "suites after the failure still run" "PASS: plugins/c/c.test.sh"
 assert_output_has "the failure summary line" "One or more plugin tests failed."
 
-# A failed suite's excerpt follows its annotation: the early FAIL line a tail
-# alone would miss, then the tail, each line behind `    | ` so neither is parsed
-# again. The runner trims leading spaces before it looks for `::`, so the count
-# below ignores them too.
 r="$(make_root excerpt)"
 # shellcheck disable=SC2016
 write_suite "$r" plugins/a/a.test.sh 'echo "FAIL: case one broke"; for i in $(seq 1 100); do echo "filler $i"; done; echo "::error::from the suite"; echo "last line"; exit 1'
@@ -484,8 +478,6 @@ assert_output_has "a failing suite gets its own error annotation" \
   "::error title=plugins/b/b.test.sh::plugins/b/b.test.sh failed (exit 1)"
 assert_error_count "a failing suite gets exactly one error annotation" 1
 
-# A colon or comma in a suite path would end the title property early; the
-# property escapes (%3A, %2C) apply, and the message keeps the raw path.
 r="$(make_root annotate-escape)"
 write_suite "$r" "plugins/od:d,x/name.test.sh" 'exit 4'
 write_suite "$r" "plugins/ok/ok.test.sh" 'echo ok'
@@ -494,8 +486,6 @@ assert_output_has "the annotation title escapes : and ," \
   "::error title=plugins/od%3Ad%2Cx/name.test.sh::plugins/od:d,x/name.test.sh failed (exit 4)"
 assert_error_count "the escaped suite gets exactly one error annotation" 1
 
-# A % in a suite path is escaped first (%25) in the title and the message, so
-# the escapes added after it are never read back as a second escape.
 r="$(make_root annotate-percent)"
 write_suite "$r" "plugins/p%q/x.test.sh" 'exit 5'
 PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 1 "a failing suite with % in its path fails the run" --root "$r"

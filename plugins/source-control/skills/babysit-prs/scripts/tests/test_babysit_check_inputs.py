@@ -7,9 +7,6 @@ import sys
 import tempfile
 import unittest
 
-# An inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would send the git
-# fixtures' identity writes into the caller's repository
-# (scripts/check-fixture-git-isolation.sh). Cleared before any test spawns git.
 for _leaked_git_var in (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -201,8 +198,6 @@ class ChangedSinceMergeBase(unittest.TestCase):
                 self.assertTrue(out["reason"])
 
     def test_a_partial_clone_is_unknown(self) -> None:
-        # A blobless clone lacks the tip's registry once a fetch moves the tip;
-        # read as empty, it would register nothing and answer `current`.
         git(self.origin, "config", "uploadpack.allowFilter", "true")
         partial = self.tmp / "partial"
         git(

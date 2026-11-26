@@ -305,7 +305,7 @@ export function laterRuns(env) {
   return outcomes.map((outcome, i) => {
     const dir = path.join(env.CHUNKS_DIR, `chunk-${i + 2}`);
     const ran = outcome === "success" || outcome === "failure";
-    const scanStop = outcome === "failure" && classed && classes[i] === "";
+    const scanStop = outcome === "failure" && classed && (classes[i] === "credential-stop" || classes[i] === "");
     const execution = path.join(dir, "execution.json");
     return { outcome: ran ? outcome : "", execution: (outcome === "success" || scanStop) && existsSync(execution) ? execution : "", log: ran ? path.join(dir, "log.jsonl") : "" };
   });
