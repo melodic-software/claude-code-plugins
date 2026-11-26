@@ -2374,9 +2374,12 @@ back to them:
   bases of H and of H' (M and M') with the tip lists, and the recursive trees of H' and M' give
   each of those files one mode (a removed file, or a renamed file's old path, in neither). A merge
   that writes any change of its own, to a hold path or any other file, flips the mode of a file the
-  base changed, or drops a base change, carries nothing. A commit list not read whole or a head in
-  a fork carries nothing, and on the exact path neither does either compare listing 300 files or
-  more, a file with no patch, or a truncated tree. The exact path assumes GitHub omits no file from a compare's list of fewer than 300
+  base changed, or drops a base change, carries nothing. Every compare's commits are read in pages
+  past the 250 an unpaged read lists, and on the exact path a listing at 300 files or with a file
+  with no patch is judged on the two ranges' diffs, the modes checked for every file the merges'
+  diff names. A commit list not read whole, a diff that does not read or parse or names fewer files
+  than its listing, a file with no patch on the exact path without diffs, a truncated tree, or a
+  head in a fork carries nothing. The exact path assumes GitHub omits no file from a compare's list of fewer than 300
   files; nothing checks that against a second listing. The compare listing reports no file mode,
   so a mode-only change still reads the same on the same-net-change path when both listings are
   under the cap: a known residual there.
