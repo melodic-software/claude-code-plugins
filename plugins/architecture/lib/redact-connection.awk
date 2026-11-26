@@ -1,33 +1,3 @@
-# Shared connection-shape redaction for map-context, map-containers, and
-# map-deployment.
-#
-# Functions only. Callers prepend this file to their own awk program, or the
-# bash wrapper in redact-connection.sh feeds one key and one value through
-# ENVIRON. Nothing here prints the raw value.
-#
-# redact_shape(key, value) records zero or more shapes. redact_dump(cfgkey)
-# prints them as: kind, host, port, cfgkey, database, scheme, tab-separated.
-#
-# A shape is a service kind plus a hostname and an optional numeric port. A sql
-# shape may also carry a database name, which identifies the store beside the
-# host and port, and a scheme (mongodb, postgres, mysql) when the value was a
-# URL. Both are empty when the value names none. A database name is kept only
-# when it is a plain identifier that carries no credential.
-# Userinfo, query strings, passwords, account keys, tokens, and secret-only
-# values are dropped. A value that is only a credential produces no row.
-#
-# A caller that charts endpoints between its own deployables sets
-# redact_local_http (awk -v redact_local_http=1). An http shape may then also
-# name a bare service name, localhost, or 127.0.0.1, and for every URL shape a ;
-# after the userinfo ends the authority, so a ;-separated URL list reads as one
-# shape per URL. Without it a bare service name and a loopback host are
-# dropped, and a ; does not end the authority. An http shape then also carries its
-# URL scheme in the scheme column, so the caller can refuse a scheme that is not
-# http or https.
-#
-# redact_secret(key, value) is 1 when the key names a credential or the value
-# carries one. A caller that prints a raw value drops it when this is 1.
-
 function redact_rank(k) {
   if (k == "authority") return 7
   if (k == "storage") return 6
@@ -163,7 +133,6 @@ function redact_server(raw, kind, db,    port, host) {
     if (index(host, ":") > 0) return
   } else host = raw
   gsub(/^[[:space:]]+|[[:space:]]+$/, "", host)
-  # Data Source=app.db names a local file, not a server.
   if (tolower(host) ~ /\.(db|sqlite|sqlite3|mdb|mdf)$/) return
   redact_emit(kind, host, port, db, "")
 }
@@ -308,9 +277,6 @@ function redact_shape(key, value,    cls, account, suffix, server, kl, bare, por
   }
 }
 
-# A key is secret when its last segment, split into words on separators and
-# camelCase boundaries, has a credential word (DB_PASS, MYSQL_PWD, REDIS_AUTH,
-# ENCRYPTION_KEY, clientSecret), or when it names a credential compound.
 function redact_secret_key(key,    parts, n, leaf, words, i, c, prev, t, nw) {
   n = split(key, parts, ".")
   leaf = parts[n]
@@ -334,8 +300,6 @@ function redact_secret_key(key,    parts, n, leaf, words, i, c, prev, t, nw) {
   return words ~ /password|passwd|secret|token|apikey|accountkey|accesskey|privatekey|signingkey|sharedaccess|credential/
 }
 
-# A run of 40 or more base64 characters mixing upper case, lower case, and
-# digits: an AWS secret access key, a storage account key, a signing key.
 function redact_long_key(v,    rest, run) {
   rest = v
   while (match(rest, /[A-Za-z0-9+\/=]+/)) {

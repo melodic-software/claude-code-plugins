@@ -27,8 +27,6 @@ function isTrustedAuthor(id, list, lanesAppId) {
   return list.actors.some((actor) => actor.id === id && actor.kind === "human");
 }
 
-// The listed humans' ids, comma-joined, for the intake lane's
-// allowed-author-ids. Empty when the list is unreadable.
 export function humanIds(list) {
   if (!isListReadable(list)) {
     return "";
@@ -43,9 +41,6 @@ const labelNames = (issue) => (issue.labels ?? []).map((label) => label.name ?? 
 
 export const ROUTING_DEFAULTS = Object.freeze({ container: "spec-container", prefix: "wayfind:", owned: "session-owned" });
 
-// The routing labels of a tracker binding (the `tracker` mapping of
-// work-items.yaml): `config.container_label` and `config.wayfind_label_prefix`,
-// each its default when absent or empty. A value of another type throws.
 export function routingLabels(tracker) {
   const config = tracker?.config ?? {};
   const pick = (source, key, fallback, name = key) => {
@@ -70,9 +65,6 @@ export const routingLabel = (names, routing = ROUTING_DEFAULTS) =>
 
 export const ROUTED_BY = "a container, wayfind or session-owned label, so the skill or session that filed it routes it";
 
-// Why `issue` is not born triaged, or null when it is. `trusted(id)` answers
-// whether its author's numeric id is a listed human's or the lanes App's;
-// `names` are its label names, by default as read.
 export function notBornTriaged(issue, trusted, names = labelNames(issue)) {
   if (!String(issue.body ?? "").trimEnd().endsWith(BORN_TRIAGED_MARKER)) {
     return "no-marker";
@@ -97,10 +89,6 @@ export function checkBornTriaged({ issue, list, lanesAppId, names }) {
   return reason ? triage(reason) : { skip: "true", reason: "born-triaged" };
 }
 
-// `statusOf(number, names)` gives the issue's label names as its Work status
-// field adds to them (read-status.mjs statusReader); it is asked only once the
-// marker, author and type pass. With `bornTriaged` false only a routing label
-// skips, and the issue is read once.
 export async function run({ fetchIssue, list, lanesAppId, statusOf, routing = ROUTING_DEFAULTS, bornTriaged = true, sleep = delay, attempts = 6, delayMs = 5000 }) {
   if (!isListReadable(list)) {
     return triage("list-unreadable");
@@ -140,8 +128,6 @@ export async function run({ fetchIssue, list, lanesAppId, statusOf, routing = RO
   return result;
 }
 
-// Every value is written in the delimited form, so no value can start a
-// second output line.
 function writeOutputs(outputs, outputPath = process.env.GITHUB_OUTPUT) {
   let text = "";
   for (const [name, value] of Object.entries(outputs)) {
@@ -151,8 +137,6 @@ function writeOutputs(outputs, outputPath = process.env.GITHUB_OUTPUT) {
   appendFileSync(outputPath, text);
 }
 
-// The binding's routing labels; a missing file keeps the defaults, and an
-// unreadable one keeps them with a warning naming `who`.
 export function readRouting(path, { who = "check-born-triaged", log = console.log } = {}) {
   try {
     return routingLabels(JSON.parse(trackerBindingText(path)));

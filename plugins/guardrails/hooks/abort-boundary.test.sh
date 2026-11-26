@@ -21,7 +21,6 @@ fi
 
 MARKER='GUARDRAILS_TEST_FORCED_ABORT'
 NOTICE='guard did not run (internal error, rc='
-# run_hook assigns these through printf -v; declared so ShellCheck sees them.
 OUT=""
 ERR=""
 RC=0
@@ -245,12 +244,6 @@ else
   bad "a guard::payload_verdict call with no exit was not detected"
 fi
 
-if grep -Fq "'.hook_event_name'" < <(awk '/^PRIME_FILTERS=\(/,/^\)/' "$HOOK_DIR/run-guards.sh"); then
-  ok "run-guards.sh primes .hook_event_name"
-else
-  bad "run-guards.sh no longer primes .hook_event_name; the dispatcher's notice cannot name the event"
-fi
-
 COPY="$TEST_TMPDIR/plugin"
 cp -R "$PLUGIN_DIR" "$COPY"
 for name in "${REGISTERED[@]}"; do
@@ -331,27 +324,30 @@ assert_exit "dispatcher abort before stdin fails open (declared posture)" 0 "$RC
 assert_contains "dispatcher abort before stdin names run-guards" "$ERR" "guardrails run-guards: ${NOTICE}1); this call was not checked"
 assert_contains "dispatcher abort before stdin carries systemMessage" \
   "$(json_field "$OUT" .systemMessage)" "guardrails run-guards:"
-assert_eq "dispatcher abort before stdin has no hookSpecificOutput (event unknown)" "" \
+assert_eq "dispatcher abort before stdin has no hookSpecificOutput (the notice is the user's only)" "" \
   "$(json_field "$OUT" .hookSpecificOutput)"
 
+SKILL_FORCE_PUSH=$(jq -nc '{hook_event_name:"PreSkillShellCommand",tool_name:"Bash",cwd:"/x",tool_input:{command:"git push --force origin main"}}')
 RG_LATE="$TEST_TMPDIR/rg-late"
 cp -R "$PLUGIN_DIR" "$RG_LATE"
 inject_after "$RG_LATE/hooks/run-guards.sh" '^# --- run -{3,}' ": \"\${${MARKER}?forced abort}\""
 inject_after "$RG_LATE/hooks/run-guards.sh" '^# --- run -{3,}' "$EVENT_PROBE"
-run_hook -- feed_run "$BASH_FORCE_PUSH" bash "$RG_LATE/hooks/run-guards.sh" block-dangerous-git.sh
+run_hook -- feed_run "$SKILL_FORCE_PUSH" bash "$RG_LATE/hooks/run-guards.sh" block-dangerous-git.sh
 assert_exit "dispatcher abort after priming fails open (declared posture)" 0 "$RC"
-assert_contains "dispatcher abort after priming holds the event from the payload" "$ERR" "event=PreToolUse"
+assert_contains "dispatcher labels the event PreToolUse whatever the payload's hook_event_name says" "$ERR" "event=PreToolUse"
 assert_eq "dispatcher abort after priming tells the user only" "" "$(json_field "$OUT" .hookSpecificOutput)"
 
+# shellcheck disable=SC2016  # expands in the injected copy, not here
+TOOL_PROBE='printf "tool=%s\n" "${RUN_GUARDS_FIELD[.tool_name]-}" >&2'
 RG_SHIFT="$TEST_TMPDIR/rg-shift"
 cp -R "$PLUGIN_DIR" "$RG_SHIFT"
-inject_after "$RG_SHIFT/hooks/run-guards.sh" "^  '[.]tool_input[.]content' " "  '.tool_input.abort_boundary_test_probe'"
+inject_after "$RG_SHIFT/hooks/run-guards.sh" '^PRIME_FILTERS=[(]$' "  '.tool_input.abort_boundary_test_probe'"
 inject_after "$RG_SHIFT/hooks/run-guards.sh" '^# --- run -{3,}' ": \"\${${MARKER}?forced abort}\""
-inject_after "$RG_SHIFT/hooks/run-guards.sh" '^# --- run -{3,}' "$EVENT_PROBE"
+inject_after "$RG_SHIFT/hooks/run-guards.sh" '^# --- run -{3,}' "$TOOL_PROBE"
 run_hook -- feed_run "$BASH_FORCE_PUSH" bash "$RG_SHIFT/hooks/run-guards.sh" block-dangerous-git.sh
-assert_exit "dispatcher: a prime filter inserted ahead of .hook_event_name still fails open" 0 "$RC"
-assert_contains "dispatcher: a prime filter inserted ahead of .hook_event_name still resolves the event" \
-  "$ERR" "event=PreToolUse"
+assert_exit "dispatcher: a prime filter inserted ahead of .tool_name still fails open" 0 "$RC"
+assert_contains "dispatcher: a prime filter inserted ahead of .tool_name still resolves the tool" \
+  "$ERR" "tool=Bash"
 
 printf '#!/usr/bin/env bash\nexit 3\n' >"$TEST_TMPDIR/three.sh"
 run_hook -- feed_run "$BASH_BENIGN" bash "$DISPATCH" "$TEST_TMPDIR/three.sh"
@@ -555,12 +551,6 @@ verdict_case "an unparsable payload refuses before the NUL flag" 2 1 2 "BLOCKED:
 verdict_case "a missing jq (status 1) lets the call through" 1 0 3 ""
 verdict_case "any other status lets the call through" 5 1 3 ""
 
-# --- The handler cannot re-enter ----------------------------------------------
-# The handler's first act is `trap - EXIT`. When its own body then fails (an
-# unbound expansion, or an exit) the process ends once, with the stderr line
-# already written; a second notice would mean the trap ran again. On the
-# unbound case bash keeps the status that was pending when the trap fired (the
-# stub's 3), so the fail-open exit 0 never happens: loud, once, and not 0.
 # shellcheck disable=SC2016  # the stub body must carry a literal, unexpanded $
 stub "reenter-unbound.sh" 'guard::abort_boundary stub-reenter PreToolUse open 0 2' \
   'guard::_abort_json_escape_to() { : "${STUB_HANDLER_BODY_FAILURE?handler body failure}"; }' \

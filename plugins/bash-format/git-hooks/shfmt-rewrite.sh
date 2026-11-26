@@ -45,7 +45,6 @@ SUBSCRIPT_GUARD=0
 subscript_guard_begin() {
   local LC_ALL=C
   SUBSCRIPT_GUARD=0
-  # read returns 0 only when it stopped at a NUL before end of file.
   IFS= read -r -d '' SUBSCRIPT_ORIG <"$1" && return 0
   SUBSCRIPT_GUARD=1
 }
@@ -112,8 +111,6 @@ shfmt_probe() {
   local probe_err
   if probe_err=$(shfmt --apply-ignore --version 2>&1 >/dev/null); then
     SHFMT_APPLY_IGNORE=1
-    # shfmt before 3.6 has only -tojson, which every release through 3.14.1
-    # still accepts with the same subscript offsets.
     SHFMT_READER=--to-json
   elif [[ "$probe_err" == *apply-ignore* ]] &&
     [[ "$probe_err" == *"flag provided but not defined"* || "$probe_err" == *"unknown flag"* ]]; then

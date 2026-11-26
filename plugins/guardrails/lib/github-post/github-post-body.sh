@@ -1,54 +1,11 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2034,SC2154  # GHPOST_* results are read by the sourcing guard; HOOK_* globals come from hook-utils.sh
-# What a Bash or PowerShell command posts to GitHub: the body text a
-# `gh pr|issue comment|review|create|edit`, a writing `gh api`, or a `curl` with
-# data to a GitHub API route carries. Shared by block-fix-request-post and
-# block-github-post-content, so both read the same bodies.
-#
-# A library, not executable: needs hook-utils.sh (hook::bash_parse_segments,
-# hook::shell_c_operand) loaded first. Callers judge the text; this file only
-# finds it.
-#
-# Call as:
-#   ghpost::collect <command> <cwd> <tool name>
-#     Parses <command>. GHPOST_POST is the form of the first posting segment
-#     (`gh-pr-comment`, `gh-api`, `curl`), empty when nothing posts.
-#   ghpost::bodies
-#     After a collect that found a post: fills GHPOST_BODY (texts),
-#     GHPOST_BODY_SRC (the file a text was read from, else "") and
-#     GHPOST_BODY_KIND (`file` a body file's content, `command` the whole
-#     command, `word` a posting segment's word, `attach` a literal `--attach`
-#     operand of `gh pr|issue` under the Bash tool, judged for paths by its
-#     alt text and base name and read whole for secrets, `aux`
-#     a here-string or a file fed through `cat` or `<`), in the order a caller
-#     should judge them.
-#     GHPOST_PATHS lists every file path the command names, so a caller can
-#     drop those operands from the words it judges.
-#
-# WHAT IS READ. The posting command's own words (a quoted `$(cat <<EOF ...)`
-# stays in its word, and a quoted `$(cat file)` is read) and every file it
-# names as a body: `--body-file`, `-F`, `-` for stdin; `gh api` fields,
-# `-F k=@file`, `--input file`; curl data, form and upload flags, `@file` and
-# `@-`. When a posting command reads stdin or expands a variable or
-# substitution, when it posts a body file and the command writes a file or the
-# body file does not exist yet, or on PowerShell, the whole command text,
-# here-strings and every file fed through `cat` or `<` are read too. Relative
-# paths resolve against <cwd>. A `bash -c`/`sh -c` operand and an `eval` are
-# read as commands, and so is the command after `--` in a script wrapper
-# (`bash gate.sh run KEY -- CMD +++ CMD`, `./wrap.sh ... -- CMD`), split on
-# bare `+++` words. Under the Bash tool, a `gh pr|issue` `--attach` operand is
-# its own kind when the shell passes it on unchanged and no flag before it
-# takes it as a value; under PowerShell it stays a `word`.
-#
-# GraphQL counts as a write only when the query text names a mutation.
 
 [[ -n "${_GUARDRAILS_GHPOST_LOADED:-}" ]] && return 0
 _GUARDRAILS_GHPOST_LOADED=1
 
 GHPOST_MAX_READ=1048576
 
-# ghpost::read_to <dest> <path>: the file's first GHPOST_MAX_READ characters;
-# 1 when it is stdin, missing or unreadable.
 ghpost::read_to() {
   local -n __ghp_dest="$1"
   local p="$2"
@@ -65,7 +22,6 @@ ghpost::read_to() {
   return 0
 }
 
-# ghpost::reset: clear what a parse collects.
 ghpost::reset() {
   GHPOST_POST=""      # the form of the first posting segment
   GHPOST_TEXTS=()     # words of posting segments
@@ -83,7 +39,6 @@ ghpost::reset() {
   GHPOST_PATHS=()
 }
 
-# ghpost::file_operand <value>: record a body file, or stdin for `-`.
 ghpost::file_operand() {
   case "$1" in
   - | /dev/stdin | /dev/fd/0) GHPOST_STDIN=1 ;;
@@ -92,14 +47,11 @@ ghpost::file_operand() {
   esac
 }
 
-# ghpost::at_operand <value>: `@file` (gh -F, curl -d) names a file.
 ghpost::at_operand() {
   [[ "$1" == @* ]] && ghpost::file_operand "${1#@}"
   return 0
 }
 
-# ghpost::_cmd_name_to <dest> <word>: the command name <word> runs, without
-# its directory, lowercased and without `.exe`.
 ghpost::_cmd_name_to() {
   local -n __ghp_name="$1"
   __ghp_name="${2##*/}"
@@ -108,8 +60,6 @@ ghpost::_cmd_name_to() {
   __ghp_name="${__ghp_name%.exe}"
 }
 
-# ghpost::is_mutation <mark> <text>... plus the files recorded since <mark>:
-# GraphQL writes only through a mutation.
 ghpost::is_mutation() {
   local mark="$1" t f c
   shift
@@ -122,7 +72,6 @@ ghpost::is_mutation() {
   ((GHPOST_STDIN)) && [[ "${GHPOST_COMMAND,,}" == *mutation* ]]
 }
 
-# gh pr|issue <action> <args>
 ghpost::gh_body() {
   local a
   while (($#)); do
@@ -137,7 +86,6 @@ ghpost::gh_body() {
   done
 }
 
-# gh api <args>: 0 when it writes.
 ghpost::gh_api() {
   local a v method="" endpoint="" writes=0 mark=${#GHPOST_FILES[@]} stdin0=$GHPOST_STDIN
   local -a vals=()
@@ -192,7 +140,6 @@ ghpost::gh_api() {
   return 1
 }
 
-# curl <args>: 0 when it sends data to a GitHub API route.
 ghpost::curl() {
   local a v github=0 graphql=0 data=0 get=0 mark=${#GHPOST_FILES[@]} stdin0=$GHPOST_STDIN
   local -a vals=()
@@ -201,8 +148,6 @@ ghpost::curl() {
     a="$1"
     shift
     v=""
-    # Short flags written together (`-sSd X`, `-sGd X`): a `G` among them is
-    # -G, and the first of `d`, `F` or `T` takes the rest as that flag.
     if [[ "$a" =~ ^-[A-Za-z]{2,}$ ]]; then
       local k
       for ((k = 1; k < ${#a}; k++)); do
@@ -243,7 +188,6 @@ ghpost::curl() {
     esac
     data=1
     vals+=("$v")
-    # --data-urlencode takes `name@file` as well as `@file`.
     [[ "$v" != @* && "$v" =~ ^[^=@]*@ ]] && v="@${v#*@}"
     ghpost::at_operand "$v"
   done
@@ -255,8 +199,6 @@ ghpost::curl() {
   return 1
 }
 
-# ghpost::_wrapper <argv>: 0 when <argv> runs a shell script (`bash x.sh ...`,
-# `./x.sh ...`) with a `--` word, which GHPOST_WRAP_AT then counts past.
 ghpost::_wrapper() {
   local -a w=("$@")
   local i=0 b
@@ -279,10 +221,6 @@ ghpost::_wrapper() {
   return 1
 }
 
-# ghpost::_literal_operand <word>: 0 when the shell passes <word> on as
-# written. The tokenizer does no brace, glob or IFS expansion, and an operand
-# like `{./x.png,--body=TEXT}` or `./x.png$IFS--body=TEXT` really posts a body,
-# so a word that could expand is not one.
 ghpost::_literal_operand() {
   [[ "$1" != *[\$\`\{*?[]* ]]
 }
@@ -296,7 +234,6 @@ ghpost::segment() {
     case "${HOOK_SEG_REDIR_OP[j]}" in
     '<') GHPOST_AUX_FILES+=("${HOOK_SEG_REDIR_TARGET[j]}") ;;
     '>' | '>>' | '>|' | '<>')
-      # Only the sinks; /dev/shm and /dev/../ are ordinary files.
       [[ "${HOOK_SEG_REDIR_TARGET[j]}" =~ ^/dev/(null|stdout|stderr|tty|fd/[0-9]+)$ ]] ||
         GHPOST_WTARGETS+=("${HOOK_SEG_REDIR_TARGET[j]}")
       ;;
@@ -323,9 +260,6 @@ ghpost::segment() {
     esac
   done
   (($#)) || return 0
-  # A script wrapper runs the argv after its `--`, each bare `+++` starting
-  # another command: read each one as a segment of its own, with no
-  # redirections (those belong to the wrapper).
   if ghpost::_wrapper "$@"; then
     shift "$GHPOST_WRAP_AT"
     local -a inner=() HOOK_SEG_REDIR_OP=() HOOK_SEG_REDIR_FD=() HOOK_SEG_REDIR_TARGET=()
@@ -394,11 +328,7 @@ ghpost::segment() {
   for w in "$@"; do
     before="$prev"
     prev="$w"
-    # A variable or substitution brings its text from elsewhere in the command
-    # (`B=...; gh ... --body "$B"`); an unquoted `$(` splits the segment and
-    # leaves a word ending in `$`.
     [[ "$w" == *'$'* ]] && GHPOST_SUBST=1
-    # A quoted `$(cat file)` or `$(<file)` stays inside its word, unparsed.
     rest="$w"
     while [[ "$rest" =~ $re_sub ]]; do
       rest="${rest#*"${BASH_REMATCH[0]}"}"
@@ -406,10 +336,6 @@ ghpost::segment() {
         [[ "$j" == -* ]] || GHPOST_FILES+=("${j//[\"\']/}")
       done
     done
-    # A curl or `gh api` request header (`-H 'Authorization: ...'`) is
-    # transport, not posted content, so its value is not a body word. Only the
-    # separate `-H <value>` and `--header=<value>` forms are skipped: a joined
-    # `-H...` word may be a body value and stays.
     if ((skip)); then
       skip=0
       continue
@@ -424,19 +350,6 @@ ghpost::segment() {
       *) ;;
       esac
     fi
-    # gh posts an `--attach` file's alt text or base name, not its path, so a
-    # literal operand is kept apart for the path check to narrow. A dash word
-    # without `=` before `--attach` may take it as its value, so then nothing
-    # is captured: `--body --attach=X` posts the word, and with `--body
-    # --attach X`, X stays a word judged whole. A joined `--attach=X` is
-    # captured only after a literal word, since a word that vanishes or splits
-    # at run time (`--body $E --attach=X`) can leave a flag right before it.
-    # The spaced form needs no such check: there the flag takes `--attach` and
-    # X is a positional argument, which gh rejects or reads as the PR or issue
-    # selector, posting it neither way. Nothing is captured under the
-    # PowerShell tool: its argument passing to a native command (quoting,
-    # empty strings, `--%`) can change the words gh receives, so every word is
-    # judged whole.
     if ((cap)); then
       if ((attach)); then
         attach=0
@@ -462,7 +375,6 @@ ghpost::segment() {
   return 0
 }
 
-# ghpost::collect <command> <cwd> <tool name>
 ghpost::collect() {
   ghpost::reset
   GHPOST_COMMAND="$1"
@@ -471,32 +383,18 @@ ghpost::collect() {
   hook::bash_parse_segments "$1" ghpost::segment
 }
 
-# ghpost::_add <kind> <src> <text>
 ghpost::_add() {
   GHPOST_BODY_KIND+=("$1")
   GHPOST_BODY_SRC+=("$2")
   GHPOST_BODY+=("$3")
 }
 
-# ghpost::bodies: what the collected post carries, in judging order.
-#
-# The body may sit anywhere in the command when a posting command reads stdin
-# or expands a variable or substitution, when it posts a body file and the
-# command writes a file (a redirect other than to a /dev sink, or cp, mv, ln,
-# install, rsync, tee: `printf ... > x && mv x b.md && gh pr comment 1 -F b.md`),
-# when a body file does not exist yet, or on PowerShell (whose quoting the bash
-# tokenizer only approximates): then all of it is read. A backtick may open a
-# substitution too, but ``` in a fenced body is one as well, so it adds only
-# the files `cat` and `<` name. Otherwise only the posting command's words and
-# files are read, so a grep beside an unrelated post stays out.
 ghpost::bodies() {
   local f c
   GHPOST_BODY=()
   GHPOST_BODY_SRC=()
   GHPOST_BODY_KIND=()
   GHPOST_PATHS=(${GHPOST_FILES[@]+"${GHPOST_FILES[@]}"} ${GHPOST_AUX_FILES[@]+"${GHPOST_AUX_FILES[@]}"})
-  # A body file may hold what the command itself writes (a redirect, or a
-  # cp, mv or ln into its name), not what is on disk now.
   ((${#GHPOST_FILES[@]} && ${#GHPOST_WTARGETS[@]})) && GHPOST_WRITES=1
   for f in ${GHPOST_FILES[@]+"${GHPOST_FILES[@]}"}; do
     if ghpost::read_to c "$f"; then
@@ -525,12 +423,6 @@ ghpost::bodies() {
   return 0
 }
 
-# ghpost::heredocs: GHPOST_HEREDOCS, each here-doc body of the collected
-# command, sliced from the byte offsets the parse left in HOOK_HEREDOC_BODIES.
-# For a caller that judges the bodies a whole-command read would cover
-# without the rest of the command: empty unless ghpost::bodies found that the
-# whole command counts (GHPOST_WHOLE), so a here-doc that feeds no post stays
-# out.
 ghpost::heredocs() {
   GHPOST_HEREDOCS=()
   ((${GHPOST_WHOLE:-0})) || return 0

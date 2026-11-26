@@ -745,6 +745,7 @@ test("the subscription and fallback resolvers take check-intent's bundle in its 
   for (const job of [SUB, FB]) {
     const dir = tempDir("pr-verify-carry-");
     const values = {
+      "runner.temp": dir,
       "github.workspace": dir,
       "github.token": "t",
       "needs.check-intent.outputs.reads": bundle,

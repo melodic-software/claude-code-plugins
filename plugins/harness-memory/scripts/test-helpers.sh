@@ -1,17 +1,4 @@
 # shellcheck shell=bash
-# test-helpers.sh: shared assertion primitives, the fixture-repo builder and the
-# temp tree for this plugin's *.test.sh suites. Sourced, not executed; the test
-# runner selects suites by the *.test.sh glob, so this file is never run.
-#
-# Sourcing creates TEST_TMPDIR, arms the EXIT trap that removes it, and
-# initializes the FAILED / CASE_NUM counters each suite reports from. PASS lines
-# go to stdout, FAIL lines to stderr. A suite ends with report_and_exit.
-#
-# Param order: (label, expected, actual) for assert_eq and assert_exit,
-# (label, haystack, needle) for the containment assertions.
-#
-# Duplicated across plugins by design, not drift: see
-# docs/contracts/shell-test-helpers/README.md at the repo root.
 
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
@@ -49,8 +36,6 @@ assert_not_contains() {
   esac
 }
 
-# Fixture git repos must never inherit an outer hook chain's exported git env,
-# otherwise fixture commits mutate the REAL repo.
 make_repo() {
   unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR GIT_CONFIG
   mkdir -p "$1"

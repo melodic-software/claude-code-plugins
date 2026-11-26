@@ -1,51 +1,4 @@
 #!/usr/bin/env node
-// gate-check.mjs: shows pr-merge's current verdict on each candidate as one
-// `pr-merge / gate` check run on the candidate's head, from the sweep's
-// pr-merge-summary.json. No model.
-//
-// The check is informational. Its name is not `ci-status`, the only check the
-// main ruleset requires, and pr-require-checks.yml's `ci-status` aggregates
-// only its own jobs, so it is never required and never feeds `ci-status`. The
-// gate reads a neutral or successful check run as passing
-// (babysit_checks.CHECK_SUCCESS_STATES), so it never holds a merge either.
-//
-//   refused, held, or not judged   neutral, titled with the top refusal: the
-//                                  gate's reason, else its first blocker
-//   ready but not enqueued         neutral, titled with the gate's reason,
-//                                  else its first blocker, else that
-//   enqueued or merged             success, written only over an existing
-//                                  check run at that head: with none there is
-//                                  no refusal on show to replace
-//
-// One GraphQL read per CHUNK candidates finds the newest such check run the
-// GitHub Actions app posted at each head carrying EXTERNAL_ID. A head whose
-// check already has this title and conclusion gets no write, so an unchanged
-// sweep writes nothing;
-// otherwise that check run is updated in place, or a new one created. The
-// summary lists the blockers of the sweep that set the title. A row the gate
-// did not judge in this run (`carried`) is left as it is, and so is a row
-// whose head is not its pull request's head when read, or whose pull request
-// cannot be read: the summary artifact alone never picks the commit written
-// to. A pull request the read reports NOT_FOUND skips only its own row; any
-// other GraphQL error fails the read. A failed read leaves
-// its chunk's checks as they are, and so does a head whose listing may be
-// cut short, rather than add a duplicate every sweep. Each sweep logs one line of counts, so a
-// reason whose text changes every sweep shows as a write every sweep.
-//
-// Every workflow's GITHUB_TOKEN posts as that same Actions app, so the app
-// filter alone cannot tell this script's check runs from another workflow's
-// job or step of the same name. EXTERNAL_ID, set on every write and required
-// on every match, keeps such a run from being read or rewritten as ours. A
-// workflow could still set the same external id on purpose; that is
-// acceptable because the check is display-only: nothing reads it to decide a
-// merge, so a forged one can mislead a reader but never move a gate.
-//
-// Environment:
-//   GH_TOKEN            the job's own token, with checks: write and
-//                       pull-requests: read
-//   GITHUB_REPOSITORY   owner/repo
-//   SUMMARY_PATH        pr-merge-summary.json
-//   GITHUB_RUN_ID, GITHUB_SERVER_URL, GITHUB_API_URL
 import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -57,7 +10,6 @@ const ACTIONS_APP_ID = 15368;
 const EXTERNAL_ID = "pr-merge-gate";
 const CHUNK = 50;
 const SUITES = 50;
-// Room for a reason and its detail (judgment); GitHub documents no limit.
 const TITLE_CHARS = 200;
 const BLOCKER_CHARS = 300;
 const BLOCKERS = 20;
@@ -66,8 +18,6 @@ const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]*$/;
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
-// One line with no backticks, so it cannot leave the summary's fence or the
-// code span the title sits in, where a link or image would render.
 const flat = (text, chars) => Array.from(String(text).replaceAll(/[\r\n`]/g, " ").trim()).slice(0, chars).join("");
 
 export function render(row) {
@@ -109,8 +59,6 @@ export const READ_QUERY = (candidates) =>
     .join(" ") +
   "}}";
 
-// Throws unless every GraphQL error is a NOT_FOUND on one pull request alias,
-// whose row is then skipped as not read.
 export function checkErrors(errors) {
   for (const error of Array.isArray(errors) ? errors : []) {
     const where = error?.path;

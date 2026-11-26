@@ -1,41 +1,5 @@
 name: Maintenance Tidy Code Upkeep
 
-# Code-tidying upkeep. Two things, by event:
-#
-# On a push to main, detect names the areas the merge changed in the job
-# summary. No model, no write, no pull request. The gate derives churn from git
-# log, so a lost run here drops no area.
-#
-# On the daily schedule, and a listed human's dispatch, the batch:
-#   select-areas (no model, no secret) reads the settings, the open tidy pull requests
-#     and the sweep records, and picks at most upkeep_max_open minus open areas
-#     (.github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs); it enforces
-#     a cadence or backstop cron cannot. It fails, and nothing runs, when
-#     upkeep_spec_issue is not set: every pull request's body opens with
-#     `Refs: #<upkeep_spec_issue>`, the spec pr-verify judges it against.
-#   sweep-areas runs `/code-tidying:tidy <glob> in-place=commit` per area on a local
-#     chore/tidy-adhoc-<slug>-<date> branch, on the automations role's API
-#     key, with a read-only GITHUB_TOKEN and nothing else. When that key leg
-#     hands off (a credit stop, or a 401 or 402), the key is empty, or the
-#     select-areas's key-credit check skips a key that credit-stopped inside its
-#     window, sweep-areas-subscription runs the same steps on the role's
-#     subscription token, and sweep-areas-fallback on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
-#     after the subscription leg hands off (a limit stop, a credit stop, or a
-#     401 or 402). What a leg leaves is sealed to the scan-carrier key.
-#   scan (the key's third holder: main only, no model, no id-token, no write
-#     token) opens it, checks each branch stays in its area and off the hold
-#     paths, and scans what will be published. It records each area that needed
-#     no pull request as a tidy-code-upkeep-sweeps artifact, so a clean area
-#     is not picked again until it changes: the job needs no write token for that.
-#   push-branches (mutate-branch: contents write) recreates each branch as one
-#     lanes App commit, and publish (publish-artifact) opens one pull request per
-#     branch, reading the cap again. The broker never grants contents and
-#     pull-requests write in one mint, nor merge or actions.
-#
-# How to stop it: set the organization or repository lanes kill-switch variable
-# to anything but "false"; every batch job checks it first and the broker reads
-# it live.
-
 on:
   push:
     branches: [main]
@@ -141,8 +105,6 @@ jobs:
           WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
         run: echo "::notice::${WHY} this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing read or written"
 
-      # A dispatch, and any re-run, must come from a listed human; the broker
-      # checks the same, so this only keeps the model from running for nothing.
       - name: Check who started the run
         id: who
         if: steps.kill.outputs.proceed == 'true' && (github.event_name == 'workflow_dispatch' || github.run_attempt != '1')
@@ -197,26 +159,15 @@ jobs:
         with:
           tokens: github-token
 
-  # The sweep's key leg, with the API key and a read-only GITHUB_TOKEN and
-  # nothing else: tidy needs Bash to commit and verify, so this job holds no
-  # write token. run-claude-cli runs the CLI with --restricted; the plugin loads
-  # from a read-only copy staged from main before the root checkout, and every
-  # CLAUDE.md, AGENTS.md, .mcp.json and .claude/ in the checkout is removed from
-  # the working tree first. A handoff or an empty key leaves the sweep to
-  # sweep-areas-subscription.
   sweep-areas:
     name: Sweep Areas
     needs: select-areas
-    # The first attempt only: a re-run never runs the model again. A key the
-    # credit gate skipped runs nothing here; sweep-areas-subscription runs it.
     if: needs.select-areas.outputs.proceed == 'true' && needs.select-areas.outputs.next-leg != 'subscription' && github.run_attempt == '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
     permissions:
       contents: read
-    # No global or system git config applies to any step: one the model writes
-    # during its leg would otherwise reach every later git call.
     env:
       GIT_CONFIG_GLOBAL: /dev/null
       GIT_CONFIG_NOSYSTEM: "1"
@@ -269,8 +220,6 @@ jobs:
           output-path: ${{ runner.temp }}/upkeep-models.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Only whether the secret is set reaches the action, never its value. An
-      # empty key hands the sweep to sweep-areas-subscription.
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
@@ -341,9 +290,6 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
-          # Sandbox off (melodic-software/ci-workflows#1060): the code-tidying skills' Bash installs tools
-          # from PyPI and npm and runs the test suites, which reach hosts beyond
-          # GitHub and write under the home directory.
           sandbox: "false"
           tools: |
             Read
@@ -374,9 +320,6 @@ jobs:
             .lane/plugins/code-tidying
           leg-timeout-minutes: "70"
 
-      # The sealer, its key and the transcript uploader come from a fresh
-      # checkout of the base after the leg: the model could have written anything
-      # under the workspace and RUNNER_TEMP, including this path.
       - name: Clear the trusted checkout path
         if: always() && steps.run.outcome != 'skipped'
         run: rm -rf "${GITHUB_WORKSPACE:?}/.lane-trusted"
@@ -401,12 +344,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
-      # Read by the next runs' credit gate: the artifact its `marker` output
-      # names (check-key-credit gate.cjs markerName), uploaded only after the
-      # key leg's credit-stop handoff. The name is written out so its
-      # retention row (.github/artifact-retention.json) claims it; one day's
-      # retention covers windows up to 24 hours. The file is written after the
-      # leg and scanned with the trusted checkout's action.
       - name: Write the key's credit-stop marker
         id: credit-marker
         if: always() && needs.select-areas.outputs.credit-marker == 'key-credit-stop-AUTOMATIONS_CLAUDE_API_KEY' && steps.run.outputs.handoff-reason == 'credit-stop'
@@ -494,11 +431,6 @@ jobs:
           export PUBLIC_KEY_FILE PAYLOADS
           node "$TRUSTED/.github/actions/seal-lane-output/seal.mjs"
 
-      # The leg the next job runs, from this job's credential decision and
-      # the launcher's handoff (select-model-credential). always(), so a step
-      # that failed, or a job that hit its own timeout, after a handoff or an
-      # empty credential still hands on, as the job outputs did before; the
-      # next job's own !cancelled() still stops a cancelled run.
       - name: Pick the next leg
         id: next
         if: ${{ always() }}
@@ -518,17 +450,9 @@ jobs:
         with:
           tokens: github-token
 
-  # The subscription leg: the key leg's steps from a fresh VM, on the
-  # automations role's subscription token alone, with no credit-stop marker.
-  # With FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, a limit stop, a credit stop, or
-  # a 401 or 402 hands off to sweep-areas-fallback. callers.test.mjs holds its
-  # steps equal to the key leg's but for the credential, the handoff report,
-  # the leg record's fallback reason and the seal's job id.
   sweep-areas-subscription:
     name: Sweep Areas Subscription
     needs: [select-areas, sweep-areas]
-    # The first attempt only, after the key leg handed off, found its key
-    # empty, or was skipped by the credit gate.
     if: >-
       ${{ !cancelled() && needs.select-areas.outputs.proceed == 'true' && github.run_attempt == '1'
       && (needs.sweep-areas.outputs.next-leg == 'subscription' || needs.select-areas.outputs.next-leg == 'subscription') }}
@@ -537,16 +461,12 @@ jobs:
     cache-mode: read
     permissions:
       contents: read
-    # No global or system git config applies to any step: one the model writes
-    # during its leg would otherwise reach every later git call.
     env:
       GIT_CONFIG_GLOBAL: /dev/null
       GIT_CONFIG_NOSYSTEM: "1"
     outputs:
       next-leg: ${{ steps.next.outputs.next-leg }}
       next-reason: ${{ steps.next.outputs.next-reason }}
-      # sweep-areas-fallback also starts on an empty subscription token when the
-      # fallback token is empty too, so its own check reports that.
       credential-present: ${{ steps.credential.outputs.present }}
       sealed-length: ${{ steps.seal.outputs.sealed-length }}
       sealed-1: ${{ steps.seal.outputs.sealed-1 }}
@@ -594,7 +514,6 @@ jobs:
           output-path: ${{ runner.temp }}/upkeep-models.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Only whether each secret is set reaches the action, never its value.
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
@@ -667,9 +586,6 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
-          # Sandbox off (melodic-software/ci-workflows#1060): the code-tidying skills' Bash installs tools
-          # from PyPI and npm and runs the test suites, which reach hosts beyond
-          # GitHub and write under the home directory.
           sandbox: "false"
           tools: |
             Read
@@ -700,9 +616,6 @@ jobs:
             .lane/plugins/code-tidying
           leg-timeout-minutes: "70"
 
-      # The sealer, its key and the transcript uploader come from a fresh
-      # checkout of the base after the leg: the model could have written anything
-      # under the workspace and RUNNER_TEMP, including this path.
       - name: Clear the trusted checkout path
         if: always() && steps.run.outcome != 'skipped'
         run: rm -rf "${GITHUB_WORKSPACE:?}/.lane-trusted"
@@ -779,11 +692,6 @@ jobs:
           export PUBLIC_KEY_FILE PAYLOADS
           node "$TRUSTED/.github/actions/seal-lane-output/seal.mjs"
 
-      # The leg the next job runs, from this job's credential decision and
-      # the launcher's handoff (select-model-credential). always(), so a step
-      # that failed, or a job that hit its own timeout, after a handoff or an
-      # empty credential still hands on, as the job outputs did before; the
-      # next job's own !cancelled() still stops a cancelled run.
       - name: Pick the next leg
         id: next
         if: ${{ always() }}
@@ -806,8 +714,6 @@ jobs:
   sweep-areas-fallback:
     name: Sweep Areas Fallback
     needs: [select-areas, sweep-areas-subscription]
-    # The first attempt only, after the subscription leg handed off or found
-    # its token empty.
     if: >-
       ${{ !cancelled() && needs.select-areas.outputs.proceed == 'true' && github.run_attempt == '1'
       && (needs.sweep-areas-subscription.outputs.next-leg == 'fallback' || needs.sweep-areas-subscription.outputs.credential-present == 'false') }}
@@ -816,8 +722,6 @@ jobs:
     cache-mode: read
     permissions:
       contents: read
-    # No global or system git config applies to any step: one the model writes
-    # during its leg would otherwise reach every later git call.
     env:
       GIT_CONFIG_GLOBAL: /dev/null
       GIT_CONFIG_NOSYSTEM: "1"
@@ -868,7 +772,6 @@ jobs:
           output-path: ${{ runner.temp }}/upkeep-models.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Only whether the secret is set reaches the action, never its value.
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
@@ -939,9 +842,6 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
-          # Sandbox off (melodic-software/ci-workflows#1060): the code-tidying skills' Bash installs tools
-          # from PyPI and npm and runs the test suites, which reach hosts beyond
-          # GitHub and write under the home directory.
           sandbox: "false"
           tools: |
             Read
@@ -972,9 +872,6 @@ jobs:
             .lane/plugins/code-tidying
           leg-timeout-minutes: "70"
 
-      # The sealer, its key and the transcript uploader come from a fresh
-      # checkout of the base after the leg: the model could have written anything
-      # under the workspace and RUNNER_TEMP, including this path.
       - name: Clear the trusted checkout path
         if: always() && steps.run.outcome != 'skipped'
         run: rm -rf "${GITHUB_WORKSPACE:?}/.lane-trusted"
@@ -1048,11 +945,6 @@ jobs:
         with:
           tokens: github-token
 
-  # Opens the sealed plan and bundle, scans what will be published for
-  # credentials, uploads only a clean set, and records the areas that need no
-  # pull request. No model, no write token.
-  # One leg answers the run: the fallback leg when it ran, else the
-  # subscription leg when it ran, else the key leg.
   scan:
     name: Scan
     needs: [select-areas, sweep-areas, sweep-areas-subscription, sweep-areas-fallback]
@@ -1060,9 +952,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
-    # The scan-carrier key's third holder (owner decision, 2026-11-03, #12475):
-    # main only, no id-token, no write token, read-only cache, no model; the
-    # environment admits main only.
     environment:
       name: pr-pipeline-scan-carrier
       deployment: false
@@ -1254,8 +1143,6 @@ jobs:
           output-path: ${{ runner.temp }}/resolved-config.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Before the mint: the scan job's artifact, by id, and the SHA-256 it
-      # recorded for each file. A missing or altered file fails the job.
       - name: Download the plan and the branches
         if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
         uses: actions/download-artifact@v8

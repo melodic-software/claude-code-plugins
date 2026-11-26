@@ -20,10 +20,7 @@ const palette = async ($: EngineInterface, isBlock: boolean): Promise<Palette | 
     return THEME
   }
 }
-// A drawn Text or Markdown refuses these, and a refused tree draws the original text.
 const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/
-// The engine refuses a tree over 20,000 nodes and draws the original text, so a larger drawing goes
-// to the text rewrite instead. Each block costs at most two nodes, each match row five.
 const MAX_NODES = 10_000
 const DISABLED = { plugin: 'display-redaction', key: 'disabled' } as const
 const COMMAND = {
@@ -56,8 +53,6 @@ const isQuestion = (q: unknown): q is Question =>
   (q.options === undefined ||
     (Array.isArray(q.options) && q.options.every((o) => isRecord(o) && typeof o.label === 'string')))
 
-// The AskUserQuestion schema refuses equal question texts and equal option labels within one
-// question, and a refused rewrite draws the original; so masked values are kept distinct.
 const distinctQuestions = (questions: unknown): unknown => {
   if (!Array.isArray(questions) || !questions.every(isQuestion)) return questions
   const texts = distinct(questions.map((q) => q.question), MASK)

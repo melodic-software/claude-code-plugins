@@ -1,4 +1,4 @@
-# Cross-lane relay
+# Relay across hosts and platforms
 
 Read this for the detail behind a route matrix row: how each hop works, the named receiver, how a
 reply comes back, and what each route was tested to do. The hub's matrix and verbs are enough for a
@@ -14,20 +14,20 @@ plain prompt.
 - [Start in the target's plugin profile](#start-in-the-targets-plugin-profile)
 - [Mechanisms not used here](#mechanisms-not-used-here)
 - [Getting a reply back](#getting-a-reply-back)
-- [Signed-out Windows lane](#signed-out-windows-lane)
+- [Signed-out Windows platform](#signed-out-windows-platform)
 - [Verified behavior](#verified-behavior)
 - [What the relay does not change](#what-the-relay-does-not-change)
 
 ## Why a relay is needed at all
 
-Each lane has its own account and its own session registry. A WSL session and a native Windows
+Each platform has its own account and its own session registry. A WSL session and a native Windows
 session on one computer register under different home directories and listen on different socket
 types, so neither appears in the other's listing; across machines, Remote Control lists only the
-signed-in account's sessions. A peer listing that comes back empty or lane-only is this, not a
+signed-in account's sessions. A peer listing that comes back empty or limited to its own platform is this, not a
 permissions problem.
 
-The relay closes the gap by starting a headless turn inside the target lane. That turn is
-same-lane with the target's sessions, so its peer tools list and message them normally.
+The relay closes the gap by starting a headless turn on the target platform. That turn is on
+the same host and platform as the target's sessions, so its peer tools list and message them normally.
 
 ## The hops
 
@@ -58,9 +58,9 @@ pwsh 7), never `-p "<prompt>"`: in the command above, write `-p ''<prompt>''` in
 apostrophe in the prompt as `''\''''`. The probe behind that form is in the hub's apostrophe
 gotcha.
 
-**Either lane to another machine (R2, R3, R5, R6).** The hop is always the target's WSL sshd
-(`<wsl-alias>`, port 2222), through the Windows OpenSSH client. For the target's WSL lane, run
-`claude` there. For its Windows lane, chain R1 on the far side:
+**Either platform to another machine (R2, R3, R5, R6).** The hop is always the target's WSL sshd
+(`<wsl-alias>`, port 2222), through the Windows OpenSSH client. For the target's WSL platform, run
+`claude` there. For its Windows platform, chain R1 on the far side:
 
 ```console
 printf '%s\n' '<prompt>' | <ssh> <wsl-alias> 'cd /mnt/c/Users/<user>/<scratch> && /mnt/c/Users/<user>/.local/bin/claude.exe -p'
@@ -71,7 +71,7 @@ either host parses prompt text. Never add `ssh -n`: it replaces stdin with `/dev
 the prompt. The live probes below passed the prompt as an argument with `< /dev/null`; this stdin
 form has not been re-probed on these hops.
 
-That turn runs as the target's Windows console account, signed into the target's Windows lane.
+That turn runs as the target's Windows console account, signed in on the target's Windows platform.
 Port 22 is never the agent hop: `ssh-admin` has no Claude sign-in.
 
 FLEET.md renders these with the real aliases and profile path; prefer copying from it over
@@ -137,7 +137,7 @@ so resume by its session id afterwards.
 
 ## Background sessions
 
-For a session that outlives the hop, the target lane's own supervisor hosts it:
+For a session that outlives the hop, the target platform's own supervisor hosts it:
 
 ```console
 <ssh> <wsl-alias> 'cd <trusted-dir> && claude --bg --name <name> "<prompt>" < /dev/null'
@@ -153,12 +153,12 @@ For a session that outlives the hop, the target lane's own supervisor hosts it:
 - `claude agents --json --all` reports each session's `id`, `name`, `status` and `state` (for
   example `busy`/`working`, then `idle`/`blocked`). Poll it to know when a session is done.
 - We address `claude logs` and `claude attach` by the short `id` from `claude agents --json --all`
-  (bare `--json` lists only active sessions), so a lane on an older CLI behaves like a current one; a name is passed only after checking the lane's
+  (bare `--json` lists only active sessions), so a platform on an older CLI behaves like a current one; a name is passed only after checking the platform's
   version against the CLI reference. `claude logs` prints the raw ANSI TUI stream, so read a reply
   from the transcript with `--resume <id>` instead.
-  - **Pointer**: when deciding whether a lane can take a session name in place of the id, fetch
+  - **Pointer**: when deciding whether a platform can take a session name in place of the id, fetch
     [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) live.
-- Never combine `--bg` with `-p`. A later relay turn in that lane can list and message a running
+- Never combine `--bg` with `-p`. A later relay turn on that platform can list and message a running
   background session. `claude --resume <id> --bg "<prompt>"`
   continues a finished one.
 - `claude --bg --exec '<cmd>'` runs a shell job the same way, for a script that must survive the
@@ -169,8 +169,8 @@ For a session that outlives the hop, the target lane's own supervisor hosts it:
 
 ## Start in the target's plugin profile
 
-When the task names a plugin profile, a turn or session started in a WSL lane (R2, R4, R5) starts
-in that lane's profile, through plugin-profiles' `profiles.mjs launch` on the target. Each step
+When the task names a plugin profile, a turn or session started on a WSL platform (R2, R4, R5) starts
+on that platform's profile, through plugin-profiles' `profiles.mjs launch` on the target. Each step
 runs over the row's hop; `<dir>` is the directory the session starts in.
 
 1. Find the script: run `claude plugin list --json` on the target and take the `installPath` of
@@ -196,9 +196,9 @@ runs over the row's hop; `<dir>` is the directory the session starts in.
 With no profile named, or no enabled `plugin-profiles@` entry in step 1, start the session as the
 row does without this section, and say with the result that the profile was not applied and why.
 
-### On a Windows lane (R1, R3, R6)
+### On a Windows platform (R1, R3, R6)
 
-On a Windows lane one PowerShell script runs the same three steps from `argv`, so the prompt
+On a Windows platform one PowerShell script runs the same three steps from `argv`, so the prompt
 stays out of the printed `command`: it removes each variable `argv` names after `-u` from its
 own environment and passes the words after `claude` to `claude.exe`. The prompt never enters the
 script text: a first call writes it to a file in `<win-dir>`, quoted as the WSL rows quote a
@@ -214,7 +214,7 @@ $claude = "$env:USERPROFILE/.local/bin/claude.exe"; $s = Join-Path $env:TEMP 're
 Set-Content -Path $s -Value '{"crossSessionInbound":"accept"}' -Encoding ascii
 $root = ((& $claude plugin list --json | Out-String | ConvertFrom-Json) | Where-Object { "$($_.id)" -like 'plugin-profiles@*' -and $_.enabled -eq $true } | Select-Object -First 1).installPath
 $a = @('--settings', $s); $stop = $null; $c = $null; $ok = $root -and (Get-Command node -ErrorAction SilentlyContinue)
-if (-not $ok) { 'profile <profile> not applied: plugin-profiles or node is missing on this lane' }
+if (-not $ok) { 'profile <profile> not applied: plugin-profiles or node is missing on this platform' }
 if ($ok) { $r = & node (Join-Path $root 'scripts/profiles.mjs') launch <profile> --folder $PWD.Path --unattended --json --with $s }
 if ($ok -and $LASTEXITCODE) { $stop = "not started: profiles.mjs launch exited $LASTEXITCODE" }
 if ($ok -and -not $stop) { $stop = 'not started: profiles.mjs launch printed no claude command'; $argv = @(($r | Out-String | ConvertFrom-Json).argv); $i = 1; while ($argv[$i] -ceq '-u') { Remove-Item "Env:$($argv[$i + 1])" -ErrorAction Ignore; $i += 2 }; if ($argv[$i] -ceq 'claude') { $stop = $null; $a = @($argv[($i + 1)..($argv.Count - 1)]) } }
@@ -259,7 +259,7 @@ followed by the same script lines.
 
 ## Mechanisms not used here
 
-Each fails the fleet's per-lane account split or needs a human; see the linked page before
+Each fails the fleet's per-platform account split or needs a human; see the linked page before
 reconsidering one. Recheck when a release note names the mechanism or a linked section changes.
 
 - **Remote Control and cross-machine `SendMessage`**: fails the account split. In our probe
@@ -273,7 +273,7 @@ reconsidering one. Recheck when a release note names the mechanism or a linked s
   <https://code.claude.com/docs/en/channels#research-preview>
 - **The inbox socket from a script**: we do not script against it, since we found no documented
   message format. <https://code.claude.com/docs/en/cross-session-messaging#the-sessions-inbox-socket>
-- **Agent teams**: a team is scoped to one session, and nothing crosses a lane.
+- **Agent teams**: a team is scoped to one session, and nothing crosses to another host or platform.
   <https://code.claude.com/docs/en/agent-teams#limitations>
 
 ## Getting a reply back
@@ -284,22 +284,22 @@ There is no one-turn query and wait. A `-p` relay turn that sends with `notify_w
 before the notice arrives: in the test the message was delivered, and the relay returned after 18
 seconds still saying it was waiting. Instead:
 
-- **Poll.** Send the message, then poll `claude agents --json --all` in that lane until the
+- **Poll.** Send the message, then poll `claude agents --json --all` on that platform until the
   receiver is idle.
 - **Read the receiver.** `--resume` the receiver by its id and ask what it answered, or read its
   output (a `-p` receiver's stdout log).
 - **Ask directly.** When no live session needs the question, skip messaging: a multi-turn
   `--resume` on the target is the query, and its output is the answer.
 
-## Signed-out Windows lane
+## Signed-out Windows platform
 
-Check the target Windows lane before relying on it:
+Check the target Windows platform before relying on it:
 
 ```console
 printf '%s\n' 'echo ok' | <ssh> <wsl-alias> 'cd /mnt/c/Users/<user>/<scratch> && /mnt/c/Users/<user>/.local/bin/claude.exe -p'
 ```
 
-An expired-OAuth-session authentication error means the route worked and the Windows lane on the
+An expired-OAuth-session authentication error means the route worked and the Windows platform on the
 target is signed out (for the message's wording, fetch
 [Login expired](https://code.claude.com/docs/en/errors#login-expired) live). The fix is `/login` at that
 machine's console (or over RDP, which is always the console account). Do not try to fix it remotely, and never move a
@@ -307,8 +307,8 @@ credential through a prompt or a copy.
 
 ## Verified behavior
 
-The per-lane account model and the route results below are what our live probes between a
-desktop and a laptop observed, each lane on its own claude.ai sign-in, on Claude Code 2.1.284. A
+The per-platform account model and the route results below are what our live probes between a
+desktop and a laptop observed, each platform on its own claude.ai sign-in, on Claude Code 2.1.284. A
 row that names a later Claude Code version records a later probe and carries its own recheck.
 
 - **Pointer**: when a 2.1.284 route below fails its hop check, or a Claude Code release note touches
@@ -329,7 +329,7 @@ also rests on documented flag behavior.
 
 | Route | Result |
 |---|---|
-| Same machine, WSL and Windows lanes | Each lane's `ListAgents` shows only its own lane |
+| Same machine, WSL and Windows platforms | Each platform's `ListAgents` shows only its own platform |
 | Remote Control across accounts | `ListAgents` shows nothing remote while Remote Control is connected |
 | R1 WSL to this machine's Windows | `powershell.exe -NoProfile -Command` ran a script. `claude.exe -p` listed the Windows sessions; `--session-id` then `--resume` recalled a word from the first turn; a second `claude.exe -p` messaged the receiver `claude.exe -p -n win-relay-target`, which acknowledged mid-turn |
 | R2 WSL to other machine's WSL | A plain command ran over ssh. `claude -p "SendMessage to <name> ..."` delivered to an interactive session and to a `-p -n` receiver with `crossSessionInbound: accept`, across accounts. `--session-id` then `--resume` recalled a word. One stream-json pipe ran two turns under one session id. `--bg` started in a trusted directory and failed in an untrusted one; `agents --json --all`, `stop` and `rm` worked; `logs` accepted only the id (observed on 2.1.284) |
@@ -339,13 +339,13 @@ also rests on documented flag behavior.
 | Port 22 script hop | Not probed in this pass |
 | `notify_when_idle` from a `-p` sender | Message delivered; the notice never reached the sender, whose turn ended first |
 | `-p --remote-control` | Did not connect; Remote Control is interactive only |
-| [Start in the target's plugin profile](#start-in-the-targets-plugin-profile) | An R2 hop (WSL to another machine's WSL) ran live on Claude Code 2.1.327 on 2026-11-18, with a `-p` turn started in a profile (plugin-profiles probe P14); the Windows rows remain untried live. On R1 (Windows PowerShell 5.1, Claude Code 2.1.325, 2026-11-16) the Windows script's parts ran: `-Command -` read the heredoc; `plugin list --json` parsed; the not-installed branch started `claude.exe --settings <file> --version`; a `--dry-run` launch through Windows `node` exited 0 and the `argv` walk left `claude --settings <session file>`; an inline JSON argument to `node` arrived as `{crossSessionInbound:accept}`; on Windows PowerShell 5.1.26100, a two-entry JSON array piped as `ConvertFrom-Json \| Where-Object` matched no entry, and `(… \| ConvertFrom-Json) \| Where-Object` matched the `plugin-profiles@` one; with `node` standing in for `claude.exe`, a 60-byte prompt file holding `'`, `’`, `"`, `" --version "`, a blank line and a line `PS` arrived with an unchanged SHA-256 on stdin through `Start-Process -RedirectStandardInput`, and as one argument through `Q` for the background form; the script's not-installed branch then started `claude.exe --settings <file> --version` from the file and removed it. The script's lines, with `--version` in place of `-p -n <name>` and a stub `profiles.mjs`, removed the prompt file on each exit path: not installed (exit 0), launch refused (exit 1), launch output not JSON (exit 1), profile applied (exit 0), `claude.exe` missing (exit 1), background prompt `--version` stopped by the `-` line (exit 1), and with launch also refused, the refusal's reason was the one reported (exit 1). Without that line, `Q '--version'` as the only argument printed the version. No `-p` turn started in a profile on R1. Recheck when the lane's PowerShell version changes |
+| [Start in the target's plugin profile](#start-in-the-targets-plugin-profile) | An R2 hop (WSL to another machine's WSL) ran live on Claude Code 2.1.327 on 2026-11-18, with a `-p` turn started in a profile (plugin-profiles probe P14); the Windows rows remain untried live. On R1 (Windows PowerShell 5.1, Claude Code 2.1.325, 2026-11-16) the Windows script's parts ran: `-Command -` read the heredoc; `plugin list --json` parsed; the not-installed branch started `claude.exe --settings <file> --version`; a `--dry-run` launch through Windows `node` exited 0 and the `argv` walk left `claude --settings <session file>`; an inline JSON argument to `node` arrived as `{crossSessionInbound:accept}`; on Windows PowerShell 5.1.26100, a two-entry JSON array piped as `ConvertFrom-Json \| Where-Object` matched no entry, and `(… \| ConvertFrom-Json) \| Where-Object` matched the `plugin-profiles@` one; with `node` standing in for `claude.exe`, a 60-byte prompt file holding `'`, `’`, `"`, `" --version "`, a blank line and a line `PS` arrived with an unchanged SHA-256 on stdin through `Start-Process -RedirectStandardInput`, and as one argument through `Q` for the background form; the script's not-installed branch then started `claude.exe --settings <file> --version` from the file and removed it. The script's lines, with `--version` in place of `-p -n <name>` and a stub `profiles.mjs`, removed the prompt file on each exit path: not installed (exit 0), launch refused (exit 1), launch output not JSON (exit 1), profile applied (exit 0), `claude.exe` missing (exit 1), background prompt `--version` stopped by the `-` line (exit 1), and with launch also refused, the refusal's reason was the one reported (exit 1). Without that line, `Q '--version'` as the only argument printed the version. No `-p` turn started in a profile on R1. Recheck when the platform's PowerShell version changes |
 | Cost | Most of each one-line `-p` turn's cost was SessionStart hooks and context loading; measure a turn per <https://code.claude.com/docs/en/costs#track-your-costs> |
 
 ## What the relay does not change
 
-- It does not merge accounts. The relay turn sees the target's sessions because it runs in the
-  target lane, under that lane's account. Nothing lets this lane's account see them.
-- It does not bypass permissions. It starts an agent in another lane, so it prompts under auto
+- It does not merge accounts. The relay turn sees the target's sessions because it runs on the
+  target platform, under that platform's account. Nothing lets this platform's account see them.
+- It does not bypass permissions. It starts an agent on another platform, so it prompts under auto
   mode, and neither side runs `bypassPermissions`.
-- It does not make port 22 an agent lane.
+- It does not make port 22 an agent hop.

@@ -1,82 +1,4 @@
 #!/usr/bin/env bash
-# PreToolUse hook: block an agent from posting the PR-fix lane's fix request.
-#
-# WHY. The address-feedback lane (.github/scripts/pr-unblock/address-feedback.mjs,
-# FIX_REQUEST) treats a comment line that starts with
-# `PR-fix lane: please fix this finding` (any case), written by a trusted person
-# with write access, as direction for a lane that holds push credentials. A
-# local session posts with the owner's GitHub token, so a prompt-injected agent
-# could steer that lane. The owner decided that only they, typing in the GitHub
-# UI, post the phrase (#8438). This guard holds that decision on the Bash and
-# PowerShell tools and on the GitHub MCP server's comment, review, issue and
-# pull-request write tools. The risk is our own actors, so a repository may
-# lift it for sessions working in it: `fix_request_post` in
-# docs/conventions/guardrails.yaml (schema schemas/guardrails.schema.json) is
-# `block` (the default) or `allow`. It is read from the session's repository
-# (the payload's cwd) at its local `origin/HEAD`, never the working tree or
-# index, so an edit and `git add` do not lift it. Under `allow` a would-be
-# block exits 0, whichever repository the post targets. No such ref or file, a
-# missing key, a file that does not parse or any other value keeps `block`; the
-# last two say so.
-#
-# WHAT BLOCKS. A command that posts or edits GitHub content, carrying the phrase
-# where the lane would read it as a request:
-#   gh          `gh pr|issue comment|review|create|edit` (`--body`, `--body-file`,
-#               `-F`, `-` for stdin); `gh api` that writes (a field, `--input`,
-#               or a method other than GET or HEAD), reading `-F k=@file`,
-#               `--input file` and `@-`/`-` from stdin.
-#   curl        to api.github.com or a GHES `/api/v3` or `/api/graphql` route,
-#               with a data, form or upload flag and no `-G`; `@file` and `@-`
-#               are read.
-#   GraphQL     through either, only when the query text names a mutation.
-#   MCP         the tool's `body`, and a review's `comments`.
-# The body is read from the posting command's own words (a quoted
-# `$(cat <<EOF ...)` stays in its word, and a quoted `$(cat file)` is read) and
-# every file it names as a body. When a posting command reads stdin or expands
-# a variable or substitution, when it posts a body file and the command writes
-# a file or the body file does not exist yet, or on PowerShell, the whole
-# command text (heredocs, pipes, assignments), here-strings and every file fed
-# through `cat` or `<` are read too. Relative paths resolve against the
-# payload's cwd. A `bash -c`/`sh -c` operand and an `eval` are read as commands
-# too.
-#
-# HOW A BODY IS READ. Case-insensitively, as FIX_REQUEST is, and line by line:
-# a line counts when the phrase starts it, or follows a quote or `=` that opens
-# a value (`--body "PR-fix ...`, `"body":"PR-fix ...`, `body=PR-fix ...`), and
-# is not followed by a letter, digit or `_`. JSON (`\n`, `\u000a`) and URL
-# (`%0A`, `+`) escapes are decoded first. A line inside a fence does not count,
-# with the lane's own fence rule (a line starting with up to three spaces and
-# ``` or ~~~, either marker toggling it), so the guard never sees a fence the
-# lane does not; nor does a
-# line starting `>`, nor a mention later in a line. Doubt resolves to a block:
-# the phrase inside an HTML comment counts, as it does for the lane, and so
-# does a quoted mention mid-line (`see "PR-fix lane: please fix this finding"`).
-# A false block costs a rephrase; a missed one steers a push-holding lane.
-#
-# STAYS QUIET on a command that reads, greps or shows the phrase (`grep`,
-# `git show`, `gh search`, a `gh api` GET, a GraphQL query), on a command that
-# posts nothing to GitHub, and on Write and Edit, which are not wired to it.
-#
-# KNOWN GAPS: a body assembled through a variable, `printf` with a computed
-# argument or another expansion; a script (Python, Node) or cmdlet
-# (`Invoke-RestMethod`) that posts; a wrapper this guard does not step over
-# (`xargs`, `sudo` with an option other than -u/-g/-C/-D); a relative body
-# file after a `cd` in the same command, which resolves against the payload's
-# cwd instead; a body file written in the same command by a program other than
-# a redirect, cp, mv, ln, install, rsync or tee (a script, `sed -i`); a body file past 1 MiB is read to
-# that point only. `fix_request_post` is keyed to the session's repository,
-# not the post's target: a session in an `allow` repository passes a post to
-# any repository (`-R`, an API route, MCP `owner`/`repo`), and a session that
-# rewrites its local `origin/HEAD` (`git remote set-head`, `git update-ref`)
-# chooses the value read.
-#
-# Escape: the `block_fix_request_post_enabled` userConfig option (true or false;
-# any other value keeps the guard on and says so). userConfig resolves at
-# plugin-enable time, so an inline env prefix on the command cannot change it.
-# Per repository: `fix_request_post: allow`, above.
-#
-# BLOCKING: exits 2 on a detected post.
-
 set -uo pipefail
 
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_FIX_REQUEST_POST_ENABLED:-true}" == "false" ]] && exit 0
@@ -188,8 +110,6 @@ _bfr_lines() {
   return 1
 }
 
-# _bfr_carries <text>: 0 when <text>, or its JSON- or URL-decoded form, holds a
-# request line.
 # shellcheck disable=SC1003  # '\' compares a literal backslash, not a quote escape
 _bfr_carries() {
   local t="${1,,}" d

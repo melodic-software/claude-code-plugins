@@ -79,6 +79,15 @@ test("a script that an unchanged hook calls, changed beside an eval, is refused"
   assert.match(out.stderr, /plugins\/x\/scripts\/h\.sh: outside/);
 });
 
+test("a CRLF path list is read like an LF one, so a hooks script beside an eval is refused either way", () => {
+  for (const eol of ["\n", "\r\n"]) {
+    const out = run(`plugins/x/scripts/h.sh${eol}plugins/x/evals/c/prompt.md${eol}`);
+    assert.equal(out.status, 1, JSON.stringify(eol));
+    assert.equal(out.stdout, "", JSON.stringify(eol));
+    assert.match(out.stderr, /^plugins\/x\/scripts\/h\.sh: outside skills\/, agents\/, context\/, evals\/, reference\/ and README\.md$/m, JSON.stringify(eol));
+  }
+});
+
 test("a path git quoted is refused, since its real name is unknown", () => {
   const out = run('"plugins/x/hooks/h\\303\\251.sh"\nplugins/x/evals/c/prompt.md\n');
   assert.equal(out.status, 1);
@@ -225,8 +234,6 @@ test("the command prints nothing for no match, and refuses a selected plugin who
   assert.match(unread.stderr, /plugins\/testing: its tree cannot be read/);
 });
 
-// A repository whose commits are built from the index, so a symlink (120000)
-// or gitlink (160000) entry needs no filesystem link.
 const linkRepo = () => {
   const repo = mkdtempSync(join(tmpdir(), "select-plugins-links-"));
   const git = (...args) => execFileSync("git", ["-C", repo, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8" }).trim();

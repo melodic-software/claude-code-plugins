@@ -1,19 +1,3 @@
-// Checks each chunk's main-run review structured output, the last result
-// message of that chunk's run-claude-cli execution file, and writes the one
-// verdict file that
-// pr-review-main.yml uploads as pr-review-main-<lane>-<pr>-<tree>
-// (babysit_review_evidence.main_review_name). The gate counts only its
-// numbers: `findings`, every finding the model returned, summed over the
-// chunks, and `critical`, the CRITICAL ones, the most in any one chunk
-// (`items` lists them all, each chunked one with its `chunk`). The
-// pull request, head, base and tree come from the job's own reads, never from
-// the model. A run with any permission denial, output
-// that is not {findings, summary}, a finding that is not
-// {severity, path, line, title, body}, or model text a credential pattern
-// matches (lib/publish-gate.mjs findSecret) writes nothing and throws, so the
-// job fails and uploads no verdict; so does any one chunk that ran no review,
-// left no result or did not read its own parts whole. Model text is cut to fixed lengths and
-// never reaches a shell.
 import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -179,8 +163,6 @@ export function buildChunkedVerdict({ outputs, ...rest }) {
   };
 }
 
-// The diff is DIFF_DIR/chunk-<k>/part-<n>.patch; EXECUTION_FILES names each
-// chunk's execution file, one per line in chunk order.
 export function main(env = process.env) {
   for (const key of ["EXECUTION_FILES", "CHUNKS", "LANE", "PR_NUMBER", "HEAD_SHA", "BASE_SHA", "TREE_SHA", "STANDARDS_SHA", "GITHUB_RUN_ID", "VERDICT_DIR", "DIFF_DIR", "GITHUB_OUTPUT"]) {
     if (!env[key]) {

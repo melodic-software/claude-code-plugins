@@ -1,145 +1,28 @@
 #!/usr/bin/env bash
-# PreToolUse hook: block `git commit -m` whose message the shell rewrites
-# before git sees it. Triggered on Bash and PowerShell tool calls.
-#
-# WHAT IT ENFORCES — the hazard, not the ritual:
-#   A `$` or a backtick in a double-quoted (or unquoted) `-m` value is expanded
-#   by the shell: Bash replaces `$x`, `$(...)` and `` `...` ``; PowerShell
-#   replaces `$x` and reads a backtick as an escape (`` `f `` becomes a form
-#   feed, `` `b `` a backspace). Commit messages often carry code spans in
-#   backticks, so the message lands changed in history with no error. Measured
-#   2026-10-05 by passing each form to a program that prints its argv: a
-#   multi-line double-quoted message reached it intact in both shells, and a
-#   single-line PowerShell message with backticks and `$` arrived mangled.
-#
-#   So a plain message passes, single- or multi-line, and so does any value
-#   the command provably passes literally (msg_value_interpolates lists the
-#   forms): single quotes, escaped double quotes, Bash `"$(cat <<'EOF' ...)"`,
-#   a PowerShell `@'` here-string. `git commit -F -` (or `--file -`), the form
-#   the /source-control:commit skill emits, is always safe. A PowerShell `@"`
-#   here-string is blanked by the classifier, so its content cannot be read
-#   and it fails closed.
-#
-# WHY NOT `--trailer`: the trailer is POLICY, not mechanic. /source-control:commit itself
-# omits it when the resolved trailer_policy is `none`, and a repo whose
-# convention forbids a co-author trailer is a documented, supported case.
-# Gating on it would permanently block the skill's own canonical output in that
-# configuration. Only the stdin form belongs in a gate.
-#
-# WHY NOT "did you type /source-control:commit": a hook cannot tell a skill-driven Bash call
-# from an ad hoc one — the payload carries no originating-skill field, and the
-# upstream request to add one was declined. Gating on command SHAPE is what is
-# actually available, and is the better target anyway: it enforces the outcome
-# a reviewer can verify in `git log`, not the ceremony that produced it.
-#
-# EXEMPT even when a multi-line `-m` co-occurs (gating these would break
-# conflict resolution and history rewriting):
-#   --amend                      reusing an existing message
-#     (--no-edit alone is NOT exempt: `git commit --no-edit -m x` is an
-#      ordinary commit. Amending is covered by --amend; a merge's --no-edit is
-#      covered by the sequencer branch.)
-#   -C / --reuse-message         "
-#   -c / --reedit-message        "
-#   --fixup / --squash           message derived from another commit
-#   -F - / --file -              the stdin form itself
-#   -F <path> / --file <path>    the message rides in a file, not on argv
-#   -m during an in-progress sequencer (merge / rebase / cherry-pick / revert):
-#                                conflict resolution and rebase continuation
-#                                must never be gated
-#
-# Per-repo/per-user allow-list: the `block_noncanonical_commit_allow` userConfig
-# option is a comma-separated list of form tokens (currently just
-# "message-flag", which allows a `-m` value the shell would expand). Set it
-# with `/plugin configure guardrails@<marketplace>` or headless via `claude plugin install
-# --config` (https://code.claude.com/docs/en/plugins/cli-reference#plugin-install); read from the CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW
-# process mirror. Kill switch: `block_noncanonical_commit_enabled` set to false.
-#
-# Detection is ARGV-GRAMMAR-FAITHFUL via the shared parser in hook-utils.sh, so
-# a commit body merely MENTIONING `git commit -m` never fires, and `bash -lc`
-# wrappers plus git aliases are resolved — inline `-c` (last value wins, as git
-# does) and aliases persisted in git config.
-#
-# RESIDUAL: `--config-env=alias.X=VAR` is not resolved. The shared parser stores
-# its value undifferentiated from `-c`, so the environment VARIABLE NAME reaches
-# this code in place of the expansion, and separating them needs a hook-utils
-# change that block-dangerous-git shares. Static matching over the literal
-# command string only: shell variable / command substitution is not evaluated.
-# A message ATTACHED to a short-option cluster (`-am"fix $x"`) is not
-# recognized either: which cluster letters take values is per-option knowledge
-# the scan does not model, so that spelling fails open (allowed) — same
-# friction-guard posture as the substitution residual. The separated cluster
-# (`-am "<msg>"`) IS scanned.
-# This is a friction guard against the accidental anti-pattern, not a sandbox.
-#
-# BLOCKING: exits 2 when a `git commit -m` message holds a `$` or a backtick the
-# shell expands (or, on PowerShell, a blanked `@"` here-string).
-
 set -uo pipefail
 
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ENABLED:-true}" == "true" ]] || exit 0
 
-# The hook's own directory is derived with parameter expansion rather than
-# `dirname`. GNU Bash forks a subshell for every command substitution even when
-# the body is a builtin (Command Substitution, Bash Reference Manual;
-# https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that
-# fork is a process, and this line runs on every fire — including inside the
-# dispatcher, where the include guard makes `source` cheap but `$(dirname …)`
-# still execs. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape
-# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
-# no-op and dirname answers `.`.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=abort-boundary.sh
 source "$_HOOK_SELF/abort-boundary.sh"
-# Could-not-run posture (#3528): fail-open with a dual-channel "guard did not
-# run" notice; 0 (allow) and 2 (block) pass through. Same reasoning as the
-# other per-call Bash guards: visible allow on abort, never a frozen session.
 guard::abort_boundary block-noncanonical-commit PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
-# Which subcommands git refuses to alias, and why the persisted-alias probe
-# below skips them, is hook::git_subcommand_ignores_alias in hook-utils.sh.
-# Skipping one costs this gate a `git config` fork per Bash tool call and can
-# false-block on a leftover ignored alias that happens to name commit.
-
-# High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
-# on older bash it is unset, so default to empty and skip telemetry (the block
-# still fires). Referencing it bare under `set -u` would abort before exit.
 start=${EPOCHREALTIME:-}
 
-# hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read. rc 1
-# (empty stdin) skips; rc 2 (text that is not JSON) FAILS CLOSED — the guard
-# cannot evaluate the tool call, and a silent skip would pass exactly the
-# traffic this guard exists to stop; rc 3 (a JSON payload cut short by the
-# pipe, a transport fault) is a loud skip the dispatcher takes once.
-# Buffering does not require jq
-# (hook::buffer_stdin's own JSON-completeness check is jq-optional), so it runs
-# before the jq gate below — hook::require jq needs the buffered input for its
-# once per session and agent notice scoping.
 hook::buffer_stdin_to INPUT || {
   rc=$?
   ((rc == 2)) && exit 2
   exit 0
 }
 
-# jq is required to parse the tool payload. hook::require jq fails OPEN
-# (advisory hooks never block over a missing prerequisite) but makes the
-# degraded state visible to both the user (systemMessage) and the agent
-# (additionalContext), once per session and agent — see docs/contracts/hook-observability/.
 hook::require jq "PreToolUse" guardrails "$INPUT"
 
-# All three payload fields in ONE jq process (hook::jq_fields), not three. A jq
-# spawn is fork() emulation on Windows Git Bash and this guard runs on every
-# Bash/PowerShell call. Failure semantics are unchanged: a missing jq or an
-# unparsable payload yields rc 1 here, which exits 0 exactly as the empty-COMMAND
-# skip below did — hook::require jq above has already made the degraded state
-# visible once per session and agent. The `// "Bash"` default moves to the bash-side
-# expansion, matching block-dangerous-git.
 hook::jq_fields "$INPUT" '.tool_input.command' '.cwd' '.tool_name' || exit 0
 
-# A NUL byte in ANY field read above is fail-CLOSED (#2136): the helper strips NUL
-# bytes before matching, so a clean verdict would not reflect the bytes carried.
 if ((HOOK_JQ_FIELDS_NUL)); then
   guard::refuse_nul
   exit 2
@@ -151,21 +34,6 @@ HOOK_CWD="${HOOK_JQ_FIELDS[1]}"
 TOOL_NAME="${HOOK_JQ_FIELDS[2]:-Bash}"
 RAW_COMMAND="$COMMAND"
 
-# Emit one telemetry envelope: $1 status, $2 form ("" when not blocked). Gated
-# on the high-res start stamp and the opt-in sink, so the unwired default path
-# spawns no telemetry-only subprocess.
-#
-# The privacy-safe subject (`Bash:<first-token>`, never the full command) is
-# derived HERE, behind both gates, not at file scope. The shared helper answers
-# through a command substitution, and a command substitution is a fork on every
-# fire even when its body is builtins only (Command Substitution, Bash Reference
-# Manual; https://mywiki.wooledge.org/CommandSubstitution); on Windows Git Bash
-# that fork is a process. Only the envelope reads the subject, the envelope is
-# off by default, and the verdict never reads it, so deriving it eagerly spent a
-# process on every Bash and PowerShell call for a value nothing consumed
-# (#3514). The PowerShell lane rewrites COMMAND before its verdict, but the
-# helper answers a PowerShell payload with the bare tool name regardless of the
-# command, so the subject the envelope carries is the one it carried before.
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
@@ -194,26 +62,6 @@ msg_count_to() {
   __mc_out=$__mc_n
 }
 
-# 0 when a `-m` value <$1> is the hazard this guard blocks: the shell may
-# rewrite it before git sees it. That is a value holding a `$` or a backtick
-# that the command does not provably pass literally, or a blanked PowerShell
-# here-string whose opener is the expanding `@"` (its content is uninspectable
-# here, so it fails closed). One predicate for every message spelling the scan
-# recognizes: separated, attached, `--message=`, and the short-option cluster.
-#
-# Literal, so allowed:
-#   - Bash: the value in single quotes right after the option (`-m '...'`,
-#     `-m'...'`, `--message='...'`), or in double quotes with every `$`,
-#     backtick, `"` and `\` escaped, where every place that text appears in
-#     the command is such a spelling; `"$(cat <<'EOF' ... EOF)"`, whose quoted
-#     heredoc expands nothing; a value that is one variable or one command
-#     substitution;
-#   - PowerShell: a message option with no double-quoted span holding `$` or a
-#     backtick (single quotes, `@'` here-strings, plain double quotes).
-# The check reads RAW_COMMAND, the command as the tool received it, because
-# the tokenizer reports a word's text and not which quotes produced it.
-# PS_HERESTRING_PLACEHOLDER is defined by ps-command.sh; on Bash it is unset,
-# and `set -u` must not abort the allow path.
 # shellcheck disable=SC2329,SC2016  # reached via the parse callback chain; literal `$` patterns
 msg_value_interpolates() {
   local v="$1" esc d body re_hd hd rest pre close depth i n_all n_safe n_all_q
@@ -221,11 +69,7 @@ msg_value_interpolates() {
     [[ "$RAW_COMMAND" == *'@"'* ]]
     return
   fi
-  # PowerShell: the reduction has already applied the backtick escapes, so the
-  # value no longer shows them; read the message option's double-quoted span in
-  # the command as written.
   if [[ "$TOOL_NAME" == "PowerShell" ]]; then
-    # `""` inside the quotes is an escaped quote, not the closing one.
     local re_ps='(^|[[:space:]])-(-m[a-z]*|[a-z]*m)(=|[[:space:]]+)?@?"([^"]|"")*[$`]'
     [[ "$RAW_COMMAND" =~ $re_ps ]]
     return
@@ -251,11 +95,6 @@ msg_value_interpolates() {
     ((n_all > 0 && n_safe == n_all)) && return 1
   fi
   [[ "$v" =~ ^\$(\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*)$ ]] && return 1
-  # `$(cat <<'EOF' ... EOF)`: a quoted heredoc expands nothing. Read from the
-  # command as written, because the tokenizer ends a `"$(...)"` word at the
-  # first `"` inside it. The body runs to the delimiter line, nothing may
-  # follow that line but the `)`, and the word ends there: inside double
-  # quotes, the closing `"` comes right after it.
   re_hd=$'^\\$\\(cat[[:space:]]+<<-?[[:space:]]*[\'"]([A-Za-z_][A-Za-z0-9_]*)[\'"][[:space:]]*\n'
   if [[ "$v" =~ $re_hd ]]; then
     d="${BASH_REMATCH[1]}"
@@ -275,9 +114,6 @@ msg_value_interpolates() {
     return 1
   fi
   [[ "$v" == '$(cat'* ]] && return 0
-  # Any other value that IS one command substitution (`-m "$(printf '...')"`,
-  # `-m "$(git log -1 --format=%B)"`) is meant to run: its `(` closes on the
-  # value's last character, so nothing outside it (`$(true) $HOME`) expands.
   [[ "$v" == '$('*')' ]] || return 0
   depth=0
   for ((i = 1; i < ${#v} - 1; i++)); do
@@ -293,20 +129,7 @@ msg_value_interpolates() {
   ((depth != 1))
 }
 
-# Value of an explicit `--git-dir` (attached `--git-dir=v` or separated
-# `--git-dir v`) into the variable named by $1, empty when absent. A commit
-# driven with --git-dir concludes a sequencer in THAT git dir, so probing the
-# cwd's state would refuse to exempt a real in-progress merge.
-# Call as: explicit_git_dir_to <var> <invocation-prefix words...>
-# The value lands in the variable named by $1 rather than on stdout: the body
-# is builtins only, so the `$(explicit_git_dir …)` this replaced on the block
-# path was a fork spent on nothing but carrying a string out of a subshell
-# (#3514). The nameref is written once, after the scan, so a caller may name
-# any variable that is not one of this function's own locals.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-# The LAST occurrence wins, as git itself does — scanning does not stop at the
-# first match. A repeated `--git-dir` otherwise aimed the sequencer probe at the
-# wrong git dir, which decides an exemption.
 explicit_git_dir_to() {
   local -n _egd_out="$1"
   shift
@@ -326,104 +149,12 @@ explicit_git_dir_to() {
   _egd_out="$found"
 }
 
-# The directory git launches a `!` shell-alias body in, which is also the hop
-# identity in the shell-alias cycle key. NOT unconditionally the work-tree top
-# level: git chdirs a `!` body to the top level only when it can compute a
-# prefix — when the caller's directory sits INSIDE the effective work tree,
-# which repository DISCOVERY always satisfies. An explicit `--git-dir` or
-# `--work-tree` whose work tree does not contain the caller skips that chdir,
-# and the body runs where the caller stands (after `-C` composition). Verified
-# on git 2.54.0.windows.1 (reported by review on 2.43.0): from `<out>`,
-# `git --git-dir <g> --work-tree <w> -c alias.a='!pwd' a` prints `<out>`, not
-# `<w>` — while the same invocation from `<w>/sub` prints `<w>`. Collapsing to
-# the top level unconditionally aimed the walk at the WRONG repository: a
-# body's `git -C child p` resolved `<w>/child`'s persisted aliases while real
-# git ran `<out>/child`'s.
-#
-# This guard does not model git's path semantics anywhere — it asks git,
-# because every attempt to model them has been a bypass:
-#
-#   - Lexically cancelling `x/..` is wrong when `x` is a symlink: on a POSIX host
-#     `git -C link/.. …` enters the symlink's parent, not the textual one.
-#   - Resolving PHYSICALLY instead (`cd -P` + `pwd -P`) is equally a model, and a
-#     wrong one on Windows: verified on git 2.54.0.windows.1, `cd -P link/..`
-#     reports the link target's parent while `git -C link/..` reports "not a git
-#     repository" — Win32 normalizes `..` textually, so git itself is lexical
-#     there. A shell resolver would send the guard to a repository git never
-#     enters, which is the same defect wearing the opposite bias.
-#
-# So the launch directory too is derived from git's own answers — `rev-parse
-# --show-toplevel` and `--show-prefix` — never from modeled containment:
-#
-#   - prefix NONEMPTY: git computed a cd-up path, i.e. it chdirs the body to
-#     the top level. Return the top level, which also canonicalizes for free —
-#     `-C .`, `link/..`, a subdirectory, and any other spelling of one
-#     repository all collapse to a single identity, which is what lets the
-#     shell-alias cycle key below detect a repeat instead of walking forever.
-#   - prefix EMPTY, no locating globals: pure discovery from the top level
-#     itself, so the caller's directory IS the top level; return its canonical
-#     spelling for the same cycle-key collapse.
-#   - prefix EMPTY under explicit locating globals: git does not chdir, so the
-#     body runs in the caller's composed directory, returned LITERALLY for git
-#     to apply its own path semantics downstream. A non-canonical spelling can
-#     mint distinct cycle keys here, so a self-rewriting chain in this shape
-#     terminates on the fail-closed traversal budget, exactly as `-C .`-style
-#     bodies already do.
-#
-# The invocation's LOCATING globals are replayed onto the probe, not just its `-C`.
-# `--git-dir` and `--work-tree` locate a repository as surely as `-C` does (git's
-# own usage lists both as globals before `<command>`), so asking without them
-# answered "no work tree" for a perfectly locatable one: `git --git-dir=<r>/.git
-# --work-tree=<r> -c alias.a='!git commit -F -' a` run outside a tree resolved to
-# nothing and a since-dropped fail-closed branch refused a VALID canonical commit.
-# Replaying them keeps the ask-git property — `git --git-dir=X --work-tree=Y
-# rev-parse --show-toplevel` is still git's own answer, not a reconstruction of
-# one.
-#
-# Empty means git could not answer — no such directory, or genuinely no work
-# tree. Callers fall back to the literal composed directory (best-available, not
-# a gate; see the note above check_segment). Nothing off the alias-walk path
-# calls this, so an ordinary `git commit -F -` never pays a fork.
-#
-# Cached per (path + replayed globals), since the same path under a different
-# --git-dir is a different question. The fork is the expensive step and a static
-# guard never moves a repository mid-analysis. Published in a global and assigned by
-# a PLAIN call, never `$(…)`: a command substitution would run it in a subshell and
-# discard the cache.
-# One `git rev-parse <path-flag>` field, captured byte-exact into
-# HOOK_REPO_GIT_PROBE_OUT — empty when git cannot answer.
-#
-# `$(…)` strips EVERY trailing newline, but a repository top-level path may itself
-# end in one (POSIX allows any byte but NUL and `/` in a path), and dropping it
-# returns a DIFFERENT sibling directory — a wrong repository, decided fail-open on
-# the alias walk. A sentinel byte printed right after git's output absorbs the
-# strip; git's single line terminator is then removed explicitly, leaving every
-# byte of the path — interior OR trailing newline OR trailing CR — intact.
-#
-# git terminates `rev-parse --show-toplevel`/`--show-prefix` with a BARE LF, not a
-# CRLF, even on Windows — verified on git 2.54.0.windows.1 (`od -c`: the output
-# ends `… w o r k \n`, no `\r` byte). So exactly ONE trailing `\n` is git's, and
-# nothing else is stripped: a `tr -d '\r'` or a `%$'\r'` peel would corrupt a POSIX
-# path that legitimately ends in `\r`, the same class of fail-open one byte over.
-# Separate calls per field (never one `--show-toplevel --show-prefix` call split
-# on a newline) keep an interior newline in one field from being read as the
-# boundary into the next.
-# Repository questions share one chokepoint (#1500/#1553): every `git` subprocess
-# runs as `git -C <dir> <HOOK_PROBE_LOCATING…> <args…>`, cached under a key of
-# %q-encoded words so argv boundaries cannot collide. `HOOK_EFFECTIVE_LOCATING`
-# is the locating globals inherited across `!` hops (--git-dir/--work-tree/
-# `--namespace` only; `-C` stays in the composed base). It is cleared on a
-# pure-discovery `!` hop whose outer prefix carries no locating globals, and
-# merged with each frame's own prefix globals in git's last-wins order.
 HOOK_EFFECTIVE_LOCATING=()
 HOOK_PROBE_LOCATING=()
 HOOK_FRAME_PREFIX_HAS_C=0
 declare -A _repo_git_probe_cache=()
 HOOK_REPO_GIT_PROBE_OUT=""
 
-# Call as: probe_key_to <var> <dir> [<word>…] — a cache key for asking about
-# <dir> under HOOK_PROBE_LOCATING: <dir>, the locating globals, then each <word>,
-# %q-encoded one per line.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 probe_key_to() {
   local -n __pk_out="$1"
@@ -457,7 +188,6 @@ repo_git_probe() {
   HOOK_REPO_GIT_PROBE_OUT="$out"
 }
 
-# Call as: alias_launch_dir <dir> <frame-locating-nglob>
 declare -A _alias_launch_dir=()
 HOOK_ALIAS_LAUNCH_DIR=""
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
@@ -482,22 +212,6 @@ alias_launch_dir() {
   [[ -n "$HOOK_ALIAS_LAUNCH_DIR" ]]
 }
 
-# The locating globals carried by an invocation prefix, as an argv array ready to
-# replay onto a git probe.
-#
-# The SET is the sibling guard's, not a second list invented here: `block-dangerous-git`'s
-# collect_git_locating_opts already defines git's repository-locating options as
-# `-C`, `--git-dir`, `--work-tree`, `--namespace`. `-C` is the one deliberate
-# omission — the composed base already folds it in, so replaying it
-# would apply it twice.
-#
-# EVERY occurrence is collected in command-line order rather than the first match,
-# for the same reason the sibling does it: git applies last-wins itself, so handing
-# it the whole sequence lets git decide precedence instead of this guard modeling
-# it. Taking the first match would replay the wrong repository for
-# `git --git-dir=<a> --git-dir=<b> …` — a wrong identity can wrongly collapse the
-# shell-alias cycle key and skip an analysis, so this is a correctness question, not
-# a tidiness one.
 # Call as: collect_locating_globals <invocation-prefix words...> -> $locating_globals
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 collect_locating_globals() {
@@ -520,8 +234,7 @@ collect_locating_globals() {
   return 0
 }
 
-# Called from walk_argv below; ShellCheck 0.11 SC2329 does not always see
-# nested bash function calls through the alias-expansion walk.
+# Called from walk_argv; ShellCheck misses calls made through the alias-expansion walk.
 # shellcheck disable=SC2329
 set_probe_locating() {
   HOOK_PROBE_LOCATING=()
@@ -540,10 +253,6 @@ shell_alias_inherited_locating() {
   fi
 }
 
-# Call as: shell_alias_reparse <reparse> — analyze a `!` alias body the way the
-# fresh git process that runs it starts: an emptied git-alias seen-set, the
-# inherited locating globals, and HOOK_ALIAS_LAUNCH_DIR as its base. Restores the
-# caller's state after, reading check_segment's saved_base, saved_seen and sub.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 shell_alias_reparse() {
   local -a saved_locating=(${HOOK_EFFECTIVE_LOCATING[@]+"${HOOK_EFFECTIVE_LOCATING[@]}"})
@@ -557,47 +266,13 @@ shell_alias_reparse() {
   HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"} "$sub")
 }
 
-# The base is HOOK_EFFECTIVE_BASE, not the payload cwd directly, because a `!`
-# shell alias's body runs as a NEW git invocation from the repository the OUTER
-# one resolved — so a relative `-C` in that body composes onto the parent's
-# directory instead of restarting from the session cwd. Resetting to the payload
-# cwd at every hop made the walk stand still: `alias.a = !git -C child a` in a
-# repo and its child resolved to the same directory twice, the second hop read as
-# a self-cycle, and the grandchild's `commit -m` was never reached while real git
-# committed there. HOOK_EFFECTIVE_BASE is save/restored around each `!` reparse.
-#
-# The base a `!` reparse inherits is where git actually LAUNCHES the body —
-# the outer repository's top level when the caller sits inside the effective
-# work tree, the caller's composed directory when explicit locating globals
-# leave git with no prefix to chdir through; alias_launch_dir asks git which.
-# Invoked from `<repo>/sub` with `alias.a = !git -C child a`, git reaches
-# `<repo>/child`; carrying the subdirectory forward made the guard probe
-# `<repo>/sub/child` and miss the nested repository's `commit -m` entirely.
-#
-# The composition itself is hook::git_effective_dir_to, which owns the rule (an
-# absolute `-C` replaces, a relative one joins) and the caller contract: pass
-# git's own globals only, the slice from the resolved git token (`gi`) up to the
-# subcommand, with the wrapper chdirs replayed ahead of them as leading `-C`
-# words. The same boundary binds collect_locating_globals and explicit_git_dir,
-# which scan that slice for --git-dir/--work-tree.
-
-# Is a merge / rebase / cherry-pick / revert in progress? Those commits carry a
-# prepared message git supplies, and `git commit` there is the documented way to
-# conclude the operation — gating it would strand a conflict resolution
-# mid-flight. Unknown git state answers "no": this is the permissive branch, so
-# an uncertain answer must not silently open the gate.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 sequencer_in_progress() {
   local dir f repo="$1" explicit="$2"
   if [[ -n "$explicit" ]]; then
-    # An explicit --git-dir names the git dir outright; asking git to resolve it
-    # would just echo it back, and `-C` may point somewhere unrelated.
     dir="$explicit"
     [[ "$dir" == /* || "$dir" =~ ^[A-Za-z]:[\/] ]] || dir="$repo/$dir"
   else
-    # --absolute-git-dir, not --git-dir: the latter answers relative to the repo,
-    # which would resolve against the HOOK's cwd here and silently miss every
-    # sequencer file.
     repo_git_probe "$repo" rev-parse --absolute-git-dir
     dir="$HOOK_REPO_GIT_PROBE_OUT"
   fi
@@ -608,13 +283,6 @@ sequencer_in_progress() {
   return 1
 }
 
-# Resolved persisted alias for a subcommand, cached per (directory, subcommand).
-# The lookup forks a `git config`, by far the costliest step on the re-expansion
-# path, and this guard never writes config — so the answer for a given directory
-# and name cannot change mid-analysis and one fork per analysis path is waste.
-# The result is published in a global and assigned by a PLAIN call, never through
-# `$(…)`: a command substitution would run this in a subshell and discard the
-# cache with it.
 declare -A _persisted_alias_plain=()
 declare -A _persisted_alias_command=()
 HOOK_PERSISTED_ALIAS_EXPS=()
@@ -644,34 +312,9 @@ persisted_alias_expansions() {
   [[ -n "$cmd" ]] && HOOK_PERSISTED_ALIAS_EXPS+=("$cmd")
 }
 
-# Alias re-expansion is this guard's only recursive path, and it BRANCHES: every
-# hop re-checks both alias spellings (`alias.<sub>` and `alias.<sub>.command`)
-# independently, so a chain where each hop defines both walks 2^depth analysis
-# paths — a benign 8-hop, 356-character command measured 14.6s, and a guard that
-# stalls stops guarding. hook::git_alias_admit holds the memo and the budget that
-# bound that walk, and its docblock states what each key component buys; this
-# guard sets the ceiling and decides what exhausting it means.
-#
-# The ceiling counts ANALYSES rather than seconds, because a wall clock is
-# host- and command-length-dependent. It is calibrated against the linear walk the
-# guard already accepts: a memoized traversal spends one analysis per hop, and a
-# 60-hop chain measured ~0.5s of guard work here, so this ceiling caps a branching
-# walk at the same order as a chain twice that long. It sits far above real usage —
-# a chain deeper than a couple of hops is already exotic, and every legitimate
-# command measured spends single digits.
-# Residual: this budget bounds WORK (analysis count), not wall clock. Each
-# analysis can fork git probes, so on a pathologically slow filesystem the
-# harness's per-hook timeout (hooks.json, 60s) can strike first — and a
-# timed-out hook fails OPEN per the hooks reference, inverting this guard's
-# fail-closed posture for that edge. Accepted residual; revisit with an
-# in-hook wall-clock check if it is ever observed in a session record.
 HOOK_ALIAS_WORK_MAX=128
 guard::alias_depth_max
 
-# Call as: alias_reexpand_admit <kind> <state-word>... — returns 1 when this
-# exact state was already analyzed, and never returns at all when the traversal
-# budget is exhausted: the guard could not finish deciding, so it fails CLOSED
-# here rather than letting the caller read an exhausted budget as "skip".
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 alias_reexpand_admit() {
   hook::git_alias_admit "$@"
@@ -692,16 +335,11 @@ check_segment() {
   local explicit_gd=""
   local -a locating_globals=()
 
-  # A shell -c wrapper (`bash -lc 'git commit -m x'`) executes its operand as a
-  # full shell command — re-parse it with the same tokenizer.
   if hook::shell_c_operand "$@"; then
     hook::bash_parse_segments "$HOOK_SHELL_C_OPERAND" check_segment
     return 0
   fi
 
-  # One parsed invocation: git's index, the argv `env -S` splicing may have
-  # rewritten, the wrapper chdirs, the subcommand and its index, and how the
-  # alias chain terminates at this hop.
   hook::git_invocation "$@" || return 0
   gi=$HOOK_GITINV_GI
   w=("${HOOK_GITINV_WORDS[@]}")
@@ -709,33 +347,12 @@ check_segment() {
   sub=$HOOK_GITINV_SUB
   sub_idx=$HOOK_GITINV_SUB_IDX
 
-  # A wrapper's chdir happens before git starts, so it composes ahead of git's
-  # own globals — spelled as leading `-C` words rather than a second base, so the
-  # one path-composition rule in hook::git_effective_dir_to covers both.
   local -a wrapper_cd=()
   local wdir
   for wdir in ${HOOK_GITINV_WRAPPER_DIRS[@]+"${HOOK_GITINV_WRAPPER_DIRS[@]}"}; do
     wrapper_cd+=(-C "$wdir")
   done
 
-  # An inline alias runs its expansion (`git -c alias.c=commit c -m x` commits),
-  # so re-check the expanded command BEFORE concluding the subcommand is not
-  # `commit` — otherwise the alias name is simply not "commit" and the guard
-  # waves it through. A shell alias (leading !) re-parses as a full shell
-  # command; a git alias splices its words in place of the alias name.
-  # The --config-env SHAPE refusal is value-blind, terminal, and must fire at EVERY
-  # recursion depth: a wrapping inline alias can expand to `--config-env=alias.<sub>=…`
-  # that defines the invoked subcommand (`git -c alias.c='--config-env=alias.foo=AV foo'
-  # c`), which git runs.
-  # git DOES chain aliases (an expansion whose first word is another alias is
-  # expanded again), so both the inline re-expansion and the gitconfig-alias probe
-  # below recurse at EVERY hop, carrying the command-line -c/--config/--config-env
-  # globals through each hop (the splice keeps indices 0..sub_idx, not gi+1),
-  # TERMINATING on HOOK_ALIAS_SEEN — a save/restore seen-set of resolved subcommand
-  # names: a repeat is git's own alias-loop stop (runs nothing, allow-safe), and
-  # finite distinct alias keys guarantee termination. Terminating is not the same as
-  # tractable — the walk branches per hop, and alias_reexpand_admit is what keeps
-  # its cost proportional to the chain's length.
   local exp reparse s seen_hit=0 saved_base=""
   local -a expw=() saved_seen=() saved_shell_seen=() nextw=()
   HOOK_FRAME_PREFIX_HAS_C=0
@@ -746,21 +363,10 @@ check_segment() {
   collect_locating_globals "${w[@]:gi:sub_idx-gi}"
   set_probe_locating
   if [[ "$HOOK_GITINV_ALIAS_TERM" == "config-env" ]]; then
-    # Structural fail-closed: the invoked subcommand's alias is defined via --config-env
-    # (here or in a wrapping alias's expansion), whose value is the recurring fail-open
-    # surface (fed by an ambient var, an inline/`env` prefix, an `export`, `set -a`, or a
-    # nested `bash -c` in any wrapper); a commit smuggled through it cannot be verified,
-    # and defining an alias this way on a guarded invocation is never canonical.
     guard::refuse_config_env_alias "$sub"
     emit_tel "blocked" "config-env-alias"
     exit 2
   fi
-  # git stops (runs nothing) if the resolved subcommand is one it already expanded
-  # in this chain, so skip the re-expansion on a repeat and let the plain scan
-  # decide. Save/restore the seen-sets around BOTH branches so sibling segments
-  # and unwound hops start clean. The set models git's IN-PROCESS alias-loop
-  # guard only: a `!` shell alias spawns a fresh git process whose loop guard
-  # starts empty, so its reparses below run under an emptied set.
   for s in ${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"}; do
     [[ "$s" == "$sub" ]] && {
       seen_hit=1
@@ -779,24 +385,10 @@ check_segment() {
     ((++HOOK_ALIAS_DEPTH))
     HOOK_ALIAS_SEEN+=("$sub")
     if [[ "$HOOK_GITINV_ALIAS_TERM" == "inline" ]]; then
-      # Inline alias (-c/--config): each spelling's expansion is literally present. Re-check
-      # EVERY spelling (plain and `.command`) independently so a benign expansion in one
-      # never suppresses a dangerous sibling in the other. Keep every command-line global
-      # (indices 0..sub_idx) so a nested hop re-reads the carried -c/--config-env config.
       for exp in ${HOOK_GITINV_ALIAS_EXPS[@]+"${HOOK_GITINV_ALIAS_EXPS[@]}"}; do
         [[ -n "$exp" ]] || continue
         inline_alias_handled=1
         if [[ "$exp" == '!'* ]]; then
-          # Shell alias: runs in a NEW git process whose alias-loop guard starts
-          # empty, so the reparse must not inherit this chain's seen-set — a
-          # body that re-invokes a name from the outer chain (`git -c
-          # alias.a='!git -c alias.a="commit -m x" a' a`) is re-expanded there,
-          # not stopped. Termination stays bounded: every inline definition
-          # reachable from the reparse is a strict substring of the parent
-          # segment's text, and persisted-config shell hops are bounded by
-          # HOOK_SHELL_ALIAS_SEEN below. That new process also starts from THIS
-          # segment's launch directory, so the body's relative `-C` composes
-          # onto it.
           hook::git_alias_reparse_to reparse "$exp" "${w[@]:sub_idx+1}"
           [[ -n "$seg_dir" ]] || hook::git_effective_dir_to seg_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}"
           alias_launch_dir "$seg_dir" ${#locating_globals[@]} ||
@@ -811,10 +403,6 @@ check_segment() {
       done
     fi
 
-    # An alias can also live in .git/config, ~/.gitconfig, or system config,
-    # where HOOK_GITINV_CONFIG_VALUES cannot see it — `git config alias.c commit`
-    # then `git c -m x` would otherwise pass. Ask git for the resolved value
-    # (its own precedence applies) only when no inline alias already matched.
     if ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]] &&
       ! hook::git_subcommand_ignores_alias "$sub"; then
       local pexp
@@ -823,29 +411,6 @@ check_segment() {
       for pexp in ${HOOK_PERSISTED_ALIAS_EXPS[@]+"${HOOK_PERSISTED_ALIAS_EXPS[@]}"}; do
         [[ -n "$pexp" ]] || continue
         if [[ "$pexp" == '!'* ]]; then
-          # Persisted shell alias: same fresh-process semantics as the inline
-          # `!` branch — reparse under an emptied git-alias seen-set. Unlike
-          # inline definitions, a persisted body does not shrink (it re-reads
-          # the same config value at every hop), so a self- or mutually
-          # referential persisted shell alias (`a = !git a`) would recurse
-          # forever here. Real git forks such a chain endlessly and never
-          # reaches a subcommand, so a REPEAT of the same persisted
-          # name/expansion pair on this analysis path is skipped (allow-safe):
-          # HOOK_SHELL_ALIAS_SEEN, save/restored alongside HOOK_ALIAS_SEEN so
-          # sibling segments and unwound hops start clean, bounds the depth.
-          #
-          # The REPOSITORY is part of that pair, not just the name and expansion.
-          # One alias text can appear in nested repos and mean a different hop in
-          # each: `alias.a = !git -C child a` in a repo and its child descends
-          # further every time, and keying on the text alone read the second hop
-          # as a self-cycle — the grandchild's `commit -m` was never analyzed
-          # while real git committed there. Composing directories
-          # (hook::git_effective_dir_to above) makes each hop's key distinct, so
-          # descent is followed; a body
-          # with no `-C` leaves the directory unchanged, which is what still
-          # stops `a = !git a` on the first repeat. A body that keeps rewriting
-          # the directory forever (`-C .`) never repeats a key, so termination
-          # there rests on the fail-closed traversal budget, not on this set.
           local pkey pseen_hit=0
           alias_launch_dir "$seg_dir" ${#locating_globals[@]} ||
             HOOK_ALIAS_LAUNCH_DIR="$seg_dir"
@@ -879,8 +444,6 @@ check_segment() {
 
   [[ "$sub" == "commit" ]] || return 0
 
-  # Scan only the words AFTER the subcommand: a top-level `git -c foo=bar` is
-  # config, while `-c` after `commit` is --reedit-message.
   for ((k = sub_idx + 1; k < nseg; k++)); do
     word="${w[k]}"
     next=""
@@ -901,13 +464,6 @@ check_segment() {
       exempt=1
       ;;
     -m | --m | --me | --mes | --mess | --messa | --messag | --message) # spellchecker:disable-line
-      # git's parse-options accepts any UNIQUE prefix of a long option, and
-      # --message is git commit's only long option starting with "m", so every
-      # prefix from --m up to one letter short of the full spelling is accepted
-      # as --message. Verified empirically on git 2.55: `git commit --dry-run
-      # --mess=x` (and each shorter prefix) parses, while a non-option like
-      # --mainline errors — so an abbreviated spelling must hit this gate
-      # exactly as the full one does.
       msg_value_interpolates "$next" && msg_interp=1
       ((k++))
       ;;
@@ -916,15 +472,10 @@ check_segment() {
       msg_value_interpolates "$word" && msg_interp=1
       ;;
     -m*)
-      # Attached value (`-m"fix $x"` tokenizes to one -m-prefixed word).
       word="${word#-m}"
       msg_value_interpolates "$word" && msg_interp=1
       ;;
     -[!-]*m)
-      # Short-option cluster whose LAST letter is m (`-am`, `-sam`): git binds
-      # the NEXT word as the message. Which earlier cluster letters themselves
-      # take values is per-option knowledge this scan does not model; misreading
-      # one costs at most a probe of the following word.
       msg_value_interpolates "$next" && msg_interp=1
       ((k++))
       ;;
@@ -936,17 +487,12 @@ check_segment() {
   ((stdin_form || exempt)) && return 0
   ((msg_interp)) || return 0
   allowed "message-flag" && return 0
-  # Both composed without a command substitution: each was a fork on every
-  # blocked commit for a builtins-only function (#3514). The sequencer probe's
-  # own `git rev-parse` fork is the one this path still pays.
   [[ -n "$seg_dir" ]] || hook::git_effective_dir_to seg_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}"
   explicit_git_dir_to explicit_gd "${w[@]:gi:sub_idx-gi}"
   sequencer_in_progress "$seg_dir" "$explicit_gd" && return 0
   block_message_flag
 }
 
-# block_message_flag: the refusal, with the safe forms for this tool. Never
-# returns.
 block_message_flag() {
   # shellcheck disable=SC2016  # literal `$` in the message text
   {
@@ -971,42 +517,12 @@ block_message_flag() {
   exit 2
 }
 
-# Reduce a PowerShell command to a Bash-tokenizer-faithful form, or defer.
-# For the Bash tool this is a no-op (COMMAND unchanged). The canonical PowerShell
-# commit form (a here-string piped to `git commit -F -`) reduces to
-# `<placeholder> | git commit -F -`, which the parser below recognizes as the
-# stdin form and allows.
-#
-# Any nonzero rc defers: rc 1 is provably git-free, and rc 2 (git-shaped
-# unparsable) is a form this guard cannot read at all, so its message would name
-# a commit shape it never saw. `block-dangerous-git` and `block-no-verify` call
-# the classifier with the same arguments and still block that rc-2 set —
-# `block-dangerous-git` with a message describing what was actually observed.
-# RESIDUAL: those two carry their own kill switches, so a config disabling both
-# while leaving this guard on no longer blocks a git-shaped unparsable PowerShell
-# commit — the exposure that came with this deferral (#1858). The deferral emits
-# its own `form` so it stays distinguishable from an evaluated allow in telemetry.
-# The classifier is loaded only on the PowerShell lane (#2663); the Bash path
-# is a no-op (COMMAND unchanged). This guard names it once, in
-# hooks/guard-requires.sh, which also owns the plugin-root spelling and the
-# fork-free resolution that spelling exists for (#3514).
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
-  # The declaration first, then the library it names. Under run-guards.sh the
-  # declaration is already in this process and the library was loaded once for
-  # the whole event, so neither line opens a file.
   # shellcheck source=guard-requires.sh
   declare -F guard::require_libs >/dev/null || source "$_HOOK_SELF/guard-requires.sh"
   guard::require_libs
   ps::classify_git_command "$TOOL_NAME" "$COMMAND"
   ps_rc=$?
-  # This guard DEFERS on every other sink trigger, so a plain `exit 0` below
-  # would hand the herestring-comment-char shape straight through: a `#` on a
-  # confirmed here-string opener line means the lines the reduction dropped as
-  # body may be live commands, and a commit form among them would never be seen.
-  # Refused here rather than deferred, with no allow-list consulted. Keyed on the
-  # FLAG, not on the trigger name: the classifier reports herestring-comment-char
-  # only when no other trigger fired, so a flagged command whose first trigger was
-  # another construct (a `{`, say) reported that trigger and was deferred.
   if ((PS_REDUCTION_UNTRUSTED)); then
     PS_SINK_TRIGGER="${PS_REDUCTION_UNTRUSTED_REASON:-herestring-comment-char}"
     ps::print_unparsable_block_message "$COMMAND"
@@ -1014,9 +530,6 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     exit 2
   fi
   ((ps_rc == 0)) || {
-    # A git commit the classifier cannot reduce still shows its message in the
-    # command as written: a backtick or `$` in its double quotes is this
-    # guard's hazard (exemptions are not read on this path; it fails closed).
     re_commit='(^|[^[:alnum:]_-])git(\.exe)?[[:space:]]([^|;]*[[:space:]])?commit[[:space:]]'
     if ((ps_rc == 2)) && ! allowed "message-flag" && [[ "$RAW_COMMAND" =~ $re_commit ]] &&
       msg_value_interpolates ""; then
@@ -1028,19 +541,10 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   COMMAND="$PS_SAFE_COMMAND"
 fi
 
-# Resolved-subcommand names already expanded in the CURRENT alias chain — git's
-# own alias-loop guard. Initialized here (not in check_segment, which recurses
-# and would reset it) and save/restored around each recursion; a multi-command
-# line runs check_segment once per top-level segment, each starting from empty.
-# HOOK_SHELL_ALIAS_SEEN bounds persisted-config `!` shell-alias hops (whose
-# bodies never shrink) on one analysis path; same lifecycle.
 HOOK_ALIAS_SEEN=()
 HOOK_SHELL_ALIAS_SEEN=()
 HOOK_ALIAS_DEPTH=0
 
-# Directory a `!` shell-alias body would run from — the payload cwd at the top
-# level, then each `!` reparse's own repository as the walk descends.
-# Save/restored alongside the seen-sets, so sibling segments start from the cwd.
 HOOK_EFFECTIVE_BASE="${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}"
 
 hook::bash_parse_segments "$COMMAND" check_segment

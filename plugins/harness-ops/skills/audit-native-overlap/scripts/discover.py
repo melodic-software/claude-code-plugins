@@ -84,8 +84,6 @@ SUFFIXES = (
 TOKEN_RE = re.compile(r"[a-z0-9]+")
 SCORED_FIELDS = ("description", "argument_hint", "search_hint")
 CAMEL_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
-# Classes whose store rows take `route` or `suggest`, never `wrap`: a Native
-# step invokes through the Skill tool, and none of these is a skill.
 ROUTE_ONLY_CLASSES = frozenset(
     {"builtin-command", "bundled-workflow", "builtin-agent", "builtin-tool"}
 )

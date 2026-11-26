@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/code-tidying/scripts/change-shape.py plugins/code-tidying/skills/remove-comments/scripts/change-shape.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -260,6 +261,19 @@ EOF
   else
     fail "trace: budget without --strict exit $rc, want 0"
   fi
+  shards=""
+  for k in 0 1; do
+    (cd "$t" && SELECTION_AUDIT_SELECTOR="$TMP_ROOT/stub-changed.sh" \
+      bash "$AUDIT" trace --strict --shard "$k/2" --out "$TMP_ROOT/out-named-$k" suites/declared.test.sh suites/node.test.mjs) >/dev/null 2>&1 &&
+      shards+="$(cut -f1 "$TMP_ROOT/out-named-$k/suites.tsv")|"
+  done
+  rc=0
+  (cd "$t" && bash "$AUDIT" trace --shard 2/3 --out "$TMP_ROOT/out-named-empty" suites/declared.test.sh suites/node.test.mjs) >/dev/null 2>&1 || rc=$?
+  if [[ "$shards" == "suites/declared.test.sh|suites/node.test.mjs|" && "$rc" -eq 2 ]]; then
+    ok "trace --shard: named suites split across shards, one each, and a shard holding none of them exits 2"
+  else
+    fail "trace --shard over named suites: shards [$shards], empty-shard exit $rc, want 2"
+  fi
 
   s="$TMP_ROOT/stale-repo"
   git_repo "$s"
@@ -277,6 +291,28 @@ EOF
   else
     fail "trace: stale index exit $rc, edges [$(cat "$TMP_ROOT/out-stale/edges.tsv" 2>/dev/null)]"
   fi
+fi
+
+c="$TMP_ROOT/comment-repo"
+git_repo "$c"
+mkdir -p "$c/suites"
+printf '%s\n' '#!/usr/bin/env bash' '# test-scope: data/*' '# Reads the data.' 'cat data/a.txt' >"$c/suites/comment.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' '# test-scope: data/*' '# Reads the data.' 'cat data/a.txt' >"$c/suites/scope.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' '# Reads the data.' 'cat data/a.txt' >"$c/suites/code.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' '# Reads the data.' 'if true; then' >"$c/suites/broken.test.sh"
+git -C "$c" add -A && git -C "$c" commit -qm base
+comment_base="$(git -C "$c" rev-parse HEAD)"
+printf '%s\n' '#!/usr/bin/env bash' '# test-scope: data/*' '' 'cat data/a.txt' >"$c/suites/comment.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' '# Reads the data.' 'cat data/a.txt' >"$c/suites/scope.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' '# Reads the data.' 'cat data/b.txt' >"$c/suites/code.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'if true; then' >"$c/suites/broken.test.sh"
+git -C "$c" add -A && git -C "$c" commit -qm change
+got="$(cd "$c" && bash "$AUDIT" changed --base "$comment_base" 2>"$TMP_ROOT/changed.err")"
+want=$'suites/broken.test.sh\nsuites/code.test.sh\nsuites/scope.test.sh'
+if [[ "$got" == "$want" ]] && grep -qF '1 suite(s) left out: their change is comment-only' "$TMP_ROOT/changed.err"; then
+  ok "changed: a comment-only change is left out and counted; a removed test-scope: line, a code change and an unparsable file stay listed"
+else
+  fail "changed comment-only: got [$got] want [$want], stderr [$(cat "$TMP_ROOT/changed.err")]"
 fi
 
 r="$TMP_ROOT/replay-repo"

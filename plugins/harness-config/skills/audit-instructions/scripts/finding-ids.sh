@@ -1,41 +1,4 @@
 #!/usr/bin/env bash
-# finding-ids.sh -- derive the audit-pass finding identity of audit-instructions
-# findings from scan-shaped rows.
-#
-#   finding-ids.sh [--records] [--root <dir>] [FILE]
-#
-# Reads rows from FILE, or stdin when FILE is absent:
-#
-#   <path>:<line>:<check-id>                      one site
-#   <pathA>:<lineA>|<pathB>:<lineB>|<I15|I39>     the two pairwise claims
-#
-# and prints, per row, tab-separated:
-#
-#   <row>  <finding_id/v1>  <group/v1>  <surface>=<anchor>  [<surface>=<anchor>]
-#
-# With --records, prints a JSON finding record instead, in the shape
-# `finding-identity.sh validate-record` accepts.
-#
-# The identity rules are audit-pass's (reference/finding-identity.md there) and
-# the hashing is its finding-identity.sh; this script only fills the tuple the
-# way reference/finding-identity.md in this skill states: check is
-# harness-config/audit-instructions/<id>, claim is the id's template from the
-# table below, and every anchor is an excerpt anchor over the flagged line,
-# discriminated by its enclosing ATX heading path. Frontmatter and fenced code
-# never contribute a heading; a line inside a fence is anchored --in-fence.
-#
-# A row it cannot identify prints `#REFUSED<TAB><row><TAB><reason>` and gets no
-# id: an id with no claim template, a pairwise row for any check but I15 or I39, a
-# surface outside both the repository and the home directory, a file under the
-# home directory that is not an instruction file (see instruction_shape), a line
-# past EOF or blank. Refusals never change the exit code, so a caller counts them.
-#
-# The claim table MIRRORS reference/finding-identity.md "Claim templates";
-# finding-ids.test.sh fails when the two, or the catalog's check headings,
-# disagree.
-#
-# Exit: 0 when every row was processed (refused rows included), 2 on a usage
-# error or a missing prerequisite.
 set -uo pipefail
 
 PROG="finding-ids.sh"
@@ -164,9 +127,6 @@ if [[ -n "$INPUT" && ! -f "$INPUT" ]]; then
 fi
 
 [[ -n "$ROOT" ]] || ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-# Physical spellings on both sides, so a symlinked or Git Bash-spelled root and
-# the file path it contains compare equal. Empty when the directory is unset or
-# unreachable.
 physical_dir() {
   [[ -n "$1" ]] && cd "$1" 2>/dev/null && pwd -P || true
 }
@@ -174,29 +134,6 @@ ROOT="$(physical_dir "$ROOT")"
 HOME_P="$(physical_dir "${HOME:-}")"
 CONFIG_P="$(physical_dir "${CLAUDE_CONFIG_DIR:-${HOME:+$HOME/.claude}}")"
 
-# Whether a physical path under $HOME is an instruction file: a markdown file
-# (CLAUDE.md, CLAUDE.local.md, AGENTS.md, rules, agents, output styles, and the
-# files they import or a symlink points at), or, inside a .claude tree or the
-# resolved config directory, the JSON that carries hook instruction text
-# (settings.json, settings.local.json, a plugin's hooks.json) and any file
-# beneath a skills/ directory (I31, I33 and I34 cover every file a skill loads,
-# not only its markdown). Anything else under $HOME, such as .ssh/config,
-# .claude/.credentials.json or a shell rc file, is not a surface, so its lines
-# are never hashed into an anchor.
-#
-# Home-directory scope. The user surface is $HOME-wide, not
-# ${CLAUDE_CONFIG_DIR:-~/.claude} alone, because Claude Code reads instruction
-# files that sit outside the config directory and under $HOME.
-#   We treat CLAUDE.md, CLAUDE.local.md and the AGENTS.md files as loading
-#   from the working directory and each ancestor, and an import as able to
-#   name any absolute path, so the surface set reaches past the config dir.
-#   Pointer: https://code.claude.com/docs/en/memory ("How CLAUDE.md files
-#            load", "When Claude Code reads AGENTS.md", "Import additional
-#            files").
-#   As of:   2026-09-29.
-#   Recheck trigger: the ancestor-loading or import-path sections change, or a
-#            release note adds an instruction file type outside *.md, a skill's
-#            own files and the settings and hooks JSON above.
 instruction_shape() {
   case "$1" in
   *.md) return 0 ;;
@@ -208,8 +145,6 @@ instruction_shape() {
 
 surface_of() {
   local p="$1" dir base dir_abs abs target hops=0
-  # Follow a symlink chain by hand (plain readlink is portable; -f is GNU-only),
-  # bounded so a cycle cannot spin forever.
   while [[ -L "$p" ]] && ((hops < 32)); do
     target="$(readlink "$p" 2>/dev/null)" || break
     [[ -n "$target" ]] || break
@@ -233,10 +168,6 @@ surface_of() {
   return 1
 }
 
-# Three lines for line <n> of <file>: its text, 1 when it sits inside a fenced
-# block (else 0), and its enclosing ATX heading path joined by 0x1F. Prints
-# nothing when the line is past EOF. A heading line's own text is its excerpt,
-# never part of its own path.
 line_context() {
   LC_ALL=C awk -v want="$2" '
     { sub(/\r$/, "") }
@@ -277,8 +208,6 @@ refuse() {
   printf '#REFUSED\t%s\t%s\n' "$1" "$2"
 }
 
-# site_of <path> <line> -> prints `<surface>=<anchor>`, or a refusal reason on
-# stderr-free stdout prefixed with `!`.
 site_of() {
   local path="$1" lno="$2" surface ctx text infence hpath anchor
   local -a args

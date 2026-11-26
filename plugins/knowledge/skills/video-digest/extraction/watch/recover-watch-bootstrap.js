@@ -271,8 +271,6 @@ export function downsampleSelectedFrames(selected, targetFrameCount) {
  * @param {string[]} argv
  */
 export async function recoverWatchBootstrapCli(argv) {
-  // Validate BEFORE resolving: `path.resolve(undefined)` throws a TypeError,
-  // so resolving first would make this usage branch unreachable.
   const [sliceDirArg, workDirArg, framesDirArg, contactSheetsDirArg] = argv.slice(2, 6);
   if (!sliceDirArg || !workDirArg || !framesDirArg || !contactSheetsDirArg) {
     writeStderr(RECOVER_USAGE);

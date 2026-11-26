@@ -1,23 +1,3 @@
--- session-compare.sql: tokens by type and a cost reconciliation for two sessions.
---
--- Loaded after cc-otel.sql (for the cc_metrics_from / cc_logs_from macros) by
--- scripts/session-compare.sh, which sets:
---   metrics_src  path of the hot metrics store ($CC_OTEL_STORE/cc-metrics.json)
---   logs_src     path of the hot logs store ($CC_OTEL_STORE/cc-logs.json)
---   a, b         the two session ids
---
--- Output: tab-separated rows, the first column a tag.
---   temporality  metric, session, aggregationTemporality: any token or cost data point of
---                either session that is not delta. Summing data points is valid for delta only.
---   checked      one row once the temporality check has run
---   tokens       session, model, effort ('unset' when absent), input, output, cacheRead,
---                cacheCreation (sums of claude_code.token.usage)
---   cost         session, metric data points, metric_usd (claude_code.cost.usage),
---                events_usd (api_request cost), gap_usd, api_requests, status
---
--- effort, cost_usd and cost_usd_micros are promoted columns of cc-otel.sql. aggregationTemporality
--- is a field of the sum, not an attribute, so it is read here.
-
 CREATE TEMP TABLE points AS
 SELECT session_id, metric_name, COALESCE(model, 'unknown') AS model,
   COALESCE(effort, 'unset') AS effort,
@@ -48,7 +28,6 @@ SELECT DISTINCT 'temporality', metric_name,
   list_filter(dp.attributes, lambda x: x.key = 'session.id')[1].value.stringValue AS session_id, temporality
 FROM flagged
 WHERE session_id IN (getvariable('a'), getvariable('b'))
--- Printed only when this statement ran: the script refuses a run without it.
 UNION ALL SELECT 'checked', 'temporality', NULL, NULL;
 
 SELECT 'tokens', session_id, model, effort,
@@ -69,7 +48,6 @@ metric AS (
   GROUP BY session_id
 ),
 events AS (
-  -- cost_usd_micros is the exact integer form; cost_usd the rounded double.
   SELECT session_id, count(*) AS n,
     COALESCE(sum(COALESCE(cost_usd_micros / 1e6, cost_usd)), 0) AS usd
   FROM cc_logs_from(getvariable('logs_src'))
@@ -83,7 +61,6 @@ joined AS (
   LEFT JOIN metric m USING (session_id)
   LEFT JOIN events e USING (session_id)
 )
--- Tolerance: one micro-USD, the resolution of cost_usd_micros.
 SELECT 'cost', session_id, points, metric_usd, events_usd, metric_usd - events_usd, api_requests,
   CASE
     WHEN abs(metric_usd - events_usd) <= 1e-6 THEN 'match'

@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [2.2.21] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
 ## [2.2.20] - 2026-11-25
 
 ### Changed

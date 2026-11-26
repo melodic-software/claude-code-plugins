@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Exit: 0 on success, 2 on usage error, 3 when a --from file carries no
-# detect.sh Summary rows at all (not detector output; refusing beats composing
-# from garbage). Zero findings with Summary rows present still WRITES the file:
-# per the persist contract, coverage is the payload.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -124,7 +120,7 @@ cat "${FROM_FILES[@]}" | LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC
     return s
   }
 
-  # Tier/Action mirror of the severity crosswalk (see header comment).
+  # Tier/Action mirror of the severity crosswalk.
   function rule_tier(slug) {
     if (slug == "rule-knowledge-cutoff-disclaimer" || slug == "rule-llm-citation-artifacts" ||
         slug == "rule-chatbot-artifacts")

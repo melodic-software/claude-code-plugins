@@ -945,13 +945,13 @@ test("a run from before the job rename, its jobs named by id, is classified the 
   }
 });
 
-test("a deferred triage counts as transient under the reusable's Title Case apply job and its earlier name, never under another job", async () => {
+test("a deferred triage counts as transient under post-triage, the reusable's Title Case apply job and its earlier name, never under another job", async () => {
   const renamed = (name) => DEFERRED.map((j) => (j.name === "Intake Triage / claude-intake-triage-apply" ? { ...j, name } : j));
-  for (const name of ["Intake Triage / Apply", "intake-triage / Apply", "Intake Triage / claude-intake-triage-apply"]) {
+  for (const name of ["Post Triage", "post-triage", "Intake Triage / Apply", "intake-triage / Apply", "Intake Triage / claude-intake-triage-apply"]) {
     const result = await sweep(transientRuns(renamed(name), { 221: NOTES.deferred }));
     assert.deepEqual([result.dispatched, result.handed], [[1], []], name);
   }
-  for (const name of ["Intake Triage / Status", "Other / Apply", "Apply"]) {
+  for (const name of ["Intake Triage / Status", "Other / Apply", "Apply", "Intake Triage / Post Triage"]) {
     const gh = transientRuns(renamed(name), { 221: NOTES.deferred });
     await sweep(gh);
     assert.ok(!gh.writes[1]?.body.body.includes("22~"), name);

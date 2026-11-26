@@ -12,9 +12,6 @@ export class MissingFact extends Error {
 const matchesAny = (path, globs) =>
   globs.some((glob) => posix.matchesGlob(path, glob));
 
-// The changed paths a predicate's `paths` and `paths-ignore` let through: a
-// path matching a `paths` glob (any path when `paths` is absent) and no
-// `paths-ignore` glob.
 export function matchedPaths(predicate, changedPaths) {
   const paths = predicate?.paths;
   const ignored = predicate?.["paths-ignore"] ?? [];
@@ -39,7 +36,6 @@ const KEYS = [
     (listed, labels) => !listed.some((label) => labels.includes(label)),
   ],
   ["events", "event", any((event, current) => event === current)],
-  // null is unknown mergeability, which never matches.
   ["mergeable", "mergeable", any((state, current) => state === current)],
   ["draft", "draft", any((draft, current) => draft === current)],
 ];
@@ -84,9 +80,6 @@ export function pipelineEvent(eventName, payload) {
   return Object.hasOwn(EVENTS, eventName) ? EVENTS[eventName] : null;
 }
 
-// The facts a predicate reads that need an API call; `event` is always known.
-// `freshLabels` asks for labels read from the PR now, never from the event
-// payload, so a hold added after the event still holds a queued run.
 export function factsFor(predicate) {
   const facts = KEYS.filter(
     ([key, fact]) => predicate?.[key] !== undefined && fact !== "event",
@@ -124,8 +117,6 @@ function outcome(misses) {
     : { applies: false, skipReason: miss };
 }
 
-// Several predicates that must all match, such as a composite's and its
-// leaf's, with the same precedence as the keys of one predicate.
 export function appliesAll(predicates, facts) {
   const misses = new Set(
     predicates
