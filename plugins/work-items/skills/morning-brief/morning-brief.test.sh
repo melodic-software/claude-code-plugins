@@ -1623,6 +1623,11 @@ run_agd_live() {
 AGD_FIRST="$(section "$(MB_DATA_DIR="$TMP/data-agd" run_agd_live)" "== Agent-decided")"
 assert_eq "agent-decided live: one search for open issues and one for issues closed in the window" "2" \
   "$(grep -c 'api-graphql-stuck-agent-decided-first' "$TMP/log-agd")"
+: >"$TMP/log-agd-base"
+MB_DATA_DIR="$TMP/data-agd-base" MB_GH_FIXTURES="$AGD_LIVE" MB_GH_LOG="$TMP/log-agd-base" run_stub gql "${FIX_ARGS[@]}" \
+  --merged-json "$TMP/merged-clean.json" --lane-identity "lanes-app[bot]" >/dev/null
+assert_eq "agent-decided live: the section makes no call beyond its read searches, so it writes nothing to the tracker" "" \
+  "$(grep -vxF -f "$TMP/log-agd-base" "$TMP/log-agd" | grep -vx 'api-graphql-stuck-agent-decided-first')"
 assert_contains "agent-decided live: a first read lists the issues labeled in the last day" "$AGD_FIRST" "#601 picked a store"
 assert_eq "agent-decided live: a full read saves agent_decided_at as this run's clock" "2026-07-20T08:00Z" "$(agd_of "$TMP/data-agd")"
 printf '2026-07-10T08:00Z\n' >"$TMP/data-agd-mark/morning-brief/$FIXTURE_REPO/agent-decided-at"
