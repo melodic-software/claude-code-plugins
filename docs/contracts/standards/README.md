@@ -105,13 +105,26 @@ explicit confirmation before any conversion (see Setup and migration).
   `File` value are relative forward-slash paths (letters, digits, `.`,
   `_`, `-`, `@`, `+`, space and `/`) with no `..` segment, and each resolves,
   symbolic links included, inside that repository's checkout; so does its
-  `REVIEW.md`. `org-standards.sh` reports on stderr and drops what breaks
-  this: a `standards_dir` leaves the layer with no usable index (`index`
-  exits 5; a subscription is skipped), a `File` row is left out of the
-  printed index (naming the index file, line and value), and an org
-  `REVIEW.md` is not read. When it leaves a row out, the index it prints is
-  a filtered copy beside the original, so the remaining rows resolve the
-  same way.
+  `REVIEW.md`, its `.claude/standards.yaml`, and each `<path>.md#<heading>`
+  citation in its `REVIEW.md`. `org-standards.sh` reports on stderr and
+  drops what breaks this: a `standards_dir` or `.claude/standards.yaml`
+  leaves the layer with no usable index (`index` exits 5; a subscription is
+  skipped), a `File` row is left out of the printed index (naming the index
+  file, line and value), an org `REVIEW.md` is not read, and a `REVIEW.md`
+  line holding a citation that leaves the checkout is left out of the
+  composed criteria.
+- **The printed index (normative):** `org-standards.sh` never hands a
+  consumer the layer's own index. It prints a copy it writes under its own
+  cache state, never inside a checkout, in which each kept row's `File` is
+  the absolute path the deterministic lookup above resolved inside the
+  checkout. Only
+  a well-formed row of the index table is kept: it starts with `|` at
+  column 0 and ends with `|`, holds no escaped `\|`, has exactly the three
+  cells of the `| Surface | Applies when | File |` header, and follows that
+  header and its delimiter row (carriage returns removed first). Every other
+  line holding a `|` is dropped and reported. A consumer reads an index
+  from another repository only through this printed copy, and follows each
+  row's `File` as written, never resolving it again.
 
 ## Standards files
 
@@ -245,10 +258,9 @@ index, so the standards they follow reach every repository they work in.
   read.
 - **Reading it:** `org-standards.sh subscriptions` prints one tab-separated
   line per subscribed layer, in list order: `<repo>@<sha>`, its checkout
-  root, and its index (filtered to `topics` and confined, written beside the
-  original so its rows resolve the same way; see Confinement under The
-  index). A row's `File` resolves against that layer's own checkout, by the
-  usual lookup order. A `ref` naming an annotated tag object reads the
+  root, and its printed index (filtered to `topics` and confined; see The
+  printed index under The index), whose rows name absolute paths inside
+  that layer's checkout. A `ref` naming an annotated tag object reads the
   commit it tags, and `<sha>` names that commit. Each checkout is cached
   once per `<repo>@<sha>`, built in a temporary directory and renamed into
   place; a pinned read never refreshes, and a live read rechecks `main`
@@ -265,7 +277,8 @@ index, so the standards they follow reach every repository they work in.
   version before 1.3.0, which is still read.
 - **Without the script:** a skill reads the same files with
   `gh api repos/<owner>/<repo>/contents/<path>?ref=<sha>` (`ref=main` for a
-  live entry) under the same trust rules, or says it could not.
+  live entry) under the same trust rules and the Confinement rules, applied
+  to every row and path before it is fetched, or says it could not.
 
 ## Org layer
 
@@ -277,17 +290,19 @@ copied into each repository.
   `standards_repository: <owner>/<repo>`, the key the source-control plugin
   already reads. No key, or a value that is not an `<owner>/<repo>` pair, means
   no org layer; nothing else changes.
-- **Location:** the org layer is that repository's own team layer, resolved
-  at its root by rungs 1 to 3 of the ladder below (its
-  `.claude/standards.yaml`, else `docs/standards/`, and the index there).
-  Its rows' `File` values resolve against that repository, under the same
-  lookup order as any index.
+- **Location:** the org layer is that repository's own team layer: the
+  index its `.claude/standards.yaml` names, else `docs/standards/README.md`.
+  A consumer reads it only as the printed index `org-standards.sh index`
+  writes (see The printed index under The index), never by resolving the
+  org checkout with the ladder's rungs itself, so every row it follows has
+  passed Confinement.
 - **Reading it:** the consuming plugins bundle `scripts/org-standards.sh`.
   `org-standards.sh dir` prints the org checkout: `STANDARDS_DIR` when set (a
   CI job's checkout of the standards repository), else a shallow clone of
   its `main` cached under the user cache directory and refreshed when older
   than an hour (`ORG_STANDARDS_TTL` seconds). `org-standards.sh index` prints
-  the org index (exit 5 when the org repository has none), and
+  the path of the org layer's printed index (exit 5 when the org repository
+  has none), and
   `org-standards.sh subscriptions` the subscribed layers (see Personal
   subscriptions). Exit 3 means no
   org layer; exit 4 means it could not be read this run (a failed refresh
@@ -296,11 +311,14 @@ copied into each repository.
   script runs, for the org layer and for subscriptions, gives up after
   `ORG_STANDARDS_GIT_TIMEOUT` seconds (default 60; needs `timeout` on the
   `PATH`), never prompts for a password, passphrase or host key, and uses
-  no credential helper. Its state (the last commit read per subscription,
-  the live `main` per trusted repository) lives under `.state/` in the cache
-  directory, a name no `<owner>` can take. A skill
+  no credential helper; a git call that needs no network fetches no missing
+  object. Its state (the last commit read per subscription, the live `main`
+  per trusted repository, the printed indexes) lives under `.state/` in the
+  cache directory, a name no `<owner>` can take, and it writes nowhere else
+  and through no symbolic link. A skill
   without the script, or without a shell, reads the same files with
-  `gh api repos/<owner>/<repo>/contents/<path>?ref=main`.
+  `gh api repos/<owner>/<repo>/contents/<path>?ref=main`, applying the
+  Confinement rules to every row and citation before it fetches the path.
 - **Unavailable:** a skill that cannot read the org layer says so in its
   output and continues with the other layers; it never treats the miss as
   an error.
@@ -326,7 +344,10 @@ without a shell (a CI lane) is handed the composed file by the job that
 starts it, and reads that file in place of `REVIEW.md`. A citation in the
 composed criteria shaped `<path>.md#<heading>` resolves against the
 repository the line came from: the org checkout for the org part, the
-reviewed repository for its additions.
+reviewed repository for its additions. The org part holds only citations
+that stay inside the org checkout: `org-standards.sh review` drops, and
+reports, each org line whose citation is absolute, has a `..` segment or
+resolves outside it (Confinement).
 
 ## Concern file: `.claude/standards.yaml`
 
@@ -375,15 +396,18 @@ by explicit offer and acceptance.
 
 **Org layer (every rung):** whatever the team rungs above yield,
 resolution ALSO reads the org layer when the repository opts in (see Org
-layer): match task context against the org index's `Applies when` clues and
-load the matched files, except a file the team layer replaces. An absent or
-unreadable org layer contributes nothing.
+layer): read the org index only as the printed index
+`org-standards.sh index` writes, never by running these rungs at the org
+checkout, match task context against its `Applies when` clues, and load the
+matched files at the paths its rows name, except a file the team layer
+replaces. An absent or unreadable org layer contributes nothing.
 
 **Personal layers (every rung):** whatever the team rungs above yield,
 resolution ALSO discovers the personal layers (glob-discover
 `<standards_dir>/*.local.md` personal overrides, read `~/.claude/standards/`,
 its own index when present, else glob, and read the subscribed layers
-`org-standards.sh subscriptions` prints, see Personal subscriptions) and
+`org-standards.sh subscriptions` prints, each through its printed index,
+see Personal subscriptions) and
 applies them per Layers and precedence. Matching a team index row never substitutes for this step; a
 denied or absent personal layer simply contributes nothing.
 

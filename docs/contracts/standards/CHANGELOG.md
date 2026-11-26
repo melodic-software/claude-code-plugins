@@ -16,10 +16,15 @@ a repository name made only of dots (`.`, `..`) is not `<owner>/<repo>`, for `st
 and for every subscription entry, so a cache path cannot resolve outside its cache root. A layer
 read from another repository (the org layer and each subscription) is confined to its checkout:
 a `standards_dir` or `File` value that is absolute, has a `..` segment or resolves (symbolic links
-included) outside the checkout is reported and dropped, as is an org `REVIEW.md` that resolves
-outside it, and the printed index is then a filtered copy beside the original. Every clone, fetch
-and `ls-remote` gives up after `ORG_STANDARDS_GIT_TIMEOUT` seconds (default 60), never prompts and
-uses no credential helper. A `ref` naming an annotated tag object reads the commit it tags. Reader
+included) outside the checkout is reported and dropped, as are an org `REVIEW.md` or
+`.claude/standards.yaml` that resolves outside it and an org `REVIEW.md` line whose
+`<path>.md#<heading>` citation does. `index` and `subscriptions` now print a copy of each index
+written under the reader's cache state, never inside a checkout: it keeps only well-formed rows of
+the `Surface | Applies when | File` table (every other line holding a `|` is reported and
+dropped), and each kept row's `File` is the absolute path it resolves to inside the checkout.
+Consumers read another repository's index only through that copy, never by running the ladder at
+its checkout. Every clone, fetch, `ls-remote` and lazy object fetch gives up after
+`ORG_STANDARDS_GIT_TIMEOUT` seconds (default 60), never prompts and uses no credential helper. A `ref` naming an annotated tag object reads the commit it tags. Reader
 state moves to `.state/` in the cache directory. An index at 1.2.0 is
 older than the bundled contract, so setup offers the guided migration, which changes nothing but
 the version.

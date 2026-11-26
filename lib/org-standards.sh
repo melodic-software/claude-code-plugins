@@ -121,8 +121,17 @@ path_problem() {
   esac
 }
 
+within() {
+  local p=$2
+  while [[ ! -e "$p" && ! -L "$p" ]]; do p=$(dirname "$p"); done
+  inside "$1" "$p"
+}
+
 index_of() {
   local conf="$1/.claude/standards.yaml" dir index why
+  if [[ -e "$conf" || -L "$conf" ]] && ! inside "$1" "$conf"; then
+    note "$conf resolves outside its checkout; no usable index"; return 1
+  fi
   dir=$(yaml_value "$conf" standards_dir)
   if why=$(path_problem "$dir"); then
     note "$conf: standards_dir $(printable "$dir") $why; no usable index"; return 1
@@ -138,44 +147,101 @@ index_of() {
 
 first_line() { awk 'NF { sub(/^[[:space:]]+/, ""); sub(/[[:space:]]+$/, ""); print; exit }' "$1"; }
 
-TABLE_SEP='^[|][ :|-]+$'
+TABLE_CELLS='
+{ gsub(/\r/, "") }
+function cells(s,    n, i) {
+  if (s !~ /^\|.*\|[ \t]*$/ || index(s, "\\|") || index(s, "\037")) return 0
+  n = split(s, C, "|")
+  if (n != 5 || C[5] !~ /^[ \t]*$/) return 0
+  for (i = 2; i <= 4; i++) gsub(/^[ \t]+|[ \t]+$/, "", C[i])
+  return 1
+}'
+# shellcheck disable=SC2016  # an awk program; awk expands its own $ fields
+CLASSIFY="$TABLE_CELLS"'
+index($0, "|") == 0 { state = 0; next }
+!cells($0) { print NR "\037junk"; next }
+state == 0 {
+  if (tolower(C[2]) == "surface" && tolower(C[3]) == "applies when" && tolower(C[4]) == "file") { state = 1; print NR "\037head" }
+  else print NR "\037junk"
+  next
+}
+state == 1 {
+  if (C[2] ~ /^:?-+:?$/ && C[3] ~ /^:?-+:?$/ && C[4] ~ /^:?-+:?$/) { state = 2; print NR "\037head" }
+  else { state = 0; print NR "\037junk" }
+  next
+}
+{ f = C[4]; if (f ~ /^`[^`]+`$/) f = substr(f, 2, length(f) - 2); print NR "\037row\037" C[2] "\037" f }'
+# shellcheck disable=SC2016  # an awk program; awk expands its own $ fields
+EMIT="$TABLE_CELLS"'
+BEGIN { m = split(ENVIRON["KEEP"], K, "\n"); for (i = 1; i <= m; i++) if (K[i] != "") { t = index(K[i], "\t"); keep[substr(K[i], 1, t - 1)] = substr(K[i], t + 1) } }
+index($0, "|") == 0 { print; next }
+!(FNR in keep) { next }
+keep[FNR] == "" { print; next }
+{ cells($0); print "| " C[2] " | " C[3] " | " keep[FNR] " |" }'
+BAD_CELL='[[:cntrl:]|`]'
 
-file_cells() {
-  awk -v sepre="$TABLE_SEP" -F'|' '
-    sep && /^\|/ { f = $4; gsub(/^[ \t]+|[ \t]+$/, "", f); if (f ~ /^`[^`]+`$/) f = substr(f, 2, length(f) - 2); if (f != "") print NR "\t" f; next }
-    $0 ~ sepre { sep = 1 }' "$1"
+locate() {
+  local root=$1 sdir=$2 f=$3 why cand
+  [[ -n "$f" ]] || { printf 'is empty'; return 1; }
+  if why=$(path_problem "$f"); then printf '%s' "$why"; return 1; fi
+  cand="$sdir/$f"
+  if ! [[ -e "$cand" || -L "$cand" ]] && [[ -e "$root/$f" || -L "$root/$f" ]]; then cand="$root/$f"; fi
+  within "$root" "$cand" || { printf 'resolves outside its checkout'; return 1; }
+  [[ ! -e "$cand" ]] || cand=$(phys "$cand") || { printf 'resolves outside its checkout'; return 1; }
+  [[ ! "$cand" =~ $BAD_CELL ]] || { printf 'resolves to a path a table cell cannot hold'; return 1; }
+  printf '%s' "$cand"
 }
 
 confine() {
-  local root=$1 index=$2 topics=$3 sdir line f why cand drop="" key out
+  local root=$1 index=$2 topics=$3 sdir line kind id f path keep="" key out
   sdir=$(dirname "$index")
-  while IFS=$'\t' read -r line f; do
-    if ! why=$(path_problem "$f"); then
-      why=""
-      for cand in "$sdir/$f" "$root/$f"; do
-        if [[ -e "$cand" || -L "$cand" ]] && ! inside "$root" "$cand"; then why="resolves outside its checkout"; fi
-      done
-      [[ -n "$why" ]] || continue
-    fi
-    note "$index:$line: File $(printable "$f") $why; row dropped"
-    drop="$drop $line"
-  done < <(file_cells "$index")
-  if [[ -z "$topics" && -z "$drop" ]]; then printf '%s\n' "$index"; return 0; fi
+  while IFS="$US" read -r line kind id f; do
+    case "$kind" in
+      head) keep+="$line"$'\t\n' ;;
+      row)
+        if ! path=$(locate "$root" "$sdir" "$f"); then
+          note "$index:$line: File $(printable "$f") $path; row dropped"
+        elif [[ -z "$topics" || " $topics " == *" $id "* ]]; then
+          keep+="$line"$'\t'"$path"$'\n'
+        fi ;;
+      *) note "$index:$line: not a row of the index table; line dropped" ;;
+    esac
+  done < <(awk "$CLASSIFY" "$index")
   key=$(tr ' ' '\n' <<<"$topics" | sort -u | paste -sd+ -)
-  out="$sdir/.README.${key:-@all}.md"
-  awk -v sepre="$TABLE_SEP" -v topics="$topics" -v drop="$drop" '
-    BEGIN { n = split(topics, T, " "); for (i = 1; i <= n; i++) keep[T[i]] = 1; m = split(drop, D, " "); for (i = 1; i <= m; i++) gone[D[i]] = 1 }
-    FNR in gone { next }
-    sep && /^\|/ { id = $0; sub(/^\|[ \t]*/, "", id); sub(/[ \t]*\|.*$/, "", id); if (n == 0 || id in keep) print; next }
-    $0 ~ sepre { sep = 1 }
-    { print }' "$index" | write_atomic "$out" || return 1
+  out="$STATE/confined/$(printf '%s' "$index" | git hash-object --stdin).${key:-@all}.md"
+  KEEP=$keep awk "$EMIT" "$index" | write_atomic "$out" || return 1
   printf '%s\n' "$out"
 }
 
 surfaces() {
-  awk -v sepre="$TABLE_SEP" -F'|' '
-    sep && /^\|/ { id = $2; f = $4; gsub(/^[ \t]+|[ \t]+$/, "", id); gsub(/^[ \t]+|[ \t]+$/, "", f); if (id != "") print id "\t" f; next }
-    $0 ~ sepre { sep = 1 }' "$1" | sort -u
+  awk "$CLASSIFY" "$1" | awk -F"$US" '$2 == "row" { print $3 "\t" $4 }' | sort -u
+}
+
+# Prints a REVIEW.md, dropping each line whose `<path>.md#<heading>` citation leaves the checkout.
+# shellcheck disable=SC2016  # an awk program; awk expands its own $ fields
+CITATIONS='
+{
+  line = $0
+  while (match(line, /`[^`]*`/)) {
+    s = substr(line, RSTART + 1, RLENGTH - 2)
+    if (index(s, ".md#")) print NR "\037" s
+    line = substr(line, 1, RSTART - 1) " " substr(line, RSTART + RLENGTH)
+  }
+  n = split(line, W, /[ \t()<>"\047\[\]]+/)
+  for (i = 1; i <= n; i++) if (index(W[i], ".md#")) print NR "\037" W[i]
+}'
+confine_review() {
+  local root=$1 file=$2 line cite path why drop=""
+  while IFS="$US" read -r line cite; do
+    path=${cite%#*}
+    if why=$(path_problem "$path"); then :
+    elif ! within "$root" "$root/$path"; then why="resolves outside the org checkout"
+    else continue
+    fi
+    note "$file:$line: citation $(printable "$cite") $why; line dropped"
+    drop="$drop $line"
+  done < <(awk "$CITATIONS" "$file")
+  awk -v drop="$drop" 'BEGIN { n = split(drop, D, " "); for (i = 1; i <= n; i++) gone[D[i]] = 1 } !(FNR in gone)' "$file"
 }
 
 drift() {
@@ -275,8 +341,8 @@ layer_checkout() {
       '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*' 2>/dev/null; then
       rm -rf "${tmp:?}"; return 4
     fi
-    if ! commit=$(git -C "$tmp" rev-parse --verify --quiet "$sha^{commit}" 2>/dev/null) \
-      || [[ -z "$(git -C "$tmp" for-each-ref --count=1 --contains "$commit" 2>/dev/null)" ]]; then
+    if ! commit=$(GIT_NO_LAZY_FETCH=1 git -C "$tmp" rev-parse --verify --quiet "$sha^{commit}" 2>/dev/null) \
+      || [[ -z "$(GIT_NO_LAZY_FETCH=1 git -C "$tmp" for-each-ref --count=1 --contains "$commit" 2>/dev/null)" ]]; then
       rm -rf "${tmp:?}"; return 6
     fi
     if [[ "$commit" != "$sha" ]]; then
@@ -287,7 +353,7 @@ layer_checkout() {
   elif ! net_git -C "$tmp" fetch --quiet --depth=1 origin "$sha" 2>/dev/null; then
     rm -rf "${tmp:?}"; return 4
   fi
-  if ! git -C "$tmp" -c core.symlinks=false -c advice.detachedHead=false checkout --quiet --detach "$sha" 2>/dev/null; then
+  if ! net_git -C "$tmp" -c core.symlinks=false -c advice.detachedHead=false checkout --quiet --detach "$sha" >/dev/null 2>&1; then
     rm -rf "${tmp:?}"; return 4
   fi
   mv "$tmp" "$dest" 2>/dev/null || rm -rf "${tmp:?}"
@@ -296,9 +362,18 @@ layer_checkout() {
 }
 
 write_atomic() {
-  local tmpf
-  tmpf=$(mktemp "$(dirname "$1")/.tmp.XXXXXX")
-  cat >"$tmpf" && mv -f "$tmpf" "$1"
+  local dir p tmpf
+  dir=$(dirname "$1")
+  [[ "$1" == "$STATE"/* ]] || { note "$1 is outside the reader's state; not written"; return 1; }
+  mkdir -p "$dir" 2>/dev/null || true
+  p=$1
+  while [[ "$p" != "$CACHE" && "$p" != / && "$p" != . ]]; do
+    [[ ! -L "$p" ]] || { note "$p is a symbolic link; not written"; return 1; }
+    p=$(dirname "$p")
+  done
+  tmpf=$(mktemp "$dir/.tmp.XXXXXX") || return 1
+  cat >"$tmpf" && mv -f "$tmpf" "$1" && return 0
+  rm -f "$tmpf"; return 1
 }
 
 live_sha() {
@@ -361,10 +436,11 @@ subscription() {
     if [[ -n "$old" ]]; then
       if [[ -n "$ref" ]]; then
         note "$at: ref of $repo changed from ${last:0:12} to ${sha:0:12}; review the index diff below"
-        diff -u --label "$repo@${last:0:12}" --label "$repo@${sha:0:12}" "$old" "$index" >&2 || true
+        diff -u --label "$repo@${last:0:12}" --label "$repo@${sha:0:12}" "$old" "$index" \
+          | LC_ALL=C tr -d '\000-\010\013-\037\177' >&2 || true
       fi
       while IFS= read -r change; do
-        [[ -z "$change" ]] || note "$repo: index drift since ${last:0:12}: $change"
+        [[ -z "$change" ]] || note "$repo: index drift since ${last:0:12}: $(printable "$change")"
       done < <(drift "$old" "$index")
     fi
   fi
@@ -476,7 +552,7 @@ case "$cmd" in
       status=3
     fi
     if [[ "$status" -eq 0 ]] && [[ -f "$org/REVIEW.md" ]]; then
-      cat "$org/REVIEW.md"
+      confine_review "$org" "$org/REVIEW.md"
       if [[ -f "$local_file" ]] && ! cmp -s "$org/REVIEW.md" "$local_file"; then
         printf '\n<!-- The repository REVIEW.md follows: its criteria add to the organization criteria above. -->\n\n'
         cat "$local_file"
