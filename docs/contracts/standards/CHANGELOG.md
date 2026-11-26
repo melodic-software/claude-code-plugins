@@ -18,10 +18,14 @@ read from another repository (the org layer and each subscription) is confined t
 a `standards_dir` or `File` value that is absolute, has a `..` segment or resolves (symbolic links
 included) outside the checkout is reported and dropped, as are an org `REVIEW.md` or
 `.claude/standards.yaml` that resolves outside it and an org `REVIEW.md` line whose
-`<path>.md#<heading>` citation does; every `.md` token on a line is checked as a reader would
-resolve it (code-span padding trimmed, percent-escapes decoded, any case), and control characters
-in the printed criteria are escaped. `index` and `subscriptions` now print a new index written
-under the reader's cache state, never inside a checkout, built only from the `standards-contract`
+`<path>.md#<heading>` citation does; every `.md` or `.markdown` token on a line, and every code
+span or `<...>` construct, including one that crosses a line break, is checked as a reader would
+resolve it (code-span padding trimmed, percent-escapes decoded, a `?query` cut, Unicode format and
+invisible separator characters removed, any case), a construct crossing a line break drops every
+line it covers, and C0, DEL and C1 control characters in the printed criteria are escaped. Every
+checkout, the org layer's clone and refresh included, writes a committed symbolic link as a plain
+file, and an org cache holding one from an earlier reader is checked out again. `index` and
+`subscriptions` now print a new index written under the reader's cache state, never inside a checkout, built only from the `standards-contract`
 version, the table header and each well-formed row of the `Surface | Applies when | File` table
 rebuilt from its cells (no prose or other line is copied; every other line holding a `|` is
 reported and dropped), with a `Surface` that is an id and each kept row's `File` the absolute path

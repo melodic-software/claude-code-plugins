@@ -83,11 +83,20 @@ org_dir() {
   local url="${ORG_STANDARDS_GIT_BASE:-https://github.com}/$repo.git"
   now=$(date +%s)
   if [[ -d "$cache/.git" ]]; then
+    local links l
+    links=$(find "$cache" -path "$cache/.git" -prune -o -type l -print 2>/dev/null) || true
+    if [[ -n "$links" || "$(git -C "$cache" config --get core.symlinks 2>/dev/null)" != false ]]; then
+      git -C "$cache" config core.symlinks false 2>/dev/null || true
+      while IFS= read -r l; do [[ -z "$l" ]] || rm -f -- "$l"; done <<<"$links"
+      if [[ -n "$links" ]] && ! checkout_git "$cache" -c core.symlinks=false checkout --quiet --force HEAD -- . 2>/dev/null; then
+        note "$cache held symbolic links; they were removed and could not be checked out again as plain files"
+      fi
+    fi
     if [[ -f "$stamp" ]] && [[ $((now - $(cat "$stamp"))) -lt "$ttl" ]]; then
       printf '%s\n' "$cache"; return 0
     fi
     if net_git -C "$cache" fetch --quiet --depth=1 origin main 2>/dev/null \
-      && checkout_git "$cache" checkout --quiet --force --detach FETCH_HEAD 2>/dev/null; then
+      && checkout_git "$cache" -c core.symlinks=false checkout --quiet --force --detach FETCH_HEAD 2>/dev/null; then
       printf '%s\n' "$now" >"$stamp"
     else
       printf 'org-standards: refreshing %s failed; using the copy cached at %s\n' "$repo" "$cache" >&2
@@ -97,8 +106,8 @@ org_dir() {
   mkdir -p "$(dirname "$cache")"
   local tmp
   tmp=$(mktemp -d "$(dirname "$cache")/.clone.XXXXXX")
-  if ! net_git clone --quiet --no-checkout --depth=1 --branch main "$url" "$tmp" 2>/dev/null \
-    || ! checkout_git "$tmp" checkout --quiet --force main 2>/dev/null; then
+  if ! net_git clone --quiet --no-checkout --depth=1 --branch main --config core.symlinks=false "$url" "$tmp" 2>/dev/null \
+    || ! checkout_git "$tmp" -c core.symlinks=false checkout --quiet --force main 2>/dev/null; then
     rm -rf "${tmp:?}"
     printf 'org-standards: cannot clone %s; no org layer this run\n' "$url" >&2
     return 4
@@ -108,7 +117,8 @@ org_dir() {
   printf '%s\n' "$cache"
 }
 
-printable() { printf '%s' "$1" | LC_ALL=C tr -d '\000-\037\177'; }
+printable() { printf '%s' "$1" | LC_ALL=C tr -d '\000-\037\177' | no_c1; }
+no_c1() { LC_ALL=C awk '{ gsub(/\302[\200-\237]/, ""); printf "%s%s", sep, $0; sep = "\n" }'; }
 
 phys() {
   local p=$1 n=0 target dir
@@ -260,44 +270,66 @@ function unescape(s,    out, v) {
   }
   return out s
 }
-function check(cite,    n, P, i, p) {
+function check(cite, lo, hi,    n, P, i, k, p, q, l) {
   sub(/^[ \t]+/, "", cite); sub(/[ \t.,;:!?]+$/, "", cite)
   if (cite ~ /^[Hh][Tt][Tt][Pp][Ss]?:\/\//) return
-  n = split(cite, P, "#")
+  n = split(cite, P, /[#?]/)
   for (i = 1; i <= n; i++) {
-    p = P[i]; sub(/[ \t]+$/, "", p)
-    if (tolower(p) ~ /\.md$/) print NR "\037" cite "\037" unescape(p)
+    p = P[i]
+    for (k = 0; k < 4 && (q = unescape(p)) != p; k++) p = q
+    sub(/[ \t]+$/, "", p)
+    if (tolower(p) ~ /\.(md|markdown)$/) for (l = lo; l <= hi; l++) print l "\037" cite "\037" p
   }
 }
-function tokens(s,    n, W, i) {
+function tokens(s, lo,    n, W, i) {
   n = split(s, W, /[ \t`()<>"\047\[\]]+/)
-  for (i = 1; i <= n; i++) check(W[i])
+  for (i = 1; i <= n; i++) check(W[i], lo, lo)
+  gsub(/<[^<>]*>/, "", s)
+  n = split(s, W, /[ \t`()<>"\047\[\]]+/)
+  for (i = 1; i <= n; i++) check(W[i], lo, lo)
 }
+function line_of(off, S,    i) {
+  for (i = nb; i > 1 && S[i] > off; i--) ;
+  return N[i]
+}
+function spans(B, S,    J, i, j, r, RP, RL, rest, off, a, A, m, at, len) {
+  J = B[1]; S[1] = 1
+  for (i = 2; i <= nb; i++) { S[i] = length(J) + 2; J = J " " B[i] }
+  r = 0; rest = J; off = 0
+  while (match(rest, /`+/)) { RP[++r] = off + RSTART; RL[r] = RLENGTH; off += RSTART + RLENGTH - 1; rest = substr(rest, RSTART + RLENGTH) }
+  for (i = 1; i < r; i++) for (j = i + 1; j <= r; j++) if (RL[j] == RL[i]) {
+    a = RP[i] + RL[i]; check(substr(J, a, RP[j] - a), line_of(RP[i], S), line_of(RP[j], S)); break
+  }
+  rest = J; off = 0
+  while (match(rest, /<[^<>]*>/)) {
+    at = RSTART; len = RLENGTH; a = off + at
+    m = split(substr(rest, at + 1, len - 2), A, /["\047=]/)
+    for (i = 1; i <= m; i++) check(A[i], line_of(a, S), line_of(a + len - 1, S))
+    off += at + len - 1; rest = substr(rest, at + len)
+  }
+}
+function flush() { if (nb) { spans(B0, S0); spans(B1, S1) } nb = 0 }
 BEGIN { for (i = 0; i < 256; i++) HEX[sprintf("%02x", i)] = i }
 {
   line = $0
+  gsub(/\037/, " ", line)
   gsub(/<[A-Za-z0-9_-]+>/, "x", line)
-  rest = line
-  while (match(rest, /`+/)) {
-    n = RLENGTH; after = substr(rest, RSTART + n); tail = after; off = 0; endp = 0
-    while (match(tail, /`+/)) {
-      if (RLENGTH == n) { endp = off + RSTART; break }
-      off += RSTART + RLENGTH - 1; tail = substr(tail, RSTART + RLENGTH)
-    }
-    if (!endp) { rest = after; continue }
-    check(substr(after, 1, endp - 1))
-    rest = substr(after, endp + n)
-  }
-  tokens(line)
-  gsub(/<[^<>]*>/, "", line)
-  tokens(line)
-}'
+  if (line ~ /^[ \t\r]*$/) { flush(); next }
+  N[++nb] = NR; B0[nb] = B1[nb] = line
+  gsub(INVISIBLE, "", B0[nb]); gsub(INVISIBLE, " ", B1[nb])
+  tokens(B0[nb], NR); tokens(B1[nb], NR)
+}
+END { flush() }'
+INVISIBLE='\302[\240\255]|\330[\200-\205\234]|\333\235|\334\217|\340\242[\220\221]|\340\243\242|\341\232\200|\341\240\216|\342\200[\200-\217\250-\257]|\342\201[\237-\244\246-\257]|\343\200\200|\357\273\277|\357\277[\271-\273]|\360\221\202\275|\360\221\203\215|\360\223\220[\260-\277]|\360\233\262[\240-\243]|\360\235\205[\263-\272]|\363\240\200[\201\240-\277]|\363\240\201[\200-\277]'
 # shellcheck disable=SC2016  # an awk program; awk expands its own $ fields
 ESCAPE_CONTROLS='
-BEGIN { for (i = 1; i < 32; i++) if (i != 9) C[sprintf("%c", i)] = sprintf("\\x%02x", i); C[sprintf("%c", 127)] = "\\x7f" }
+BEGIN {
+  for (i = 1; i < 32; i++) if (i != 9) C[sprintf("%c", i)] = sprintf("\\x%02x", i); C[sprintf("%c", 127)] = "\\x7f"
+  for (i = 128; i < 160; i++) C["\302" sprintf("%c", i)] = sprintf("\\x%02x", i)
+}
 {
   sub(/\r$/, ""); out = ""; s = $0
-  while (match(s, /[\001-\010\013-\037\177]/)) { out = out substr(s, 1, RSTART - 1) C[substr(s, RSTART, 1)]; s = substr(s, RSTART + 1) }
+  while (match(s, /[\001-\010\013-\037\177]|\302[\200-\237]/)) { out = out substr(s, 1, RSTART - 1) C[substr(s, RSTART, RLENGTH)]; s = substr(s, RSTART + RLENGTH) }
   print out s
 }'
 confine_review() {
@@ -310,7 +342,7 @@ confine_review() {
     fi
     note "$file:$line: citation $(printable "$cite") $why; line dropped"
     drop+="$line "
-  done < <(LC_ALL=C awk "$CITATIONS" "$file")
+  done < <(LC_ALL=C awk -v INVISIBLE="$INVISIBLE" "$CITATIONS" "$file" | LC_ALL=C sort -s -n -t "$US" -k1,1)
   awk -v drop="$drop" 'BEGIN { n = split(drop, D, " "); for (i = 1; i <= n; i++) gone[D[i]] = 1 } !(FNR in gone)' "$file" | show
 }
 show() { LC_ALL=C awk "$ESCAPE_CONTROLS" "$@"; }
@@ -341,7 +373,7 @@ list_ranges() {
     }
     inlist {
       if ($0 ~ /^[ \t]*(#.*)?$/) next
-      match($0, /^ */); ind = RLENGTH; rest = substr($0, ind + 1)
+      match($0, /^[ \t]*/); ind = RLENGTH; rest = substr($0, ind + 1)
       if (ind == 0 && rest !~ /^-( |$)/) { inlist = 0; if (start) print start, last; start = 0; next }
       if (rest ~ /^-( |$)/ && (iind == "" || ind == iind)) { if (iind == "") iind = ind; if (start) print start, last; start = NR }
       last = NR
@@ -510,7 +542,7 @@ subscription() {
       if [[ -n "$ref" ]]; then
         note "$at: ref of $repo changed from ${last:0:12} to ${sha:0:12}; review the index diff below"
         diff -u --label "$repo@${last:0:12}" --label "$repo@${sha:0:12}" "$old" "$index" \
-          | LC_ALL=C tr -d '\000-\010\013-\037\177' >&2 || true
+          | LC_ALL=C tr -d '\000-\010\013-\037\177' | LC_ALL=C awk '{ gsub(/\302[\200-\237]/, ""); print }' >&2 || true
       fi
       while IFS= read -r change; do
         [[ -z "$change" ]] || note "$repo: index drift since ${last:0:12}: $(printable "$change")"

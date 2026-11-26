@@ -117,7 +117,12 @@ explicit confirmation before any conversion (see Setup and migration).
   skipped), a `File` row is left out of the printed index (naming the index
   file, line and value), an org `REVIEW.md` is not read, and a `REVIEW.md`
   line holding a citation that leaves the checkout is left out of the
-  composed criteria.
+  composed criteria. Every checkout the reader writes, on clone and on each
+  refresh, writes a committed symbolic link as a plain file holding the
+  link text (`core.symlinks=false`, kept in the checkout's config), so a
+  path printed before a refresh never resolves outside the checkout after
+  it; an org cache holding a symbolic link from an earlier reader has its
+  links removed and checked out again as plain files on its next read.
 - **The printed index (normative):** `org-standards.sh` never hands a
   consumer the layer's own index or any text copied from it. It writes a
   new file under its own cache state, never inside a checkout, built from
@@ -282,7 +287,8 @@ index, so the standards they follow reach every repository they work in.
   lines means no subscribed layer. `STANDARDS_SUBSCRIPTIONS_DISABLED=true`
   skips every subscription for the session.
 - **Reports:** on stderr, naming the index file and line where one applies:
-  a malformed entry, skipped while the rest of the list is read; a refused
+  a malformed entry (a tab-indented line inside it included), skipped while
+  the rest of the list is read; a refused
   entry; a `trusted_owners` key in the repository's
   `docs/conventions/source-control.yaml` or index, ignored; a topic the
   subscribed index lacks; a dropped `standards_dir` or `File` row; index drift since the last
@@ -366,13 +372,21 @@ reviewed repository for its additions. The org part holds only citations
 that stay inside the org checkout: `org-standards.sh review` drops, and
 reports, each org line whose citation is absolute, has a `..` segment or
 resolves outside it (Confinement). It checks every piece of a line a
-reader could resolve as a `.md` file, case-insensitively: each code span's
-whole content and each token of the line, raw and with HTML tags removed,
-split at `#`, trimmed and percent-decoded; an `http` or `https` URL is not
-a path, and an angle-bracket placeholder such as `<file>` is a plain
-segment, so `standards/review/<file>.md#<heading>` stays and
-`../<file>.md` is dropped. Control characters in the printed criteria are
-shown escaped (`\x1b`), never passed through.
+reader could resolve as a `.md` or `.markdown` file, case-insensitively:
+each token of the line, raw and with HTML tags removed; the whole content
+between each backtick run and the next run of the same length, and of each
+`<...>` construct (split at quotes and `=`), across the line breaks of a
+block of non-blank lines, since CommonMark lets a code span cross a line
+break and reads the break as a space; each split at `#` and `?`, trimmed
+and percent-decoded until stable, read once with Unicode format and
+non-space separator characters (general categories Cf, Zs, Zl, Zp) removed
+and once with them read as spaces. A construct that crosses a line break
+drops every line it covers. An `http` or `https` URL is not a path, and an
+angle-bracket placeholder such as `<file>` is a plain segment, so
+`standards/review/<file>.md#<heading>` stays and `../<file>.md` is
+dropped. Control characters in the printed criteria, C0, DEL and C1
+(U+0080 to U+009F), are shown escaped (`\x1b`, `\x9b`), never passed
+through, and are removed from the reader's reports.
 
 ## Concern file: `.claude/standards.yaml`
 

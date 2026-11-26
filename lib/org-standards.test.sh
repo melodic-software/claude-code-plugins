@@ -893,6 +893,100 @@ PATH="$TEST_TMPDIR/netshim:$PATH" GIT_CONFIG_GLOBAL="$TEST_TMPDIR/ssh.gitconfig"
 assert_eq "a fetch keeps the user's core.sshCommand and adds batch mode" "ssh -i /keys/id -o BatchMode=yes" \
   "$(cut -d'|' -f2 "$TEST_TMPDIR/net.log" | sort -u)"
 
+export ORG_STANDARDS_CACHE="$TEST_TMPDIR/org-link-cache"
+linkorg_tree() {
+  printf -- '---\nstandards-contract: 1.2.0\n---\n\n| Surface | Applies when | File |\n|---|---|---|\n| ok | x | ok.md |\n' >"$1/docs/standards/README.md"
+  printf '# ok\n' >"$1/docs/standards/ok.md"
+  printf '# Org review\n' >"$1/REVIEW.md"
+}
+publish_tree acme/linkorg linkorg_tree
+tlink=$(target linkorg $'standards_repository: acme/linkorg\n')
+LINKORG="$ORG_STANDARDS_CACHE/acme/linkorg"
+okfile=$(awk -F'|' '$2 ~ /ok/ { f = $4; gsub(/^ +| +$/, "", f); print f }' "$(run index --root "$tlink")")
+rm "$TEST_TMPDIR/work/acme/linkorg/docs/standards/ok.md" "$TEST_TMPDIR/work/acme/linkorg/REVIEW.md"
+ln -s "$SECRET" "$TEST_TMPDIR/work/acme/linkorg/docs/standards/ok.md"
+ln -s "$SECRET" "$TEST_TMPDIR/work/acme/linkorg/REVIEW.md"
+push_main acme/linkorg link
+ORG_STANDARDS_TTL=0 run review --root "$tlink" >/dev/null
+assert_eq "org refresh: a printed File and REVIEW.md a later commit turns into symbolic links are checked out as plain files holding the link text" \
+  "$LINKORG/docs/standards/ok.md|file|$SECRET|file|false" \
+  "$okfile|$([[ -L "$okfile" ]] && echo link || echo file)|$(cat "$okfile")|$([[ -L "$LINKORG/REVIEW.md" ]] && echo link || echo file)|$(g -C "$LINKORG" config core.symlinks)"
+export ORG_STANDARDS_CACHE="$TEST_TMPDIR/org-link-clone-cache"
+run dir --root "$tlink" >/dev/null
+assert_eq "org clone: a committed symbolic link is checked out as a plain file holding the link text" \
+  "file|$SECRET|false" \
+  "$([[ -L "$ORG_STANDARDS_CACHE/acme/linkorg/docs/standards/ok.md" ]] && echo link || echo file)|$(cat "$ORG_STANDARDS_CACHE/acme/linkorg/docs/standards/ok.md")|$(g -C "$ORG_STANDARDS_CACHE/acme/linkorg" config core.symlinks)"
+export ORG_STANDARDS_CACHE="$TEST_TMPDIR/old-org-cache"
+old="$ORG_STANDARDS_CACHE/acme/linkorg"
+g clone -q -b main "file://$TEST_TMPDIR/git/acme/linkorg.git" "$old"
+date +%s >"$old/.git/org-standards-fetched"
+was=$([[ -L "$old/docs/standards/ok.md" ]] && echo link || echo file)
+run index --root "$tlink" >/dev/null
+assert_eq "an org cache cloned with symbolic links keeps none of them on its next read, even inside the refresh window" \
+  "link||$SECRET|false" \
+  "$was|$(find "$old" -path "$old/.git" -prune -o -type l -print)|$(cat "$old/docs/standards/ok.md")|$(g -C "$old" config core.symlinks)"
+
+o="$TEST_TMPDIR/split-cite-org"
+mkdir -p "$o/docs"
+printf '# Rules\n' >"$o/docs/rules.md"
+# shellcheck disable=SC2016  # the backticks are the markdown code spans under test
+{
+  printf '# Org review\n'
+  printf -- '- split `../../\n'
+  printf 'secret.md#h` continued\n'
+  printf -- '- a stray `x\n'
+  printf -- '- b `../x\n'
+  printf 'y.md` z\n'
+  printf '\n'
+  printf -- '- c `docs/rules.md#naming` stays\n'
+  printf -- '- d a closing ` and an opening `` ../climb.md`` beside it\n'
+} >"$o/REVIEW.md"
+tsplit=$(target split-cite "$OPTED")
+# shellcheck disable=SC2016  # the backticks are the markdown code spans under test
+assert_eq "org REVIEW.md: a code span that crosses a line break is checked whole, and every line it covers is dropped" \
+  "$(printf '# Org review\n- a stray `x\n\n- c `docs/rules.md#naming` stays')" "$(STANDARDS_DIR="$o" run review --root "$tsplit")"
+assert_eq "org REVIEW.md: each line a split code span covers is reported" "2|3|5|6|9" \
+  "$(STANDARDS_DIR="$o" errs review --root "$tsplit" | sed -n 's/^org-standards: .*REVIEW.md:\([0-9]*\): citation .*; line dropped$/\1/p' | paste -sd'|' -)"
+
+o="$TEST_TMPDIR/hidden-cite-org"
+mkdir -p "$o"
+# shellcheck disable=SC2016  # the backticks are the markdown code spans under test
+{
+  printf '# Org review\n'
+  printf -- '- zwsp `../secret.md\342\200\213#h`\n'
+  printf -- '- nbsp `../secret.md\302\240#h`\n'
+  printf -- '- joined word\302\240../x.md here\n'
+  printf -- '- pct `../secret%%2Emd#h` and [t](../secret.m%%64#h)\n'
+  printf -- '- dblpct `../secret%%252Emd#h`\n'
+  printf -- '- query `../secret.md?x#h`\n'
+  printf -- '- long `../a.markdown#h`\n'
+  printf -- '- bidi `../secret.md\342\200\256#h`\n'
+  printf -- '- angle [t](<../a b.md>)\n'
+  printf -- '- keeps `ok.md#h`\n'
+} >"$o/REVIEW.md"
+# shellcheck disable=SC2016  # the backticks are the markdown code span under test
+assert_eq "org REVIEW.md: an invisible or format character, an encoded or queried suffix, .markdown and an angle destination hide no citation" \
+  "$(printf '# Org review\n- keeps `ok.md#h`')" "$(STANDARDS_DIR="$o" run review --root "$tsplit")"
+
+o="$TEST_TMPDIR/c1-org"
+mkdir -p "$o"
+# shellcheck disable=SC2016  # the backticks are the markdown code span under test
+printf '# Org review\n- csi \302\233[31m red\n- cite `../a\302\233.md`\n' >"$o/REVIEW.md"
+assert_eq "org REVIEW.md: a C1 control character is escaped in the criteria and removed from the report" \
+  "$(printf '# Org review\n- csi \\x9b[31m red')|0" \
+  "$(STANDARDS_DIR="$o" run review --root "$tsplit")|$(STANDARDS_DIR="$o" errs review --root "$tsplit" | LC_ALL=C grep -c $'\302[\200-\237]')"
+
+export ORG_STANDARDS_CACHE="$TEST_TMPDIR/tab-cache"
+user_index "standards_repositories:
+  - repo: stranger/guide
+	  ref: $GUIDE
+  - repo: stranger/guide
+    ref: $GUIDE
+"
+tabbed=$(bash "$SCRIPT" subscriptions --root "$tp" 2>&1)
+assert_eq "a tab-indented line skips only its own entry, reported with its file and line" "1|1|0" \
+  "$(grep -c "^stranger/guide@$GUIDE	" <<<"$tabbed")|$(grep -c "^org-standards: $USER_INDEX:4: malformed subscription (tab indentation at line 5); entry skipped$" <<<"$tabbed")|$(grep -c 'subscriptions not read' <<<"$tabbed")"
+
 if [[ "$FAILED" -gt 0 ]]; then
   printf '%d test(s) failed\n' "$FAILED" >&2
   exit 1
