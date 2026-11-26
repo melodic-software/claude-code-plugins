@@ -109,36 +109,26 @@ h="$(make_head extra "${FORMATTED[@]}" tool/b.py 'x = 1 \n')"
 prove "$BASE" "$h"
 expect "one byte the formatter does not write is no proof" 1 "- tool/b.py: the formatted base differs from the head"
 
-fragment() { printf -- '---\nbump: %s\n---\n\n### Changed\n\n- %s\n' "$1" "${2:-Shell files reformatted with shfmt; no behavior change.}"; }
+fragment() { printf -- '---\nbump: %s\n---\n\n### Changed\n\n- %s\n' "$1" "${2:-Reformatted with the pinned shfmt and Ruff; no behavior change.}"; }
 FRAG=.changes/p/fmt-1234abcd.md
-h="$(make_head fragment "${FORMATTED[@]}" "$FRAG" "$(fragment patch)")"
+h="$(make_head fragment "${FORMATTED[@]}" "$FRAG" "$(fragment patch)\n")"
 prove "$BASE" "$h"
-expect "a valid patch fragment for a plugin with a reproduced file is accepted" 0 "1 changelog fragment(s) accepted"
-h="$(make_head fragment-none "${FORMATTED[@]}" "$FRAG" '---\nbump: none\n---\n\nFormatting only.\n')"
+expect "the fixed fragment for a plugin with a reproduced file is accepted" 0 "1 changelog fragment(s) accepted"
+h="$(make_head fragment-invalid "${FORMATTED[@]}" .changes/p/note.md "$(fragment patch)\n")"
 prove "$BASE" "$h"
-expect "a valid bump: none fragment is accepted" 0 "1 changelog fragment(s) accepted"
-h="$(make_head fragment-invalid "${FORMATTED[@]}" .changes/p/note.md 'note\n')"
-prove "$BASE" "$h"
-expect "a fragment the base's validator refuses is no proof" 1 \
+expect "the fixed fragment under a name the base's validator refuses is no proof" 1 \
   "- .changes/p/note.md: the base's fragment validator refuses it: FRAGMENT NAME"
-h="$(make_head fragment-body "${FORMATTED[@]}" "$FRAG" '---\nbump: patch\n---\n\nAnything at all.\n')"
-prove "$BASE" "$h"
-expect "a fragment body outside the validator's sections is no proof" 1 \
-  "- $FRAG: the base's fragment validator refuses it: FRAGMENT BODY"
-for bump in minor major; do
-  h="$(make_head "fragment-$bump" "${FORMATTED[@]}" "$FRAG" "$(fragment "$bump")")"
-  prove "$BASE" "$h"
-  expect "a bump: $bump fragment is no proof" 1 "- $FRAG: bump: $bump, past the patch a formatter-only change may release"
+for text in "$(fragment none)\n" "$(fragment minor)\n" "$(fragment patch 'Shell files reformatted with shfmt; no behavior change.')\n" "$(fragment patch)\nx"; do
+  h="$(make_head fragment-text "${FORMATTED[@]}" "$FRAG" "$text")"
+  prove --classify "$BASE" "$h"
+  expect "a fragment other than the fixed one is no proof before any tool runs" 1 \
+    "- $FRAG: a fragment other than the fixed formatter-only fragment"
 done
-h="$(make_head fragment-other "${FORMATTED[@]}" .changes/q/fmt-1234abcd.md "$(fragment patch)")"
+h="$(make_head fragment-other "${FORMATTED[@]}" .changes/q/fmt-1234abcd.md "$(fragment patch)\n")"
 prove "$BASE" "$h"
 expect "a fragment for a plugin with no reproduced file is no proof" 1 \
   "- .changes/q/fmt-1234abcd.md: no reproduced file belongs to q"
-big="$(fragment patch "$(printf 'x%.0s' {1..16384})")"
-h="$(make_head fragment-big "${FORMATTED[@]}" "$FRAG" "$big")"
-prove --classify "$BASE" "$h"
-expect "a fragment over the cap is no proof before any tool runs" 1 "- $FRAG: a fragment of ${#big} bytes, over the 16384-byte cap"
-h="$(make_head fragment-two "${FORMATTED[@]}" "$FRAG" "$(fragment patch)" .changes/p/fmt-5678ef01.md "$(fragment patch)")"
+h="$(make_head fragment-two "${FORMATTED[@]}" "$FRAG" "$(fragment patch)\n" .changes/p/fmt-5678ef01.md "$(fragment patch)\n")"
 prove --classify "$BASE" "$h"
 expect "a second fragment for one plugin is no proof before any tool runs" 1 \
   "- .changes/p/fmt-5678ef01.md: a second fragment for p, beside $FRAG"
@@ -146,7 +136,7 @@ expect "a second fragment for one plugin is no proof before any tool runs" 1 \
 h="$(make_head fragment-edit "${FORMATTED[@]}" .changes/p/note.txt 'note\n')"
 prove "$BASE" "$h"
 expect "a .changes file that is not a fragment .md is no proof" 1 ".changes/p/note.txt: a change under .changes/ other than one added fragment .md file"
-h="$(make_head fragment-dot "${FORMATTED[@]}" .changes/.p/fmt-1234abcd.md "$(fragment patch)")"
+h="$(make_head fragment-dot "${FORMATTED[@]}" .changes/.p/fmt-1234abcd.md "$(fragment patch)\n")"
 prove --classify "$BASE" "$h"
 expect "a fragment path with a dot-led component is no proof" 1 ".changes/.p/fmt-1234abcd.md: a change under .changes/ other than one added fragment .md file"
 

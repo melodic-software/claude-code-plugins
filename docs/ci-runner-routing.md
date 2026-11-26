@@ -75,7 +75,7 @@ On a ready pull request `ci-status` also requires both AI review lanes
 the head, in its `Require both review lanes on this head` step, with one
 exception: the formatter-only proof (owner decision, row L438 of
 docs/owner-decisions.md in the org's architecture repository,
-[the row](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md?plain=1#L438)).
+[the row](https://github.com/melodic-software/architecture/blob/733e2a74cbc650f9a5d21c0d8aefdfc5f0275ed0/docs/owner-decisions.md?plain=1#L438)).
 The `prove-formatting` job checks out the pull request's test merge commit,
 moves to its base, and runs
 `.github/scripts/pr-require-checks/formatter-proof.sh` from there: the base's
@@ -85,10 +85,12 @@ base's copy of each changed shell and Python file, then the base's
 `scripts/sync-shared-copies.sh` and `scripts/sync-hold-floor.py`. When that
 reproduces every changed file of the head byte for byte, with only added
 `.changes/<plugin>/*.md` fragments beside them, the step accepts the head
-without the lanes. A fragment counts only when the base's
-`changelog_fragments::validate` accepts it, its bump is `patch` or `none`,
-its plugin holds a reproduced file, and it is at most 16,384 bytes (the
-largest of the 12,259 fragments added on main up to 2026-11-25 is 16,170). A trust-gate path among the changed files (the step's
+without the lanes. A fragment counts only when its bytes are exactly the
+fixed one the script's usage text shows (`bump: patch` and "Reformatted with
+the pinned shfmt and Ruff; no behavior change."), so no author-written
+changelog text merges unreviewed; the base's `changelog_fragments::validate`
+accepts it; it is its plugin's only added fragment; and its plugin holds a
+reproduced file. A trust-gate path among the changed files (the step's
 `hold_patterns`, whoever the author) still needs a person on the trusted-actor
 list to approve the head. Any other file, an added, deleted or renamed file, a
 mode change, a byte the formatters do not write, a tool off its pin or a run
