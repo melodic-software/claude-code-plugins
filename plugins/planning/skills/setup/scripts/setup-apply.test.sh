@@ -258,7 +258,7 @@ CODE=$?
 check 'a failed write is a one-line refusal' one_line_refusal
 check 'a failed write removes the temp file' test -z "$(ls -A "$repo/docs/conventions")"
 
-preload() { # preload <name> <js line...>: writes $WORKROOT/<name>.cjs
+preload() {
   local name="$1"
   shift
   printf '%s\n' 'const fs = require("node:fs");' "$@" 'require("node:module").syncBuiltinESMExports();' >"$WORKROOT/$name.cjs"

@@ -965,7 +965,7 @@ print_queues() {
   echo
 }
 
-STUCK_PAGE_LIMIT=10 # 10 pages of 100 is the search ceiling
+STUCK_PAGE_LIMIT=10 # GitHub search returns at most 1,000 results: https://docs.github.com/en/graphql/reference/search#search
 fetch_stuck_label_gql() {
   local out="$1" label="$2" cursor="" args pages=0 esc search
   esc="${label//\"/\\\"}"
@@ -2097,7 +2097,7 @@ print_lanes() {
   echo
 }
 
-TOUCH_PAGE_LIMIT=20 # 20 pages of 50 is the search ceiling
+TOUCH_PAGE_LIMIT=20 # GitHub search returns at most 1,000 results: https://docs.github.com/en/graphql/reference/search#search
 TOUCH_TOP=10
 
 # shellcheck disable=SC2016  # GraphQL variables bound by -f, which MUST reach the server unexpanded
