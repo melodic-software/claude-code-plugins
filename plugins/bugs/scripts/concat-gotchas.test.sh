@@ -12,7 +12,6 @@ fi
 PASS=0
 FAIL=0
 
-# Fixture repos must never inherit the caller's git environment.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 NO_GIT=0

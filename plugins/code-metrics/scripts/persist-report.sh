@@ -1,19 +1,4 @@
 # shellcheck shell=bash
-# The directory is CODE_METRICS_REPORT_DIR when set (the suites point it at a
-# scratch directory), else <root>/<state-key>, where <root> is
-# <CLAUDE_PLUGIN_DATA>/reports when that value's last path segment names
-# code-metrics, else ~/.claude/plugins/data/code-metrics/reports (a
-# CLAUDE_PLUGIN_DATA seen here may be unset or name another plugin's data dir,
-# whose files the retention below must never prune; where the plugin variables
-# are exported is the pointer in skills/principles/SKILL.md#spoke-paths), and
-# <state-key> is what lib/state-key.sh prints for the working directory. One
-# project's runs share a directory, so the newest-CM_REPORTS_KEPT retention
-# counts per project. When the key cannot be derived the function says why on stderr and returns 1
-# rather than fall back to a directory shared by every project. A directory
-# that cannot be written is reported the same way; the caller then renders
-# without a path, and the cap line says to re-run with --json instead.
-# Loose <skill>-*.json files directly under <root> are named once on stderr
-# and never read, moved or pruned.
 
 CM_REPORTS_KEPT="${CM_REPORTS_KEPT:-20}"
 CM_PERSIST_SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"

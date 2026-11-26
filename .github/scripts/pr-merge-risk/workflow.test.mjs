@@ -193,7 +193,7 @@ test("the rating runs under dontAsk on the data directory and the review plugin'
     // None may name the workspace or the home whole: the workspace sits under it.
     assert.ok(!denied.some((rule) => ["Read(~/**)", "Read(./**)", "Read(//**)", "Read"].includes(rule)));
     assert.deepEqual(list(rate, "plugin-dirs"), [".lane/plugins/review"]);
-    assert.match(rate, /CLAUDE_CODE_SUBAGENT_MODEL_FORCE: \$\{\{ steps\.checker\.outputs\.force \}\}/);
+    assert.match(rate, /\n {10}CLAUDE_CODE_SUBAGENT_MODEL_FORCE: \$\{\{ steps\.data\.outputs\.chunks == '1' && steps\.checker\.outputs\.force \|\| '' \}\}\n/, "the checker model is forced on a one-chunk diff only");
     const order = [...stepsOf(id).keys()];
     assert.ok(order.indexOf("Apply the Claude managed settings") < order.indexOf("Isolate the runner"), id);
     assert.ok(order.indexOf("Isolate the runner") < order.indexOf("Rate the pull request"), id);
@@ -203,6 +203,21 @@ test("the rating runs under dontAsk on the data directory and the review plugin'
   // skill runs, so these deny rules, not the allow list, bound what it reads.
   assert.match(readFileSync(new URL("../../../plugins/review/skills/merge-risk/SKILL.md", import.meta.url), "utf8"), /^allowed-tools: \[[^\]]*"Read"/m);
   assert.match(text, /allow rules do not bound Read once the skill runs/);
+});
+
+test("every leg cuts the diff with no size refusal, runs every chunk's agents at once, and checks the rating against the parts it cut", () => {
+  for (const id of Object.values(LEGS)) {
+    const data = step(id, "Write the rating's data");
+    assert.doesNotMatch(data, /MAX_DIFF_BYTES/, id);
+    const coverage = /\n {10}COVERAGE_FILE: (.+)\n/.exec(data)?.[1];
+    assert.ok(coverage, id);
+    assert.equal(/\n {10}COVERAGE_FILE: (.+)\n/.exec(step(id, "Write the rating"))?.[1], coverage, id);
+    assert.match(step(id, "Rate the pull request"), /\n {10}CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: \$\{\{ steps\.data\.outputs\.agents \}\}\n/, id);
+    const prompt = step(id, "Write the prompt and schema");
+    assert.match(prompt, /\n {10}CHUNKS: \$\{\{ steps\.data\.outputs\.chunks \}\}\n {10}RATER_MODEL: \$\{\{ steps\.models\.outputs\.model \}\}\n {10}CHECKER_MODEL: \$\{\{ steps\.checker\.outputs\.model \}\}\n/, id);
+    assert.match(prompt, /node \.base\/\.github\/scripts\/pr-merge-risk\/prompt\.mjs\n/, id);
+    assert.match(step(id, "Write the rating"), /\n {10}CHUNKS: \$\{\{ steps\.data\.outputs\.chunks \}\}\n {10}CHECKER_MODEL: \$\{\{ steps\.checker\.outputs\.model \}\}\n/, id);
+  }
 });
 
 test("the names the arm side reads match merge-risk-line.mjs", () => {

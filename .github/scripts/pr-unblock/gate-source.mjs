@@ -34,6 +34,7 @@ const ANY_ESCALATION = "<!-- work-items:escalation";
 // App after each round it works on an escalated PR.
 export const ROUND_MARKER = "<!-- pr-unblock:address-feedback-round -->";
 export const MODEL_RUN = /^<!-- pr-unblock:address-feedback-model-run \S+ -->$/;
+export const HOLD_REASON = /^<!-- stop-reason lane=pr-unblock reason=(?:intent|design|security|cost) -->$/;
 export const CLEARED = /^<!-- pr-pipeline needs-human-cleared reason=[a-z,-]+ head=[0-9a-f]{40} -->$/;
 // report-escalation.sh's comment for a fail-routed stop, one per activity,
 // edited in place; it adds no label.
@@ -211,7 +212,8 @@ export function gateSource(args) {
   if (escalations.length === 0 || !(escalations[0].at - since <= PAIRED_MS)) {
     return result("unknown", `no lane escalation by the lanes App right after it added ${label}`);
   }
-  const known = (line) => line === ESCALATION || RESUME_KEY.test(line) || line === ROUND_MARKER || MODEL_RUN.test(line) || LANE_STOPPED.test(line);
+  const known = (line) =>
+    line === ESCALATION || RESUME_KEY.test(line) || HOLD_REASON.test(line) || line === ROUND_MARKER || MODEL_RUN.test(line) || LANE_STOPPED.test(line);
   const malformed = appComments
     .filter((item) => writtenSince(item, since))
     .map((item) => lines(item.body))

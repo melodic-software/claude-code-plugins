@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Expected values: goimports -format-only, https://github.com/golang/tools/blob/master/cmd/goimports/goimports.go
 # test-scope: plugins/go-format/git-hooks/entries.json plugins/go-format/git-hooks/adapters.sh
 # test-scope: plugins/go-format/lib/git-hooks/check-lib.sh plugins/go-format/lib/git-hooks/install.mjs
 # test-scope: plugins/go-format/lib/git-hooks/resolve-tool.sh plugins/go-format/.claude-plugin/plugin.json

@@ -42,8 +42,6 @@ describe("buildTranscriptText", () => {
   });
 
   it("drops two words a rolling caption carries into the next paragraph's cue", () => {
-    // The 51Eb4EtGqrI shape (#6992): the cue opening the new paragraph starts
-    // with the previous cue's closing words verbatim.
     const autoVtt = `WEBVTT
 
 00:00:01.000 --> 00:00:03.000

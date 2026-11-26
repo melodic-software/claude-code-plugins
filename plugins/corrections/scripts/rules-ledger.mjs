@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// Exit: 0 complete, 1 a rule unaccounted for (one stderr line each), 2 usage or unreadable input.
 import { readFileSync } from "node:fs";
 
 const CHECKING_RUNGS = [

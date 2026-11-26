@@ -193,12 +193,6 @@ out=$(run_check 2>&1)
 assert_exit "trailing space on recorded SHA: exit 0" 0 "$?"
 UPSTREAM_MD="$FIXTURE_UP"
 
-# --- 9. --apply end to end, with firecrawl, npm, curl and uname stubbed ---------------
-# A copy of the script runs in a fixture skill directory, so nothing can reach the
-# real upstream.md. npm's layout in the stubs is its documented one: global
-# executables go in {prefix}/bin on Unix and directly in {prefix} on Windows
-# (https://docs.npmjs.com/cli/v11/configuring-npm/folders#executables).
-
 APPLY="$TEST_TMPDIR/apply"
 APPLY_SCRIPT="$APPLY/skill/scripts/update.sh"
 APPLY_RECORD="$APPLY/skill/upstream.md"
@@ -341,7 +335,6 @@ assert_apply_wrote_nothing "version unchanged after install"
 assert_contains "version unchanged after install: names the version it read" "$apply_out" "reports 1.0.0"
 assert_contains "version unchanged after install: names the expected version" "$apply_out" "2.0.0"
 
-# Git Bash: the prefix prints as a CRLF-terminated Windows path and is the bin itself.
 WINDOWS_PREFIX=$'C:\\fixture\\npm\r'
 reset_apply "1.0.0"
 place_firecrawl "$APPLY/prefix"

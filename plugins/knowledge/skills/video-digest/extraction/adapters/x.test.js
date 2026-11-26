@@ -30,8 +30,6 @@ const REFUSAL_STDERR = `ERROR: No suitable extractor found for URL ${REFUSED_URL
 
 const TWID = "1720000000000000000";
 const STATUS_URL = `https://x.com/someuser/status/${TWID}`;
-// Media ids are snowflakes too: minted 60 s before the post (normal composition
-// lag) vs 3 days before (quote/retweet aliasing).
 const MEDIA_ID = String(BigInt(TWID) - (60_000n << 22n));
 const OLD_MEDIA_ID = String(BigInt(TWID) - (259_200_000n << 22n));
 const RETWEET_MEDIA_ID = String(BigInt(TWID) - (604_800_000n << 22n));
@@ -43,8 +41,6 @@ const CLEAN_VTT = `WEBVTT
 hello from x
 `;
 
-// Real live tag shape (probed 2026-08-15): one tag per cue wrapping the text,
-// with per-word ms durations and inclusive character ranges as attributes.
 const TAGGED_VTT = `WEBVTT
 
 00:00:00.000 --> 00:00:02.000
@@ -322,9 +318,6 @@ describe("x error-pattern taxonomy", () => {
   });
 
   it("an attacker-influenced URL echoed on stderr can never classify as login-required", () => {
-    // The refusal/unsupported line carries a URL the post author chose; the
-    // login-required patterns are anchored to [twitter]-tagged ERROR lines, so
-    // these classify fatal (the Unsupported URL pattern), never login-required.
     for (const detail of [
       "ERROR: [generic] Unsupported URL: https://evil.example/not-authorized-content",
       "ERROR: Unsupported URL: https://evil.example/NSFW%20tweet%20requires%20authentication",
@@ -745,8 +738,6 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
           [`${MEDIA_ID}.en.vtt`]: TAGGED_VTT,
         },
       },
-      // Exit 0, but yt-dlp wrote nothing for the post's media — a silent
-      // no-op cleanup must fail loud, never continue with lost captions.
       { addFiles: {} },
     ]);
     const result = await acquireXMedia(STATUS_URL, { workDir, mode: "full", deps });

@@ -83,7 +83,7 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         if bounds:
             typ = f"{typ}<br>*{', '.join(bounds)}*"
         default = spec.get("default", "")
-        default = "*(none)*" if default == "" else f"`{json.dumps(default)}`"
+        default = "*(none)*" if default == "" else "`" + json.dumps(default).replace("|", "\\|") + "`"
         desc = " ".join(str(spec.get("description", spec.get("title", ""))).split())
         desc = desc.replace("|", "\\|").replace("[", "\\[").replace("]", "\\]")
         if spec.get("sensitive"):
