@@ -38,6 +38,7 @@ MERGED_JSON=""
 STRANDED_DAYS="3"
 LANDED_SAMPLE=""
 STRANDED_READ_CUTOFF=""
+AGENT_DECIDED_JSON=""
 STUCK_DAYS="7"
 STUCK_LIMIT="20"
 STUCK_JSON=""
@@ -125,7 +126,7 @@ Usage: morning-brief.sh [options]
   --config-home DIR                 convention home holding work-items.yaml
   --help                            print this help
 Fixture flags (skip the network): --now, --counts-json, --repo-labels-json, --pr-json, --behind-json,
-  --decisions-json, --telemetry-json, --merged-json, --stuck-json, --touch-json, --status-json,
+  --decisions-json, --telemetry-json, --merged-json, --agent-decided-json, --stuck-json, --touch-json, --status-json,
   --lane-runs-json, --lane-annotations-json, --billing-usage-json, --billing-budgets-json, --azure-json, --org-scan-json
 
 Exit 0 every section read; 3 invalid argument; 4 gh or jq missing, or no repo; 5 every section unreadable;
@@ -262,6 +263,7 @@ while (($# > 0)); do
   --decisions-json) take file DECISIONS_JSON "$@" ;;
   --telemetry-json) take file TELEMETRY_JSON "$@" ;;
   --merged-json) take file MERGED_JSON "$@" ;;
+  --agent-decided-json) take file AGENT_DECIDED_JSON "$@" ;;
   --stuck-json) take file STUCK_JSON "$@" ;;
   --touch-json) take file TOUCH_JSON "$@" ;;
   --status-json) take file STATUS_JSON "$@" ;;
@@ -467,6 +469,7 @@ NEEDS_LIVE_TELEMETRY=0
 NEEDS_LIVE_MERGED=0
 NEEDS_LIVE_STUCK=0
 NEEDS_LIVE_TOUCH=0
+NEEDS_LIVE_AGENT_DECIDED=0
 [[ -z "$COUNTS_JSON" ]] && NEEDS_LIVE_COUNTS=1
 [[ -z "$PR_JSON" ]] && NEEDS_LIVE_PRS=1
 [[ -z "$DECISIONS_JSON" ]] && NEEDS_LIVE_DECISIONS=1
@@ -474,6 +477,7 @@ NEEDS_LIVE_TOUCH=0
 [[ -z "$MERGED_JSON" ]] && NEEDS_LIVE_MERGED=1
 [[ -z "$STUCK_JSON" ]] && NEEDS_LIVE_STUCK=1
 [[ -z "$TOUCH_JSON" ]] && NEEDS_LIVE_TOUCH=1
+[[ -z "$AGENT_DECIDED_JSON" ]] && NEEDS_LIVE_AGENT_DECIDED=1
 
 LABELS_CAPPED=0
 fetch_repo_labels_gql() {
@@ -525,7 +529,7 @@ if ((NEEDS_LIVE_DECISIONS)) && [[ -n "$REPO_LABELS_JSON" ]]; then
     label_exists_in_repo "$DECISION_LABEL" "$WORK/probe-labels.json" || NEEDS_LIVE_DECISIONS=0
   fi
 fi
-ANY_LIVE=$((NEEDS_LIVE_COUNTS || NEEDS_LIVE_PRS || NEEDS_LIVE_DECISIONS || NEEDS_LIVE_TELEMETRY || ((NEEDS_LIVE_MERGED || NEEDS_LIVE_STUCK || NEEDS_LIVE_TOUCH) && ${#REPO} > 0)))
+ANY_LIVE=$((NEEDS_LIVE_COUNTS || NEEDS_LIVE_PRS || NEEDS_LIVE_DECISIONS || NEEDS_LIVE_TELEMETRY || ((NEEDS_LIVE_MERGED || NEEDS_LIVE_STUCK || NEEDS_LIVE_TOUCH || NEEDS_LIVE_AGENT_DECIDED) && ${#REPO} > 0)))
 if ((ANY_LIVE)) && ! have gh; then
   printf 'morning-brief: gh required for live queries (pass fixtures to run offline)\n' >&2
   exit 4
@@ -567,7 +571,7 @@ REPO_ARGS=()
 if [[ -n "$REPO" ]]; then
   REPO_ARGS=(--repo "$REPO")
 else
-  NEEDS_LIVE_MERGED=0 NEEDS_LIVE_STUCK=0 NEEDS_LIVE_TOUCH=0
+  NEEDS_LIVE_MERGED=0 NEEDS_LIVE_STUCK=0 NEEDS_LIVE_TOUCH=0 NEEDS_LIVE_AGENT_DECIDED=0
 fi
 
 to_epoch() {
@@ -650,7 +654,7 @@ resolve_queue_labels
 
 STUCK_LABELS=("${QUEUE_LABELS[@]}")
 
-SECTIONS_TOTAL=10
+SECTIONS_TOTAL=11
 UNREADABLE=0
 UNREADABLE_NAMES=()
 
@@ -966,33 +970,35 @@ print_queues() {
 }
 
 STUCK_PAGE_LIMIT=10 # GitHub search returns at most 1,000 results: https://docs.github.com/en/graphql/reference/search#search
-fetch_stuck_label_gql() {
-  local out="$1" label="$2" cursor="" args pages=0 esc search
-  esc="${label//\"/\\\"}"
-  search="repo:$REPO is:open label:\"$esc\""
+fetch_search_gql() {
+  local out="$1" query="$2" search="$3" what="$4" cursor="" args pages=0
   : >"$out"
   while :; do
-    args=(api graphql -f query="$STUCK_QUERY" -f search="$search")
+    args=(api graphql -f query="$query" -f search="$search")
     [[ -n "$cursor" ]] && args+=(-f endCursor="$cursor")
-    gh_read "$WORK/stuck.page" "${args[@]}" || return 1
-    cat "$WORK/stuck.page" >>"$out"
+    gh_read "$WORK/search.page" "${args[@]}" || return 1
+    cat "$WORK/search.page" >>"$out"
     pages=$((pages + 1))
     cursor="$(jq -r '
       .data.search.pageInfo
       | if .hasNextPage != true then ""
         elif .endCursor == null then "!"
         else .endCursor end
-    ' "$WORK/stuck.page" 2>/dev/null)" || {
-      LAST_ERR="could not parse a stuck-item page"
+    ' "$WORK/search.page" 2>/dev/null)" || {
+      LAST_ERR="could not parse a $what page"
       return 1
     }
     [[ "$cursor" != "!" ]] || {
-      LAST_ERR="a stuck-item page reported more results but no cursor to them"
+      LAST_ERR="a $what page reported more results but no cursor to them"
       return 1
     }
     [[ -n "$cursor" ]] || return 0
     ((pages >= STUCK_PAGE_LIMIT)) && return 0
   done
+}
+
+fetch_stuck_label_gql() {
+  fetch_search_gql "$1" "$STUCK_QUERY" "repo:$REPO is:open label:\"${2//\"/\\\"}\"" stuck-item
 }
 
 # shellcheck disable=SC2016  # $search/$endCursor are GraphQL variables bound by -f, and MUST reach the server unexpanded
@@ -1790,6 +1796,126 @@ print_landed() {
   echo "$landed"
   if [[ -n "$stamp" ]] && ! save_bookmark "$stamp" "$(from_epoch "$NOW_EPOCH")"; then
     echo "  landed_at not saved under the data dir; the next run reads back to this cutoff"
+  fi
+  echo
+}
+
+AGENT_DECIDED_LABEL="agent-decided"
+AGENT_DECISION_OPENER='**Agent decision recorded.**'
+
+# shellcheck disable=SC2016  # $search/$endCursor are GraphQL variables bound by -f, and MUST reach the server unexpanded
+AGENT_DECIDED_QUERY='
+    query($search:String!, $endCursor:String) {
+      search(query:$search, type:ISSUE, first:50, after:$endCursor) {
+        issueCount
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          ... on Issue {
+            number title url
+            timelineItems(itemTypes:[LABELED_EVENT], last:100) { nodes { ... on LabeledEvent { createdAt label { name } } } }
+            comments(last:100) { nodes { url createdAt body author { login } } }
+          }
+        }
+      }
+    }'
+
+# shellcheck disable=SC2016  # jq program, not shell
+AGENT_DECIDED_JQ='
+  def norm: ascii_downcase | sub("\\[bot\\]$"; "");
+  if ([ .. | objects | select(has("data")) | .data.search | objects ] | length) == 0 then error("no page") else . end
+  | [ .. | objects | select(has("data")) | .data.search.nodes[]? | select(type == "object" and .number != null) ]
+  | unique_by(.number)
+  | map({ number, url,
+          title: ((.title // "") | gsub("[\\r\\n]+"; " ")),
+          at: ([ .timelineItems.nodes[]? | select((.label.name // "" | ascii_downcase) == $label and .createdAt != null) | .createdAt ] | max),
+          link: ([ .comments.nodes[]?
+                   | select($lane != "" and ((.author.login // "") | norm) == ($lane | norm)
+                       and (((.body // "") + "\n") | split("\n")[0] | rtrimstr("\r")) == $opener) ]
+                 | sort_by(.createdAt) | last | .url // null) })
+  | ([ .[] | select(.at != null and (.at | fromdateiso8601) >= $cutoff) ] | sort_by(.at, .number)) as $in
+  | ([ .[] | select(.at == null) | "#\(.number)" ]) as $unknown
+  | ( if ($in | length) == 0 then "  (none — no issue was labeled \($label) in the window)"
+      else ( $in[] | "  #\(.number) \(.title)  labeled \(.at)\n    \(.link // "no lanes App \($opener) comment found; listed without a link")" ),
+        "  to override one: a **Decision recorded.** comment from the owner sends the issue back to triage"
+      end ),
+    ( if ($unknown | length) > 0 then "  PARTIAL: no \($label) labeled event among the last 100 label events of \($unknown | join(" ")); not placed in the window" else empty end ),
+    ( if $capped then "  PARTIAL: a search read fewer issues than it counted; an issue past its cap is not shown" else empty end )
+'
+# shellcheck disable=SC2016  # jq program, not shell
+AGENT_DECIDED_CAPPED='[ .. | objects | select(has("data")) | .data.search | objects ] as $p | ($p[0].issueCount // 0) > ([ $p[].nodes[]? ] | length)'
+
+print_agent_decided() {
+  local cutoff=$((NOW_EPOCH - 86400)) window="first read on this machine: last 1d" stamp="" mark mark_epoch
+  local pages="$WORK/agent-decided.pages" part="$WORK/agent-decided.part" lane_id="$LANE_IDENTITY_ARG" err out since state over_cap=false
+  if [[ -z "$AGENT_DECIDED_JSON" && -n "$REPO" ]]; then
+    stamp="$(stranded_bookmark_path)"
+    [[ -n "$stamp" ]] && stamp="${stamp%/*}/agent-decided-at"
+    if [[ -n "$stamp" && -f "$stamp" ]]; then
+      mark="$(tr -d '[:space:]' <"$stamp")"
+      mark_epoch="$(to_epoch "$mark")"
+      if [[ -n "$mark_epoch" ]]; then
+        cutoff=$mark_epoch
+        window="since agent_decided_at"
+      else
+        window="agent_decided_at unparsable, ignored: last 1d"
+      fi
+    fi
+  fi
+  echo "== Agent-decided (labeled $AGENT_DECIDED_LABEL since $(utc_stamp "$cutoff"): $window) =="
+  if [[ -n "$AGENT_DECIDED_JSON" ]]; then
+    err="$(body_error "$AGENT_DECIDED_JSON")"
+    if [[ -n "$err" ]]; then
+      unreadable agent-decided "$err"
+      return
+    fi
+    jq -e 'type == "object"' "$AGENT_DECIDED_JSON" >/dev/null 2>&1 || {
+      unreadable agent-decided "--agent-decided-json is not an object {laneIdentity, pages}"
+      return
+    }
+    [[ -n "$lane_id" ]] || lane_id="$(jq -r '.laneIdentity // empty' "$AGENT_DECIDED_JSON")"
+    jq -c '.pages // []' "$AGENT_DECIDED_JSON" >"$pages"
+    jq -s -e "$AGENT_DECIDED_CAPPED" "$pages" >/dev/null 2>&1 && over_cap=true
+  elif [[ -z "$REPO" ]]; then
+    echo "  (no repo resolved — pass --repo or --agent-decided-json)"
+    echo
+    return
+  elif [[ "$TRANSPORT" == "rest" ]]; then
+    unreadable agent-decided "label events need GraphQL, which this session does not serve"
+    return
+  else
+    if [[ -z "$lane_id" ]]; then
+      fetch_pipeline || {
+        unreadable agent-decided "lane identity (docs/conventions/pr-pipeline.yaml): $LAST_ERR"
+        return
+      }
+      lane_id="$(fetch_lane_identity)"
+    fi
+    since="$(gql_stamp "$cutoff" 00)"
+    : >"$pages"
+    for state in "is:open" "is:closed closed:>=${since%Z}+00:00"; do
+      fetch_search_gql "$part" "$AGENT_DECIDED_QUERY" "repo:$REPO is:issue $state label:\"$AGENT_DECIDED_LABEL\"" agent-decided || {
+        graphql_blocked "$LAST_ERR" && TRANSPORT="rest"
+        unreadable agent-decided "$LAST_ERR"
+        return
+      }
+      jq -s -e "$AGENT_DECIDED_CAPPED" "$part" >/dev/null 2>&1 && over_cap=true
+      cat "$part" >>"$pages"
+    done
+  fi
+  out="$(jq -s -r --arg label "$AGENT_DECIDED_LABEL" --arg opener "$AGENT_DECISION_OPENER" --arg lane "$lane_id" \
+    --argjson cutoff "$cutoff" --argjson capped "$over_cap" "$AGENT_DECIDED_JQ" "$pages" 2>/dev/null)" || {
+    unreadable agent-decided "could not parse the agent-decided search pages"
+    return
+  }
+  echo "$out"
+  [[ -n "$lane_id" ]] ||
+    echo "  no lane identity (merge.agent-identity in docs/conventions/pr-pipeline.yaml, or --lane-identity): issues are listed without links"
+  if [[ -n "$stamp" ]]; then
+    if grep -q '^  PARTIAL:' <<<"$out"; then
+      echo "  agent_decided_at not advanced: this read is PARTIAL"
+    elif ! save_bookmark "$stamp" "$(from_epoch "$NOW_EPOCH")"; then
+      echo "  agent_decided_at not saved under the data dir; the next run reads back to this cutoff"
+    fi
   fi
   echo
 }
@@ -2890,6 +3016,7 @@ print_decisions >"$WORK/s3"
 print_telemetry >"$WORK/s4"
 print_stranded >"$WORK/s5"
 print_landed >"$WORK/s5b"
+print_agent_decided >"$WORK/s5c"
 print_lanes >"$WORK/s6"
 print_touches >"$WORK/s6b"
 print_cost >"$WORK/s7"
@@ -2901,7 +3028,7 @@ if ((UNREADABLE > 0)); then
   echo "  $UNREADABLE of $SECTIONS_TOTAL sections unreadable: ${UNREADABLE_NAMES[*]}"
 fi
 echo
-cat "$WORK/s1" "$WORK/s1b" "$WORK/s2" "$WORK/s3" "$WORK/s4" "$WORK/s5" "$WORK/s5b" "$WORK/s6" "$WORK/s6b" "$WORK/s7"
+cat "$WORK/s1" "$WORK/s1b" "$WORK/s2" "$WORK/s3" "$WORK/s4" "$WORK/s5" "$WORK/s5b" "$WORK/s5c" "$WORK/s6" "$WORK/s6b" "$WORK/s7"
 
 if ((UNREADABLE - COST_LOST >= SECTIONS_TOTAL - 1 && !COST_HAS_DATA)); then
   exit 5
