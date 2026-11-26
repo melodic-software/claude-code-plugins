@@ -1,6 +1,6 @@
 # Resolve plugin settings through one four-layer cascade and a bound convention home
 
-- Status: accepted; amended 2026-10-24 (the convention-home bullet on always-loaded content, see the amendment below); the D100 floor is narrowed by `limits.fix-docs-per-run` in [`pr-pipeline.yaml`](../conventions/pr-pipeline.yaml)
+- Status: accepted; amended 2026-10-24 (the convention-home bullet on always-loaded content, see the amendment below); the D100 floor is narrowed by the owner approval and tighten-only skip the [PR pipeline convention](../conventions/pr-pipeline/README.md#owner-pull-requests) records
 - Date: 2026-10-18
 - Supersedes: ADR 0061 (retired) for its layers and paths (the five-layer list, the user-global `~/docs/conventions/` layer and its
   "lower layer keeps the key" invalid-value rule);

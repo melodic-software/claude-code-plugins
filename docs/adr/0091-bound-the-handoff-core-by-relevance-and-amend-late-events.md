@@ -59,6 +59,8 @@ take in late events (owner, 2026-11-07).
 - Size stays the writer's judgment of relevance, checked for losslessness by `validate`; a wrong
   relevance call is recoverable from the archive file the pointer names.
 - `amend` never blocks on a size finding, so a late event is never lost to the cap.
-- The resume eval reruns on this change, with two cases that grade the new
+- The resume eval reruns on this change, as its
+  [re-run trigger](../../plugins/session-flow/evals/resume-eval.md#when-and-how-to-re-run)
+  requires, with two cases that grade the new
   read path: a writer keeping a still-binding amendment, and a reader answering from a retired
   entry.

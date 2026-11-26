@@ -16,9 +16,8 @@ named nowhere in the official documentation or the changelog.
 ## Decision
 
 **Defer.** Claude Code mods are not adopted, and no plugin under `plugins/` gains a `modules` key or
-depends on `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS`. Defer rather than decline, in the sense
-ADR 0020 (retired) uses it: the question stays open behind an explicit trigger instead of being closed or silently
-dropped. The surface fails the Native-first gate's second test ("is stable and works cleanly") and
+depends on `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS`. Defer rather than decline: the question stays
+open behind an explicit trigger instead of being closed or silently dropped. The surface fails the Native-first gate's second test ("is stable and works cleanly") and
 stops there, on Anthropic's own wording: `mods/README.md` says the interface "may change between
 releases without notice" (`SOURCE`).
 
@@ -58,8 +57,7 @@ in `package.json` is not changed by this work.
 **No reusable feature-deep-dive skill is built.** Five of the six steps in this deep dive were
 already owned by existing skills; the one unowned step is arbitration into the philosophy tables.
 A dated run record of the procedure is written instead, and the skill decision is taken on the
-second or third example, following the default-REJECT posture of
-ADR 0021 (retired).
+second or third example, following a default-REJECT posture.
 
 ## The five go criteria
 

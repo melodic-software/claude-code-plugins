@@ -743,8 +743,14 @@ unappliable patch posts the `pr-refine / apply-patch` check neutral `awaiting-hu
 nothing. Every job trusts the default branch tip (`trusted-base: default-tip`). `fix-docs` routes
 to the `docs-fix` profile ([Models](#models)).
 
-CI `fix-docs` runs on every pull request not tidied in its own run. The skip
-reads the base config's tidy cutoffs when it dispatches, not the ones the lane run used.
+CI `fix-docs` runs on every pull request not tidied in its own run. That narrows the D100 floor
+([#7576](https://github.com/melodic-software/claude-code-plugins/issues/7576), CI `fix-docs` off),
+by the owner's approval, verbatim: "Approve D100 reversal: CI fix-docs on for PRs not tidied in
+their own run ([#13818](https://github.com/melodic-software/claude-code-plugins/issues/13818))".
+It skips a `work-resolve-issue` pull request whose head is still the lane run's one API commit and
+whose change is within the tidy cutoffs; D100 stays a fixed floor for that skip, which may only be
+tightened. The skip reads the base config's tidy cutoffs when it dispatches, not the ones the
+lane run used.
 `limits.fix-docs-per-run` is `2` here; each event offers one pull request, so any value from `1`
 up turns its dispatch on. At `0` the dispatcher logs
 `fix-docs is off (fix-docs-per-run: 0)`, sends nothing and makes no GitHub call for it.
