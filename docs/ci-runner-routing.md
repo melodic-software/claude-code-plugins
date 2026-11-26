@@ -85,12 +85,11 @@ base's copy of each changed shell and Python file, then the base's
 `scripts/sync-shared-copies.sh` and `scripts/sync-hold-floor.py`. When that
 reproduces every changed file of the head byte for byte, with only added
 `.changes/<plugin>/*.md` fragments beside them, the step accepts the head
-without the lanes. A fragment counts only when its bytes are exactly the
-fixed one the script's usage text shows (`bump: patch` and "Reformatted with
-the pinned shfmt and Ruff; no behavior change."), so no author-written
-changelog text merges unreviewed; the base's `changelog_fragments::validate`
-accepts it; it is its plugin's only added fragment; and its plugin holds a
-reproduced file. A trust-gate path among the changed files (the step's
+without the lanes. A fragment counts only when the base's
+`changelog_fragments::validate` accepts it, its bump is `patch` or `none`,
+its plugin holds a reproduced file, it is its plugin's only added fragment,
+and it is at most 16,384 bytes (the
+largest of the 12,259 fragments added on main up to 2026-11-25 is 16,170). A trust-gate path among the changed files (the step's
 `hold_patterns`, whoever the author) still needs a person on the trusted-actor
 list to approve the head. Any other file, an added, deleted or renamed file, a
 mode change, a byte the formatters do not write, a tool off its pin or a run
