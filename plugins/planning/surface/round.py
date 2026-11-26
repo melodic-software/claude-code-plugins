@@ -10,8 +10,8 @@ ops, and supersede and resolve read their text from a file.
   add             add a question from --file JSON; --id, --group, --stage, --round, --depends,
                   --follow-up-of, --supersedes and --waiting override its fields
   add-round       add several groups, questions and visuals from one JSON file, in one write; a round
-                  with questions carries a `restate` ({text: at most 3 sentences, open: [ids],
-                  optional decided: [ids]}) the page pins above its first question; meta.kind "sweep"
+                  with questions carries a `restate` ({text: at most 3 sentences, decided: [ids],
+                  open: [ids]}) the page pins above its first question; meta.kind "sweep"
                   marks a sweep round, and a question's `reconciles` names the earlier
                   questions whose answers it reconciles;
                   --sync-ledger F then syncs F's register rows, --check writes nothing
@@ -1013,7 +1013,7 @@ def checked_round_restate(restate):
         sys.exit(
             "refused: a round with questions needs a restate: "
             '{"text": "<=3 sentences: what is decided, which branches are open, what this '
-            'round turns on", "open": [ids]} (G7; "decided": [ids] is optional)'
+            'round turns on", "decided": [ids], "open": [ids]} (G7)'
         )
     extra = sorted(set(restate) - {"text", "decided", "open"})
     if extra:
@@ -1029,7 +1029,7 @@ def checked_round_restate(restate):
         )
     out = {"text": text}
     for key in ("decided", "open"):
-        ids = restate.get(key, [] if key == "decided" else None)
+        ids = restate.get(key)
         if not isinstance(ids, list) or not all(isinstance(i, str) and i for i in ids):
             sys.exit(f"refused: restate {key} is a list of question ids (G7)")
         out[key] = list(dict.fromkeys(ids))

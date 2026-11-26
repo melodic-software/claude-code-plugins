@@ -332,7 +332,7 @@ LC_ALL=C awk '
     return line ~ /^[^ -~]*[ \t]*(\*\*|__)?(My recommendation|Withheld|Discovery|Strong answer|No recommendation)(\*\*|__)?:/
   }
   function header_ok(line) {
-    return line ~ /^[^ -~]*[ \t]*(\*\*|__)?(Scope check|Wayfind|Open|Next round|Later|Term)( \([^)]*\))?(\*\*|__)?:/
+    return line ~ /^[^ -~]*[ \t]*(\*\*|__)?(Scope check|Wayfind|Open|Next round( \([^)]*\))?|Later|Term)(\*\*|__)?:/
   }
   # A line shaped like a label: up to four words, the first capitalized, then `:`.
   function label_shaped(line) {

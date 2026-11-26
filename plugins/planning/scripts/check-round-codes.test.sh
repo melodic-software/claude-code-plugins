@@ -394,6 +394,12 @@ round single-two-lines.md '### Round 2' 'The retry budget is three tries.' 'Next
 runx "under single pacing a second plain line after the restate fails" 1 ledger.md single-two-lines.md '^extra=3:single-header$' --pacing single
 round single-late-line.md '### Round 2' "$SCOPE_LINE" 'The retry budget is three tries.' '' "${Q4_BLOCK[@]}"
 runx "under single pacing a plain line after the Scope check: line fails" 1 ledger.md single-late-line.md '^extra=3:single-header$' --pacing single
+round single-later-paren.md '### Round 2' "$SCOPE_LINE" 'Later (after this round): replay controls' '' "${Q4_BLOCK[@]}"
+runx "under single pacing a parenthesized Later line fails" 1 ledger.md single-later-paren.md '^extra=3:single-header$' --pacing single
+round single-term-paren.md '### Round 2' "$SCOPE_LINE" 'Term (agreed): retry budget, the tries a delivery gets before it stops' '' "${Q4_BLOCK[@]}"
+runx "under single pacing a parenthesized Term line fails" 1 ledger.md single-term-paren.md '^extra=3:single-header$' --pacing single
+round single-scope-paren.md '### Round 2' "$SCOPE_LINE" 'Scope check (draft): 5 of 27 questions registered' '' "${Q4_BLOCK[@]}"
+runx "under single pacing a second, parenthesized Scope check line fails" 1 ledger.md single-scope-paren.md '^extra=3:single-header$' --pacing single
 out="$(bash "$SUT" --ledger "$TMP/ledger.md" --pacing sometimes "$TMP/single-header.md" 2>&1)"
 got=$?
 if [[ "$got" -eq 2 ]]; then

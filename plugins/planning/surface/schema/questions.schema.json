@@ -33,7 +33,7 @@
           },
           "restate": {
             "type": "object",
-            "required": ["text", "open"],
+            "required": ["text", "decided", "open"],
             "additionalProperties": false,
             "properties": {
               "text": {"type": "string"},

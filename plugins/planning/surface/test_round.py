@@ -3996,6 +3996,23 @@ class TestDoctor(DirCase):
         self.assertNotIn("missing:", out)
         self.assertNotIn("note:", out)
 
+    def test_a_constraint_free_ledger_copied_from_the_template_exits_zero(self):
+        doc = self.doc()
+        for q in doc["questions"]:
+            q["facts"] = "Checked against: none\n\nWhat the code does."
+        doc["meta"]["pluginVersion"] = self.running()
+        self.write_doc(doc)
+        template = (
+            HERE.parent / "skills" / "interview" / "templates" / "checklist.md"
+        ).read_text(encoding="utf-8")
+        copied = template[template.index("Planning version:"):]
+        copied = re.sub(r"^Planning version: .*$", f"Planning version: {self.running()}",
+                        copied, count=1, flags=re.M)
+        self.assertNotRegex(copied, r"(?m)^- C\d+ \|", "the copy records no constraint")
+        rc, out, err = self.rp("doctor", "--ledger", self.ledger(copied))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("missing:", out)
+
     def test_an_answered_question_is_not_checked(self):
         doc = self.doc()
         for q in doc["questions"]:
@@ -6411,22 +6428,34 @@ class TestAddRoundCap(DirCase):
         self.assertIn("--cap must be 1 or more", out)
 
 
-class TestRestateWithoutDecided(DirCase):
-    """The page restate needs only text and open; decided stays optional."""
+class TestRestateDecided(DirCase):
+    """The page restate needs text, decided and open (G7); decided may be empty."""
 
-    def test_a_restate_with_no_decided_list_is_posted(self):
+    def test_a_restate_with_an_empty_decided_list_is_posted(self):
         spec = {
             "questions": [question("Q4", round=2, dependsOn=[])],
-            "restate": {"text": "Q4 is open. The round turns on it.", "open": ["Q4"]},
+            "restate": {"text": "Q4 is open. The round turns on it.", "decided": [], "open": ["Q4"]},
         }
         path = self.tmp / "restate.json"
         path.write_text(json.dumps(spec), encoding="utf-8")
         rc, out, err = self.rp("add-round", "--file", str(path))
         self.assertEqual(rc, 0, out + err)
         (entry,) = self.doc()["rounds"]
+        self.assertEqual(entry["restate"]["decided"], [])
         self.assertEqual(entry["restate"]["open"], ["Q4"])
         rc, out, err = self.rp("validate")
         self.assertEqual(rc, 0, out + err)
+
+    def test_a_restate_with_no_decided_key_is_refused(self):
+        spec = {
+            "questions": [question("Q4", round=2, dependsOn=[])],
+            "restate": {"text": "Q4 is open. The round turns on it.", "open": ["Q4"]},
+        }
+        path = self.tmp / "restate.json"
+        path.write_text(json.dumps(spec), encoding="utf-8")
+        out = self.assert_refused("add-round", "--file", str(path))
+        self.assertIn("restate decided is a list of question ids (G7)", out)
+        self.assertNotIn("rounds", self.doc())
 
     def test_open_is_still_required(self):
         spec = {

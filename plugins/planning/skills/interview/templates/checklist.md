@@ -1,10 +1,9 @@
 # /planning:interview Checklist
 
-Copy the `Planning version:` line, `## Steps` and `## Open-question register` into `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; the topic's memory slice). Tick each step as it completes; a resuming session reads the unticked boxes to know where to continue.
+Copy the `Planning version:` line, `## Steps`, `## Constraint ledger` and `## Open-question register` into `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; the topic's memory slice). Tick each step as it completes; a resuming session reads the unticked boxes to know where to continue.
 
 Every other section is added when its first entry is written, never as an empty heading, under the heading and in the line shape below; the rules for each are in `context/loop.md` unless named otherwise:
 
-- `## Constraint ledger`: one line per constraint, `C<N> | confirmed|inherited | <constraint> | <source>`, numbered contiguously ("Constraint ledger").
 - `## Starting point`: one line, what the user disclosed at intake about where they start (SKILL.md "Intake the starting point"); `/planning:wayfind chart` carries it into its map's Notes (`context/routing.md` "The handoff to wayfind").
 - `## Problems`: one line per problem the questions serve, `P<n> | <one-line problem> | proposed|agreed`, numbered from P1 (`context/routing.md` "Problems").
 - `## Terminology matrix`: a `| Term | Definition | Source | Status |` table, one row per sourced term the rounds rely on, `proposed` until the user confirms its restatement, then `agreed` ("Terminology matrix").
@@ -30,6 +29,10 @@ Planning version: <the `version` in `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin
 - [ ] Step 4: Persist the Brief. Engineering: write the PLAN.md Brief section with goal + constraints + acceptance criteria + captured assumptions; general: write the shared-understanding summary, never a Brief (the Q&A path persists each answer as it locks in, so the session can continue elsewhere at any round boundary with nothing lost)
 - [ ] Every round boundary: bigger-than-you-thought check (`context/routing.md`). The `Wayfind:` line `round.sh` prints when the last two rounds each opened more questions than they closed → recommend `/planning:wayfind chart`; a worsened context zone with no such fog → recommend routing the continuation with `/session-flow:workflow`, never wayfind; at the confirmation, topics left over → one line suggesting `/planning:wayfind chart`. Recommend only; the user decides
 - [ ] Step 5: Hand off. Engineering: recommend the next skill (`/planning:design` for engineering-internal, since exploration and research ran as lookups during the interview; chain after `/planning:prd` for product-driven); general: deliver the summary and stop, no pipeline handoff. Both: recommend model / effort / advisor per the live-doc-sourced session-config guidance (never a pinned model name). Engineering configures the **downstream execution session** it hands off to; general/terminal configures the **current/next session**, applied now (nothing downstream exists), first surfaced early, post-survey, so it could shape the rounds themselves; here refresh it and, if raised only now, offer to re-evaluate the result under the raised config
+
+## Constraint ledger
+
+One unfenced line per constraint, `- C<N> | confirmed|inherited | <constraint> | <source>`, numbered contiguously (`context/loop.md` "Constraint ledger"). The heading stays when no constraint is recorded yet: `round.sh doctor` requires it.
 
 ## Open-question register
 
