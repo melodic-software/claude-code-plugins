@@ -2,9 +2,7 @@
 
 - Status: accepted
 - Date: 2026-11-21
-- Supersedes: decision 3 of
-  [ADR 0084](0084-ship-handoff-shape-3-on-measured-size-and-leave-accuracy-to-the-resume-eval.md)
-  (shape 3 is the written shape) and, in part, decision 1 of
+- Supersedes: decision 3 of ADR 0084 (retired): shape 3 is the written shape; and, in part, decision 1 of
   [ADR 0091](0091-bound-the-handoff-core-by-relevance-and-amend-late-events.md) (size is the
   writer's judgment alone)
 - Related: [#17677](https://github.com/melodic-software/claude-code-plugins/pull/17677) (the

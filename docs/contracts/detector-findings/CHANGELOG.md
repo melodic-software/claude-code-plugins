@@ -363,7 +363,7 @@ moves, no coexistence obligation changes, and no enforceability verdict changes.
   it. That link resolves only inside the marketplace checkout, and every current adopter fetches
   this contract over `raw.githubusercontent.com` at run time, so a producer reading the contract the
   way the contract tells it to could not follow it.
-  [ADR 0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)
+  ADR 0018
   makes the plugin the encapsulation boundary for citation: name the public invocation, never a path
   into another plugin's private tree. The sentence now reads "which `/review:fanout` names under
   'Shared inputs'", keeping the section name so a reader in this checkout still lands in the right

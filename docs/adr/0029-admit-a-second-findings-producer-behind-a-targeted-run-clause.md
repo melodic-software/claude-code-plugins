@@ -80,7 +80,7 @@ Alternatives weighed:
 
 ## Consequences
 
-**Discovery mode ships, as an offer, on measured evidence that is poor.** ADR 0003 requires measured
+**Discovery mode ships, as an offer, on measured evidence that is poor.** The default-on rule ([plugin philosophy](../plugin-philosophy.md#classifying-a-hook)) requires measured
 precision before a verification guard earns default-on. The no-target discovery rung emits candidates
 over a corpus, so it was measured once on this repository before shipping:
 
@@ -102,7 +102,7 @@ the measurement filtered to paths "cited nowhere outside their own directory" wh
 `docs/`. Two of three apparent orphans were citation-search artifacts, in two different ways.
 
 That is why discovery mode ships as an operator-chosen offer and not as an emitter: 1 in 638 does not
-clear ADR 0003's bar for anything default-on, and the mode is offered, waited on, never run unasked,
+clear that bar for anything default-on, and the mode is offered, waited on, never run unasked,
 and produces a candidate list rather than findings. It is also why the offer now corroborates before
 it presents, checking each ranked path for inbound references repository-wide and dropping the ones
 that have any. The measurement is not a footnote to that decision; a 2-in-3 false-positive rate on

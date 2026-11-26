@@ -5,7 +5,7 @@
 - Related: the carry discriminator in
   [MCP servers as a plugin component](../migration-playbook.md#mcp-servers-as-a-plugin-component-carry-decision);
   the miro trust accept in
-  [ADR 0093](0093-record-plugin-acceptance-security-reviews.md#review-record-miro-first-party-mcp-server-accept-2026-07-12)
+  [the security-review log](../plugin-acceptance-security-reviews.md#review-record-miro-first-party-mcp-server-accept-2026-07-12)
 
 ## Context
 
@@ -63,5 +63,5 @@ reintegration end-state, where the repo drops its in-repo copy), single-file esb
 ## Consequences
 
 - `miro` is the only marketplace plugin that ships an MCP server. Its first-party trust accept is
-  the miro record in [ADR 0093](0093-record-plugin-acceptance-security-reviews.md).
+  the miro record in [the security-review log](../plugin-acceptance-security-reviews.md).
 - The miro SHIP ratified the two bundling mechanisms the discriminator's rule 2 names.

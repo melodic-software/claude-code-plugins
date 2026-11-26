@@ -346,6 +346,11 @@ session right now, and say why in `why`:
 - `research`: look outside: the web, official docs, other products.
 - `design`, `prototype`: a design pass, or a throwaway variant to react to.
 
+Guests never reach Claude directly: the work runs on the owner's own account, which stays the
+owner's alone. For the account and plan terms behind that, read section 2 of the
+[Consumer Terms](https://www.anthropic.com/legal/consumer-terms) and the
+[Claude Code usage policy](https://code.claude.com/docs/en/legal-and-compliance#usage-policy).
+
 **A prototype, for a request or a question of your own.** A prototype nobody asked for waits for
 the owner's yes in the terminal. Invoke `/prototype:explore-directions` with the shared-interview
 handoff its "For a shared interview" section names: the data dir, the tiers the session offers
