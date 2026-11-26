@@ -1,5 +1,43 @@
 # Changelog for the PR pipeline convention
 
+## [13.1.0] - 2026-11-25
+
+### Added
+
+- `time-to-merge-by-size.md` breaks open-to-merge time into stages per size band over the 7 days to
+  2026-11-25, with owner waits left out, and ranks the pipeline changes that bring each band's
+  median to one hour or less.
+
+### Changed
+
+- The intake lane triages on the skill-activity path: its new `triage-issue` activity runs `/work-items:triage --ci` in `pr-run-activity-read.yml`'s verdict mode (`issue-verdict`), with the read skill tools only (Read, Glob, Grep, Skill), and returns the verdict as structured output held to the skill's `schemas/ci-verdict.schema.json`, with each issue dimension narrowed to the dimension map's option keys and the type to the repository's Issue Types. The `post-triage` job, with no model, checks the scan job's verdict against its SHA-256, `check-ci-verdict.mjs` and `set-dimensions.sh --dry-run`, then posts the comment and applies the allowlisted labels and the Issue Type on the job's `GITHUB_TOKEN` (`.github/scripts/intake-triage/post-triage.mjs`); `apply-verdict` reads its verdict. Its step summary follows the lane output format: an `intake-triage / post-triage` heading, the result first (applied, escalated, deferred, withheld or not applied, and why), at most five bullets, and the rest in a collapsed block. The intake lane no longer calls the ci-workflows intake reusable, and the triage rubric is no longer passed to a model: this repository's own triage rules are under `## Triage rules` in `docs/conventions/work-items.md`.
+- Verdict mode runs only on a `workflow_dispatch`. On `issues: opened`, a no-model `dispatch-triage` job applies today's gate (the sender is the issue's author and a listed human, `github-actions[bot]` or the lanes App: `check-trusted-trigger` `bot-sender-ids` and `issue-author`) and dispatches `intake-triage.yml` with `issue-number`. The dispatched run admits a listed human or those bot senders, and a re-run needs a listed human. Its read check sends `issue_number`, which `request-lane-token` sends in `check` mode from an `intake-triage.yml` dispatch on `main` alone, so the broker gates the issue. It claims no lease, skips the issue lane's prior-work and stale-file checks, writes `issue.json` with the newest 200 open issues and the latest 100 merged pull requests (`write-intake-issue.mjs`), and hands on no patch.
+
+- The shared GitHub client (`github-client.mjs` `createGitHub`, and `budgetedFetch` through it) sends a repeated GET of the same URL, under the same token, with the kept answer's ETag as `If-None-Match`, and a 304 returns the kept body. A 304 to an authorized request does not count against the primary rate limit. Any other answer is returned as before; a 304 with no kept answer is still an error. With `GITHUB_READ_STORE` naming a directory, the kept answers also carry to later steps of the same job: pr-verify sets it on its resolver and trigger-gate steps, and the gate now reads the commit's pull requests at the resolver's URL (`?per_page=100&page=1`), so that read is a conditional one. The trigger gate's own re-run record listing memo is replaced by the client's store.
+
+- pr-unblock's `Check Dispatcher Current` job now runs only for review-dependency. The other activities' first jobs (four select jobs and `fix-ci-context`) compare the dispatcher's copy of its file with the tip's as a step before their kill-switch step, as pr-refine's `select-passes` already does. A stale dispatcher stops the job before it reads the PR, so its outputs stay empty, no later job starts and the run ends green, as before. Each such run starts one job fewer and skips one queue wait, measured at 171 s queued for 5 s of work on run 45662117298. Each of those jobs already holds `actions: read` and `contents: read`, the old job's whole grant; `review-dependency-select` holds no `actions: read`, so it keeps the separate job rather than widen.
+
+### Removed
+
+- The hosted review lanes (`pr-review-hosted.yml`, `pr-review-security-hosted.yml`) no longer run a `wait-for-refine` job, and `.github/scripts/pr-review/wait-refine.mjs` is gone. The review job needs only `check-kill-switch` and reviews each ready head as it lands. Refine's push carries the lanes App token, so it starts a `pull_request` `synchronize` run that reviews only the files changed since the last completed review. The wait had ended at its 30-minute cap with `review: refine-timeout` and then reviewed the unrefined head anyway, adding about 29.5 minutes to each review.
+
+### Fixed
+
+- `enable-auto-merge` reads a pull request's changed files up to the 3000 GitHub's files listing returns, instead of refusing every pull request over 300 files for a person; a listing that reaches 3000 still fails closed to a person.
+
+- `report-escalation.sh` hold comments name the lane's stop code as `- Lane code: ...`, so `Reason:` names only the owner reason (`intent`, `design`, `security` or `cost`). Before, a hold showed two `Reason:` lines, such as `Reason: design` and `Reason: feedback-question-design`.
+- A `feedback-question-*` hold lists the PR's open review threads, one of which holds the disputed finding the adjudicator left for a person, in a collapsed `<details>` block.
+- Hold comments follow the lane output format: a `pr-unblock / report-escalation` heading, a `Held for a person:` verdict line, at most three bullets (lane code, resume key, how to resume), and any thread list collapsed at the end.
+- `gate-source.mjs` and `clear-escalations.mjs` read the lane code from either label, so hold comments already open with `- Reason:` keep their meaning, and a re-run of the same hold on the same head still posts nothing.
+
+- pr-merge's cost-decision lane vetting, `clear-escalations` (its lane-run check and `workflow-staged`) and `refire-refused` no longer fail closed on a compare that lists 300 files or more: past that cap they compare the paths they check (the review-lane workflows, the lane-token broker's files, `.github/workflows`) by git object at the merge base and the far end, and still hold when either listing cannot be read.
+
+## [13.0.2] - 2026-11-25
+
+### Changed
+
+- pr-verify's resolver (`resolve-pr.mjs`) hands `select-trusted-text` the reads it already made of the pull request it judges: the pull request as `GET /commits/{sha}/pulls` listed it, and the first pages of its closing issue references and, where its spec query reads them, its title renames. `select-trusted-text` takes them through its new `reads-path` input instead of reading the pull request and those pages again, so each judgment spends one REST and, for a pull request whose body may be spec, one GraphQL call fewer. Both trust filters run unchanged on the handed-on text. The body is handed on with the edit stamp from the same spec answer, and is kept only when the edit query's stamp for the pull request still matches, so an edit between the two reads withholds it; this also closes the gap between the pull request read and the edit query that a full read had. A handed-on pull request at a head other than the new `head-sha` input fails the step. A missing or malformed hand-off fails the step with no context written, as a failed read does, and the step deletes the hand-off either way.
+
 ## [13.0.1] - 2026-11-25
 
 ### Changed

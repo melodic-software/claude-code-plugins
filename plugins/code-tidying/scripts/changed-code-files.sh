@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Output: up to <max> repo-relative paths of changed or untracked code files, one
-# per line, in `git status` order; empty when nothing matches. Rename and copy
-# entries emit the new path only. Exit 1 when git status is unavailable; callers
-# supply their own fallback text. Exit 4, naming the file, when the shared
-# extension list (code-extensions.txt beside this script) cannot be read.
 set -u
 
 MAX="${1:-10}"

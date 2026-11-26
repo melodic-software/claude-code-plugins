@@ -6,10 +6,6 @@ import { CHECK_RUN_ANNOTATIONS, isObject, jobsKey, readNodes, restAnnotations, r
 
 export const LIMITS = {
   prMergeRuns: 12,
-  // Lane runs whose jobs the lanes App quota read lists, newest first, and the
-  // jobs with a successful mint step whose annotations it reads, in all: at
-  // most 1 + 10 + 1 calls, the annotations in one GraphQL query (10 REST reads
-  // where it does not answer). A sample, not every mint in the window.
   laneRuns: 10,
   laneMintJobs: 10,
   inProgressRuns: 30,
@@ -22,52 +18,12 @@ export const LIMITS = {
   mergeGroupRuns: 10,
   mergeQueuePulls: 50,
   sweepArtifacts: 8,
-  // pr-merge-post-merge-report artifacts listed in one call, newest first; a
-  // fork's runs can upload under the same name, so the page is wide.
   postMergeArtifacts: 100,
   commentPages: 5,
-  // Open pull requests the stalled-stop read covers, most recently updated
-  // first: one GraphQL query lists the first stalledPulls with each one's
-  // newest 100 comments and the open count; at most stalledCommentRounds more
-  // queries read 100 older comments for every PR whose newest name no stop on
-  // its head; at most stalledChecks check-run reads in all. So the source
-  // spends at most 1 + 2 + 20 of CALL_BUDGET. stalledPulls covers every open
-  // pull request at today's count; past it, a gap leaves signal 10 unread
-  // rather than missing a stop.
   stalledPulls: 40,
   stalledCommentRounds: 2,
   stalledChecks: 20,
-  // Uncarried green runs per hold lane read in one window, oldest completion
-  // first. Only work-resolve-issue uses this default. The other lanes,
-  // including pr-refine, set their own caps (signals.mjs HOLD_LANES holdRuns).
-  // Each status costs up to holdListPages run list pages (pr-verify and
-  // pr-merge set 5, pr-review-main sets 4, and pr-refine lists green and red
-  // separately), then each run's jobs and the annotations of each green
-  // hold job are read. Every lane's jobs are read in one GraphQL query per
-  // 25 runs, and its annotations in one per 25 jobs. A run has one green
-  // hold job (pr-verify's one of three), with up to 4 for pr-refine, about 3
-  // for pr-review-main (its trigger and two review legs), and up to 2 for
-  // pr-merge. In lane order, that is at most 3 + 3 + 6 + 3 + 5 + 4 + 5 list
-  // pages, 1 + 1 + 1 + 2 + 4 + 3 + 4 job list queries and
-  // 1 + 1 + 2 + 2 + 4 + 9 + 7 annotation queries (71 calls, 42 of them
-  // GraphQL), plus one lane-hold marker list per lane (7). A re-run, or a
-  // node GraphQL does not answer, is read through REST, one call a jobs or
-  // annotation read; a REST list has steps, so pr-verify and pr-review-main
-  // (holdStep) read only a job whose `Note the hold` ran, and a run of theirs
-  // whose GraphQL-listed hold job the annotation batch did not answer is
-  // listed again through REST first. With GraphQL refused, or answering the
-  // lists but not the annotations, those two lanes spend at most 7 + 150
-  // list calls and one annotation read per held job, not 290 for every green
-  // hold job; the other lanes'
-  // 158 job lists and about 274 annotation reads put the source past
-  // CALL_BUDGET at the caps either way. Past the cap, the span stops at the
-  // last run read and the window is a gap. pr-refine's cap of 12:
-  // https://github.com/melodic-software/claude-code-plugins/issues/16656
   holdRuns: 6,
-  // Run list pages of 100 per hold lane, unless the lane sets its own
-  // (HOLD_LANES listPages): intake-triage listed up to 151 green runs over the
-  // 7-hour created span in the 7 days to 2026-11-05. A lane with more is a
-  // gap, since its oldest-created runs go unlisted.
   holdListPages: 3,
   holdsKept: 300,
 };
@@ -83,8 +39,6 @@ async function queryRepo(graphql, repo, query) {
   return result?.data?.repository ?? {};
 }
 
-// A comment connection's page, oldest first; GraphQL names a Bot without
-// [bot], so its login is put back in the REST form agentIdentity uses.
 const COMMENT_PAGE = "pageInfo { hasPreviousPage startCursor } nodes { author { __typename login } body createdAt updatedAt url }";
 const restComment = (node) => ({
   user: { login: node.author?.__typename === "Bot" ? `${node.author.login}[bot]` : node.author?.login },
@@ -127,17 +81,12 @@ const WORK_UNBLOCK_PATH = ".github/workflows/work-unblock.yml";
 export const PUBLISH_LANE_LEVEL_JOB = "publish-lane-level";
 const PUBLISH_LANE_LEVEL_NAMES = new Set(["Publish Lane Level", PUBLISH_LANE_LEVEL_JOB]);
 export const VARIABLE_STEPS = new Set(["List the repository variables before the publish", "Check no other repository variable changed"]);
-// Only main's own scheduled or dispatched pr-merge runs are trusted: a PR,
-// fork or branch run can upload an artifact or annotation of the same name.
 const TRUSTED_EVENTS = new Set(["schedule", "workflow_dispatch"]);
 const PR_MERGE_PATH = ".github/workflows/pr-merge.yml";
 const MERGE_JOB = "Merge";
 const MERGE_JOB_BEFORE_RENAME = "merge";
 const mergeJob = (jobs) => jobs.find((j) => j.name === MERGE_JOB) ?? jobs.find((j) => j.name === MERGE_JOB_BEFORE_RENAME);
 const MINT_STEP = "Request the lane token";
-// Events whose run takes its workflow code from the default branch; a push
-// or a dispatch counts only on main. A pull_request or review event runs a
-// branch's code, which could write a notice of the same shape.
 const DEFAULT_BRANCH_EVENTS = new Set(["schedule", "workflow_run", "pull_request_target", "issues", "issue_comment"]);
 const MAIN_ONLY_EVENTS = new Set(["push", "workflow_dispatch"]);
 const RUN_ID = /^[0-9]+$/;
@@ -229,8 +178,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     }
     return annotationsMemo.get(jobId);
   };
-  // Job lists read through GraphQL carry no steps, so only jobListOf, for a
-  // source that reads no step, ever returns one, and none is carried.
   const listsMemo = new Map();
   const carriedHit = (run) => {
     const carried = run.status === "completed" && Number.isSafeInteger(run.run_attempt) ? carriedJobs.get(jobsKey(run.id, run.run_attempt)) : undefined;
@@ -315,12 +262,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     if (ownRate) data.budgetReadings.push({ phase: "now", name: "github-token", ...ownRate, runId: null, url: null });
   });
 
-  // The lanes App's own REST quota, which this job's GITHUB_TOKEN cannot
-  // read: request-lane-token's `mint lanes-app` api-budget notice, from any
-  // run of this repository's own head that completed in the window on an
-  // event that runs the default branch's workflow code. Only a job whose
-  // mint step succeeded is read, and a trusted pr-merge run's merge job is
-  // left to the source above.
   const defaultBranchCode = (r) => DEFAULT_BRANCH_EVENTS.has(r.event) || (MAIN_ONLY_EVENTS.has(r.event) && r.head_branch === "main");
   await source("lane api budget", async () => {
     data.budgetReadings ??= [];
@@ -362,10 +303,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     });
   }
 
-  // Fork and pull-request runs are dropped only after the read, so the read
-  // pages: a flood of them on one page must not hide a failed run of this
-  // repository's own. A run that fails mid-read shifts the pages, so one run
-  // can come back on two of them; it is kept once.
   await source("failed runs", async () => {
     const kept = new Map();
     let unread = false;
@@ -499,7 +436,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
   await source("pr-merge sweep", async () => {
     const artifacts = (await get(`/repos/${repo}/actions/artifacts?name=pr-merge-summary&per_page=100`)).artifacts;
     const candidates = artifacts
-      // A fork's branch can also be named main; its artifacts must not fill the cap before the trust check.
       .filter(
         (a) =>
           !a.expired &&
@@ -578,9 +514,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     data.laneMerges = { lastMergedAt: merged.at(-1) ?? null };
   });
 
-  // work-resolve-issue's outcome markers, from the lanes App only: anyone who
-  // can comment can paste one. `since` filters on update time, so the
-  // creation time is checked here.
   await source("lane stops", async () => {
     data.laneStops = [];
     let unread = false;
@@ -645,14 +578,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
           readThrough = Math.min(readThrough, Date.parse(unread[cap - 1].updated_at));
           cut.push(`${lane} (cap ${cap})`);
         }
-        // Each lane's jobs are listed through GraphQL, which carries no steps,
-        // so every green hold job's annotations are read in its batch. A list
-        // read through REST has steps: with holdStep, only a job whose listing
-        // shows that step succeeded printed a hold, so only its annotations
-        // are read one call each; a job listed with no steps is read too.
-        // With holdStep, a run whose GraphQL-listed hold job the annotation
-        // batch did not answer is listed again through REST, one call per run,
-        // so its annotations are read only where that step ran.
         const printed = (j) =>
           holdStep === undefined || !Array.isArray(j.steps) || j.steps.length === 0 || j.steps.some((s) => s?.name === holdStep && s.conclusion === "success");
         const holding = (listed) => listed.filter((j) => j.conclusion === "success" && holdJob(jobs, j.name) && printed(j));
@@ -725,14 +650,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
   });
   data.heldCarry = { runs: data.laneHolds, from: heldThrough ? heldFrom : null, through: heldThrough, scanned };
 
-  // Open pull requests whose head carries a stop the pr-unblock lane routed to
-  // a failing status (its lane-stopped comment, by the lanes App, names the
-  // PR's current head) with no attempt of that activity started on the head
-  // since the comment's last edit, and no stop-resolved skip ending it:
-  // its per-head retries are spent. Any PR, not only
-  // the lanes App's: fix-ci adopts owners'. The status itself needs
-  // statuses: read, which this job's token lacks, so the comment and the
-  // activity's check runs stand for it.
   await source("stalled stops", async () => {
     data.stalledStops = [];
     const cutoff = now.getTime() - STALLED_HOURS * 3600_000;

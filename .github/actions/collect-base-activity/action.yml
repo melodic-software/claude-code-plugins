@@ -527,6 +527,8 @@ runs:
           # (models.issue-dimensions.fields, the block set-dimensions.sh reads)
           # holds; the runner adds the Issue Types with the issue file, and the
           # post job checks the verdict again. The issue file is in scratch/.
+          # The copy drops $schema: the launcher compiles --json-schema as
+          # draft-07 and refuses the skill file's 2020-12 meta-schema ref.
           if jq -e '.selected["applied-by"]["triage-verdict"] // empty' "$RESOLVED" >/dev/null; then
             { [ "$edits" = read ] && [ -z "$PREPARE" ] && [ -n "${ISSUE_NUMBER:-}" ]; } ||
               fail "triage-verdict: only an issue lane's read skill with no prepare mode hands on a verdict"
@@ -539,7 +541,7 @@ runs:
               <<<"$dimensions" >/dev/null || fail "triage-verdict: the base's dimension map does not give size, complexity and uncertainty option keys"
             mkdir -p "$VERDICT_SCHEMA_DIR"
             jq --argjson dimensions "$dimensions" \
-              '.properties += ($dimensions | with_entries(.value = {type: "string", enum: .value}))' \
+              'del(."$schema") | .properties += ($dimensions | with_entries(.value = {type: "string", enum: .value}))' \
               "$verdict_schema" >"$VERDICT_SCHEMA_DIR/verdict.schema.json" || fail "triage-verdict: cannot write the verdict schema"
             preamble="$preamble Your scratchpad directory is $lane/scratch, and the issue file is $lane/scratch/issue.json. Your verdict is your structured output; a later job checks it and posts it, and you post nothing."
           fi

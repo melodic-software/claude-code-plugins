@@ -233,11 +233,6 @@ test("main posts nothing when lane.json names no lane branch of this issue", asy
   );
 });
 
-// A branch resolve-issue reused from an earlier run whose report this run never
-// read: the earlier run may already have posted its statuses on this head
-// (its report-statuses ran, its report-outcome failed), and a later status
-// with the same context replaces an earlier one, so this run posts only its
-// own report-outcome. Its PR carries the hold line, so a human merges it.
 const REUSED = "work-resolve-issue/issue-77-400-1";
 const UNREPORTED = { "pipeline/report-outcome": "success" };
 

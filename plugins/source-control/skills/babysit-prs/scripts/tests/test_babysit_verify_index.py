@@ -17,6 +17,7 @@ import base64
 import contextlib
 import io
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -332,6 +333,16 @@ class PassOut(IndexFixture):
         self.addCleanup(env.stop)
         self.out = pathlib.Path(self.tmp.name, "pass.json")
 
+    SAMPLES = (
+        pathlib.Path(__file__).resolve().parents[6] / "scripts/fixtures/verify-pass-out"
+    )
+
+    def assert_sample(self, name: str) -> None:
+        sample = self.SAMPLES / name
+        if os.environ.get("PASS_OUT_SAMPLES_WRITE"):
+            sample.write_text(self.out.read_text(), encoding="utf-8")
+        self.assertEqual(self.out.read_text(), sample.read_text(encoding="utf-8"), name)
+
     def cli(self, fake: IndexGitHub, *extra: str) -> dict[str, Any]:
         printed = io.StringIO()
         with (
@@ -374,6 +385,7 @@ class PassOut(IndexFixture):
                 },
             },
         )
+        self.assert_sample("allow-pass.json")
 
     def test_a_refusal_hands_over_no_pass(self) -> None:
         fake = self.passing(*fail(PR, HEAD, 3), runs={3: run(3)})
@@ -384,6 +396,7 @@ class PassOut(IndexFixture):
             json.loads(self.out.read_text()),
             {"head": HEAD, "verdicts": [], "record": None, "closing": None},
         )
+        self.assert_sample("refusal.json")
 
     def test_the_record_is_the_first_pass_by_name_as_the_step_took_it(self) -> None:
         later = "2026-10-20T00:00:00Z"
@@ -399,6 +412,7 @@ class PassOut(IndexFixture):
         self.assertEqual(sent["record"], record())
         zips = [c for c in fake.calls if c[-1].endswith("/zip")]
         self.assertEqual([c[-1].split("/")[-2] for c in zips], ["20", "10"])
+        self.assert_sample("allow-pass-and-pass-notes.json")
 
     UNAVAILABLE = "gh: Service Unavailable (HTTP 503)\n"
 

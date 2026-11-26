@@ -368,8 +368,6 @@ assert_equals "portfolio still exits 0" "$?" "0"
 assert_contains "portfolio still collects Serilog" "$port_out" '"Serilog"'
 assert_contains "portfolio still collects MediatR" "$port_out" '"MediatR"'
 
-# A scan root whose name is a sed program must stay data. GNU sed's e flag would
-# run the command if the root were interpolated into a substitution.
 hostile_root="$TEST_TMPDIR/p|touch $TEST_TMPDIR/pwned;:|e;#"
 mkdir -p "$hostile_root/src"
 printf '<Project Sdk="Microsoft.NET.Sdk"></Project>\n' >"$hostile_root/src/App.csproj"
@@ -454,9 +452,6 @@ assert_not_contains "blind: a commented-out reference is not an edge" "$blind_js
 assert_contains "blind: no phantom cycle from a comment" "$blind_json" '"cycles": []'
 assert_not_contains "blind: nothing was left unread" "$blind_json" "unread-reference-tags"
 
-# MSBuild files. Directory.Build.props applies to the projects under it and never
-# makes a project reference itself; a props file with no known importer is
-# counted, not drawn.
 props="$(make_tree props)"
 for d in app tools common; do mkdir -p "$props/src/$d"; done
 printf '<Project Sdk="Microsoft.NET.Sdk"></Project>\n' >"$props/src/app/App.csproj"

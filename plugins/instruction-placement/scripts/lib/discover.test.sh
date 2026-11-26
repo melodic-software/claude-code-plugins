@@ -2,8 +2,7 @@
 # fixture-isolation-scope: this suite builds git fixtures and clears the
 # inherited git environment itself rather than sourcing a harness, so the plugin
 # stays self-contained and portable outside this marketplace.
-# shellcheck disable=SC2016 # fixtures contain literal markdown code fences and
-# @import tokens; the backticks are file content, never command substitution.
+# shellcheck disable=SC2016 # fixtures contain literal markdown code fences
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -25,8 +24,6 @@ skip() {
   printf 'SKIP (host: %s): %s\n' "$2" "$1"
 }
 
-# Under MSYS without winsymlinks, `ln -s` COPIES the target, so a case asserting
-# where a link POINTS has no subject. Probe the round trip, not the OS name.
 host_makes_symlinks() {
   local d rc=1
   d="$(mktemp -d "$TMP/x.XXXX")"
@@ -383,9 +380,6 @@ else
   fail "and the reason is that it does not exist" "contains: does not exist" "$reason"
 fi
 
-# The documented symlink alternative to the import. Unlike the discovery cases
-# above, the link IS the subject here: reachability is decided by reading where
-# CLAUDE.md points, so a host that copies instead of linking has no fixture.
 # silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
 if host_makes_symlinks; then
   symlinked="$(mktemp -d "$TMP/x.XXXX")"

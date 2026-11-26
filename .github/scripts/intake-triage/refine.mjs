@@ -1,91 +1,4 @@
 #!/usr/bin/env node
-// refine.mjs: refines a thin issue after intake triage, and splits a held
-// one. No model runs here; intake-triage.yml's refine-issue job runs one
-// between the two modes.
-//
-// `--select` (the job's read-only GITHUB_TOKEN) decides whether the issue is
-// thin or splits and writes the context the model reads. Thin: the triage
-// verdict's `Flags:` line names `intent` (no exact outcome), or the body has
-// no unquoted task list line (no checkable criteria). Splits: not thin, the
-// verdict raised no flag, the lanes App's admission parked it at `status:
-// confirmed` (never a hold: a held issue is a person's, cost included), and
-// some of its done-when items are ones a lane run cannot perform
-// (admit.mjs unrunnableCriteria, the check that refused it) while at least one
-// item stays once they move; the context then carries those items as `split`. It refines only an open
-// issue whose author is a listed human or the lanes App, that no person holds
-// (`needs-human`), whose one intake lane comment this run wrote, and whose
-// body as it is now the lanes App has not refined (the loop guard: each
-// refinement names the body it is for, by hash, so a person's edit gets one
-// more). The context holds the
-// issue's title, body and labels, the listed humans' comments
-// (select-trusted-text's author and edit rules), the triage comment, and the
-// open and closed issues and merged pull requests a title search finds, as
-// duplicate and already-fixed candidates; the model gets no GitHub access.
-//
-// `--apply` (the lanes App token, issues write) validates the model's
-// structured output and posts it as a separate comment opening with
-// REFINE_MARKER; it never edits the issue body. Exact: the comment lists the drafted
-// criteria as a task list. On an issue a listed human filed, admit.mjs and
-// pr-verify count the newest refinement as spec while it is unedited (owner
-// decision Q78); on any other issue its criteria count only once a listed
-// human posts them as their own. Only when that text, with this refinement
-// counted as posted, holds a task list (admit.mjs hasTrustedCriteria) does it
-// ask for one more triage, which runs
-// admission again: it sets the Work status field to needs-triage, takes the
-// lanes App's `needs-owner-decision` off when the issue carries it, and
-// sets the job's `redispatch` output. The issue's status is its label names
-// as the field decides them (read-status.mjs). Otherwise the status
-// stays and the comment asks a listed human to post the confirmed criteria as
-// their own `**Decision recorded.**` comment, which re-enters intake; a
-// re-triage then would only refuse again. Not exact: the comment
-// asks numbered questions, each with a `RECOMMENDED:` answer and its basis,
-// shows the reply to copy (DECISION_REPLY) above its footer, and the field
-// is set to needs-owner-decision, a `status: confirmed` or `status: ready`
-// label coming off so one status stands, which a person's
-// `**Decision recorded.**` sends back through intake-reenter.yml. An exact
-// output that names a duplicate or fixing change becomes not exact, with one
-// question whether to close the issue. It never adds `agent-ready` or
-// `needs-human`, and files no issue. It lifts no App needs-decision while the
-// App's verdict comment lists a flag other than intent, or records that an
-// earlier flag is unknown (admit.mjs earlierFlags); that hold stays for a
-// person.
-//
-// An exact refinement ends its criteria with one plain External state line
-// (externalLine): `none`, `iac (<owner/repo>)` or `manual (<class>: <what>)`,
-// the class one of pr-pipeline.yaml's attended.classes, which --select puts
-// in the context and --apply checks. Admission refuses a `manual` one with the
-// `attended` label (admit.mjs externalState).
-//
-// A split the model judges sound names exactly the held item numbers; the
-// model writes no text the lanes read. The refinement comment lists those
-// items as written, quoted, as checks a person runs that the lane does not
-// do, and records their numbers and the body they number (admit.mjs
-// splitItemsLine, bodyVersion); then the script lifts the parked status
-// (splitStays) and asks for triage again. The body stays as its author
-// wrote it, so pr-verify still trusts it: admission and pr-verify leave those
-// items out while that comment counts as spec and names the body as it is
-// (admit.mjs personChecks). It splits only when admission's comment refused
-// the issue for those items alone; an item's deeper-indented lines go with
-// it, so every task-list line nested under a moved item must be one the lane
-// cannot perform too.
-//
-// Model text is data: each field is rendered on one line, with `<`, `[`, `]`,
-// `(` and `)` escaped, and mentions, `#N` and `GH-N` references, `://` and
-// `www.` broken (the broken `@` also stops an email autolink), so it cannot
-// forge a marker, ping anyone, cross-reference an issue, add a link or
-// autolink, or add a task list line outside the criteria.
-//
-// Environment:
-//   GITHUB_TOKEN / GH_TOKEN   the job's read token (--select) or the lanes App token (--apply)
-//   GITHUB_REPOSITORY, GITHUB_API_URL
-//   ISSUE_NUMBER
-//   STARTED_AT            when this run's first job started (--select)
-//   TRUSTED_ACTORS_PATH   the default branch's trusted-actor list
-//   BASE_PATH             the default branch checkout, for admission-rules.json
-//                         and resolve-issue's web hosts
-//   KILL_SWITCH           `proceed`, or the run stops before any API call
-//   CONTEXT_PATH          where --select writes, and --apply reads, the context
-//   REFINEMENT_PATH       the model's structured output (--apply)
 import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
@@ -131,7 +44,6 @@ const laneComment = (comments, startedAt) => {
   return lane.length === 1 && Date.parse(lane[0].updated_at) >= startedAt ? lane[0] : null;
 };
 
-// The lanes App's own refinement comment: posted by its account id, marker first.
 export const isRefinement = (comment, appId) => byApp(comment, appId) && String(comment.body ?? "").startsWith(REFINE_MARKER);
 
 const refinedBody = (comments, appId, body, splitRecorded = false) =>
@@ -163,15 +75,6 @@ export function isThin({ body, laneBody, verdict }) {
   return { thin: reasons.length > 0, reasons };
 }
 
-// The split a refused issue gets, or null: it is parked at `status:
-// confirmed` alone (admission parks a split there, never at a hold, so a
-// hold such as a cost verdict's needs-owner-decision is a person's and never
-// split around), the verdict raised no flag, some done-when items are ones a lane run cannot
-// perform, every task-list line they own is one too, at least one item lies
-// outside them, and `admission`, the lanes App's admission comment, refused
-// it for those items and nothing else. {count, items:
-// [{n, kind, text}]}, each text the item's first line, whole. Who set the
-// label and wrote the comment is checked apart. Pure.
 export function splitOf({ body, laneBody, verdict, labels, admission, rules, webHosts }) {
   if (!confirmedOnly(labels) || flagsOf(laneBody, verdict)?.join() !== "none") {
     return null;
@@ -190,8 +93,6 @@ export function splitOf({ body, laneBody, verdict, labels, admission, rules, web
 
 const splitStays = (labels, comments, appId) => (admissionParked(labels, comments, appId) ? null : `is not parked at ${CONFIRMED} by the lanes App's admission`);
 
-// Up to four plain lowercase words from the title, each 4 or more letters or
-// digits, so no search qualifier or operator survives.
 export function searchTerms(title) {
   const words = String(title ?? "")
     .toLowerCase()
@@ -251,9 +152,6 @@ async function candidates(github, repository, issue, trusted) {
   return { candidates: found, monitor_duplicates: monitor };
 }
 
-// admission-rules.json's `size-split`: {onDecline, maxParts}. `on-decline`
-// is `subset` (a declined line split may split by target) or `park`;
-// `max-parts` caps the sub-issues. Throws on any other shape.
 export function sizeSplitSettings(rules) {
   const section = rules?.["size-split"] ?? {};
   const known = ["on-decline", "max-parts"];
@@ -265,8 +163,6 @@ export function sizeSplitSettings(rules) {
   return { onDecline, maxParts };
 }
 
-// A size split's visible declines (decision on the silent park): one lanes
-// App comment per reason and body version, fixed text only, no hold label.
 export const SIZE_DECLINE_MARKER = "<!-- intake-triage size-split-decline -->";
 const DECLINES = {
   "not-human": "a listed human did not file it, and a split copies only a listed human's text",
@@ -293,18 +189,8 @@ const PLUGIN_PATTERNS = [
 const BARE = new RegExp(`(?:^|\\s)(${KEBAB})\\s+[Pp]lugin\\b`, "g");
 const LEADING = new RegExp(`^\`?(${KEBAB})\`?(?=\\s)`);
 
-// The kebab-case names `texts` (the issue body and its task lines) write in
-// backticks: the names a line's leading word may be (namedUnits).
 export const quotedNames = (texts) => new Set(texts.flatMap((text) => [...String(text).matchAll(new RegExp(`\`(${KEBAB})\``, "g"))].map(([, name]) => name)));
 
-// The plugins a task line's text (admit.mjs taskText) names, each as
-// `plugins/<name>`: written as a `plugins/<name>` path, in backticks beside
-// the word plugin, or as a bare kebab-case word before the word plugin or
-// leading the line when the issue writes that word in backticks somewhere
-// (`quoted`, quotedNames), so a hyphenated word such as non-zero or
-// third-party is no plugin. A file a part's line names is that part's
-// own work; a whole plugin is what a part that only checks it cannot build.
-// Sorted. Pure.
 export function namedUnits(text, quoted = new Set()) {
   const units = new Set();
   for (const pattern of PLUGIN_PATTERNS) {
@@ -324,10 +210,6 @@ export function namedUnits(text, quoted = new Set()) {
   return [...units].sort();
 }
 
-// Whether the default branch checkout at `base` holds `unit` (namedUnits):
-// its path, or for `plugins/<name>` a file or directory named `name`, any
-// extension aside, outside `.git` and `node_modules`, since a leading word
-// can name a script as well as a plugin. Reads the tree once, lazily.
 export function baseHolds(base) {
   let stems = null;
   const walk = (dir, into) => {
@@ -355,11 +237,6 @@ export function baseHolds(base) {
   };
 }
 
-// The first part of a line split ({parts, order}, a partition) that checks a
-// unit the default branch lacks (`absent`, which --select reads) with no
-// line of that part, or of a part the order puts before it, creating it:
-// {part, units}, or null. `texts` are the task lines' texts, and `quoted`
-// the names namedUnits reads a leading word as. Pure.
 export function unbuiltPart({ parts, order }, texts, absent, quoted) {
   const missing = new Set(absent);
   const before = (part, seen = new Set()) => {
@@ -395,8 +272,6 @@ async function postDecline({ github, base, appId, body, code, log }) {
   log(`refine: ${base} says why it is not split (${code})`);
 }
 
-// Posts the decline refine-select chose (context.size_decline) for the
-// body it read; a body changed since gets nothing, as its triage reruns.
 export async function applySizeDecline({ github, repository, number, appId, context, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
@@ -410,7 +285,6 @@ export async function applySizeDecline({ github, repository, number, appId, cont
 
 const admissionComment = (comments, appId) => comments.find((comment) => byApp(comment, appId) && String(comment.body ?? "").startsWith(ADMIT_MARKER))?.body;
 
-// Whether the lanes App's admission comment waits on a SPLIT_PENDING reason.
 export function sizeSplitPending(comments, appId) {
   const prefix = `${ADMIT_MARKER}\nNot admitted to the issue lane yet: `;
   const body = String(admissionComment(comments, appId) ?? "");
@@ -422,11 +296,6 @@ const ownSplit = (comments, appId) => {
   return comment ? { comment, record: splitRecord(comment.body) } : null;
 };
 
-// {refine, reason, context} for an issue admission parked at
-// a SPLIT_PENDING reason, or null for any other: a parked issue is never refined
-// another way, and `note(why)` records why one is not split. Only an issue a
-// listed human filed splits, since only its text, and the refinement on it,
-// the sub-issues can carry (admit.mjs splitChildBody). Reads only.
 async function selectSizeSplit({ github, repository, number, issue, comments, humans, appId, startedAt, splitConfig, note }) {
   if (!sizeSplitPending(comments, appId)) {
     return null;
@@ -476,14 +345,6 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
   };
 }
 
-// {refine, reason, context}. Reads only.
-// `splitConfig` returns {rules, webHosts}, read only for an issue that is
-// not thin.
-// A size split comes first (selectSizeSplit), with its own guard; `note`
-// records why a parked issue is not split. `statusOf` (read-status.mjs
-// statusReader), when given, decides the label names the needs-human and
-// split checks read, so a hold or an admission park only the Work status
-// field holds counts.
 export async function selectRefinement({ github, repository, number, humans, appId, startedAt, splitConfig, statusOf, verdict, note = () => {} }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
@@ -561,9 +422,6 @@ function externalOf(value, classes) {
   return value;
 }
 
-// The model's output, checked; related work outside `known` (the candidate
-// numbers) is dropped. `split` is the context's split, or null; `classes`,
-// the context's attended classes. Throws on any other shape.
 export function validateOutput(output, known, split = null, classes = {}, monitor = []) {
   const keys = ["exact", "outcome", "criteria", "dependencies", "related", "questions", "sources", "split", "external"];
   if (output === null || typeof output !== "object" || Array.isArray(output) || Object.keys(output).sort().join() !== [...keys].sort().join()) {
@@ -622,9 +480,6 @@ export function validateOutput(output, known, split = null, classes = {}, monito
   return { exact, outcome: output.outcome, criteria, dependencies, related, questions, sources, split: moved, external };
 }
 
-// The External state line an exact refinement ends its criteria with: plain
-// text, never a task-list line, in the fixed form admit.mjs externalState
-// reads. Only `what` and `repo` are model text; the class is a configured name.
 export function externalLine({ state, repo, class: kind, what }) {
   if (state === "iac") {
     return `${EXTERNAL_STATE}iac (${line(repo)})`;
@@ -632,8 +487,6 @@ export function externalLine({ state, repo, class: kind, what }) {
   return state === "manual" ? `${EXTERNAL_STATE}manual (${kind}: ${line(what)})` : `${EXTERNAL_STATE}none`;
 }
 
-// Mentions, `#N` and `GH-N` references, `://` and `www.`, each broken with a
-// zero-width space.
 const breakLinks = (text) =>
   text
     .replaceAll("@", "@​")
@@ -641,27 +494,17 @@ const breakLinks = (text) =>
     .replaceAll("://", ":/​/")
     .replaceAll(/www\./gi, "www​.");
 
-// One line of model text, unable to forge markup the lanes read.
 export function line(text) {
   const out = String(text).replaceAll(/\s+/g, " ").trim().slice(0, TEXT_MAX);
   return breakLinks(out.replaceAll("<", "&lt;").replaceAll(/[[\]()]/g, "\\$&"));
 }
 
-// One line of title text: a title renders no Markdown links or HTML, so it
-// keeps its brackets, parens and `<` as written (a Conventional Commits scope
-// stays `type(scope):`), and still breaks mentions, issue links and URLs.
 export function titleLine(text) {
   return breakLinks(String(text).replaceAll(/\s+/g, " ").trim());
 }
 
-// The reply a refinement that asks questions shows the owner to copy: only a
-// comment whose first line is `**Decision recorded.**` counts as an answer
-// (select-trusted-text's isDecisionComment), and nothing tells them so but this.
 export const DECISION_REPLY = "**Decision recorded.** <answer>";
 
-// `body` is the issue body the refinement is for (bodyVersion); a split
-// adds the items it lists (splitItemsLine); `checks`, a split's items as
-// written; `retriage`, whether intake triages the issue again.
 export function render(output, { body, checks = [], retriage = false } = {}) {
   const parts = [REFINE_MARKER, ...(body === undefined ? [] : [bodyVersion(body)]), ...(output.split.length > 0 ? [splitItemsLine(output.split)] : []), "**Refinement.** A read-only run explored this repository, searched its issues and pull requests, and read the allowed docs to draft what follows. On an issue a listed human filed, it counts as the issue's spec once posted, while unedited; it is still model text, so check it.", ""];
   const section = (title, items) => {
@@ -698,8 +541,6 @@ export function render(output, { body, checks = [], retriage = false } = {}) {
   return parts.join("\n");
 }
 
-// A moved item as written, quoted so no line is a task-list line, with `<`
-// escaped and mentions broken so it forges no marker and pings no one again.
 const quoted = (text) =>
   text
     .trimEnd()
@@ -722,9 +563,6 @@ const movedLine = (moved) =>
     ? `Done-when item ${moved[0]} of the issue body needs a person: it is a check a person runs, listed below, and the lane does not do it.`
     : `Done-when items ${[...moved].sort((a, b) => a - b).join(", ")} of the issue body need a person: they are checks a person runs, listed below, and the lane does not do them.`;
 
-// The moved items, each its first line from the task-list prefix on and its
-// deeper-indented lines after it, as one text per item; an item nested under
-// another moved item is already in that one's text. Pure.
 export function movedTexts(body, taskList, moved) {
   const lines = String(body).split("\n");
   const items = taskItems(body, taskList);
@@ -733,21 +571,6 @@ export function movedTexts(body, taskList, moved) {
     .map((n) => [lines[items[n - 1].line].trimStart(), ...items[n - 1].more.map((index) => lines[index])].join("\n"));
 }
 
-// Sets the labels, then posts the refinement. {outcome, redispatch}.
-// `context` is what the model read: an issue whose title or body changed
-// since gets nothing, and is triaged again. The comment goes last because
-// its marker stops a later refinement of the same body: a failure before it
-// leaves no marker, so the next triage refines the issue again and finishes
-// the labels. A split does the same and never edits the body: its comment
-// names the body and the items a person runs (splitItemsLine), which
-// admission and pr-verify read from it (admit.mjs personChecks).
-// `humans` and `rules` decide whether an exact refinement asks for a
-// re-triage (admit.mjs hasTrustedCriteria, over the spec with this refinement
-// posted); a failed read of the spec throws before any label write.
-// `setStatus(number, state)` (write-status.mjs statusWriter's `set`) writes
-// the Work status each branch leaves; a failed write throws. `statusOf`
-// (read-status.mjs statusReader), when given, decides the issue's label
-// names and its status history; without it, its own labels and REST events.
 export async function applyRefinement({ github, repository, number, appId, humans, rules, output, context, setStatus, statusOf, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
@@ -788,12 +611,6 @@ export async function applyRefinement({ github, repository, number, appId, human
     return { outcome: "split", redispatch: true };
   }
   const post = (retriage = false) => github("POST", `${base}/comments`, { body: render(output, { body: issue.body, retriage }) });
-  // Admission reads criteria only from a listed human's text and, on an issue
-  // a listed human filed, the newest unedited refinement, so a re-triage
-  // without them would refuse again. It judges the spec as it will read once
-  // this refinement is posted, as the newest comment: one read, before any
-  // label write. Past admission's comment window the refinement is unread
-  // and admission refuses, so it asks for no triage.
   const untrusted = async () => {
     const spec = await specOf(github, repository, number);
     const refinement = { body: render(output, { body: issue.body, retriage: true }), lastEditedAt: null, author: { __typename: "Bot", databaseId: appId } };
@@ -823,11 +640,6 @@ export async function applyRefinement({ github, repository, number, appId, human
     return { outcome: "exact", redispatch: true };
   };
   if (!output.exact) {
-    // A person's needs-info or needs-spec on the field stays: an App
-    // needs-decision there would let a later exact refinement lift it as the
-    // App's own. One on a label alone, over an unset field, holds on top of the
-    // App's write (read-status.mjs statusLabels) and would otherwise leave a
-    // stale queue label to win once the person lifts it.
     const hold = PERSON_HOLDABLE.find((name) => labels.includes(name));
     const personHold = hold && newestLabeler(await (events ? events() : paginate(github, `${base}/events`)), [hold]) !== appId;
     const fieldHeld = personHold && statusOf && (await statusOf.state(number)) !== null;
@@ -838,10 +650,6 @@ export async function applyRefinement({ github, repository, number, appId, human
     log(`refine: #${number} is not exact; it waits at ${NEEDS_DECISION} with recommended answers`);
     return { outcome: "needs-decision", redispatch: false };
   }
-  // Admission parks a refusal no person must answer at status: confirmed
-  // (admit.mjs): it resumes like the App's own needs-decision below. Only a
-  // parked issue resumes here: an App refinement never lifts a person's own
-  // confirmation, which intake-reenter lifts on that person's decision.
   if (admissionParked(labels, comments, appId)) {
     return exactRetriage(`${CONFIRMED} lifted and triage asked again`);
   }
@@ -859,8 +667,6 @@ export async function applyRefinement({ github, repository, number, appId, human
   return exactRetriage(`${NEEDS_DECISION} lifted and triage asked again`, () => removeLabel(github, base, carried(own, DECISION_LABELS) ?? decisionHold));
 }
 
-// The lanes App's comment on a split issue: SIZE_SPLIT_MARKER, the split
-// record, and one line per part, from numbers only. Pure.
 export function renderSplit(record) {
   const rows = record.parts.map((items, index) => {
     const after = record.order.filter(([, b]) => b === index + 1).map(([a]) => a);
@@ -895,9 +701,6 @@ async function filedChildren(github, repository, base, appId) {
   );
 }
 
-// Adds a native edge: `issue` is blocked by `blocker`, both issue objects
-// with REST `number` and `id`, unless the edge is there. Whether the edge
-// stands: a refused edge (422) is logged and returns false, not thrown.
 async function blockOn({ github, repository, issue, blocker, log }) {
   const path = `/repos/${repository}/issues/${issue.number}/dependencies/blocked_by`;
   if ((await paginate(github, path)).some((item) => item?.id === blocker.id)) {
@@ -915,18 +718,6 @@ async function blockOn({ github, repository, issue, blocker, log }) {
   }
 }
 
-// Files the split as the lanes App. {outcome: split | skipped, children}.
-// The split record goes on the issue first, from the model's partition; a
-// retry finishes that record and ignores a new partition. Each step checks
-// before it writes, so a retry files, links and edges nothing twice: a part
-// whose body the App already filed under the issue is reused. Each part takes
-// the issue's Issue Type, which admission requires, and its ROUTING_LABELS. A
-// line split with a part unbuiltPart names files nothing and posts the
-// `unbuilt` decline. An edge GitHub refuses
-// leaves the split unfinished: what the issue blocks keeps its edge to the
-// issue, and the record stays unfiled so the next triage retries. The
-// record's `filed` list goes last, and is the guard that stops a later split.
-// `statusOf`, as selectRefinement's, decides the needs-human check's labels.
 export async function applySizeSplit({ github, repository, number, appId, humans, rules, webHosts, output, context, statusOf, log = console.log, note = () => {} }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
@@ -967,8 +758,6 @@ export async function applySizeSplit({ github, repository, number, appId, humans
     if (record.filed.length > 0) {
       return skip("is already split");
     }
-    // A target-subset record's parts are every line once per group, so an
-    // edited record can neither orphan a line nor read past its groups.
     const every = lines.map((_, index) => index + 1);
     const problem =
       record.groups === undefined
@@ -1026,7 +815,6 @@ export async function applySizeSplit({ github, repository, number, appId, humans
       if (!Number.isInteger(child?.number) || !Number.isInteger(child?.id)) {
         throw new Error("a sub-issue came back with no number or id");
       }
-      // GitHub drops a type the token may not set without an error.
       if (child.type?.name !== type) {
         log(`::warning title=refine::#${child.number} came back without Issue Type ${type}; admission refuses it until one is set`);
       }

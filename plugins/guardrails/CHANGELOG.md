@@ -3,6 +3,14 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.3] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+- `git-hooks/reference-verify.sh` starts `hooks/run-guards.sh` once per range instead of once per changed file ([#18577](https://github.com/melodic-software/claude-code-plugins/issues/18577)). It uses the new `run-guards.sh --batch <dir>` mode, which loads `hook-utils.sh` once, then sources `run-guards.sh` again in a forked subshell for each file's payload and runs the three verifiers there. Findings still name `<path>:<line>`, and a verifier failure on one file still reports that file unchecked and fails the check. The edit-time hook rows do not pass `--batch` and run as before.
+
 ## [5.2.2] - 2026-11-25
 
 ### Fixed

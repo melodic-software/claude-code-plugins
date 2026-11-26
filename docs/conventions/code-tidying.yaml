@@ -9,5 +9,6 @@ comment_lint: block
 comment_lint_allow:
   - '^#[[:space:]]*test-scope:'
   - '^//[[:space:]]*test-scope:'
+  - '^(#|//)[[:space:]]*(BEGIN|END) hold-floor[[:space:]]'
 comment_lint_exclude:
   - plugins/planning/shared/web/web-vitals.attribution.iife.js

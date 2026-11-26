@@ -634,7 +634,6 @@ out="$(HOME="$INJHOME" CLAUDE_PROJECT_DIR="$INJREPO" bash "$DETECT" "$INJREPO/do
 assert_eq "threshold injection: a forged density row runs no command" "$([[ -e "$INJREPO/PWNED" ]] && echo ran || echo none)" "none"
 assert_not_contains "threshold injection: a forged row reaches no path" "$out" "SCANNED["
 
-# --- Config parsing against a CRLF-emitting jq (#3343) ---------------------------
 make_crlf_jq() {
   mkdir -p "$1"
   cat >"$1/jq" <<EOF
@@ -1047,7 +1046,6 @@ rc=$?
 assert_exit "extraction fails without an abort: the scan exits 2" 2 "$rc"
 assert_eq "extraction fails without an abort: no retry runs" "$(cat "$TEST_TMPDIR/bin-awk-error/calls")" "1"
 
-# --- Excerpt truncation at the byte boundary --------------------------------------
 LONGLINE="$(printf 'x%.0s' $(seq 1 75)) em${EM}dash tail"
 BOUNDARY="$TEST_TMPDIR/boundary.md"
 printf '%s\n' "$LONGLINE" >"$BOUNDARY"

@@ -224,7 +224,7 @@ such findings under a `REPO` check-ID so they stay distinct from the doc-derived
 
 ## Next
 
-- A finding names a rule a check can enforce: /corrections:codify rules <file>.
+/corrections:codify rules <file>, when a finding names a rule a check can enforce.
 
 ## Related
 

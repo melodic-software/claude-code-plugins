@@ -347,8 +347,6 @@ test('logs the count of invalid extra patterns once, never the pattern text', {
   expect(lines).toEqual(['display-redaction: skipped 1 invalid extra_patterns entry'])
 })
 
-// The AskUserQuestion schema refuses equal question texts, or equal option labels within one
-// question; a refused rewrite draws the original, so masking must keep them distinct.
 const twoAddresses = (a: string, b: string, header: string) => ({
   question: `Mail ${a}?`,
   header,

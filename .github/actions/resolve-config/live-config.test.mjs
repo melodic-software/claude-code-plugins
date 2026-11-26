@@ -1,8 +1,4 @@
 // test-scope: .github/actions/resolve-config/package.json
-// The repository's own pipeline config, resolved with the real schema,
-// vocabulary and trust files. Expected values come from the pr-unblock
-// contract (applies-when of resolve-conflicts, the report-escalation leaf) and
-// the README's skip reasons, not from resolver output.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -17,7 +13,7 @@ import { decide } from "../../scripts/lib/lane-level.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
 import { statusBotSetters } from "./issue-status.mjs";
 import { configFromBase, ownedBranchesFromBase, postMergeFromBase, refineDispatchActivitiesFromBase, testScopeFromBase } from "./resolve-config.mjs";
-import { laneSlots, resolve, resolveGrant, resolveLimits, slotTargets } from "./resolve.mjs";
+import { laneSlots, neededFacts, resolve, resolveGrant, resolveLimits, slotTargets } from "./resolve.mjs";
 import { STANDARDS_FIXTURE } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
@@ -136,7 +132,6 @@ test("live config: report-escalation applies and is granted publish-artifact onl
   );
 });
 
-// Expected values from #7032's acceptance criteria and effect-grants.json.
 test("live config: pr-refine is the refine stage: fix-docs, then its push job", () => {
   const { lane } = resolve(FILES, { lane: "pr-refine", activity: "fix-docs", configPath: CONFIG_PATH, basePath: ".base", facts: FACTS });
   assert.equal(lane.stage, "refine");
@@ -325,9 +320,6 @@ test("live config: publish-feedback runs the reply script after address-feedback
   );
 });
 
-// #12634: resolving a thread on an owner PR needs contents: write, so it
-// runs in its own script slot after publish-feedback, which keeps
-// publish-artifact, with no PR head checkout and on a PR head it never reads.
 test("live config: resolve-feedback-threads resolves after publish-feedback with mutate-branch and no head checkout", () => {
   const slot = selected("pr-unblock", "resolve-feedback-threads");
   assert.equal(slot.applies, true);
@@ -425,6 +417,17 @@ const ISSUE = {
   labels: ["agent-ready"],
 };
 
+test("live config: intake's triage-issue resolves on a dispatch with no issue field facts, as the live run's resolve-config reads it", () => {
+  assert.deepEqual(neededFacts(FILES, { lane: "intake-triage", activity: "triage-issue", configPath: CONFIG_PATH }), []);
+  const slot = resolve(FILES, { lane: "intake-triage", activity: "triage-issue", configPath: CONFIG_PATH, basePath: ".base", facts: { event: "dispatch", labels: [] } }).selected;
+  assert.equal(slot.applies, true);
+  assert.equal(slot["issue-dimensions"], undefined, "the triage that sets the dimensions is not sized by them");
+  assert.equal(slot["timeout-minutes"], undefined);
+  const large = selected("intake-triage", "triage-issue", { fieldValues: [{ field: 15462270, option: 27053566 }, ...FACTS.fieldValues.slice(1)] });
+  assert.equal(large.applies, true, "a Large issue is still triaged, never skipped for a split");
+  assert.ok(neededFacts(FILES, { lane: "work-resolve-issue", activity: "resolve-issue", configPath: CONFIG_PATH }).includes("fieldValues"), "the issue lane still reads its dimensions");
+});
+
 test("live config: resolve-issue starts on agent-ready alone, whatever its work-class label", () => {
   for (const labels of [
     ["agent-ready"],
@@ -442,8 +445,6 @@ test("live config: resolve-issue starts nothing for an issue carrying a hold lab
   }
 });
 
-// Codex P1 on #7780: the label alone admits, so its removal while a run waits
-// stops the run; the labels are read when the run starts.
 test("live config: resolve-issue starts nothing once agent-ready is gone from the issue", () => {
   assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels: [] }), "not-applicable");
   assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels: ["bug"] }), "not-applicable");
@@ -466,8 +467,6 @@ test("live config: resolve-issue runs the changelog fragment and changed-skills 
   ]);
 });
 
-// #8310 (owner decision: option a): the run's own advisory check-affected over
-// its uncommitted work, which the runner's run-checks job never reruns.
 test("live config: resolve-issue self-checks its uncommitted work with check-affected", () => {
   const leaf = selected("work-resolve-issue", "resolve-issue", ISSUE);
   assert.deepEqual(leaf["self-checks"], ["scripts/check-affected.sh --uncommitted"]);
@@ -517,9 +516,6 @@ test("live config: resolve-issue reads any host; review-dependency reads release
   assert.deepEqual(others, []);
 });
 
-// #8485 (owner decision (a), 2026-10-19; cutoffs, share and entry accepted
-// 2026-10-26): resolve-issue tidies a small single-area change in the run,
-// with the named quality skills only; no other activity tidies.
 test("live config: resolve-issue tidies within the small single-area cutoffs with the named quality skills; no other activity tidies", () => {
   const tidy = selected("work-resolve-issue", "resolve-issue", ISSUE).tidy;
   assert.equal(tidy.entry, "code-tidying:tidy-diff");
@@ -682,7 +678,6 @@ test("live config: fix-docs applies to a Markdown change and waits on do-not-mer
 
 const PLAN_CONFIG = configFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), STANDARDS_DIR: STANDARDS_FIXTURE });
 
-// The issue's rule (#13717): a changelog fragment alone does not qualify.
 test("live config: fix-docs skips a PR whose only Markdown is a changelog fragment, and the planner agrees", () => {
   const fragmentOnly = { changedPaths: [".changes/pr-pipeline/x.md", "src/a.js"], changedTargets: [".changes/pr-pipeline/x.md", "src/a.js"] };
   assert.equal(skipReason("pr-refine", "fix-docs", fragmentOnly), "not-applicable-paths");
@@ -754,9 +749,6 @@ test("live config: fix-docs holds no write token and its push job in pr-refine m
   assert.equal(apply.prepare, "apply-patch");
 });
 
-// Under run-claude-cli's env scrub the CLI forces the default mode for
-// auto, so no activity asks for it; fix-docs takes the dontAsk default and
-// runs only what the stage's allow rules name.
 test("live config: no activity sets permission-mode", () => {
   assert.equal(selected("pr-refine", "fix-docs")["permission-mode"], undefined);
   const { activities } = parse(FILES.config);
@@ -832,8 +824,6 @@ test("live config: only work-unblock's publish-lane-level resolves Variables wri
   });
 });
 
-// release-publish-plugins.yml owns and rebuilds release/plugins; run
-// 41065454536's re-fire push there answered 422 and failed the merge job.
 test("live config: pr-merge's re-fire step skips the release branch release-publish-plugins.yml rebuilds", () => {
   const { merge } = resolve(FILES, { lane: "pr-merge", activity: "merge-pr", configPath: CONFIG_PATH, basePath: ".base", facts: FACTS });
   assert.ok(merge["refire-skip-branches"].includes("release/plugins"), JSON.stringify(merge["refire-skip-branches"]));
@@ -848,8 +838,6 @@ test("live config: the refine job dispatches no configured activity", () => {
   assert.deepEqual(refineDispatchActivitiesFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), STANDARDS_DIR: STANDARDS_FIXTURE }), []);
 });
 
-// The canary pass records owner-login agent merges on their own path, record
-// only (owner decision Q1 (a) on #7531; README.md, "Merge paths").
 test("live config: post-merge records the owner login's agent merges on the owner-agent path, record only", () => {
   const { paths, agentIdentity } = postMergeFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), STANDARDS_DIR: STANDARDS_FIXTURE });
   assert.deepEqual(paths, { "owner-agent": { mode: "record", enqueuers: ["kyle-sexton"] } });
@@ -873,11 +861,6 @@ test("live config: models.issue-status field-events-since loads as the S2a cutov
   assert.equal(PLAN_CONFIG.models["issue-status"]["field-events-since"], "2026-11-07T09:45:00Z");
 });
 
-// The merge lane reads this file through the source-control YAML subset
-// (plugins/source-control/lib/yaml-subset.awk); a construct outside it turns
-// the lane off with config-parse-error.
-// resolve-config passes limits.api through as set, {} here; decide() fills it
-// from rate-limits.json the way the rate guard does.
 test("live config: decide() on the resolved limits steps a quiet busy lane from 3 to 4 after two clean windows", () => {
   const limits = resolveLimits(FILES, { configPath: CONFIG_PATH });
   const window = (at) => ({ at, pools: { "lanes-app": { used: 100, limit: 5000 } }, signals: [] });

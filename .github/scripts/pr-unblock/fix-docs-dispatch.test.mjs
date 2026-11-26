@@ -1,14 +1,3 @@
-// Expected values come from fix-docs's applies-when in
-// docs/conventions/pr-pipeline.yaml (paths **/*.md, labels-absent do-not-merge
-// and needs-human, draft false), the check name `pr-refine / fix-docs` the
-// read runner posts as `<lane> / <activity>` (and `pr-unblock / fix-docs`, the
-// lane fix-docs ran in before), the owner's call to tidy every PR but
-// Dependabot's, the release App's and the standards-sync App's, and once per
-// PR, as pr-refine.yml's old trigger ran it when a PR opened or turned ready.
-// work-resolve-issue's PRs, the lanes App's on a lane branch
-// (work-resolve-issue/issue-<n>-<run>-<attempt>), are skipped when tidied in
-// their own run (within the tidy cutoffs: README, Activities, `tidy`), and
-// dispatched over them (#13717 issuecomment-6692723687).
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -19,7 +8,6 @@ import { dispatchDocsFixes, docsRunState, heldHandoff, heldHead, HISTORY_COMMITS
 const ACTIONS = 15368;
 const CHECK = "pr-refine / fix-docs";
 const EARLIER_CHECK = "pr-unblock / fix-docs";
-// GET /users/<login> ids, which GraphQL's Bot.databaseId returns too.
 const DEPENDABOT = 49699333;
 const RELEASE_APP = 337859524;
 const STANDARDS_SYNC_APP = 300666570;
@@ -199,7 +187,6 @@ test("needs-human from a lane escalation does not hold fix-docs, which never esc
 });
 
 test("a person's inline review-thread reply since a lane escalation holds fix-docs; a bot's does not", async () => {
-  // GitHub's timeline has no event for a reply inside an existing review thread.
   const reply = (user) => [{ id: 2, in_reply_to_id: 1, user, body: "Wait.", created_at: "2026-10-22T11:00:00Z", updated_at: "2026-10-22T11:00:00Z" }];
   const gated = { labels: { nodes: [{ name: "needs-human" }] } };
   const { api, lines } = await run(
@@ -238,9 +225,6 @@ test("PRs the lanes App or another bot opened are dispatched; Dependabot's, the 
 
 const LANES_BOT = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: LANES_APP };
 const CUTOFFS = { "max-files": 2, "max-lines": 10, "max-areas": 1, "shared-paths": [".github/", "AGENTS.md"] };
-// The lane run's one commit as PULL_QUERY lists it, in the shape GraphQL
-// returned for a work-resolve-issue PR's API commit: a valid signature, the
-// App's bot user as author, and GitHub's noreply@github.com as committer.
 const laneCommitNode = (head, overrides = {}) => ({
   oid: head,
   signature: { isValid: true },
@@ -401,9 +385,6 @@ test("a PR whose only fix-docs run was lost without a check run is dispatched on
   assert.equal(isHandled(going.record, CHECK, pr(56).headRefOid), false);
 });
 
-// A fix-docs run's status and latest jobs as the REST listings name them:
-// pr-refine.yml's fix-docs call's jobs are `Fix Docs / <job>`
-// (pr-run-activity-read.yml's Check Broker, Record Broker Allow, Run and Report).
 const job = (name, conclusion, status = "completed") => ({ name, status, conclusion });
 const ended = (...jobs) => ({ status: "completed", jobs });
 const HELD = ended(job("Fix Docs Head", "success"), job("Fix Docs", "skipped"));
@@ -433,11 +414,6 @@ test("a red fix-docs run does not outlive a run that ended, or the check run it 
   assert.ok(isHandled(checked.record, CHECK, pr(54).headRefOid));
 });
 
-// handoff-evidence.sh's hold ends the run green with no check. Job conclusions
-// tell it from a decline: the leg's handoff job succeeded, yet the next leg never
-// started, which pr-refine.yml starts on a handoff that read settled. The run
-// job's handed-off output alone skips a scan job (head code can forge it, #8890),
-// so a skipped scan with no handoff job read is no hold.
 const leg = (name, scan) => [job(`${name} / Record Broker Allow`, "success"), job(`${name} / Run`, "success"), job(`${name} / Scan`, scan)];
 const read = (name) => job(`${name} Handoff`, "success");
 const HANDED_OFF = ended(job("Fix Docs Head", "success"), ...leg("Fix Docs", "skipped"), read("Fix Docs"), job("Fix Docs Subscription", "skipped"));

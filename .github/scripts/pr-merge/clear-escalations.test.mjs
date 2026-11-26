@@ -1,11 +1,3 @@
-// Expected values come from the needs-human recheck acceptance criteria and report-escalation.sh's
-// comment format: an App-set needs-human on a PR escalated as workflow-staged
-// comes off within one sweep once main stages no .github/workflows/ change into
-// the head, with one comment naming the reason and the head; a label a person
-// set, a reason that still holds, a label a person added back, a marker a
-// person wrote, and a person speaking after the escalation all keep it. Per the
-// owner decision on #8387, a bot account speaking after the label (AI review,
-// another lane) does not keep it.
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 
@@ -36,7 +28,7 @@ const REQUIRED_SUITES = [500, 501];
 const check = (name, conclusion, { id = 1, slug = "github-actions", suite = 500 } = {}) => ({ id, name, status: "completed", conclusion, app: { slug }, check_suite: { id: suite } });
 const RED = [check("test-node", "failure")];
 const threadPage = (nodes, hasNextPage = false) => ({ nodes, pageInfo: { hasNextPage, endCursor: hasNextPage ? "next" : null } });
-function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader, listed = ["needs-human"], labels = ["needs-human"], sessionNumbers = [], statuses = [], keyStatuses = [], sessionThreads = [], edits = [] }) {
+function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader, listed = ["needs-human"], labels = ["needs-human"], sessionNumbers = [], statuses = [], keyStatuses = [], sessionThreads = [], edits = [], mergeBase, dotGithub = {} }) {
   const calls = [];
   const known = (number) => numbers.includes(number) || sessionNumbers.includes(number);
   const checks = async (method, path) => {
@@ -83,7 +75,14 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
       return { number: Number(number), state: "open", user: author, base: { ref: "main", sha: MAIN }, head: { sha: HEAD, ref: "feat/x", repo: { full_name: headRepo } }, labels: labels.map((name) => ({ name })), mergeable };
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/${HEAD}...${MAIN}`) {
-      return { files: mainFiles };
+      return { files: mainFiles, ...(mergeBase && { merge_base_commit: { sha: mergeBase } }) };
+    }
+    const dotRef = new RegExp(`^/repos/${REPO}/contents/\\.github\\?ref=([0-9a-f]{40})$`).exec(path)?.[1];
+    if (method === "GET" && dotRef !== undefined) {
+      if (!(dotRef in dotGithub)) {
+        throw new Error(`GET ${path} failed with status 404`);
+      }
+      return structuredClone(dotGithub[dotRef]);
     }
     if (method === "GET" && route === `/repos/${REPO}/pulls/7/files`) {
       return path.endsWith("page=1") ? pullFiles : [];
@@ -230,10 +229,6 @@ test("a person's comment, review, or review comment after the label keeps it", a
   }
 });
 
-// GitHub's timeline carries no event for a reply inside an existing review
-// thread: on #10526 and #10533 every reply-only review a person submitted is
-// absent from issues/<n>/timeline (no `reviewed`, no `line-commented`), while
-// pulls/<n>/comments lists the reply and pulls/<n>/reviews its review.
 const BOT_THREAD = { id: 101, user: ACTIONS_BOT, body: "Finding.", pull_request_review_id: 201, created_at: "2026-10-18T09:00:00Z", updated_at: "2026-10-18T09:00:00Z" };
 const reply = (user, at, updatedAt = at) => ({ id: 102, user, body: "Wait on this.", pull_request_review_id: 202, in_reply_to_id: 101, created_at: at, updated_at: updatedAt });
 const BOT_REVIEW = { id: 201, user: ACTIONS_BOT, state: "COMMENTED", body: "**claude-review**: 1 inline finding(s)", submitted_at: "2026-10-18T09:00:00Z" };
@@ -342,12 +337,6 @@ test("a label for a reason now routed to a failing status: fix-ci comes off on a
   }
 });
 
-// Per the owner decision of 2026-10-25, feedback-not-landed needs no person
-// once the head moved off its resume key and no review thread the lane
-// replied to is left unresolved, and, per the owner's later direction on the
-// security finding, a trusted push moved it or both review lanes read the new
-// head clean: a lanes App push alone never clears it (tests below the trusted
-// move). GraphQL names the lanes App bot without the `[bot]` REST adds.
 const LANE_AUTHOR = { __typename: "Bot", login: "melodic-automation-lanes" };
 const PERSON_AUTHOR = { __typename: "User", login: "kyle-sexton" };
 const reviewThread = (isResolved, authors, totalCount = authors.length) => ({ isResolved, comments: { totalCount, nodes: authors.map((author) => ({ author })) } });
@@ -397,9 +386,6 @@ test("feedback-not-landed stays when a person spoke after the label, on the time
   }
 });
 
-// The security finding on #10252: a fix-ci label came off with no CI result
-// read. Only a failed GitHub Actions check on the current head other than
-// ci-status clears it; ci-status itself fails on the label, so it is skipped.
 test("a fix-ci label comes off only while the head's own checks read failed", async () => {
   const timeline = [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")];
   for (const [label, headChecks, cleared] of [
@@ -754,9 +740,6 @@ test("a hold marker from github-actions[bot] with no lane footer, or from anothe
   }
 });
 
-// check-signed-commits' escalation comment, as its report job posts it with
-// GITHUB_TOKEN: SIGNED_COMMITS_HOLD on the first line. Its label write adds no
-// `labeled` event when a lane escalation already put the label on.
 const signedHold = (user, at, updatedAt = at) =>
   commented(user, `${SIGNED_COMMITS_HOLD}\nLane commit check: these commits are not GitHub-verified, so no lane continues on this pull request until a human reviews them.\n\n- \`${KEY}\``, at, updatedAt);
 
@@ -794,8 +777,6 @@ test("check-signed-commits' hold a person lifted by unlabeling no longer keeps a
   assert.deepEqual(edited.writes(), [], "edited after the unlabel");
 });
 
-// pr-verify's stop on a withheld fail, as verify-notes.mjs posts it with
-// GITHUB_TOKEN under a label already on, which adds no `labeled` event.
 const credentialHold = (user, at, updatedAt) => commented(user, `${CREDENTIAL_HOLD}\nReason: \`security\`\n\npr-verify withheld its fail at head \`${"a".repeat(40)}\`.`, at, updatedAt);
 
 test("pr-verify's credential stop keeps the label a clearing escalation would take off, until a person lifts it", async () => {
@@ -812,11 +793,6 @@ test("pr-verify's credential stop keeps the label a clearing escalation would ta
   assert.ok(!forgedLogs.some((line) => line.includes("for a credential")), "the marker from a person is not the hold");
 });
 
-// enable-auto-merge's own person refusal comment (refusalBody), then its
-// label: under merge.lane-prs native the only writer of a lanes App PR's
-// pr-merge label. #10090's shape: a risk hold on unbound reviews at the head
-// the PR still has. Reader answers use babysit_verify_evidence.py's own
-// constants (FAIL, MISSING, UNREADABLE, the `unreadable:` reviews answer).
 const UNBOUND = "pr-merge's gate holds it on its risk score (evidence-unbound:claude-review: not bound: rerun-not-allowed)";
 const SECURITY = "pr-merge's gate holds it on its risk score (security-finding: 1 open CRITICAL finding)";
 const REPEATED = "pr-merge's gate refuses its verifier verdict (verify:repeated-fail)";
@@ -824,7 +800,6 @@ const TOO_OLD = "pr-merge's gate refuses its verifier verdict (verify:too-old)";
 const UNTRUSTED = "pr-merge's lane does not take its issue link (untrusted-provenance)";
 const UNTRUSTED_SPEC = "pr-merge's gate refuses its verifier verdict (verify:untrusted-spec)";
 const COST = "pr-merge's gate holds it on its risk score (cost-review-required: infra/main.tf)";
-// Labels enable-auto-merge set before #9826 made these lane causes.
 const SPEC_CHANGED = "pr-merge's gate refuses its verifier verdict (verify:spec-changed)";
 const NATIVE = { LANE_PRS: "native" };
 const nativeEscalated = (reason, head = HEAD) => mergeEscalated(refusalBody(true, reason, head, "needs-human"));
@@ -880,9 +855,6 @@ test("enable-auto-merge's label comes off when the reader now reads a refusal th
     [SPEC_CHANGED, refusing("verify:earlier-fail")],
     [UNBOUND, (pull) => ({ ...clean(pull), reviews: "evidence-unbound:claude-review: not bound: rerun-allowed" })],
     [SPEC_CHANGED, reviewsNow("evidence-unbound:claude-review: not bound: rerun-allowed")],
-    // Owner rule 2026-10-27: the repeated-FAIL cap and an old pull request
-    // hold for the lanes, so their labels come off at the head where the
-    // reader still refuses them (#10134's shape).
     [REPEATED, refusing("verify:repeated-fail")],
     [TOO_OLD, refusing("verify:too-old")],
   ]) {
@@ -1011,8 +983,6 @@ test("a pr-merge person comment not in enable-auto-merge's exact shape, or edite
   }
 });
 
-// Main's head-moved rule (#9826): no read; enable-auto-merge judges the new
-// head and labels it again only for a cause a person must clear.
 test("enable-auto-merge's refusal at an old head comes off as head-moved without a read", async () => {
   const w = world({ timeline: nativeEscalated(SECURITY, OLD), author: BOT, evidence: clean });
   await run(w, NATIVE);
@@ -1215,8 +1185,6 @@ const REVIEWER_AUTHOR = { __typename: "Bot", login: "github-actions" };
 const severityThread = (severity) => ({ ...reviewThread(false, [REVIEWER_AUTHOR]), opening: { nodes: [{ body: `Finding.\n\n${severity}\n\nclaude-lane: claude-security-review` }] } });
 const WAITING = `a push no trusted person made moved the head; waiting for clean review lanes at ${HEAD}`;
 
-// An open SUGGESTION or IMPORTANT finding is reported, not held: only a
-// CRITICAL one holds (owner decision on #11020).
 test("feedback-not-landed comes off after a lanes App push once both review lanes read the new head clean, an open SUGGESTION or IMPORTANT thread included", async () => {
   for (const [severity, jobs] of [
     ["severity: SUGGESTION", STATUS_JOBS],
@@ -1355,9 +1323,6 @@ test("workflow-staged stays when the activity page does not reach back to the la
   assert.deepEqual(w.writes(), []);
 });
 
-// The activity API ignores `page`: each next page is the Link rel="next"
-// cursor (merge-holds.mjs branchActivity). `rows` split into pages of 100;
-// `link` decides whether page n names page n + 1.
 const pagedReader = (rows, link = (n, pages) => n + 1 < pages.length) => {
   const pages = Array.from({ length: Math.max(1, Math.ceil(rows.length / 100)) }, (_, n) => rows.slice(n * 100, n * 100 + 100));
   return async (method, path) => {
@@ -1582,9 +1547,24 @@ test("a workflow-staged keep line names main's SHA and the first workflow file i
     const { logs } = await run(w);
     assert.ok(logs.includes(`clear-escalations: #7 kept: workflow-staged still holds at ${HEAD}: main ${MAIN} changes ${named}`), logs.join("\n"));
   }
-  const cut = world({ timeline: inlineTimeline(), mainFiles: Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}` })) });
+  const many = Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}` }));
+  const cut = world({ timeline: inlineTimeline(), mainFiles: many });
   const { logs } = await run(cut);
   assert.ok(logs.includes(`clear-escalations: #7 kept: workflow-staged still holds at ${HEAD}: main ${MAIN}'s file listing against it may be cut short`), logs.join("\n"));
+});
+
+test("past the compare API's 300-file list, workflow-staged reads .github/workflows' tree at main's merge base and tip", async () => {
+  const many = Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}` }));
+  const BASE = "3".repeat(40);
+  const listing = JSON.parse(readFileSync(new URL("./fixtures/contents-listing.json", import.meta.url), "utf8")).dotGithub;
+  const tree = (changes) => listing.map((entry) => (entry.name in changes ? { ...entry, sha: changes[entry.name] } : entry));
+  const same = world({ timeline: inlineTimeline(), mainFiles: many, mergeBase: BASE, dotGithub: { [BASE]: listing, [MAIN]: tree({ scripts: "9".repeat(40) }) } });
+  await run(same);
+  assert.equal(same.writes().at(-1)?.method, "DELETE", "an unchanged workflows tree takes the label off");
+  const moved = world({ timeline: inlineTimeline(), mainFiles: many, mergeBase: BASE, dotGithub: { [BASE]: listing, [MAIN]: tree({ workflows: "8".repeat(40) }) } });
+  const kept = await run(moved);
+  assert.ok(kept.logs.includes(`clear-escalations: #7 kept: workflow-staged still holds at ${HEAD}: main ${MAIN} changes .github/workflows`), kept.logs.join("\n"));
+  assert.ok(!moved.writes().some((write) => write.method === "DELETE"), "a changed workflows tree keeps the label");
 });
 
 test("a person's reply or review on the second page of either listing keeps it", async () => {
@@ -1661,10 +1641,6 @@ test("a person's comment written before the label and edited after it, or in the
   }
 });
 
-// The session-builder queue label (#11087): report-escalation.sh puts
-// needs-session on before its lane-stopped comment for a fail-routed reason
-// whose escalation-routes.json entry names it, and its `clear` mode posts
-// success over the stop's failing status when a same-head retry lands.
 const sessionLabeled = (actor, at = "2026-10-18T10:00:00Z") => ({ event: "labeled", actor, label: { name: "needs-session" }, created_at: at });
 const stopBody = (reason, head = HEAD, activity = escalationActivity(reason)) =>
   `<!-- pr-unblock:lane-stopped activity=${activity} -->\nThe pr-unblock lane stopped \`${activity}\` on this pull request: why. The lane labels it \`needs-session\` for a session builder, who makes the change this lane cannot, and the run ends in a failing \`pr-unblock/${activity}\` status on the head the lane gated.\n\n- Reason: \`${reason}\`\n- Head: \`${head}\`\n- Run: https://github.com/${REPO}/actions/runs/1\n`;
@@ -1724,11 +1700,6 @@ test("a needs-session a person added, or one with no lane stop since it went on,
   }
 });
 
-// The new-head lift (#11200): a stop's status sits on the stop's head, so a
-// push leaves nothing that marks the new head mended. The label comes off
-// when the head is none of the stops' heads, the new head carries no failing
-// status for their activities, and its checks pass; ci-status, which the
-// label keeps red, is not counted.
 const NEW_HEAD_GREEN = [check("test-node", "success"), check("ci-status", "failure", { id: 2 })];
 const laneContext = (reason) => `pr-unblock/${escalationActivity(reason)}`;
 

@@ -1,7 +1,7 @@
 ---
 description: "improve-layout Phase 1 with no recorded style, attended: says no style is recorded and names the sources checked, asks once how files should be grouped, offers /architecture:adr without running it, runs the co-change script once over the scaffolded history (one four-file order cluster over four folders) and ends asking which candidate to explore. Source: the improve skill's evals.json case layout-no-style-attended-asks-once, given a scaffold. Needs --scaffold --allow-tools Bash Write and a sandbox backend."
 tags: [architecture, improve-layout, co-change, scaffold]
-runs: 6
+runs: 3
 max_turns: 30
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write]

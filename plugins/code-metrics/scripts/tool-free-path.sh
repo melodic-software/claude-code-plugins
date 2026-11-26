@@ -18,7 +18,6 @@ cm_ladder_tools() {
 }
 
 cm_ladder_path_bins() {
-  # The CR strip keeps a native Windows Python's CRLF out of the names (#6794).
   "$(_cm_python)" -I - "$_CM_LADDER" "$_CM_COLLECTORS" <<'PY' | sed $'s/\r$//'
 import ast
 import os
