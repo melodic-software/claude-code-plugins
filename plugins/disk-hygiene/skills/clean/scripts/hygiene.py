@@ -401,7 +401,25 @@ def close_clean_runs(ended: Path | None = None) -> None:
     session_id = os.environ.get("CLAUDE_CODE_SESSION_ID")
     if not DATA_ROOT_OVERRIDE or not session_id:
         return
-    data_root_state.CleanRunStore(_data_root()).close_if_ended(session_id, ended=ended)
+    runs = _data_root() / engine_grammar.RUN_MARKER_DIRNAME
+    marker = runs / engine_grammar.run_marker_filename(session_id)
+    try:
+        if runs.is_symlink() or not runs.is_dir():
+            return
+        with data_root_state.run_marker_lock(runs):
+            info = marker.lstat()
+            if not stat.S_ISREG(info.st_mode):
+                return
+            close = time.time() - info.st_mtime >= RUN_IDLE_TIMEOUT_SECONDS
+            if not close and ended is not None:
+                recorded = json.loads(marker.read_text(encoding="utf-8"))["ends_with"]
+                close = isinstance(recorded, str) and os.path.normcase(
+                    Path(recorded).resolve(strict=False)
+                ) == os.path.normcase(ended)
+            if close:
+                marker.unlink(missing_ok=True)
+    except (OSError, ValueError, TypeError, KeyError):
+        return
 
 
 def load_input_json(value: str) -> dict[str, Any]:

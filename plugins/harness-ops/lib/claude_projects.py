@@ -23,8 +23,6 @@ import gzip
 import json
 import os
 import re
-import shutil
-import subprocess
 import sys
 import zlib
 from collections.abc import Callable, Mapping, Sequence
@@ -321,12 +319,19 @@ class ProjectSlugResolver:
                     return found
         return None
 
+    @staticmethod
+    def _safe_exists(path: Path) -> bool | None:
+        try:
+            return path.exists()
+        except OSError:
+            return None
+
     def _source_exists(self, source_path: str) -> bool | None:
         """Check whether ``source_path`` exists, respecting ``fs_root`` and ``drive_roots``.
 
         Returns None when the path belongs to a drive root that is unavailable
-        on this host (for example a Windows drive letter on POSIX without a
-        configured ``drive_roots`` entry).
+        on this host or when ``stat`` raises an ``OSError`` (e.g. ``EACCES``,
+        ``ESTALE``, ``ENOTCONN``).
         """
         win_match = _WIN_DRIVE_PATH_RE.match(source_path)
         if win_match:
@@ -335,12 +340,12 @@ class ProjectSlugResolver:
             root = self.drive_roots.get(drive)
             if root is None:
                 return None
-            return (root / tail).exists() if tail else root.exists()
+            return self._safe_exists(root / tail if tail else root)
         if source_path.startswith("/"):
             rel = source_path.lstrip("/")
             candidate = self.fs_root / rel if rel else self.fs_root
-            return candidate.exists()
-        return Path(source_path).exists()
+            return self._safe_exists(candidate)
+        return self._safe_exists(Path(source_path))
 
     def decode_slug(self, slug: str) -> str | None:
         """Return the existing source path decoded from ``slug`` via cached walk, or None."""
@@ -348,7 +353,7 @@ class ProjectSlugResolver:
             return None
         if slug.startswith("-"):
             if slug == "-":
-                return "/" if self.fs_root.exists() else None
+                return "/" if self._safe_exists(self.fs_root) else None
             found = self._walk(self.fs_root, slug[1:])
             if found is None:
                 return None
@@ -386,22 +391,31 @@ class ProjectSlugResolver:
         slug = project_dir.name
         pinned = validated_pinned_dir_name(self.env)
 
+        if pinned is not None and slug == pinned:
+            return ProjectResolution(
+                slug=slug,
+                path=project_dir,
+                status="pinned",
+                source_path=None,
+                via="pinned",
+                reason="pinned by CLAUDE_CODE_PROJECT_DIR_NAME under CLAUDE_CONFIG_DIR",
+            )
+
         win_match = _WIN_DRIVE_SLUG_RE.match(slug)
-        if pinned is None or slug != pinned:
-            if len(slug) <= PROJECT_NAME_CAP and (
-                slug.startswith("-")
-                or (win_match and win_match.group(1).upper() in self.drive_roots)
-            ):
-                source = self.decode_slug(slug)
-                if source is not None:
-                    return ProjectResolution(
-                        slug=slug,
-                        path=project_dir,
-                        status="exists",
-                        source_path=source,
-                        via="tree-walk",
-                        reason=f"transcripts of {source}, which still exists",
-                    )
+        if len(slug) <= PROJECT_NAME_CAP and (
+            slug.startswith("-")
+            or (win_match and win_match.group(1).upper() in self.drive_roots)
+        ):
+            source = self.decode_slug(slug)
+            if source is not None:
+                return ProjectResolution(
+                    slug=slug,
+                    path=project_dir,
+                    status="exists",
+                    source_path=source,
+                    via="tree-walk",
+                    reason=f"transcripts of {source}, which still exists",
+                )
 
         cwd = self.cwd_port.read_cwd(project_dir)
         if cwd and self._cwd_matches_slug(cwd, slug, pinned):
@@ -431,16 +445,6 @@ class ProjectSlugResolver:
                 source_path=cwd,
                 via="transcript-cwd",
                 reason=f"recorded cwd {cwd} is on a root not accessible on this host",
-            )
-
-        if pinned is not None and slug == pinned:
-            return ProjectResolution(
-                slug=slug,
-                path=project_dir,
-                status="pinned",
-                source_path=None,
-                via="pinned",
-                reason="pinned by CLAUDE_CODE_PROJECT_DIR_NAME under CLAUDE_CONFIG_DIR",
             )
 
         if len(slug) > PROJECT_NAME_CAP:
@@ -559,61 +563,6 @@ class ProjectSlugResolver:
         return matched
 
 
-def _win_form(path: str) -> str:
-    if shutil.which("cygpath"):
-        try:
-            proc = subprocess.run(
-                ["cygpath", "-w", path],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            out = proc.stdout.rstrip("\r\n")
-            if proc.returncode == 0 and out:
-                return out
-        except OSError:
-            pass
-    return path
-
-
-def _discover_git_roots(scope: str) -> list[str]:
-    here_root = ""
-    in_repo = False
-    try:
-        proc = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if proc.returncode == 0:
-            here_root = proc.stdout.strip().replace("\r", "")
-            in_repo = bool(here_root)
-    except OSError:
-        pass
-    if not here_root:
-        here_root = os.getcwd()
-    roots = [_win_form(here_root)]
-    if scope == "repo" and in_repo:
-        try:
-            proc = subprocess.run(
-                ["git", "worktree", "list", "--porcelain"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if proc.returncode == 0:
-                for raw_line in proc.stdout.splitlines():
-                    line = raw_line.replace("\r", "")
-                    if line.startswith("worktree "):
-                        wt = _win_form(line[len("worktree ") :])
-                        if wt not in roots:
-                            roots.append(wt)
-        except OSError:
-            pass
-    return roots
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="claude_projects.py",
@@ -639,7 +588,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--root",
         action="append",
         default=None,
-        help="Explicit worktree/repo root path (repeatable; auto-discovered via git if omitted).",
+        help="Explicit worktree/repo root path (repeatable; defaults to cwd when omitted).",
     )
 
     try:
@@ -659,7 +608,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.root:
             roots = list(args.root)
         else:
-            roots = _discover_git_roots(args.scope)
+            roots = [os.getcwd()]
 
         resolver = ProjectSlugResolver(cwd_port=TranscriptReaderCwdAdapter())
         for path in resolver.match_roots(projects_dir, roots, scope=args.scope):

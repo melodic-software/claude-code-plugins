@@ -18054,7 +18054,9 @@ class InventoryCommandTests(unittest.TestCase):
             reason="tool-managed",
         )
         with mock.patch.object(
-            hygiene.deep_inventory, "category_rows", return_value={str(bad): row}
+            hygiene.deep_inventory,
+            "_default_classifiers",
+            return_value=(hygiene.deep_inventory.DictClassifierAdapter({str(bad): row}),),
         ):
             code, summary = self.run_inventory("--deep")
         self.assertEqual(hygiene.INVENTORY_VALIDATION_FAILED, code)

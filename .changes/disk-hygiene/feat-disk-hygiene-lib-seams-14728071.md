@@ -6,7 +6,7 @@ bump: minor
 
 - `plugins/disk-hygiene/lib/install_authority.py` owning explicit-input install-layout derivation, trusted OS-account config-dir lookup, and launch disclosure with zero ambient `sys.argv` or environment trust.
 - `plugins/disk-hygiene/lib/data_root_state.py` owning `DataRoot`, `CleanRunStore`, the complete 6-directory `ENGINE_OWNED_DIRS` set, strict ASCII `sanitize_session_id`, and cross-language parity tests against `hooks.json`, `resume-notice.mjs`, and `run-python-hook.sh`.
-- `plugins/disk-hygiene/lib/policy_cascade.py` owning `@functools.lru_cache` immutable `BaselineSnapshot`, `snapshot_protected_exact_names`, ADR 0075 standing policy cascade, and YAML/JSON overlay validation.
+- `plugins/disk-hygiene/lib/policy_cascade.py` owning immutable `BaselineSnapshot`, `snapshot_protected_exact_names`, ADR 0075 standing policy cascade, and YAML/JSON policy overlay validation.
 - `killswitch_config.probe_effective` sharing managed-over-user, `managed-settings.d/*.json`, and Linux root-ownership trust precedence with `resolve_effective`.
 
 ### Changed

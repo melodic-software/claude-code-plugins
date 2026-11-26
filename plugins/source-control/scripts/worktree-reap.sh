@@ -329,7 +329,7 @@ for repo in "${repo_list[@]}"; do
       break
     }
   done
-  if [[ -n "$base" ]] && git -C "$repo" show "$base:docs/conventions/workspace-environment.md" 2>/dev/null | grep -qw down; then
+  if [[ -n "$base" ]] && grep -qw down < <(git -C "$repo" show "$base:docs/conventions/workspace-environment.md" 2>/dev/null); then
     printf '  skip repo: declares a Workspace environment down command\n'
     skipped[workspace-down]=$((${skipped[workspace-down]:-0} + 1))
     continue
@@ -360,7 +360,8 @@ for repo in "${repo_list[@]}"; do
         skip remote-not-gone "$path"
         continue
       fi
-      born="$(stat -c %Y -- "$path/.git" 2>/dev/null)" || born=''
+      # portability-ok: tries GNU stat -c first and falls back to BSD stat -f
+      born="$(stat -c %Y -- "$path/.git" 2>/dev/null || stat -f %m -- "$path/.git" 2>/dev/null)" || born=''
       if [[ ! "$born" =~ ^[0-9]+$ ]] || (((now - born) / 3600 < hours)); then
         skip under-age "$path"
         continue

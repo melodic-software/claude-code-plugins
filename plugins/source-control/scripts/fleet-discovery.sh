@@ -65,6 +65,7 @@ fleet_resolve_config() {
     home_dir="${HOME:-${USERPROFILE:-}}"
     if [[ -n "$home_dir" && -f "$home_dir/.claude/repo-fleet-hygiene.conf" ]]; then
       FLEET_CONFIG_FILE="$home_dir/.claude/repo-fleet-hygiene.conf"
+      # shellcheck disable=SC2034
       FLEET_CONFIG_SOURCE="user-global"
     fi
   fi
@@ -72,6 +73,7 @@ fleet_resolve_config() {
     FLEET_CONFIG_FILE="$(cd "$(dirname "$FLEET_CONFIG_FILE")" 2>/dev/null && pwd -P)/$(basename "$FLEET_CONFIG_FILE")"
     ${FLEET_GIT_CMD:-git} config --file "$FLEET_CONFIG_FILE" --list >/dev/null 2>&1 ||
       fail "invalid Git config: $FLEET_CONFIG_FILE"
+    # shellcheck disable=SC2034
     FLEET_CONFIG_DIR="$(dirname "$FLEET_CONFIG_FILE")"
   fi
 }

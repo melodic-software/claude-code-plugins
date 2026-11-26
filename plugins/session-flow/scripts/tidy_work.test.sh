@@ -24,4 +24,4 @@ fi
 
 # No cache provider: a .pytest_cache/ beside the script would otherwise carry a
 # README.md that the plugin-wide markdownlint glob picks up.
-exec "$PY" -m pytest tests/test_tidy_work.py -q -p no:cacheprovider
+exec "$PY" -m pytest tests/test_tidy_work.py tests/test_tidy_work_concerns.py -q -p no:cacheprovider

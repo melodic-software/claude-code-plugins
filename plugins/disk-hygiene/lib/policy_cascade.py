@@ -1,14 +1,12 @@
-"""Cached baseline policy, ADR 0075 standing cascade, and overlay validation.
+"""Baseline policy, ADR 0075 standing cascade, and policy overlay validation.
 
 Shared by ``hygiene.py`` and ``policy_migration.py`` so policy migration never
-imports the deletion engine and validation loops never re-read
-``baseline-policy.json`` from disk.
+imports the deletion engine.
 """
 
 from __future__ import annotations
 
 import fnmatch
-import functools
 import json
 import os
 import re
@@ -172,9 +170,8 @@ def _validate_protection_glob_entry(entry: Any) -> None:
         raise PolicyError("protection glob reason must be a non-empty string")
 
 
-@functools.lru_cache(maxsize=4)
 def load_baseline_snapshot(baseline_path: Path = BASELINE_POLICY) -> BaselineSnapshot:
-    """Load, validate, and cache an immutable ``BaselineSnapshot``."""
+    """Load and validate an immutable ``BaselineSnapshot``."""
     baseline = load_json(baseline_path)
     if baseline.get("version") != SCHEMA_VERSION:
         raise PolicyError("unsupported baseline policy version")
@@ -528,7 +525,7 @@ def validate_rules(
 def apply_policy_overlay(
     result: dict[str, Any], overlay_path: Path, project_scope: bool = False
 ) -> None:
-    """Layer one overlay onto ``result``; a failing layer changes nothing."""
+    """Layer one policy overlay onto ``result``; a failing layer changes nothing."""
     overlay = load_overlay(overlay_path)
     version = overlay.get("version")
     if isinstance(version, bool) or version not in OVERLAY_VERSIONS:

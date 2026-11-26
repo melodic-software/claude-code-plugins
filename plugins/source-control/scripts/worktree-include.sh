@@ -129,11 +129,11 @@ do_copy() {
   wt_dir="$(canon_dir "$to_dir")" || die "copy: unreadable destination worktree: $to_dir" 3
 
   inc=""
-  if ! inc="$(resolve_include_file "$main_root")"; then
-    local rc=$?
-    if ((rc == 3)); then
-      die "copy: unreadable .worktreeinclude in $main_root" 3
-    fi
+  local rc=0
+  inc="$(resolve_include_file "$main_root")" || rc=$?
+  if ((rc == 3)); then
+    die "copy: unreadable .worktreeinclude in $main_root" 3
+  elif ((rc != 0)); then
     printf '0\n'
     return 0
   fi
@@ -212,11 +212,11 @@ do_diff() {
   fi
 
   inc=""
-  if ! inc="$(resolve_include_file "$main_root" "$wt_top")"; then
-    rc=$?
-    if ((rc == 3)); then
-      die "diff: unreadable .worktreeinclude" 3
-    fi
+  rc=0
+  inc="$(resolve_include_file "$main_root" "$wt_top")" || rc=$?
+  if ((rc == 3)); then
+    die "diff: unreadable .worktreeinclude" 3
+  elif ((rc != 0)); then
     return 0
   fi
 
@@ -366,11 +366,11 @@ do_sync_back() {
   [[ "$wt_top" != "$main_root" ]] || die "sync-back: worktree and main root are the same directory: $wt_top" 2
 
   inc=""
-  if ! inc="$(resolve_include_file "$main_root" "$wt_top")"; then
-    rc=$?
-    if ((rc == 3)); then
-      die "sync-back: unreadable .worktreeinclude" 3
-    fi
+  rc=0
+  inc="$(resolve_include_file "$main_root" "$wt_top")" || rc=$?
+  if ((rc == 3)); then
+    die "sync-back: unreadable .worktreeinclude" 3
+  elif ((rc != 0)); then
     die "sync-back: no .worktreeinclude found; refusing to copy or remove any path" 2
   fi
 

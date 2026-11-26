@@ -25,18 +25,14 @@ class PolicyCascadeTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.base = Path(self.tmp.name).resolve()
 
-    def test_baseline_snapshot_is_cached_and_immutable(self) -> None:
-        policy_cascade.load_baseline_snapshot.cache_clear()
+    def test_baseline_snapshot_is_immutable(self) -> None:
         first = policy_cascade.load_baseline_snapshot()
         second = policy_cascade.load_baseline_snapshot()
-        self.assertIs(first, second)
+        self.assertEqual(first, second)
         self.assertIsInstance(first.protected_exact_names, frozenset)
         self.assertIsInstance(first.protected_exact_names_casefolded, frozenset)
         self.assertIsInstance(first.protected_name_globs, tuple)
         self.assertIsInstance(first.disk_image_name_globs, tuple)
-        info = policy_cascade.load_baseline_snapshot.cache_info()
-        self.assertEqual(1, info.misses)
-        self.assertGreaterEqual(info.hits, 1)
 
         p1 = policy_cascade.baseline_policy()
         p1["protected_exact_names"].append("MUTATED")
@@ -45,16 +41,11 @@ class PolicyCascadeTests(unittest.TestCase):
         self.assertNotIn("MUTATED", p2["protected_exact_names"])
         self.assertGreater(len(p2["hints"]), 0)
 
-    def test_baseline_protected_names_does_not_reread_disk_after_first_load(self) -> None:
-        policy_cascade.load_baseline_snapshot.cache_clear()
-        _ = policy_cascade.baseline_protected_names()
-        with mock.patch.object(
-            policy_cascade, "load_json", side_effect=AssertionError("re-read disk")
-        ):
-            names = policy_cascade.baseline_protected_names()
-            snap_names = policy_cascade.snapshot_protected_exact_names(
-                {"policy": {"protected_exact_names": ["CustomVault"]}}
-            )
+    def test_baseline_protected_names_and_snapshot_union(self) -> None:
+        names = policy_cascade.baseline_protected_names()
+        snap_names = policy_cascade.snapshot_protected_exact_names(
+            {"policy": {"protected_exact_names": ["CustomVault"]}}
+        )
         self.assertIn("Documents", names)
         self.assertIn("Documents", snap_names)
         self.assertIn("CustomVault", snap_names)

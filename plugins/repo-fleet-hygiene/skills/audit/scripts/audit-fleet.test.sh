@@ -2770,6 +2770,7 @@ fi
 
 mkdir -p "$TMP/winhome/.claude"
 cp "$TMP/homeg/.claude/repo-fleet-hygiene.conf" "$TMP/winhome/.claude/repo-fleet-hygiene.conf"
+# shellcheck disable=SC2016
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 env -u HOME USERPROFILE="$TMP/winhome" \
   CLAUDE_PROJECT_DIR='${CLAUDE_PROJECT_DIR}' bash "$SCRIPT" >"$ladder_out" 2>"$TMP/winhome.err"
 if grep -Fq -- "repo-fleet-hygiene.conf (user-global)" "$ladder_out"; then

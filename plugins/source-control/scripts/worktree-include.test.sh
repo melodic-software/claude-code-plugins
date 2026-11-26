@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INCLUDE="$SCRIPT_DIR/worktree-include.sh"
 
 FAILED=0
+# shellcheck disable=SC2034
 CASE_NUM=0
 # shellcheck source=test-helpers.sh
 source "$SCRIPT_DIR/test-helpers.sh"
@@ -201,5 +202,16 @@ ln -s "$OUTSIDE_DIR" "$REPO_SYM/.work/sub"
 run_inc sync-back "$WT_SYM" --copy ".work/sub/escape.md"
 assert_exit "sync-back rejects symlinked parent directory under main root (exit 2)" 2 "$?"
 assert_file_absent "rejected symlinked parent writes nothing outside main root" "$OUTSIDE_DIR/escape.md"
+
+REPO_BADINC="$(mkfixture)"
+mkdir -p "$REPO_BADINC/.worktreeinclude"
+WT_BADINC="$TEST_TMPDIR/wt-badinc"
+git -C "$REPO_BADINC" worktree add -q -b feat/badinc "$WT_BADINC" main >/dev/null 2>&1
+run_inc copy --from "$REPO_BADINC" --to "$WT_BADINC"
+assert_exit "copy fails closed when .worktreeinclude is a directory (exit 3)" 3 "$?"
+run_inc diff "$WT_BADINC"
+assert_exit "diff fails closed when .worktreeinclude is a directory (exit 3)" 3 "$?"
+run_inc sync-back "$WT_BADINC" --copy "app.env"
+assert_exit "sync-back fails closed when .worktreeinclude is a directory (exit 3)" 3 "$?"
 
 [[ $FAILED -eq 0 ]] || exit 1

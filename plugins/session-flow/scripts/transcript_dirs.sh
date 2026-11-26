@@ -22,12 +22,43 @@ usage() {
 SCOPE="$2"
 case "$SCOPE" in worktree | repo | all) ;; *) usage ;; esac
 
+win_form() {
+  local out
+  if command -v cygpath >/dev/null 2>&1 && out="$(cygpath -w "$1" 2>/dev/null)"; then
+    printf '%s' "$out"
+  else
+    printf '%s' "$1"
+  fi
+}
+
+roots=()
+if [[ "$SCOPE" != all ]]; then
+  here_root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+  in_repo=1
+  if [[ -z "$here_root" ]]; then
+    in_repo=0
+    here_root="$(pwd)"
+  fi
+  here_root="$(win_form "$here_root")"
+  roots=("$here_root")
+
+  if [[ "$SCOPE" == repo && "$in_repo" -eq 1 ]]; then
+    while IFS= read -r line; do
+      [[ "$line" == "worktree "* ]] && roots+=("$(win_form "${line#worktree }")")
+    done < <(git worktree list --porcelain 2>/dev/null | tr -d '\r')
+  fi
+fi
+
 source "$HERE/../lib/python-probe.sh"
 PY=""
 python_probe::floor_interpreter_to PY
 
 if [[ -n "$PY" && -f "$HERE/../lib/claude_projects.py" ]]; then
-  exec "$PY" -I -X utf8 "$HERE/../lib/claude_projects.py" resolve-project-dirs --scope "$SCOPE"
+  py_args=(resolve-project-dirs --scope "$SCOPE")
+  for root in ${roots[@]+"${roots[@]}"}; do
+    py_args+=(--root "$root")
+  done
+  exec "$PY" -I -X utf8 "$HERE/../lib/claude_projects.py" "${py_args[@]}"
 fi
 
 STORE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
@@ -58,15 +89,6 @@ if [[ "$SCOPE" == all ]]; then
   exit 0
 fi
 
-win_form() {
-  local out
-  if command -v cygpath >/dev/null 2>&1 && out="$(cygpath -w "$1" 2>/dev/null)"; then
-    printf '%s' "$out"
-  else
-    printf '%s' "$1"
-  fi
-}
-
 encode() {
   local LC_ALL=C s="$1"
   s="${s//[$'\x80'-$'\xbf']/}"
@@ -90,21 +112,6 @@ scan_root() {
     fi
   done
 }
-
-here_root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
-in_repo=1
-if [[ -z "$here_root" ]]; then
-  in_repo=0
-  here_root="$(pwd)"
-fi
-here_root="$(win_form "$here_root")"
-roots=("$here_root")
-
-if [[ "$SCOPE" == repo && "$in_repo" -eq 1 ]]; then
-  while IFS= read -r line; do
-    [[ "$line" == "worktree "* ]] && roots+=("$(win_form "${line#worktree }")")
-  done < <(git worktree list --porcelain 2>/dev/null | tr -d '\r')
-fi
 
 for root in "${roots[@]}"; do scan_root "$root"; done
 

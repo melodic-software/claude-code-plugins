@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import stat
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
@@ -196,38 +195,6 @@ class CleanRunStore:
                 )
         except Exception:  # noqa: BLE001 - run bookkeeping never changes a verdict
             pass
-
-    def close_if_ended(
-        self,
-        session_id: str | None,
-        ended: Path | None = None,
-        *,
-        now: float | None = None,
-    ) -> None:
-        if not session_id:
-            return
-        runs = self.runs_dir
-        marker = self.marker_path(session_id)
-        try:
-            if runs.is_symlink() or not runs.is_dir():
-                return
-            with run_marker_lock(runs):
-                info = marker.lstat()
-                if not stat.S_ISREG(info.st_mode):
-                    return
-                current = time.time() if now is None else now
-                close = current - info.st_mtime >= self.idle_timeout_seconds
-                if not close and ended is not None:
-                    recorded = json.loads(marker.read_text(encoding="utf-8"))[
-                        "ends_with"
-                    ]
-                    close = isinstance(recorded, str) and os.path.normcase(
-                        Path(recorded).resolve(strict=False)
-                    ) == os.path.normcase(ended)
-                if close:
-                    marker.unlink(missing_ok=True)
-        except (OSError, ValueError, TypeError, KeyError):
-            return
 
 
 class DataRoot:

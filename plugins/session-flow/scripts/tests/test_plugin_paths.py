@@ -6,6 +6,9 @@ import sys
 import time
 from pathlib import Path
 
+for _git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
+    os.environ.pop(_git_var, None)
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import plugin_paths  # noqa: E402
 

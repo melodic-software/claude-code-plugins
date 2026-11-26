@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# test-scope: plugins/disk-hygiene/hooks/hooks.json
 """Unit and cross-language parity tests for ``lib/data_root_state.py``."""
 
 from __future__ import annotations
@@ -189,12 +190,16 @@ class DataRootAndCleanRunStoreTests(unittest.TestCase):
         plan = str(self.root / "runs" / "plan-high.json")
         store.record_step("sess-1", ends_with=plan)
         self.assertTrue(store.is_open("sess-1"))
-
-        store.close_if_ended("sess-1", ended=self.root / "runs" / "other.json")
-        self.assertTrue(store.is_open("sess-1"))
-
-        store.close_if_ended("sess-1", ended=Path(plan))
-        self.assertFalse(store.is_open("sess-1"))
+        self.assertFalse(store.manual_lane_open("sess-1"))
+        marker = store.marker_path("sess-1")
+        self.assertTrue(marker.is_file())
+        self.assertEqual(
+            json.loads(marker.read_text(encoding="utf-8")),
+            {"version": 1, "ends_with": plan},
+        )
+        self.assertFalse(
+            store.is_open("sess-1", now=marker.stat().st_mtime + store.idle_timeout_seconds + 1.0)
+        )
 
     def test_manual_lane_survives_preview_step(self) -> None:
         store = self.dr.clean_runs()
@@ -203,7 +208,11 @@ class DataRootAndCleanRunStoreTests(unittest.TestCase):
         plan = str(self.root / "runs" / "plan-high.json")
         store.record_step("sess-m", ends_with=plan)
         self.assertTrue(store.manual_lane_open("sess-m"))
-        store.close_if_ended("sess-m", ended=Path(plan))
+        self.assertIsNone(
+            json.loads(store.marker_path("sess-m").read_text(encoding="utf-8"))[
+                "ends_with"
+            ]
+        )
         self.assertTrue(store.is_open("sess-m"))
 
 

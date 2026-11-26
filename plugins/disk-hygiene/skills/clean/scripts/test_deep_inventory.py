@@ -753,6 +753,21 @@ class SharedLibDeepeningTest(TempTree):
         res_hash = cwd_resolver.resolve_dir(hashed_dir)
         self.assertEqual(res_hash.status, "exists")
         self.assertEqual(res_hash.source_path, long_posix)
+
+        pinned_dir = self.mkdir("claude/projects/shared-pinned")
+        pinned_resolver = cp.ProjectSlugResolver(
+            fs_root=self.root / "fs",
+            cwd_port=cp.InMemoryTranscriptCwdAdapter(
+                {pinned_dir: "/nonexistent/deleted-worktree"}
+            ),
+            env={
+                "CLAUDE_CONFIG_DIR": str(self.root / "claude"),
+                "CLAUDE_CODE_PROJECT_DIR_NAME": "shared-pinned",
+            },
+        )
+        res_pinned = pinned_resolver.resolve_dir(pinned_dir)
+        self.assertEqual(res_pinned.status, "pinned")
+        self.assertEqual(res_pinned.via, "pinned")
         self.assertEqual(res_hash.via, "transcript-cwd")
 
         bench_fs = self.mkdir("bench_fs")
@@ -842,6 +857,12 @@ class DeepInventoryArchitectureTest(TempTree):
         self.write("custom-claude/plugins/cache/mkt/plug/1.0.0/plugin.json", "{}")
         temp_git = self.mkdir("custom-claude/plugins/cache/temp_git_1234")
         self.write("custom-claude/plugins/cache/temp_git_1234/.git/objects/pack/a", "x")
+        stale_ts = NOW - (di.TMP_MIN_AGE_DAYS + 2.0) * di.DAY
+        os.utime(temp_git, (stale_ts, stale_ts))
+        temp_git_fresh = self.mkdir("custom-claude/plugins/cache/temp_git_fresh")
+        self.write("custom-claude/plugins/cache/temp_git_fresh/.git/HEAD", "ref: refs/heads/main\n")
+        fresh_ts = NOW - 1.0 * di.DAY
+        os.utime(temp_git_fresh, (fresh_ts, fresh_ts))
         self.write(
             "custom-claude/plugins/installed_plugins.json",
             json.dumps({"plugins": {"plug@mkt": [{"installPath": str(ver)}]}}),
@@ -864,6 +885,11 @@ class DeepInventoryArchitectureTest(TempTree):
         self.assertEqual(cache_rows[str(ver)]["disposition"], "KEEP")
         self.assertEqual(cache_rows[str(temp_git)]["category"], "plugin-cache-temp-git")
         self.assertEqual(cache_rows[str(temp_git)]["disposition"], "CANDIDATE")
+        self.assertEqual(
+            cache_rows[str(temp_git_fresh)]["category"], "plugin-cache-temp-git"
+        )
+        self.assertEqual(cache_rows[str(temp_git_fresh)]["disposition"], "KEEP")
+        self.assertEqual(di.validate_report(cache_rows.values()), [])
 
         proj_dir = claude / "projects" / "-definitely-missing-repo-xyz"
         proj_rows = {
@@ -935,6 +961,14 @@ class DeepInventoryArchitectureTest(TempTree):
         self.assertGreaterEqual(len(rows), 3)
         self.assertEqual(di.validate_report(rows), [])
         self.assertEqual(sorted(str(p) for p in self.root.rglob("*")), before)
+
+    def test_claude_projects_safe_exists_handles_oserror(self) -> None:
+        import claude_projects as cp
+
+        with mock.patch.object(Path, "exists", side_effect=PermissionError("denied")):
+            self.assertIsNone(
+                cp.ProjectSlugResolver._safe_exists(Path("/unreadable/mount"))
+            )
 
 
 if __name__ == "__main__":

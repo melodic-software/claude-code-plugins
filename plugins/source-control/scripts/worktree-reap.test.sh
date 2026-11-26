@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REAP="$SCRIPT_DIR/worktree-reap.sh"
 
 FAILED=0
+# shellcheck disable=SC2034
 CASE_NUM=0
 # shellcheck source=test-helpers.sh
 source "$SCRIPT_DIR/test-helpers.sh"
@@ -366,5 +367,21 @@ OUT_RL="$(
 assert_contains "rate limit triggers backoff message" "$OUT_RL" "rate limit; the merged-PR proof is off"
 assert_contains "rate limit total counts 1 gh call" "$OUT_RL" "gh calls 1;"
 assert_eq "rate limit stops second repo from calling gh" "1" "$(wc -l <"$RL_GH_LOG" | tr -d ' ')"
+
+IFS=$'\t' read -r REPO_CARRY _ORIGIN_CARRY <<<"$(mkrepo_with_origin)"
+ROOT_CARRY="$TEST_TMPDIR/root-carry"
+mkdir -p "$ROOT_CARRY"
+git -C "$REPO_CARRY" worktree add -q --no-track -b feat/carry-dir "$ROOT_CARRY/wt-carry-dir" origin/main >/dev/null 2>&1
+mkdir -p "$REPO_CARRY/.worktreeinclude"
+touch -d "@$OLD_TS" "$ROOT_CARRY/wt-carry-dir/.git"
+
+OUT_CARRY="$(
+  CLAUDE_CONFIG_DIR="$CFG" HOSTNAME="$HOST_NAME" \
+    WORKTREE_REAP_PROC_ROOT="$PROC_OK" WORKTREE_REAP_NOW="$NOW_TS" \
+    bash "$REAP" --root "$ROOT_CARRY" --no-log --no-pr-proof 2>&1
+)"
+assert_exit "directory .worktreeinclude guard exits 0" 0 "$?"
+assert_contains "directory .worktreeinclude skips as carried-file" "$OUT_CARRY" "carried-file=1"
+assert_dir_exists "worktree with directory .worktreeinclude stays on disk" "$ROOT_CARRY/wt-carry-dir"
 
 [[ $FAILED -eq 0 ]] || exit 1
