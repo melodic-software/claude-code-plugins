@@ -411,7 +411,7 @@ assert_exit "stale: a non-numeric idle window is usage (exit 2)" 2 "$?"
 CLAUDE_CONFIG_DIR="$CFG" run_claim stale "$UNRELATED" --repo-dir "$REPO"
 assert_exit "stale: a non-worktree path is environment (exit 5)" 5 "$?"
 
-run_batch() { # <repo> <path>...: the paths NUL-delimited on stdin
+run_batch() {
   local rc repo="$1"
   shift
   OUT="$(cd "$UNRELATED" && printf '%s\0' "$@" |

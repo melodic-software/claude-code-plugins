@@ -890,7 +890,7 @@ assert_eq "a malformed as_of gets only the format error" "git-3: citation as_of 
 OLD_RUN="$WORK/old-cite-run"
 mkdir -p "$OLD_RUN"
 doc "$OLD_RUN/findings.json" "$(cite git-1 2026-04-30)"
-rewrite() { # <sed expression> <file>: edit a fixture in place, portably (BSD in-place differs)
+rewrite() {
   sed "$1" "$2" >"$2.tmp" && mv "$2.tmp" "$2"
 }
 rewrite 's/"session_id":"s1",/"session_id":"s1","started_at":"2026-05-01T12:00:00Z",/' "$OLD_RUN/findings.json"

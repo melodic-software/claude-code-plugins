@@ -143,9 +143,9 @@ def write_gif(path, width, height, colors, frames, delays_cs):
     for i, rgb in enumerate(colors, 1):
         table[3 * i:3 * i + 3] = bytes(rgb)
     data = bytearray(b"GIF89a" + struct.pack("<HHBBB", width, height, 0x80 | (bits - 1), 0, 0) + table)
-    data += b"\x21\xff\x0bNETSCAPE2.0\x03\x01\x00\x00\x00"  # loop forever
+    data += b"\x21\xff\x0bNETSCAPE2.0\x03\x01\x00\x00\x00"
     for indices, delay in zip(frames, delays_cs):
-        data += b"\x21\xf9\x04" + struct.pack("<BHBB", 0x09, delay, 0, 0)  # restore-to-background, index 0 transparent
+        data += b"\x21\xf9\x04" + struct.pack("<BHBB", 0x09, delay, 0, 0)
         data += b"\x2c" + struct.pack("<HHHHB", 0, 0, width, height, 0) + bytes([bits])
         body = lzw_encode(indices, bits)
         for i in range(0, len(body), 255):

@@ -55,8 +55,8 @@ VAULT = 'vault-exec'
 VAULT_SECRET = 'elevenlabs-api-key'
 CHILD_VAR = 'SPEECH_ELEVENLABS_VAULT_CHILD'
 SAMPLE_RATE = 24000
-OUTPUT_FORMAT = f'pcm_{SAMPLE_RATE}'   # raw 16-bit mono little-endian
-DEFAULT_VOICE = '21m00Tcm4TlvDq8ikWAM'   # premade voice "Rachel"
+OUTPUT_FORMAT = f'pcm_{SAMPLE_RATE}'
+DEFAULT_VOICE = '21m00Tcm4TlvDq8ikWAM'
 DEFAULT_MODEL = 'eleven_v4'
 # The voice_settings fields of the request body (VoiceSettingsResponseModel in https://api.elevenlabs.io/openapi.json,
 # as of 2026-10-04); recheck when the spec changes that schema.

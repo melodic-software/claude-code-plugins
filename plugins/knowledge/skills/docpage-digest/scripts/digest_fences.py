@@ -36,9 +36,9 @@ class Failures(failures.Failures):
 
 
 class Fence(NamedTuple):
-    start_line: int  # 1-based, opener
+    start_line: int
     indented: bool
-    payload: str  # exact body; no strip; no closer-line newline
+    payload: str
 
 
 class Claim(NamedTuple):

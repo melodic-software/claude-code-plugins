@@ -671,7 +671,7 @@ plan="$(bash "$FANOUT" plan --out "$X/batches" --budget 16 --order mtime "$X/tar
 assert_eq "replay: plan packs three batches" "$(printf '%s\n' "$plan" | grep -c '^batch=')" "3"
 assert_line_in "replay: load-bearing is saturated" "$X/batches/cues.txt" "cue=load-bearing occurrences=10 files=10 saturated=yes"
 assert_line_in "replay: batch 03 holds load-bearing" "$X/batches/cues.txt" "batch=03 cue=load-bearing occurrences=3 files=3"
-res() { # res <dir> <nn> <files_with_findings> <body>
+res() {
   printf 'batch: %s\nfiles_reviewed: 4\nfiles_with_findings: %s\n%s\n' "$(digest_of "$plan" "$2")" "$3" "$4" >"$1/rubric-batch-$2.md"
 }
 res "$X/results" 01 1 $'\n## r01.md\n\n- L1 rule-abstract-metaphor-jargon: "a load-bearing b" -- metaphor jargon'

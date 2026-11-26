@@ -98,7 +98,7 @@ printf 'explore_output: tutorial\n' >"$repo/docs/conventions/discovery.yaml"
 run "$repo" --check
 if [[ "$CODE" -eq 1 && "$OUT" == *"explore_output=tutorial"* ]]; then pass '--check on an invalid value exits 1 and names it'; else fail '--check on an invalid value exits 1 and names it'; fi
 
-shape_case() { # shape_case <label> <refuse|replace> <file content>
+shape_case() {
   local label="$1" want="$2" content="$3" repo f before
   repo="$(new_repo)"
   f="$repo/docs/conventions/discovery.yaml"

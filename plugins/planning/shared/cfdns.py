@@ -44,8 +44,8 @@ if str(HERE) not in sys.path:
 import tunnel  # noqa: E402  (beside this file; sys.path is set just above)
 
 API = "https://api.cloudflare.com/client/v4"
-ID = re.compile(r"[0-9a-f]{32}")  # zone and account ids
-UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")  # tunnel ids
+ID = re.compile(r"[0-9a-f]{32}")
+UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 PER_PAGE = 100
 MAX_PAGES = 100
 RECORD_FIELDS = ("id", "type", "name", "content", "proxied")

@@ -43,13 +43,13 @@ RDT_SPT="$TEST_TMPDIR/rdt-scratch"
 
 rdt_br=$(rdt_rep '{' 3000)
 
-rdt_arp() { # <label> <want> <command> [roots]
+rdt_arp() {
   local -a env=("HOME=$RDT_AH")
   [[ -z "${4:-}" ]] || env+=("$RDT_KEY=$4")
   expect_both "allowed roots: PS $1" "$2" --tool PowerShell --cwd / --command "$3" -- "${env[@]}"
 }
 
-rdt_pspl() { # <command>: a PowerShell payload from the checkout with this session's scratchpad
+rdt_pspl() {
   MSYS_NO_PATHCONV=1 jq -n --arg c "$1" --arg d "$RDT_TOP" --arg s "$RDT_SPT" \
     '{tool_name:"PowerShell",tool_input:{command:$c},cwd:$d,scratchpad_dir:$s}'
 }
@@ -86,7 +86,7 @@ rdt_worktree_fixture() {
   mkdir -p "$TEST_TMPDIR/bin-git-top"
   printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$RDT_STUB_TOP"\n' >"$TEST_TMPDIR/bin-git-top/git"
   chmod +x "$TEST_TMPDIR/bin-git-top/git"
-  rdt_wt() { # <label> <want> <command> [toplevel]: run from that worktree, which the stub answers
+  rdt_wt() {
     local top="${4:-$RDT_WF/main}"
     expect_both "protected: worktrees: $1" "$2" --cwd "$top" --command "$3" \
       -- "PATH=$TEST_TMPDIR/bin-git-top:$PATH" "RDT_STUB_TOP=$top"

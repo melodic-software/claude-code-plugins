@@ -27,10 +27,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: write # list runs and re-run a lost run
-      checks: read # a cut job's annotations: whether it lost its runner; a held pr-verify run's notice
-      contents: read # check out main
-      pull-requests: read # list the open PRs
+      actions: write
+      checks: read
+      contents: read
+      pull-requests: read
     env:
       API_BUDGET_TOKEN: github-token
     steps:

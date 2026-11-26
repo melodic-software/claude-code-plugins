@@ -414,9 +414,9 @@ JQ_SCHEDULE_MINUTES='def schedule_minutes:
 JQ_VALID_STAGE='def valid_stage:
   type == "string" and test("^[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*$");'
 
-path_under() { # <base> <path>
+path_under() {
   case "$2" in
-  /* | [A-Za-z]:[\\/]*) printf '%s' "$2" ;; # absolute (POSIX or Windows drive)
+  /* | [A-Za-z]:[\\/]*) printf '%s' "$2" ;;
   *) printf '%s' "$1/$2" ;;
   esac
 }

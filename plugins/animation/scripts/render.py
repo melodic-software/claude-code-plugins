@@ -116,7 +116,7 @@ def encode(frames, fmt, fps, out):
                           '-framerate', f'{fps:g}', '-i', '-', *media_encode.PROFILES[FORMATS[fmt]]['video'], str(out)],
                          stdin=subprocess.PIPE)
     pipe = p.stdin
-    assert pipe is not None   # stdin=PIPE always opens it
+    assert pipe is not None
     try:
         pipe.write(first.tobytes())
         for img in frames:

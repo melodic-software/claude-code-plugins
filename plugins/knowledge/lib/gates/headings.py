@@ -14,9 +14,9 @@ from __future__ import annotations
 import re
 from typing import AnyStr, Match, Optional, Pattern, Union
 
-INDENT_ANY = "any"  # any run of whitespace
-INDENT_SPACES_TABS = "spaces-tabs"  # any run of spaces and tabs
-INDENT_COMMONMARK = "commonmark"  # at most three spaces
+INDENT_ANY = "any"
+INDENT_SPACES_TABS = "spaces-tabs"
+INDENT_COMMONMARK = "commonmark"
 
 _FENCE_INDENT = {
     INDENT_ANY: r"\s*",
@@ -24,9 +24,9 @@ _FENCE_INDENT = {
     INDENT_COMMONMARK: r" {0,3}",
 }
 
-TRAIL_BLANK = "blank"  # spaces and tabs
-TRAIL_CLOSING = "closing"  # spaces and tabs around an optional run of `#`
-TRAIL_WHITESPACE = "whitespace"  # any whitespace, a trailing \r included
+TRAIL_BLANK = "blank"
+TRAIL_CLOSING = "closing"
+TRAIL_WHITESPACE = "whitespace"
 
 _ATX_TRAIL = {
     TRAIL_BLANK: r"[ \t]*",

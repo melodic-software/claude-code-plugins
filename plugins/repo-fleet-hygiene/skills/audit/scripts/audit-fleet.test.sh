@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/audit-fleet.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-mkdir "$TMP/plan-tmp" && export TMPDIR="$TMP/plan-tmp" # default plan files (mktemp) land inside the cleaned dir
+mkdir "$TMP/plan-tmp" && export TMPDIR="$TMP/plan-tmp"
 mkdir "$TMP/suite-home" && export HOME="$TMP/suite-home"
 unset CLAUDE_CONFIG_DIR CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT CLAUDE_PROJECT_DIR
 
