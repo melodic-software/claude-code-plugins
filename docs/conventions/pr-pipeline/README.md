@@ -1468,7 +1468,9 @@ the rules that only tighten in
   deleted line's SHA-256 and how often it was deleted (`babysit_lift.py`). The alert writes it into
   a revert record from the lines its revert commits deleted, and into a canary record from the
   lines `scripts/check-silent-revert.sh` attributes to a culprit in the pushed commits (its
-  `DELETED_SINK`); for a canary record `babysit_postmerge.py --remediate` filed first, the alert
+  `DELETED_SINK`). That same scan's `REMOVED_BY_SINK` lists the pushed commits whose scan fired,
+  and a canary record names their pull requests, not the push head's; when no scan names one and
+  the push holds more than one commit, it names none. For a canary record `babysit_postmerge.py --remediate` filed first, the alert
   posts the block as a comment, which counts when github-actions[bot] or the agent identity wrote
   it and nobody edited it. The one exception is a canary record with no block, because the pushed
   commits are not in main's checkout or were not all read (more than 20 since the previous canary
