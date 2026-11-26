@@ -68,6 +68,7 @@ START_SECONDS = float(os.environ.get("SHARED_START_SECONDS") or 15.0)
 NAMED_PORT = 8765  # judgment: a named tunnel's guest port when none is given and no API token routes it; its ingress rule names this port
 LEASE_SECONDS = 5.0
 SYNC_SECONDS = 5.0
+PORT_FREE_SECONDS = float(os.environ.get("SHARED_PORT_FREE_SECONDS") or 5.0)
 SERVER_MARKER = "python" if detached.WINDOWS else "server.py"
 OPEN_PAGE = ".owner-open-{}.html"
 OPEN_SECONDS = 30.0
@@ -188,6 +189,27 @@ def stop_server(d, s):
     while time.monotonic() < deadline and bridge.ping(s["port"], timeout=0.5):
         time.sleep(0.05)
     return True
+
+
+def wait_ports_free(*ports, seconds=None):
+    """Wait until each non-zero port is free, or refuse naming the port still busy."""
+    wanted = list(dict.fromkeys(p for p in ports if p))
+    if not wanted:
+        return
+    timeout = PORT_FREE_SECONDS if seconds is None else seconds
+    deadline = time.monotonic() + timeout
+    while True:
+        busy = [p for p in wanted if not bridge.port_free(p)]
+        if not busy:
+            return
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        time.sleep(min(0.05, remaining))
+    if len(busy) == 1:
+        raise Refused(2, f"port {busy[0]} is still busy after {timeout:g} s: the server cannot restart there")
+    names = ", ".join(str(p) for p in busy)
+    raise Refused(2, f"ports {names} are still busy after {timeout:g} s: the server cannot restart there")
 
 
 def wait_public(s, want, seconds=SYNC_SECONDS):
@@ -661,8 +683,10 @@ def cmd_restart(d, a):
         if s is None:
             raise Refused(1, "not running: run ensure-running")
         ports = read_json(d / PORTS) or {}
+        guest, control = ports.get("guest") or 0, ports.get("control") or s["port"]
         stop_server(d, s)
-        s = start_server(d, ports.get("guest", 0), ports.get("control", s["port"]))
+        wait_ports_free(guest, control)
+        s = start_server(d, guest, control)
         rec = tunnel.alive(d)
         if rec:
             wait_public(s, rec["url"])
