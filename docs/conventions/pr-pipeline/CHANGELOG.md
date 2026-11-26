@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [13.2.3] - 2026-11-26
+
+### Fixed
+
+- A canary record now names the pull request whose commit the silent-revert canary fired on, not the push head's. `scripts/check-silent-revert.sh` writes each commit whose scan fired to a new opt-in `REMOVED_BY_SINK`, which the lift-block scan fills. When no scan names a commit and the push holds more than one, the record says the remover is unknown.
+
 ## [13.2.2] - 2026-11-26
 
 ### Fixed
