@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.20.1] - 2026-11-26
+
+### Changed
+
+- `/planning:plan` points at the permission modes page's plan mode section for what plan mode permits, instead of stating it ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
 ## [5.20.0] - 2026-11-26
 
 ### Added
