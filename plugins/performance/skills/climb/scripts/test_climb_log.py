@@ -118,8 +118,6 @@ class AppendTest(unittest.TestCase):
         self.assertFalse(self.log.exists())
 
     def test_every_other_line_boundary_character_exits_2(self):
-        # The characters str.splitlines() splits on besides \n and \r, per the
-        # Python docs' table for str.splitlines.
         for char in ("\v", "\f", "\x1c", "\x1d", "\x1e", "\x85", " ", " "):
             with self.subTest(char=repr(char)):
                 result = attempt(self.log, note=f"split{char}here")

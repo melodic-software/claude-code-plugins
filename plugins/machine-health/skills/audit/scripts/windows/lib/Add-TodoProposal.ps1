@@ -20,7 +20,6 @@ function Get-TodoPath {
     return Join-Path $StateBase 'TODO.md'
 }
 
-# Returns $true when the proposal was appended, $false when it was already queued.
 function Add-TodoProposal {
     [CmdletBinding()]
     [OutputType([bool])]

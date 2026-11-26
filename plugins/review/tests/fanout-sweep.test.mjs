@@ -9,7 +9,6 @@ const source = readFileSync(join(here, '..', 'workflows', 'fanout-sweep.js'), 'u
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
 const body = source.replace(/^export const meta\b/m, 'const meta')
 
-// Banned by the bundled /workflow-authoring skill's determinism rules; the test enforces the same list.
 for (const banned of ['Date.now(', 'Math.random(', 'new Date()']) {
   test(`script does not call ${banned}`, () => assert.ok(!source.includes(banned)))
 }
@@ -93,9 +92,6 @@ test('every slice runs as review:brief-reviewer and the extractor as review:stag
   assert.equal(extract(calls).opts.agentType, 'review:stage-normalizer')
 })
 
-// A general-purpose agent holds Agent and Skill, so every call must name a plugin agent, and each
-// named definition must withhold both. docs/plugin-philosophy.md "Named agents keep their pins":
-// a definition that pins effort gets neither option; one that inherits and pins none gets the route.
 const agentsDir = join(here, '..', 'agents')
 const frontmatter = type => readFileSync(join(agentsDir, type.replace(/^review:/, '') + '.md'), 'utf8').split('\n---')[0]
 
@@ -143,8 +139,6 @@ test('roster, diff base in prompts, and the returned shape', async () => {
   for (const c of calls.filter(x => x.opts.phase === 'Review')) assert.ok(c.prompt.includes('git diff abc123'))
 })
 
-// reference/reviewer-handback.md: the caller's findings path reaches only its own leaf, and the
-// extractor reads the file from the caller's list, never from a reply.
 test('findingsPaths reach only their own leaves and the extractor brief', async () => {
   const findingsPaths = {
     'code-reviewer': '/repo/.work/reviews/feat-x/20261102T000000Z-code-reviewer.md',
@@ -160,8 +154,6 @@ test('findingsPaths reach only their own leaves and the extractor brief', async 
   assert.deepEqual(result.findingsPaths, findingsPaths)
 })
 
-// A workflow leaf cannot be resumed, so a checkpoint file is all that survives a turn-cap stop:
-// its findings reach the merge, marked incomplete, never read as a clean surface.
 test('the extractor brief keeps a checkpoint file\'s findings and marks that surface incomplete', async () => {
   const findingsPaths = { 'security-reviewer': '/repo/.work/reviews/feat-x/20261102T000000Z-security-reviewer.md' }
   const { calls } = await run({ ...BUNDLED, diffBase: 'abc', findingsPaths })
@@ -170,8 +162,6 @@ test('the extractor brief keeps a checkpoint file\'s findings and marks that sur
   assert.match(brief, /extract its findings and also emit one record for that surface whose raw_text says its report is incomplete/)
 })
 
-// A workflow leaf cannot be resumed, so a report that skipped files or carries no Coverage line must
-// reach the merge marked incomplete, whether or not the caller passed findings paths.
 test('the extractor judges only the handback reviewers by their Coverage line', async () => {
   for (const findingsPaths of [undefined, { 'code-reviewer': '/repo/.work/reviews/feat-x/20261102T000000Z-code-reviewer.md' }]) {
     const { calls } = await run({ ...BUNDLED, diffBase: 'abc', slices: ['a.md'], findingsPaths })

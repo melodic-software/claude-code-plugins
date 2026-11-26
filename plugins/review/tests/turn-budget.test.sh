@@ -21,16 +21,6 @@ assert_contains() {
   case "$2" in *"$3"*) pass "$1" ;; *) fail "$1" "expected to contain: $3" ;; esac
 }
 
-# One pass per agent file. Prints key=value facts:
-#   tools, cap            frontmatter tools and maxTurns
-#   handback              1 when the Handback section names a `Findings path:` line
-#   budget                1 when a `## Turn budget` section exists
-#   budget_cap            the integer after `maxTurns:` in that section
-#   stop                  N from `Stop gathering by turn N`
-#   reach                 1 when that section names what the agent `did not reach`
-#   sentinel              1 when the body names the checkpoint sentinel
-#   out_criteria/out_coverage  1 when Output format names `Criteria read:` / `Coverage:`
-#   never                 1 when a Handback line naming the sentinel also names `No findings.`
 facts() {
   awk -v s="$SENTINEL" '
     NR == 1 && /^---[[:space:]]*$/ { fm = 1; next }

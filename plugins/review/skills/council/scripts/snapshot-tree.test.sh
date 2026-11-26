@@ -25,7 +25,6 @@ assert_ne() { if [[ "$2" != "$3" ]]; then pass "$1"; else fail "$1" "not $2" "$3
 g() { git -C "$1" -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false "${@:2}"; }
 snap() { (cd "$1" && bash "$SCRIPT"); }
 index_sum() { cksum <"$(cd "$1" && git rev-parse --path-format=absolute --git-path index)"; }
-# --no-optional-locks keeps status from refreshing the index, so only the script could change it.
 state() { printf '%s\n--\n%s\n--\n%s\n' "$(index_sum "$1")" "$(g "$1" for-each-ref)" "$(g "$1" --no-optional-locks status --porcelain)"; }
 
 MAIN="$TEST_TMPDIR/main"

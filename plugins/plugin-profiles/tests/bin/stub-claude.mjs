@@ -1,10 +1,3 @@
-// A stand-in for `claude` in the CLI tests. It answers `plugin list --json` from the file
-// PP_STUB_LIST names, appends one line per call to PP_STUB_CALLS, and for the first
-// PP_STUB_TOUCH_TIMES calls adds a permission rule to the settings file PP_STUB_TOUCH names, the
-// way a concurrent writer such as a permission answer would. `plugin marketplace list --json`
-// answers from PP_STUB_MARKETPLACES, `agents --json` from PP_STUB_AGENTS or an empty list. `plugin install <id> --scope user` adds the plugin to the
-// PP_STUB_LIST file and switches it on in $HOME/.claude/settings.json, as the real install does,
-// or fails when PP_STUB_INSTALL_FAIL is set.
 import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

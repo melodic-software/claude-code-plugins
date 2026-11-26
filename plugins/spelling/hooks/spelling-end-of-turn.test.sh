@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
 # spellchecker:off
-# Contract tests for the opt-in Stop row (spelling_end_of_turn), launched
-# exactly as hooks.json registers it: off by default; on, an uncommitted typo
-# exits 2 with the finding on stderr; stop_hook_active keeps it from blocking
-# twice in one turn; the plugin kill switch wins. The spawn budget case fences
-# the cost every user pays per turn with the option off: the node launcher only.
 # test-scope: plugins/spelling/hooks/hooks.json plugins/spelling/git-hooks/lint.sh plugins/spelling/git-hooks/adapters.sh plugins/spelling/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDE_PLUGIN_OPTION_SPELLING_END_OF_TURN CLAUDE_PLUGIN_OPTION_SPELLING_ENABLED
@@ -35,7 +30,6 @@ expect() { # <label> <want> <got>
   fi
 }
 
-# The Stop row's args from hooks.json, with the plugin root substituted.
 mapfile -t ARGS < <(jq -r '.hooks.Stop[0].hooks[0].args[]' "$PLUGIN/hooks/hooks.json" | sed "s#\${CLAUDE_PLUGIN_ROOT}#$PLUGIN#g")
 expect "the Stop row launches node with the end-of-turn gate" \
   "node --run-if-unset-or-true SPELLING_ENABLED --require-true SPELLING_END_OF_TURN --end-of-turn" \
@@ -59,8 +53,6 @@ stop() { # <stop_hook_active> [env...] -> "<rc>|<stderr>"
   printf '%s|%s' "$rc" "$err"
 }
 
-# The finding line is typos' own message; the closing hint line is this plugin's
-# wording, so the case drops it instead of restating it.
 findings() { printf '%s' "${1%$'\n'*}"; }
 printf 'an old teh line\nnew teh line\n' >"$R/notes.md"
 expect "off by default: an uncommitted typo does not block" "0|" "$(stop false)"
@@ -81,7 +73,6 @@ expect "on: with no typos config the check still runs, and an uncommitted typo b
   "$(findings "$(stop false CLAUDE_PLUGIN_OPTION_SPELLING_END_OF_TURN=true)")"
 
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
-# A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.
 if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then
   out="$(bash "$CENSUS" spelling Stop spelling.sh \
     '{"session_id":"census","hook_event_name":"Stop","stop_hook_active":false,"cwd":"@DIR@"}' --check 'test ! -s "$HOOK_STDOUT"')"

@@ -645,8 +645,6 @@ describe("personal override guards", () => {
 });
 
 describe("a case-variant personal override a pull request tracks is ignored and fires risk-path", () => {
-  // Simulates a case-insensitive filesystem on any host: the tracked entry differs
-  // only in case from the untracked, gitignored file the script reads.
   const home = join(scratch, "home-case");
   const repo = join(scratch, "repo-case");
   mkdirSync(join(home, ".claude"), { recursive: true });
@@ -677,7 +675,6 @@ describe("a case-variant personal override a pull request tracks is ignored and 
 
 describe("publish gate: the default artifact medium publishes only a public, credential-free diff", () => {
   const clean = "+++ b/src/a.js\n+const answer = 42;\n";
-  // Assembled at run time so this file holds no credential-shaped literal.
   const secrets = [
     ["private key", `+-----BEGIN RSA ${"PRIVATE"} KEY-----`],
     ["AWS access key", `+key = ${"AKIA"}${"A".repeat(16)}`],
@@ -764,7 +761,6 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
     const found = lookedUp("https://github.com/acme/app/pull/7");
     assert.equal(found.medium, "artifact");
     assert.deepEqual(found.calls, [["api", "--hostname", "github.com", "repos/acme/app", "--jq", ".visibility"]]);
-    // GH_HOST would send a host-less `gh api` to another server; the lookup always names the URL's host.
     const redirected = lookedUp("https://github.com/acme/app/pull/7", { env: { GH_HOST: "evil.example.net" } });
     assert.deepEqual(redirected.calls, [["api", "--hostname", "github.com", "repos/acme/app", "--jq", ".visibility"]]);
     for (const out of ["private", "internal", "", "garbage"]) assert.equal(lookedUp("https://github.com/acme/app/pull/7", { out }).medium, "file", `answer ${JSON.stringify(out)}`);
@@ -804,7 +800,6 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
       assert.deepEqual(run.calls, [], path);
     }
   });
-  // #7740: a model-typed --repo naming a public repository once gated a private pull request's diff as PUBLIC.
   test("a mistyped public --repo cannot make a private pull request's diff publishable", fakeRuns, () => {
     const byRepo = JSON.stringify({ "acme/public": "public" });
     const facts = gateRun(["--facts", privateFacts], { byRepo });
@@ -877,9 +872,6 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
 `,
   );
   chmodSync(join(bin, "pages-publish"), 0o755);
-  // The fake gh records its argv, passes `auth status --hostname <h>` for a host in FAKE_GH_AUTHED or, as real gh
-  // does, for any host when an enterprise token is in its environment, and answers the visibility lookup with
-  // FAKE_GH_OUT and FAKE_GH_EXIT.
   writeFileSync(
     join(bin, "gh"),
     `#!/usr/bin/env node
@@ -893,7 +885,6 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
   );
   chmodSync(join(bin, "gh"), 0o755);
   const ghLog = join(scratch, "gh.log");
-  // publish-hosted.mjs spawns pages-publish with no shell, so Windows finds only a .exe or .com on PATH.
   const runsFake = { skip: process.platform === "win32" && "the fake pages-publish is a script, which a shell-less spawn on Windows cannot run" };
   const idA = "A".repeat(22);
   const idB = "b".repeat(21) + "-";
@@ -1070,7 +1061,6 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
     assert.ok(!existsSync(ghLog));
     assert.deepEqual(calls(), []);
   });
-  // #7740: the repository and the sidecar key come from the facts URL, never from a model-typed --repo or --pr.
   test("a mismatched --repo or --pr cannot change the lookup, the host or the sidecar", runsFake, () => {
     for (const extra of [["--repo", "acme/public"], ["--pr", "8"], ["--repo", "acme/app"]]) {
       const at = setup(sample, answer(idA, "public"));

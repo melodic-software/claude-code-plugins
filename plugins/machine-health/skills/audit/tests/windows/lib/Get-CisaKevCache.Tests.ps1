@@ -10,8 +10,6 @@ BeforeAll {
     }
 
     function Set-KevFetchMock {
-        # Mocks Invoke-WebRequest to write the payload to the .download temp file; it rides in
-        # a script-scope variable because GetNewClosure would hide the injected $OutFile.
         param([Parameter(Mandatory)] [string] $CveId)
         $script:KevFetchPayload = ConvertTo-KevCacheJson -CveId $CveId
         Mock Invoke-WebRequest {

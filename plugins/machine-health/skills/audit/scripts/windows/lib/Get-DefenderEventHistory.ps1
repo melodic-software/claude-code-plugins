@@ -45,7 +45,6 @@ EventData fields or adds a remediating action).
 $script:DefenderEventLogName = 'Microsoft-Windows-Windows Defender/Operational'
 $script:DefenderEventIds = @(1116, 1117, 5007)
 
-# Remediating action ids (Clean, Quarantine, Remove, Block): the Set-MpPreference threat action table.
 $script:DefenderRemediatingActionIds = @(1, 2, 3, 10)
 
 $script:DefenderMissingField = '(not recorded)'

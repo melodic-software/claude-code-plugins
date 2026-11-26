@@ -2,9 +2,6 @@
 # shellcheck disable=SC2016  # single-quoted `$` here is literal by design: the sed replacement, the case-script prelude and the invalid-key fixtures are all bytes handed to another shell, never expansions in this one
 set -uo pipefail
 
-# Fixture git isolation. An inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# send the gitignore-warning fixture's `git init` and `git config` into the
-# CALLER's repository instead of the throwaway one.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 
@@ -297,9 +294,6 @@ assert_contains "... with a diagnosable message" "$out" "reserved key name: 'ENV
 assert_contains "... leaving ENV_FILE alone" "$out" "env_file=[.env]"
 assert_contains "... and writing nothing" "$out" "files:ABSENT"
 
-# printf -v keeps a variable's export flag, so a key the shell already exports
-# (GH_TOKEN, BROWSER, GIT_SSH_COMMAND) would hand the wizard's value to every
-# command it starts. Such a key is refused; the same name unexported is fine.
 out="$(
   case_run "$TTY_EOF" <<'BODY'
 export WIZ_EXPORTED=original
@@ -330,11 +324,6 @@ assert_contains "ask refuses an exported key too" "$out" "exported key name: 'WI
 assert_not_contains "... before prompting" "$out" "Type it:"
 assert_contains "... exiting nonzero" "$out" "rc=1"
 
-# The fixture starts from a world-readable hand-written env file, which is the
-# state a wizard actually walks into. The assertion is on the END state, which is
-# the property that matters to a human whose secrets land there. Two mechanisms
-# feed it, mktemp's own 0600 default on the staged rewrite and write_env's
-# explicit chmods, so this case does not by itself pin either one.
 out="$(
   case_run "$TTY_EOF" <<'BODY'
 printf 'PRE=already here\n' >.env
@@ -626,9 +615,6 @@ assert_contains "an env file linked into a nested repository's .git asks first" 
 assert_contains "... and a decline writes nothing" "$out" "target:UNCHANGED"
 assert_contains "... exiting nonzero" "$out" "rc=1"
 
-# On a case-insensitive filesystem (APFS, NTFS) `.GIT/config` is the real git
-# config, so the match ignores case. The fixture builds the directory under
-# each spelling; what is tested is the classification.
 for gitdir in .GIT .Git; do
   out="$(
     case_run "$TTY_N" <<BODY
@@ -951,9 +937,6 @@ BODY
 assert_not_contains "a secret under the line limit gets no warning" "$out" "probably cut off"
 assert_contains "... and is kept" "$out" "len=$((LINE_MAX - 1))"
 
-# Echo suppression is a terminal-driver property, so a file-backed fd 3 cannot
-# observe it: with or without -s nothing is echoed here. The flags are therefore
-# pinned at the source, which is where the regression would actually land.
 ask_secret_read="$(awk '/^ask_secret\(\)/ { inside = 1 } inside && /read / { print; exit }' "$LIB")"
 assert_contains "ask_secret reads hidden and without readline, which would echo it back" \
   "$ask_secret_read" "read -rs -u 3 __wiz_input"
@@ -973,10 +956,6 @@ assert_contains "... nonzero" "$out" "ask_rc=1"
 assert_contains "ask_secret aborts at EOF too" "$out" "terminal closed while reading secret TOKEN"
 assert_contains "... nonzero" "$out" "secret_rc=1"
 
-# A key spelled like one of a helper's own locals must still reach the caller:
-# printf -v resolves the name at the innermost scope, so a colliding local
-# would swallow the assignment. The names are every local each helper has ever
-# declared, the unprefixed set a wizard author can realistically pick.
 for helper in ask ask_secret write_env; do
   for name in key prompt current input value escaped tmp; do
     if [[ "$helper" == write_env ]]; then call="write_env $name typed-value >/dev/null"; else call="$helper $name P:"; fi
@@ -1301,10 +1280,6 @@ rc=$?
 assert_exit "a failing handler does not change a clean exit" 0 "$rc"
 assert_contains "... and the run still reached its end" "$out" "reached-end"
 
-# Run with the library's own `set -e` left in force. _cleanup's if-form exists
-# precisely so a false condition does not hand the EXIT trap a nonzero status;
-# the `[[ ... ]] && rm` form this replaced exits 1 from a wizard that did
-# everything right.
 out="$(
   case_run "$TTY_EOF" strict <<'BODY'
 write_env A 1 >/dev/null
@@ -1315,9 +1290,6 @@ rc=$?
 assert_exit "a successful wizard exits 0 under set -e (EXIT trap keeps its status)" 0 "$rc"
 assert_contains "... having run to completion" "$out" "reached-end"
 
-# _clear only acts on a terminal, so this case needs a pty: util-linux `script`
-# provides one. TERM=dumb has no `clear` entry, so `tput clear` exits nonzero;
-# under set -e that must not kill the wizard before its first prompt.
 if script -qec true /dev/null </dev/null >/dev/null 2>&1; then
   dumb_case="$(
     case_build strict <<'BODY'
@@ -1337,13 +1309,6 @@ else
   skip_case "TERM=dumb case: util-linux script (pty) unavailable"
 fi
 
-# bash reads a script as it runs it, from a file offset. An in-place edit that
-# lengthens the file shifts earlier bytes under that offset, so an unwrapped
-# script runs them again. The shipped wrapper (stages inside run_wizard, which
-# ends in `exit`) is parsed whole before the first stage runs. The case swaps
-# the example stages for a body that rewrites its own script in place, with a
-# pad line exactly as long as the two lines already run, then counts step-1.
-# The unwrapped control proves the edit does re-run a step when nothing guards it.
 EDIT_BODY="$TEST_TMPDIR/edit-body.sh"
 cat >"$EDIT_BODY" <<'BODY'
 echo "ran:step-1"
@@ -1449,10 +1414,6 @@ BODY
 )"
 assert_contains "dry run: the banner says so before the first stage" "$out" "Dry run: nothing is written"
 
-# The shipped template end to end under --dry-run: the example stage, its
-# credential check included, writes nothing and sends nothing. A fixture file
-# always reads as buffered input, so _drain_tty's loop is switched off as the
-# library cases do by stubbing it.
 WHOLE_DRY="$TEST_TMPDIR/whole-dry.sh"
 sed -e 's|exec 3</dev/tty|exec 3<"$WIZARD_TEST_TTY"|' \
   -e 's|while read -r -t 0 -u 3; do|while false; do|' "$TEMPLATE" >"$WHOLE_DRY"

@@ -42,8 +42,6 @@ function Invoke-NativeCommand {
         [switch] $DiscardStdErr
     )
 
-    # Non-zero exits stay a status on the result when the session would
-    # otherwise turn them into terminating errors.
     $PSNativeCommandUseErrorActionPreference = $false
 
     $command = Get-Command -Name $Name -CommandType Application -ErrorAction SilentlyContinue |

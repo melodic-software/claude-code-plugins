@@ -26,7 +26,6 @@ export async function main({
     throw error;
   }
   const executor = createExecutor(registration);
-  // The write principal gets its own pool, so a read never runs as it.
   const writeExecutor = registration.write ? createExecutor({ ...registration, auth: registration.write.auth }) : undefined;
   const server = createServer({
     databases: registration.databases,

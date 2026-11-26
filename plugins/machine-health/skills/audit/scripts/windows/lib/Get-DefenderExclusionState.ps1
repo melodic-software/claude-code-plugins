@@ -34,7 +34,6 @@ $script:DefenderPreferenceClass = 'MSFT_MpPreference'
 function Test-DefenderExclusionEntryShape {
     param([AllowEmptyString()] [string] $Entry)
     if ([System.IO.Path]::IsPathRooted($Entry) -or $Entry.StartsWith('%')) { return $true }
-    # Wildcard and relative path patterns are valid: check each segment, allowing * and ?.
     $invalid = [System.IO.Path]::GetInvalidFileNameChars() | Where-Object { $_ -notin '*', '?' }
     foreach ($segment in $Entry -split '[\\/]') {
         if ($segment.IndexOfAny([char[]]$invalid) -ge 0) { return $false }
