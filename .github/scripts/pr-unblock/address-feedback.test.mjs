@@ -12,6 +12,7 @@ import { failingChecks } from "./gate-source.mjs";
 import { escalationRoute, ROUTES } from "./escalation-routes.mjs";
 import { stage } from "../../actions/collect-base-activity/stage-closure.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { DIFF_TEXT, LISTED, PAGE_TWO } from "../pr-merge/capped-compare.fixture.mjs";
 
 // Ids from https://github.com/melodic-software/standards/blob/main/components/trusted-actors/trusted-actors.json and the
 // GitHub users API (github-actions[bot] is 41898282).
@@ -1276,6 +1277,29 @@ test("createGitHubApi follows rel=next pages and sends the token", async () => {
     calls.map((call) => call.auth),
     ["Bearer tok", "Bearer tok"],
   );
+});
+
+test("compareWhole pages a comparison's commits and reads its files from the diff media type past the 300-file listing", async () => {
+  const answers = {
+    "https://api/repos/o/r/compare/a...b?per_page=100&page=1": LISTED,
+    "https://api/repos/o/r/compare/a...b?per_page=100&page=2": PAGE_TWO,
+  };
+  const calls = [];
+  const fetch = async (url, init) => {
+    calls.push(`${init.headers.Accept} ${url}`);
+    if (init.headers.Accept === "application/vnd.github.diff") return { ok: true, status: 200, text: async () => DIFF_TEXT };
+    return { ok: true, status: 200, json: async () => structuredClone(answers[url]), headers: { get: () => "" } };
+  };
+  const api = createGitHubApi({ token: "tok", repository: "o/r", apiUrl: "https://api", graphqlUrl: "https://gql", fetch });
+  const whole = await api.compareWhole("a", "b");
+  assert.equal(whole.commits.length, 150);
+  assert.equal(whole.total_commits, 150);
+  assert.equal(whole.files.length, 301);
+  assert.deepEqual(calls, [
+    "application/vnd.github+json https://api/repos/o/r/compare/a...b?per_page=100&page=1",
+    "application/vnd.github+json https://api/repos/o/r/compare/a...b?per_page=100&page=2",
+    "application/vnd.github.diff https://api/repos/o/r/compare/a...b",
+  ]);
 });
 
 const activityFetch = (pages, urls = []) => async (url) => {
