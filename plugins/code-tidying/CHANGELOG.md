@@ -3,6 +3,13 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.3] - 2026-11-26
+
+### Fixed
+
+- The comment lint now passes `spellchecker:ignore-next-line` as a tool directive, alongside
+  `spellchecker:on`, `off` and `disable-line`.
+
 ## [1.0.2] - 2026-11-26
 
 ### Changed
