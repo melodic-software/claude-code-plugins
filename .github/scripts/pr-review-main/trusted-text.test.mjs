@@ -184,7 +184,7 @@ test("every leg needs the collect-trusted-text job and still runs when it failed
 test("the collect-trusted-text job never fails the run, and runs only where this attempt's check-trigger job starts the legs", () => {
   const job = jobText(TEXT);
   assert.match(job, /^ {4}continue-on-error: true$/m);
-  assert.match(job, /^ {4}permissions:\n {6}contents: read #.*\n {6}pull-requests: read #.*\n {4}outputs:/m);
+  assert.match(job, /^ {4}permissions:\n {6}contents: read\n {6}pull-requests: read\n {4}outputs:/m);
   assert.doesNotMatch(job, /secrets\.|run-claude-cli|exit 1/);
   for (const s of stepsOf(TEXT)) {
     if (s.name === "Report the kill switch") continue;

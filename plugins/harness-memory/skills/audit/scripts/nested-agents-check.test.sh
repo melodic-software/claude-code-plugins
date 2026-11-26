@@ -62,7 +62,7 @@ printf 'shimmed\n' >"$REPO/shimmed/AGENTS.md"
 printf '@AGENTS.md\n' >"$REPO/shimmed/CLAUDE.md"
 printf 'bare\n' >"$REPO/bare/AGENTS.md"
 printf 'linked\n' >"$REPO/linked/AGENTS.md"
-MSYS=winsymlinks:nativestrict ln -s AGENTS.md "$REPO/linked/CLAUDE.md" # wired by symlink; plain ln -s copies on Windows
+MSYS=winsymlinks:nativestrict ln -s AGENTS.md "$REPO/linked/CLAUDE.md"
 printf 'localonly\n' >"$REPO/localonly/AGENTS.md"
 printf '@AGENTS.md\n' >"$REPO/localonly/CLAUDE.local.md"
 printf 'CLAUDE.local.md\n' >"$REPO/.gitignore"

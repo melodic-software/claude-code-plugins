@@ -20,7 +20,7 @@ export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -44,7 +44,7 @@ printf 'an old teh line\n' >"$R/notes.md"
 git -C "$R" add notes.md _typos.toml
 git -C "$R" commit -q -m seed
 
-stop() { # <stop_hook_active> [env...] -> "<rc>|<stderr>"
+stop() {
   local active="$1" err rc
   shift
   err="$(cd "$R" && printf '{"session_id":"s","hook_event_name":"Stop","stop_hook_active":%s,"cwd":"%s"}' "$active" "$R" |

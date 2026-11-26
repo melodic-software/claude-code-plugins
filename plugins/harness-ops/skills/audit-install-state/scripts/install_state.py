@@ -140,10 +140,10 @@ def read_text_guarded(root: Path, relpath: str, limit: int = 2_000_000) -> str:
         return fh.read(limit)
 
 
-SWEPT = "product-managed-swept"  # deleted at startup once older than cleanupPeriodDays
-KEPT = "product-managed-kept"  # documented as never age-swept
+SWEPT = "product-managed-swept"
+KEPT = "product-managed-kept"
 SESSION_SCOPED = (
-    "product-managed-session-scoped"  # removed at session exit, not age-swept
+    "product-managed-session-scoped"
 )
 AUTHORED = "authored"
 SECRET = "secret"

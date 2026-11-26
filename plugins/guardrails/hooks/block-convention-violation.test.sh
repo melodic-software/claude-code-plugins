@@ -603,7 +603,7 @@ fi
 if ((STRACE_OK == 0)); then
   echo "skip: strace is unavailable or not permitted here, so the process-creation budget is UNVERIFIED in this run"
 else
-  trace_sites() { # <trace log> -> "<label> <yes|NO>" per external command
+  trace_sites() {
     awk '
       { pid = $1 }
       (/clone\(|clone3\(|vfork\(|[^e]fork\(/ || /clone resumed|fork resumed/) && / = [0-9]+$/ {

@@ -180,7 +180,7 @@ def extract_repo_tree_urls(data: bytes, args) -> tuple:
     try:
         listing = json.loads(data)
         paths = adapter.blob_paths(listing)
-    except ValueError as exc:  # json.JSONDecodeError and ListingError
+    except ValueError as exc:
         fail(2, f"tree listing {args.snapshot!r} is unusable: {exc}")
     includes = [glob_regex(g) for g in args.include]
     excludes = [glob_regex(g) for g in args.exclude]

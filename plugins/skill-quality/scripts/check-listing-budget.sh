@@ -64,7 +64,7 @@ to_decimal() {
 MAX_DESC_CHARS="${CHECK_SKILL_LISTING_MAX_DESC_CHARS:-1536}"
 require_positive_number CHECK_SKILL_LISTING_MAX_DESC_CHARS "$MAX_DESC_CHARS" int
 MAX_DESC_CHARS="$(to_decimal "$MAX_DESC_CHARS")"
-JOINER_CHARS=3 # the literal " - " the harness inserts between description and when_to_use
+JOINER_CHARS=3
 
 BUDGETS=()
 SOURCES=()

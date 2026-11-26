@@ -150,7 +150,7 @@ class FfmpegTest(unittest.TestCase):
 
 BAND = 0.24
 SIZE = (1920, 1080)
-PLAYER_WIDTH = 888   # GitHub's inline video player, in pixels
+PLAYER_WIDTH = 888
 MIN_TEXT_PX = 14
 SMALLEST_FONT = r"""() => {
   let least = Infinity;

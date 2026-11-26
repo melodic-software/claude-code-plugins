@@ -72,7 +72,7 @@ function browserslist(pkg) {
     if (!isFile(file) || escapesProject(file) || statSync(file).size > BROWSERSLIST_MAX_BYTES) continue;
     const plain = [];
     const production = [];
-    let into = plain; // lines before any [env] section are the defaults
+    let into = plain;
     for (const raw of readFileSync(file, "utf8").split(/\r?\n/)) {
       const line = raw.replace(/#.*$/, "").trim();
       const section = line.match(/^\[(.*)\]$/);
@@ -216,7 +216,7 @@ function scratchHome(home) {
     } catch {
       continue;
     }
-    if (st.isSymbolicLink()) symlinkSync(readlinkSync(from), to); // the resolver refuses it as it would the original
+    if (st.isSymbolicLink()) symlinkSync(readlinkSync(from), to);
     else if (st.isFile()) copyFileSync(from, to);
   }
   return { dir, names };

@@ -4381,7 +4381,7 @@ class Assess(unittest.TestCase):
         """Identity-only credentials, kill switch on, no cap, no demotion
         record, and the path enabled since ENABLED_AT."""
         gh = self.fake()
-        gh.rest["status"] = IDENTITY_ONLY  # gh auth status --json hosts
+        gh.rest["status"] = IDENTITY_ONLY
         variables = f"repos/{REPO}/actions/variables"
         gh.rest[f"{variables}?per_page=1"] = {"variables": []}
         gh.rest[f"repos/{REPO}/actions/organization-variables?per_page=100"] = {

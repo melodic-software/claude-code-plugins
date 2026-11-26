@@ -6,7 +6,7 @@ die() {
   exit 2
 }
 
-sql_path() { # native duckdb.exe cannot read MSYS paths; double quotes for a SQL literal
+sql_path() {
   local p="$1"
   if command -v cygpath >/dev/null 2>&1; then p="$(cygpath -m "$p")"; fi
   printf '%s\n' "${p//\'/\'\'}"
