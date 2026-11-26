@@ -3,9 +3,9 @@ name: su-check-zero-config-is-info
 context:
   scaffold_script: scaffold.sh
 graders:
-  - name: 'default-lanes-named'
+  - name: 'default-areas-named'
     type: 'regex'
-    pattern: '\b(?:bundled|built-in|generic)\b[^\n]{0,40}\bdefault lanes?\b'
+    pattern: '\b(?:bundled|built-in|generic)\b[^\n]{0,40}\bdefault focus areas?\b'
     flags: 'i'
     target: 'last_message'
   - name: 'missing-config-not-a-failure'

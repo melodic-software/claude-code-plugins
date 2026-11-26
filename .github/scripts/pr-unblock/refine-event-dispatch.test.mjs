@@ -118,7 +118,6 @@ test("an event the lanes App or a listed human sent dispatches; any other sender
   }
 });
 
-// A re-run keeps the event's sender whoever started it, so only attempt 1 dispatches.
 test("only an event run's first attempt dispatches; a re-run or an unread attempt reads and dispatches nothing", async () => {
   const first = fakeApi();
   await run(first, { attempt: "1" });
@@ -218,8 +217,6 @@ test("a configured activity needs no fix-docs: none due, fix-docs off, or the PR
   assert.deepEqual(unread.calls.dispatch, [markerDispatch], "the PR read failed");
 });
 
-// The lanes App pushes each applied patch, and that push is a synchronize
-// event: dispatching on it would start the activity again.
 test("the lanes App's event dispatches fix-docs but no configured activity", async () => {
   const api = fakeApi();
   const { code, lines } = await run(api, { sender: "1", activities: ["fix-marker"] });

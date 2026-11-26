@@ -78,10 +78,10 @@ Do not maintain a command table here. In order:
 
 Include the group's verification step in each simplifier agent's prompt so the agent self-verifies before returning; Phase 7 re-runs it as the safety net.
 
-## Why narrowing is a path, not a lane (Arguments)
+## Why narrowing is a path, not a focus area (Arguments)
 
-`repo <lane>` was the other candidate narrowing surface and is deliberately rejected. A lane in
-`/code-tidying:tidy` is a seven-part object and this skill would consume only its scope globs,
-leaving `lane` meaning two things in sibling skills of one plugin. A path also composes where a
-lane does not: lanes are defined per project under `.claude/tidy-lanes/`, and every repo has
-paths.
+`repo <area>` was the other candidate narrowing surface and is deliberately rejected. A focus area
+in `/code-tidying:tidy` is a seven-part object and this skill would consume only its scope globs,
+leaving `area` meaning two things in sibling skills of one plugin. A path also composes where a
+focus area does not: focus areas are defined per project under `.claude/tidy-areas/`, and every
+repo has paths.

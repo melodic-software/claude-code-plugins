@@ -187,8 +187,6 @@ animation:
   # no animation.
   inspect_playback_rate: 0.1
   skip_frequency: 100
-  # The passes the motion lane's cleanup sub-mode runs, in list order, one per value. Allowed
-  # values: removal, review (the lane's review pass), opportunities, performance.
   cleanup_order:
     - removal
     - review

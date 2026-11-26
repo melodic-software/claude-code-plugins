@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | Project focus areas present | INFO | No .claude/tidy-areas/*.md; tidy resolves the bundled focus areas |"
+    },
+    {
+      "answer": "INFO: no project focus areas found, so /code-tidying:tidy uses the bundled focus areas."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FAIL: .claude/tidy-areas/ does not exist. Run apply.",
+      "why": "absence as FAIL"
+    },
+    {
+      "answer": "The repo has no focus area configuration yet.",
+      "why": "no INFO verdict"
+    }
+  ]
+}

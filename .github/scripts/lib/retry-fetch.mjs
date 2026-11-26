@@ -1,32 +1,3 @@
-// A request that fails on the network (undici's "fetch failed", or a cause
-// code such as ECONNRESET or UND_ERR_SOCKET) or that GitHub answers 5xx is
-// sent again, at most 3 attempts in all, after a full-jitter wait: a random
-// share of 4 s, then of 8 s, as enable-auto-merge.mjs's RETRY_CAPS_MS. A GET
-// and a GraphQL query are reads and always qualify. Any other write qualifies
-// only when the caller passes safeToResend, because it repeats to the same
-// state or carries a precondition (an expected head or SHA). A 403 or 429 that
-// is a rate limit is sent again, within the same 3 attempts, only after the wait
-// GitHub asks for: retry-after's seconds when sent, else the x-ratelimit-reset
-// epoch when x-ratelimit-remaining is 0, else 60 s for a secondary limit
-// (https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#handle-rate-limit-errors-appropriately).
-// Those waits, summed over every call through one wrapper, stay within 60 s: a
-// longer one is not taken, and the answer goes back to the caller as a failed
-// read. A fetch that already counts its answers (rate-guard.mjs
-// countsRequests, which its latch and budgetedFetch both mark) is left to the
-// rate guard on a rate limit, so no wait stacks on the guard's own. Any other
-// 4xx is returned, and any other error raised, at once. A retry line names an
-// error's name and cause code, never its message: undici puts a whole header
-// value, the token included, in some messages.
-//
-// A call that still fails, a 4xx or 5xx answer or a network error (status
-// 0), adds one {method, path, status} line to
-// $RUNNER_TEMP/lane-run-report/api-failures.jsonl for the lane run report
-// comment: the URL's path only, never its query, headers or body. A fetch
-// that already counts its answers (rate-guard.mjs countsRequests) writes its
-// HTTP failures there itself, so here only its network errors are added. A
-// GET 404 on a tag ref is no line: the tag does not exist yet
-// (https://docs.github.com/en/rest/git/refs#get-a-reference).
-
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
@@ -35,8 +6,6 @@ const RETRY_CAPS_MS = [4000, 8000];
 const RATE_WAIT_BUDGET_MS = 60_000;
 const SECONDARY_WAIT_MS = 60_000;
 
-// The wait GitHub asks for before the next call when it refused this one on a
-// rate limit, in ms, else null: a 403 that names no limit is a refusal.
 export async function rateLimitWait(response, now = Date.now) {
   if (response?.status !== 403 && response?.status !== 429) return null;
   const header = (name) => response.headers?.get?.(name) ?? null;
@@ -61,9 +30,6 @@ export const networkError = (error) =>
   (error?.name === "TypeError" && error.message === "fetch failed") ||
   typeof error?.cause?.code === "string";
 
-// A POST to /graphql whose query is a query operation (or the `{ ... }`
-// shorthand) and names no mutation or subscription anywhere: a read.
-// Anything else, a body that does not parse included, is a write.
 export function isGraphQLRead(url, init = {}) {
   if (init.method !== "POST" || !/\/graphql$/.test(String(url)) || typeof init.body !== "string") {
     return false;
@@ -142,9 +108,6 @@ export function retryFetch(
   };
 }
 
-// A GitHub REST call through retryFetch: (method, path, body, {safeToResend})
-// resolves to the parsed JSON answer, or null on a 204, and throws an error
-// carrying the answer's status when the answer is not 2xx.
 export function retryApi({ fetch, apiUrl, token, sleep }) {
   const send = retryFetch(fetch, { sleep });
   return async (method, path, body, { safeToResend = false } = {}) => {

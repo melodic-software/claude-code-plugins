@@ -359,7 +359,6 @@ four-part records live in [reference/native-deep-research.md](reference/native-d
 
 - Findings feed work with no locked contract whose diff will not be quick to review and cheap to retry: `/planning:interview`.
 - Findings settle a type, contract, or boundary choice: `/planning:design`.
-- Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
 ## Related
 

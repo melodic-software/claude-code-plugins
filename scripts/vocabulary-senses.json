@@ -208,6 +208,20 @@
         {"phrase": "\\bmodule layout, contracts\\b", "reason": "the design section's interface contracts, not the Brief"},
         {"phrase": "\\bworker specs as contracts\\b", "reason": "a worker spec written as a contract, not the Brief"}
       ]
+    },
+    {
+      "id": "lane-hunt-scope",
+      "retired": "lane for anything but a worker serving one stage (docs/glossary.md, lane)",
+      "replacement": "focus area (a rotated hunt scope, bugs:scan --area), concern (user-interface:audit), or check (drift-delta-sweep)",
+      "rules": [
+        {"match": "\\brotated,?\\s+(?:glob-scoped\\s+)?\\*?lanes?\\b"},
+        {"match": "\\btidy-lanes\\b"},
+        {"match": "--lane\\b", "near": "\\bbugs:scan\\b"},
+        {"match": "\\bconcern lanes?\\b", "near": "\\b(?:audit|interface|motion)\\b"}
+      ],
+      "allow": [
+        {"path": ".changes/**", "reason": "a changelog fragment names the retired path it migrates from, like CHANGELOG history"}
+      ]
     }
   ]
 }

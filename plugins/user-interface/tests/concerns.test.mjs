@@ -46,12 +46,12 @@ test("a missing recipe or procedure file is rejected", () => {
   const errors = check(
     withRow((c) => {
       c.recipes = ["skills/write-css/reference/no-such-recipe.md"];
-      c.audit.procedure = "skills/audit/reference/no-such-lane.md";
+      c.audit.procedure = "skills/audit/reference/no-such-concern.md";
     }),
   );
   assert.deepEqual(errors, [
     "$.concerns[0].recipes[0]: no file skills/write-css/reference/no-such-recipe.md",
-    "$.concerns[0].audit.procedure: no file skills/audit/reference/no-such-lane.md",
+    "$.concerns[0].audit.procedure: no file skills/audit/reference/no-such-concern.md",
   ]);
 });
 

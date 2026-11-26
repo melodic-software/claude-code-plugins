@@ -47,7 +47,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "printf 'lanes: []' | tee docs/conventions/bugs.yaml",
+            "command": "printf 'areas: []' | tee docs/conventions/bugs.yaml",
             "description": "d"
           }
         }

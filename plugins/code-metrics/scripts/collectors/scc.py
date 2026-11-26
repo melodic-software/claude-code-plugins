@@ -35,6 +35,8 @@ def probe() -> int:
     return path_probe(NAME)
 
 
+# CreateProcess caps a command line at 32,767 characters.
+# https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa
 ARGV_BUDGET = 24000
 
 

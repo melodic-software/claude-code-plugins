@@ -22,14 +22,6 @@ function runScript() {
   return body.map((l) => l.slice(indent)).join("\n");
 }
 
-// curl: the Nth broker POST (it has --data-binary) logs its body to $BODY_LOG
-// and its Authorization line to $AUTH_LOG, writes $ANSWERS/N.json to its -o
-// file and $ANSWERS/N.headers to its -D file, and prints $ANSWERS/N.status;
-// past the last answer it repeats the last one. A GET of a /compare/ URL logs
-// the URL and its Authorization line to $COMPARE_LOG and writes $COMPARE to
-// its -o file, or exits 22 (curl --fail on an HTTP error) when $COMPARE is
-// absent. The Mth OIDC GET prints token oidc-token-M; anything else (a
-// revoke) prints 204.
 const FAKE_CURL = `#!/usr/bin/env bash
 stdin=$(cat)
 out="" data="" write="" dump="" url=""
@@ -244,8 +236,6 @@ const rateLimited = (retryAfter) => ({
   headers: `HTTP/2 503\r\nRetry-After: ${retryAfter}\r\ncontent-type: application/json\r\n\r\n`,
 });
 
-// GitHub: with a retry-after header, do not retry until that many seconds
-// have passed. Above the 0-20 s first backoff step, so the backoff would wait less.
 test("a 503 github-rate-limited waits its Retry-After plus jitter, not the backoff ladder", () => {
   const run = request(ISSUE_LANE, rateLimited(30), {});
   assert.equal(run.status, 0, run.stdout);
@@ -265,8 +255,6 @@ test("a 503 github-rate-limited on every attempt fails red after three requests,
   assert.match(run.output, /^failure-reason=lane-token-denied: the broker answered 503 with reason github-rate-limited: GET \/repos/m);
 });
 
-// GitHub's guidance without a retry-after header: wait at least one minute,
-// the whole budget, so no jitter fits.
 test("a 503 github-rate-limited with no Retry-After waits a minute", () => {
   const run = request(ISSUE_LANE, { ...rateLimited(30), headers: "HTTP/2 503\r\n\r\n" }, {});
   assert.equal(run.status, 0, run.stdout);
@@ -520,8 +508,6 @@ test("a kill-switch-ok other than true or false fails before the broker request"
   assert.equal(run.body, null);
 });
 
-// #7732: the refusal fix-docs got on #7717, a PR that changes a workflow file.
-// The detail's shape is the broker's, as SUPERSEDED above records it.
 const HEAD = "a".repeat(40);
 const REFINE_MODIFIED = {
   status: "403",
@@ -535,8 +521,6 @@ const PR_CHANGE = {
   DEFAULT_BRANCH: "main",
   API_TOKEN: "ghs_job",
 };
-// GitHub's compare response: `files[]` with `filename`, and `previous_filename`
-// on a rename (docs.github.com/en/rest/commits/commits#compare-two-commits).
 const changes = (...files) => ({ status: "ahead", files });
 const COMPARE_URL = `https://api.github.com/repos/melodic-software/claude-code-plugins/compare/main...${HEAD}`;
 
@@ -717,7 +701,7 @@ for (const [name, env] of [
 test("check mode refuses a pushed commit before the broker request", () => {
   const run = request({ MODE: "check", EFFECT: "", CONTENTS: "", PULL_REQUESTS: "", ISSUES: "", PR_NUMBER: "", PUSHED_COMMIT: "a".repeat(40) });
   assert.equal(run.status, 1);
-  assert.match(run.stdout, /::error::check mode takes no effect, grant, PR or issue number, release, or dispatcher run id/);
+  assert.match(run.stdout, /::error::check mode takes no effect, grant, PR number, release, or dispatcher run id/);
   assert.equal(run.body, null);
 });
 
@@ -777,11 +761,36 @@ for (const [name, inputs] of [
   });
 }
 
-test("check mode refuses an issue number before the broker request", () => {
-  const run = request({ MODE: "check", EFFECT: "", CONTENTS: "", PULL_REQUESTS: "", ISSUES: "", PR_NUMBER: "", ISSUE_NUMBER: "77" });
-  assert.equal(run.status, 1);
-  assert.match(run.stdout, /::error::check mode takes no effect, grant, PR or issue number, release, or dispatcher run id/);
-  assert.equal(run.body, null);
+const INTAKE_CALLER = { CALLER_WORKFLOW_REF: "melodic-software/claude-code-plugins/.github/workflows/intake-triage.yml@refs/heads/main", CALLER_EVENT: "workflow_dispatch" };
+
+test("check mode refuses an issue number from any caller but an intake-triage.yml dispatch on main", () => {
+  for (const caller of [
+    {},
+    { ...INTAKE_CALLER, CALLER_EVENT: "issues" },
+    { ...INTAKE_CALLER, CALLER_WORKFLOW_REF: "melodic-software/claude-code-plugins/.github/workflows/intake-triage.yml@refs/heads/feature" },
+    { ...INTAKE_CALLER, CALLER_WORKFLOW_REF: "melodic-software/claude-code-plugins/.github/workflows/work-resolve-issue.yml@refs/heads/main" },
+  ]) {
+    const run = request({ ...CHECK, LANE: "intake-triage", ACTIVITY: "triage-issue", ISSUE_NUMBER: "77", ...caller });
+    assert.equal(run.status, 1, JSON.stringify(caller));
+    assert.match(run.stdout, /::error::check mode sends issue_number only from an intake-triage\.yml dispatch on refs\/heads\/main/);
+    assert.equal(run.body, null);
+  }
+});
+
+test("an intake-triage.yml dispatch's check sends lane, activity and issue_number as a JSON integer, and must send it", () => {
+  const run = request({ ...CHECK, LANE: "intake-triage", ACTIVITY: "triage-issue", ISSUE_NUMBER: "77", ...INTAKE_CALLER }, { body: { decision: "allow", lane: "intake-triage", activity: "triage-issue" } });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(JSON.parse(run.body), { lane: "intake-triage", activity: "triage-issue", issue_number: 77 });
+  const missing = request({ ...CHECK, LANE: "intake-triage", ACTIVITY: "triage-issue", ISSUE_NUMBER: "", ...INTAKE_CALLER });
+  assert.equal(missing.status, 1);
+  assert.match(missing.stdout, /::error::an intake-triage\.yml check sends the dispatched issue number as issue_number/);
+  assert.equal(missing.body, null);
+});
+
+test("any other caller's check sends only lane and activity", () => {
+  const run = request({ ...CHECK, CALLER_WORKFLOW_REF: "melodic-software/claude-code-plugins/.github/workflows/pr-unblock.yml@refs/heads/main", CALLER_EVENT: "workflow_dispatch" }, CHECK_ALLOW);
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(Object.keys(JSON.parse(run.body)).sort(), ["activity", "lane"]);
 });
 
 const RELEASE_LANE = { LANE: "upstream-apply-changelog", ACTIVITY: "apply-changelog-branches", PR_NUMBER: "" };
@@ -818,7 +827,7 @@ for (const [name, inputs] of [
 test("check mode refuses a release before the broker request", () => {
   const run = request({ MODE: "check", EFFECT: "", CONTENTS: "", PULL_REQUESTS: "", ISSUES: "", PR_NUMBER: "", RELEASE: "2.1.312" });
   assert.equal(run.status, 1);
-  assert.match(run.stdout, /::error::check mode takes no effect, grant, PR or issue number, release, or dispatcher run id/);
+  assert.match(run.stdout, /::error::check mode takes no effect, grant, PR number, release, or dispatcher run id/);
   assert.equal(run.body, null);
 });
 

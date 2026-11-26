@@ -471,6 +471,31 @@ The one order of media a view steps down when its preferred medium is unreachabl
 medium registry ([rendered views](contracts/rendered-views/README.md#reachability-and-the-fallback-chain)).
 The word it replaced is retired in [`vocabulary-senses.json`](../scripts/vocabulary-senses.json).
 
+### Standards
+
+**team standards**
+
+The standards a repository commits for everyone who works in it, `docs/standards/` by default; on
+a direct conflict they win over personal standards
+([standards contract](contracts/standards/README.md#layers-and-precedence)).
+
+**personal standards**
+
+The standards one person keeps for themselves: `~/.claude/standards/` for every project, and
+gitignored `*.local.md` files under the standards directory for one repository. They may add to or
+tighten team standards; on a direct conflict the team standard wins
+([standards contract](contracts/standards/README.md#layers-and-precedence)).
+
+Avoid: your additions
+
+**subscribed standards repo**
+
+A standards repository read live from its `main` branch instead of copied, such as the one a
+repository names as its org layer
+([standards contract](contracts/standards/README.md#org-layer)).
+
+Avoid: preference pack, taste pack
+
 ### Planning
 
 **Brief**
@@ -506,6 +531,58 @@ the decision the trigger guards.
 
 Avoid: revisit trigger, re-derivation trigger
 
+### Transcript ingest
+
+**host**
+
+One machine on the fleet.
+
+**platform**
+
+The operating environment Claude Code runs in on a host: windows, wsl, linux or macos.
+
+**transcript source**
+
+One Claude Code configuration directory on one host and platform, covering CLI, Desktop and Cowork
+sessions; the ingest reads its `projects/`, `history.jsonl` and `paste-cache/`.
+
+**ingest**
+
+The step that reads raw transcripts and turns them into records a skill analyzes.
+
+**sources file**
+
+The per-host JSON file, named by a userConfig option, listing transcript sources.
+
+**via**
+
+The argument list a run is prefixed with to reach a host; absent means local.
+
+**run module**
+
+The lib module that runs each source locally or through via under the limits and writes
+diagnostics.
+
+**source resolver**
+
+The lib module that reads the sources file or falls back to the local configuration directory.
+
+**diagnostics record**
+
+The saved per-run record of timing, volume, memory, versions, limits and retryable gaps.
+
+**history-only prompt**
+
+A typed prompt from `history.jsonl` whose session transcript no longer exists.
+
+**adopting skill**
+
+A skill moved onto the ingest or the source resolver.
+
+**reader**
+
+The process that reads one host's sources.
+
 ## Rejected terms
 
 Names considered for a concept this project already owns, recorded so they are not reintroduced.
@@ -524,6 +601,9 @@ Each maps to the term or doctrine that owns the concept.
 | slice *(the benchmark sense)* | **workload** above; bare "slice" means the topic folder |
 | task *(for a lane)* | **lane** above; collides with the `Task` Issue Type admission reads ([`admission-rules.json`](../.github/actions/resolve-config/admission-rules.json)) |
 | factory workflow *(for a lane)* | **lane** above; not every workflow is a lane |
+| lane *(the slice of a repository a hunt rotates through)* | focus area, the word `code-tidying:tidy` and `bugs:scan` (`--area`) use; bare **lane** means a stage worker |
+| lane *(one interface concern an audit pass judges)* | concern, the word `user-interface:audit` uses |
+| lane *(one audit a drift sweep runs)* | check, the word the `drift-delta-sweep` routine uses |
 | approval *(for admission)* | **admission** above; implies a judge, and admission runs no model |
 | commitment point | **admission** above; Kanban's name for the point, which collides with a git commit |
 | map / territory | the source author's metaphor, cited where it appears in [`finding-your-unknowns.md`](finding-your-unknowns.md) "The unknowns taxonomy"; never house vocabulary (metaphor-jargon risk) |

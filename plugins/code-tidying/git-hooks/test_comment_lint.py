@@ -557,6 +557,11 @@ class MoreDirectives(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(flagged(path, text), [])
 
+    def test_triple_slash_reference_is_a_directive_with_or_without_a_space(self):
+        for text in ('/// <reference path="a.d.ts" />', '///<reference path="a"/>'):
+            with self.subTest(text=text):
+                self.assertIsNotNone(lint.DIRECTIVE.search(text))
+
     def test_portability_ok_passes(self):
         text = '#!/usr/bin/env bash\n# portability-ok: GNU stat only, Linux-only script\nsize=$(stat -c %s "$1")\necho "$size"\n'
         self.assertEqual(flagged("t.sh", text), [])

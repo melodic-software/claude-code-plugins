@@ -6,7 +6,7 @@ expected_outcome: 'No file changes, no Edit or Write, no branch or commit; the f
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: 'Run a tidy pass on the shell-tooling lane. Heads up: three chore/tidy-* PRs are already open and waiting on review (#41, #42, #43).'
+  prompt: 'Run a tidy pass on the shell-tooling focus area. Heads up: three chore/tidy-* PRs are already open and waiting on review (#41, #42, #43).'
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
   max_turns: 120
   timeout_seconds: 1800
@@ -15,7 +15,7 @@ graders:
     type: tool_used
     tool: 'Skill'
     input_match: 'tidy'
-  - name: lane-untouched
+  - name: area-untouched
     type: regex
     pattern: '^legacy_mode=1$'
     flags: 'm'

@@ -990,7 +990,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
 
 ### `simplify` → `code-tidying:tidy`
 
-- **Verdict:** `complementary`: Different trigger, not a different job. The bundled skill refines the code a change already touched; tidy proactively hunts unfiled structural drift across a rotated, glob-scoped lane and ships one structure-only PR per invocation. tidy's own description already routes current-diff work away to the native surface, which is the routing this row records rather than replaces.
+- **Verdict:** `complementary`: Different trigger, not a different job. The bundled skill refines the code a change already touched; tidy proactively hunts unfiled structural drift across a rotated, glob-scoped focus area and ships one structure-only PR per invocation. tidy's own description already routes current-diff work away to the native surface, which is the routing this row records rather than replaces.
 - **Integration:** `route`
 - **Native surface:** `simplify` (bundled skill; markers: none)
 - **Our component:** `code-tidying:tidy` (skill)

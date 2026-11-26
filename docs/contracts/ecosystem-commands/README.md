@@ -264,7 +264,7 @@ ecosystem records without running a verb:
 **Claim:** `code-metrics` consumes `globs` and `enabled` from `docs/conventions/ecosystems/<language>.yaml` and
 no other ecosystem-commands key. It fails soft, as the tolerant-reader paragraph above asks: an
 ecosystem file outside the supported YAML subset is warned about and read as absent
-(`plugins/code-metrics/scripts/resolve-config.py:131-139`, `:473-478`), and
+(`plugins/code-metrics/scripts/resolve-config.py:127-135`, `:469-474`), and
 `/code-metrics:setup check` reports it as FAIL
 (`plugins/code-metrics/skills/setup/scripts/setup-check.sh:223-224`). Parseable but
 schema-invalid content is not validated. **Basis:** `plugins/code-metrics/reference/config.md` "Layers and

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "implementation_route: local (default). Decompose is done, so the next stage is implement: pick up #101 first, then #102.",
+      "why": "implement next, locally"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Both items are handed to the factory lanes; no local implement stage.",
+      "why": "factory route with nothing set"
+    },
+    {
+      "answer": "Next: run a retrospective.",
+      "why": "skips implement"
+    }
+  ]
+}

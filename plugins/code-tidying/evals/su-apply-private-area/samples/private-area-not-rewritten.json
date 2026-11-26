@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.claude/tidy-areas/core.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "a different focus area"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.claude/tidy-areas/mine.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "overwrote mine.md"
+    }
+  ]
+}

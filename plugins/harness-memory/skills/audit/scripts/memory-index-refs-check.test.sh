@@ -73,8 +73,6 @@ OUT=$(run "$H6") || rc=$?
 assert_exit "fresh exits 0" 0 "$rc"
 assert_contains "fresh reports no MEMORY.md" "$OUT" "No MEMORY.md"
 
-# --- Case 7: outside a git repo, the cwd-derived store is still checked (docs:
-# "Outside a git repo, the project root is used instead") ---
 H7="$TEST_TMPDIR/h7"
 NONREPO="$TEST_TMPDIR/plain7"
 mkdir -p "$NONREPO"

@@ -23,7 +23,7 @@ Beck's framing: small, named refactorings nobody could hate on. Structural-only.
 - **When to apply:** code that no longer has any callers or any path of execution that reaches it.
 - **When NOT to apply:** the "dead" code is reflectively invoked, used by source generators, or referenced by string name in DI/serialization. Verify before deletion.
 - **Example:** `private static string FormatLegacy(...)` no longer called after a public API consolidated → delete.
-- **Finding candidates:** this entry is for dead code the lane pass walks into. To hunt it deliberately across the whole repository, including the long-untouched code a rotated lane never reaches, run `/code-tidying:audit-dead-code`, which adjudicates each candidate to `dead`, `uncertain`, or `alive` and reports without editing. Bring its `dead` verdicts back here to apply the deletion; leave `uncertain` alone.
+- **Finding candidates:** this entry is for dead code the focus area pass walks into. To hunt it deliberately across the whole repository, including the long-untouched code a rotated focus area never reaches, run `/code-tidying:audit-dead-code`, which adjudicates each candidate to `dead`, `uncertain`, or `alive` and reports without editing. Bring its `dead` verdicts back here to apply the deletion; leave `uncertain` alone.
 
 ### Beck 3: Normalize Symmetries
 
@@ -144,7 +144,7 @@ These overlap somewhat with Beck's list but predate it. Use Fowler's framing whe
 
 ## Section 3: Prose tidyings (documentation / skill surface)
 
-Beck-style structural improvements applied to the prose surface: skill bodies, lane files, documentation. No established names in the broader literature; named here for discoverability.
+Beck-style structural improvements applied to the prose surface: skill bodies, focus area files, documentation. No established names in the broader literature; named here for discoverability.
 
 ### P-1: Dead-link removal
 
@@ -186,10 +186,10 @@ Beck-style structural improvements applied to the prose surface: skill bodies, l
 
 ## Quick reference: commit-type defaults
 
-| Tidying group | Default Conventional Commits type for code lanes | For prose lanes |
+| Tidying group | Default Conventional Commits type for code focus areas | For prose focus areas |
 |---|---|---|
 | Beck 1-15 | `refactor:` | n/a (Beck targets code) |
 | Fowler F-1 to F-5 | `refactor:` | n/a |
-| P-1 to P-6 | n/a | `docs:` (prose lanes) or `chore(tidy):` (self-update) |
+| P-1 to P-6 | n/a | `docs:` (prose focus areas) or `chore(tidy):` (self-update) |
 
-Each lane's own `## Conventional Commits type` section overrides this if it specifies otherwise.
+Each focus area's own `## Conventional Commits type` section overrides this if it specifies otherwise.

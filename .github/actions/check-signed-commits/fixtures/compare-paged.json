@@ -1,0 +1,178 @@
+{
+  "source": "GET /repos/melodic-software/claude-code-plugins/compare/69a306e3113279854a961416eab70c63e9b50be4...86aff57218aea7e9b61fc559378642652582b324?per_page=2&page={1..4}, trimmed to the fields the check reads",
+  "base": "69a306e3113279854a961416eab70c63e9b50be4",
+  "head": "86aff57218aea7e9b61fc559378642652582b324",
+  "pages": [
+    {
+      "status": "ahead",
+      "ahead_by": 5,
+      "behind_by": 0,
+      "total_commits": 5,
+      "commits": [
+        {
+          "sha": "a971084ce964e5fa3702dc160ad5e5f1ff5afcd4",
+          "node_id": "C_kwDOTCGFQNoAKGE5NzEwODRjZTk2NGU1ZmEzNzAyZGMxNjBhZDVlNWYxZmY1YWZjZDQ",
+          "commit": {
+            "author": {
+              "name": "Kyle Sexton",
+              "email": "153232337+kyle-sexton@users.noreply.github.com",
+              "date": "2026-11-25T18:42:31Z"
+            },
+            "committer": {
+              "name": "GitHub",
+              "email": "noreply@github.com",
+              "date": "2026-11-25T18:42:31Z"
+            },
+            "verification": {
+              "verified": true,
+              "reason": "valid",
+              "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJrBywcCRC1aQ7uu5UhlAAAKHQQAFLfDzWNzZTYC+eap+dLHH7p\nPP9xTEsndb7CoftjMZBewDhzKhXAZEAn0NEpkBJ/kId2Yl8qZStUaywkbajxbqfC\nzbI5G9l8W9fh2D9SH5oKntroKAvSq02WS2EKBX+GLvsQX/6su/RxWeN3p19NJiB/\nvIzsrqLEVoWNzs5KqYeP/ceFXXAUOZ3eKX3KDgdJvirxc23qOMV+ESoVoi90EHdF\nT9QbpFTQ1qV7ZAhOFpc0hb1GZw3dz16RFnjPZplq5GCn937OGJ+yXvsgRWEMfE5L\nBFhJSEYYDZ0JjQw6rp7hC+0lnMoW1//CZdZ23d80HrYHxxG3rKBXNk2f/+RQGfBC\ngKYhMiO9z3c2tRZy+nAPe5kdntlozC8lfaJXD1sxX6UuGnUE3t8ebp59G4FDig2Z\no8PocOzWur6OwlED7D5twMrA40QK4ipsSO2isoeSXHPOUV0WZ1J9KPrCiiEV2jFO\nDNnHMJL4hbYAYiKtNJUdCW6uS4uU/Zqr+LhaQ7F92Z9FmkVtPGhCgXPSBQmQhQqZ\npsJwE/dMtcRDb9LLQQg2zULW9/2Yhe9bX33sfh47irOj4Lqq982XZbK0XNayxFkZ\nd46Wows55bXV5+0CeVH+r+77NkMK2MvISCRJ4I7JXVcOrcQvK2jdv3ptEo7KexSR\nk13AKsF+bpd6So6avGA1\n=Sx+H\n-----END PGP SIGNATURE-----\n",
+              "payload": "tree 89f789b6585d7b4b21d69996d668811ea0e3eaa0\nparent 69a306e3113279854a961416eab70c63e9b50be4\nauthor Kyle Sexton <153232337+kyle-sexton@users.noreply.github.com> 1795632151 +0000\ncommitter GitHub <noreply@github.com> 1795632151 +0000\n\nrefactor(ci): read review-lane status jobs from merge-holds REVIEW_LANES (#19111)\n\nNo related issue: deepening candidate c7, owner-approved (architecture\ndocs/owner-decisions.md row 433)\n\n## Summary\n\nCandidate c7 (\"one review-lane reader\") asked for one owner for every\nreader of the review lanes' state. Mapping the readers found two real\ncopies of a table that `merge-holds.mjs` `REVIEW_LANES` already owns.\nThis PR removes both copies. The lane-run selection pair the scan named\n(ci-status `lane_run` and `rerun-ci-status.sh` `newest`) is left as it\nis, for the reasons under Verification.\n\n## Fix\n\n- `clear-escalations.mjs` `LANE_RECORDS`: the six status job names per\nlane now come from `REVIEW_LANES`, which the module already imported.\nThe names and their order are the same as before.\n- ci-status `Clear a cost-only review hold the owner decided`: the step\nnow prints the lane list from the base commit's `REVIEW_LANES` through\nnode, in place of an inline two-line copy. The step already runs the\nbase's `refsIssue`, `mergedParents`, `baseMergeCarry` and `unranHead`\nthe same way. Its \"changes a review-lane workflow\" test is now the\nbase's `laneChange`, with the same 300-file cap and the same two paths.\n`unranHead` requires `ran` in `REVIEW_LANES` order, and the loop now\nfollows that order by construction.\n- No new export: `REVIEW_LANES` and `laneChange` are already on main, so\nthe base-loaded module needs no stacked PR.\n- A `bump: none` pr-pipeline changeset.\n\nBehavior: every pass and every keep is unchanged. Two keep messages are\ndifferent:\n- With an unreadable base `merge-holds.mjs`, the step now keeps the hold\nat \"the review lanes could not be read\". Before, it kept it at a later\n`holds_js` call.\n- A compare with no file list now keeps the hold at \"changes no file\nlist\". Before, the message was \"do not parse\".\n\n## Verification\n\nReader map, before:\n\n| Reader | Reads | Rule |\n|---|---|---|\n| `pr-require-checks.yml` `Require both review lanes on this head`,\n`lane_run` (~:7530) | the head's pull_request runs listing, else the\nper-workflow listing | newest run by id for path, sha, event and head\nrepository, optionally filtered to the PR; the listing counts only when\nwhole |\n| `rerun-ci-status.sh` `newest`/`file_runs` (:86-107) | the same listing\n| the same selector, with no PR filter; a failed listing read falls back\nto the per-workflow listing, where ci-status fails closed |\n| `pr-require-checks.yml` cost-hold step (~:5752) | per-lane runs by\nbranch, status jobs, `claude-lane-hold` notices | **inline copy of\nREVIEW_LANES job names** and an inline review-lane path test |\n| `clear-escalations.mjs` `LANE_RECORDS` / `reviewLanesClean` | the\nper-workflow listing (strictly fewer than 100 runs), jobs, records |\n**copy of REVIEW_LANES job names** |\n| `merge-holds.mjs` `REVIEW_LANES`, `laneChange` | owner | checked\nagainst `.github/lane-registry.json` by `lane-registry.test.mjs` |\n| `resolve-pr.mjs` | reads no review-lane state: \"lane\" there means the\npr-merge lane and the lanes App | none |\n\nAfter: the cost-hold step and `LANE_RECORDS` read `REVIEW_LANES` and\n`laneChange`, so the two copies are gone.\n\nThe lane-run selector pair is not merged. Sharing it would need:\n- a new file that both workflows load: ci-status from the base-config\ncheckout, `rerun-ci-status` from main's tip;\n- two stacked PRs;\n- a new dependency of the review-lanes step's main path on the\nbase-config checkout, which can turn ci-status red on a checkout flake\nand add merge latency.\n\nAll of that to save a 4-line jq filter, and the two callers keep\ndifferent read-failure policies anyway. The step's inline `lanes` list\n(~:7245) also stays as it is. It is in a different order from\n`REVIEW_LANES`, and that order decides which job name the error messages\nshow.\n\nNo API calls change: the cost-hold step adds two local node runs on\nfiles it already reads.\n\nTests:\n- `scripts/ci-hold-cost-decision.test.sh`: PASS=211 FAIL=0. Two\nexpectations were updated to the new keep messages; both cases still\nexpect no/no/no.\n- `node --test '.github/scripts/pr-merge/*.test.mjs'`: 1070/1070.\n- `.github/scripts/lib/lane-registry.test.mjs`: 9/9. Its existing test\npins `LANE_RECORDS` jobs to the registry's status checks, which are the\nold literal lists.\n- `plugins/review/tests/prior-findings.test.mjs`: 28/28.\n- `ci-hold-human-gated` 81/0, `ci-hold-lifted-by` 82/0,\n`ci-lanes-pr-hold` 357/0, `ci-gh-read` 69/0.\n- `guard-coverage`, `api-budget-coverage` and `ci-status-hold-ref`:\n15/15.\n- `test_diff_risk.py`: 147 OK.\n- `scripts/lib/gate-entry.test.sh`: 33/0.\n- `check-shell-portability --paths\nscripts/ci-hold-cost-decision.test.sh`: clean.\n- `actionlint`: clean. `check-changelog-fragments --check`: valid.\n- `selection-audit trace --strict`: 1 suite traced, 5 files read, no\ngap.\n\nTwo Python suites fail the same way on main and on this branch in this\nenvironment, and the failures are not caused by this change:\n`test_merge_holds_sync.py` (18 failures) and\n`test_babysit_merge_unattended.py` (11 failures).\n\n## Related\n\n- Deepening report c7, owner decision row 433.\n- Open PRs not touched: #19084, #19086, #19087. #19087 edits a different\nstep of `pr-require-checks.yml` (the lanes App hold step), and no hunk\nhere overlaps it.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\n---------\n\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
+              "verified_at": "2026-11-25T18:42:36Z"
+            }
+          },
+          "parents": [
+            {
+              "sha": "69a306e3113279854a961416eab70c63e9b50be4"
+            }
+          ]
+        },
+        {
+          "sha": "87a0c8774325183c4139f0160a45b14d652eebb2",
+          "node_id": "C_kwDOTCGFQNoAKDg3YTBjODc3NDMyNTE4M2M0MTM5ZjAxNjBhNDViMTRkNjUyZWViYjI",
+          "commit": {
+            "author": {
+              "name": "Kyle Sexton",
+              "email": "153232337+kyle-sexton@users.noreply.github.com",
+              "date": "2026-11-25T18:44:07Z"
+            },
+            "committer": {
+              "name": "GitHub",
+              "email": "noreply@github.com",
+              "date": "2026-11-25T18:44:07Z"
+            },
+            "verification": {
+              "verified": true,
+              "reason": "valid",
+              "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJrByz3CRC1aQ7uu5UhlAAABcQQACwFTod0xdvwrIOnWiDEFR07\n+005h/n+Ly3HOtMyfSpevIVn8lq54i5+CMuc6C1tY3G9aZthvC5Yub3HOZJES1zi\nW7CmPaNForgCXwlfZvY4uMaLFwKNtmViNac79zjVPHj77H7czzi0x3HE09k/fy0e\nyKFxWdw/x8bSFSfSf6N/0wjpvATIgynXLgIwiY6sDVrlMoHCY0hlNOFEzXTfQS9H\ndrkVGSteoklg18KBnMSug+CVAUm2RysR1cfQyP7aj/tbF+5sHAtLLoPcNoQv5Ssq\n9IUV5kTQ0uXYicN6uO2FGjUfzPAHZAoIZCwNd5hKvP1UJYo65qqxXWWRxu4u9i9c\nJZczbZ6+GaPTtKeRC+UpbVuDGd4ciohO8+pbN/ifwWAVRYbmz6gTCQylZfqU1Q4+\nhS6v6gLm8mqK5MS10snGZeuqgyabpcjYaW4L8/D2fdz913Y8KL5HD/Fv/9zyTZ0K\nxdpqz3NHkSurirg36BD4+SH+8YeIEb27GD7HvhitH5txGtk9aDTDWUBzRELPiRUP\nlHNSjH9DMLZwm+F0yOHkQQhRVvKUP52WRB9FSmKO+kYOAb/QBpL2c0ModSRYO+Df\nNiBbj1eLet3FUnHWp4SwKOK6v0Eq4pIkXnT+Pi2MBT2Y9iaaARn7Jx+/mM37Og36\nD3BA7bsI0EoltMy9GaAo\n=Gtou\n-----END PGP SIGNATURE-----\n",
+              "payload": "tree 91fd291d186406c23c2bde250ae53f7c2a78b1f6\nparent a971084ce964e5fa3702dc160ad5e5f1ff5afcd4\nauthor Kyle Sexton <153232337+kyle-sexton@users.noreply.github.com> 1795632247 +0000\ncommitter GitHub <noreply@github.com> 1795632247 +0000\n\nfeat(intake-triage): run /work-items:triage --ci on the read runner's verdict mode (#19060)\n\nCloses #18859\n\n\n## Summary\n\nThe intake lane's model job moves off the ci-workflows intake reusable\nonto this repository's read runner, as decided (option A2, refined; Q69\nand Q70). `triage-issue` runs `/work-items:triage --issue <n> --ci` in\n`pr-run-activity-read.yml`'s new verdict mode with the read skill tools\nonly (Read, Glob, Grep, Skill). The verdict is structured output, held\nto one schema that ships with the skill. A no-model `post-triage` job\nchecks it and posts the comment, labels and Issue Type on the job's\n`GITHUB_TOKEN`, so the comment's author stays `github-actions[bot]`.\n`apply-verdict.mjs` and `admit.mjs` are unchanged.\n\n## Fix\n\n- **Schema, defined once.**\n`plugins/work-items/skills/triage/schemas/ci-verdict.schema.json`, with\nan optional `type`. `check-ci-verdict.mjs` reads it (and takes\n`--schema` for a narrowed copy). `collect-base-activity` copies it for\nthe launcher with `size`, `complexity` and `uncertainty` narrowed to\nenums from `models.issue-dimensions.fields`. `write-intake-issue.mjs`\nnarrows `type` to the enabled Issue Types, or drops it.\n- **`ci-mode.md`.** Steps 3 and on are rewritten: the model runs neither\nscript and returns the verdict as structured output. It reads\n`open_issues` and `merged_pulls` from `issue.json`, and the repository's\n`## Triage rules` in `docs/conventions/work-items.md`.\n- **Read runner verdict mode (`issue-verdict`).** It admits a dispatch\nnaming the issue, claims no lease, skips the stale-file and prior-work\nchecks, writes `issue.json` (newest 200 open issues, latest 100 merged\nPRs), and carries the structured output through the existing scan slot.\nThe verdict is uploaded as `triage-verdict-<issue>-<attempt>`, and the\nscan job exports its SHA-256. The scan refuses a verdict run that\ncarries a patch, replies or an outcome.\n- **Trigger gate: exactly today's sources.** `check-trusted-trigger`\ngains `bot-sender-ids` and `issue-author`. Verdict mode passes\n`41898282` and the lanes App: an issues event proceeds only as `opened`\nby its own author, and an issue or a dispatch only from a listed human\nor one of those two bots. A re-run needs a listed human.\n- **`intake-triage.yml`.** It runs three credential legs with handoff\njobs, as `work-resolve-issue.yml` does, then `post-triage`\n(`.github/scripts/intake-triage/post-triage.mjs`, a port of the\nreusable's apply job). `post-triage` checks the verdict's SHA-256,\n`check-ci-verdict.mjs` and `set-dimensions.sh --dry-run` before any\nwrite. A missing or refused verdict applies nothing and fails the job,\nso the triage sweep runs the issue again. The repository's own rubric\nrules (the `Cost decided:` line, re-entry (d), the blocked-by-issue stop\nrule and done-when items a lane run cannot do) move to\n`docs/conventions/work-items.md`.\n- **Config.** `pr-pipeline.yaml` gets the `triage-issue` and\n`post-triage` activities and slots, `triage-verdict` joins the\n`applied-by` schema enum, and `resolve-config` outputs\n`applied-by-triage-verdict`. `lane-grants.json`, `lane-funding.json` and\n`check-read-caller-keys.mjs` gain the intake rows.\n\n## Verification\n\n- `node --test` over the changed suites: `callers.test.mjs` (309),\n`check-trusted-trigger.test.mjs` (520),\n`collect-base-activity.test.mjs`, `post-triage.test.mjs`,\n`write-intake-issue.test.mjs`, `check-ci-verdict.test.mjs`,\n`apply-verdict.test.mjs`, `triage-sweep.test.mjs`,\n`label-unblocked.test.mjs`, `resolve.test.mjs`, `lane-grants.test.mjs`\nand the other suites that read these workflows. All pass.\n- Shell suites `check-read-caller-keys.test.sh`,\n`read-lane-broker-check.test.sh`, `read-runner-dispatcher-gate.test.sh`,\n`write-runner-never-rules.test.sh`, `pr-unblock-trusted-base.test.sh`\nand `act-turns-denied.test.sh` all pass.\n`scripts/check-read-caller-keys.sh` is clean, `actionlint` is clean, and\n`scripts/check-affected.sh --uncommitted` passes 22 checks.\n- Not run: any eval, and no live intake run.\n\n## Loosened checks\n\n- `.github/actions/resolve-config/callers.test.mjs`, \"every caller of a\nreusable holding model legs passes the transcript key\": the minimum\ncaller count drops from `>= 3` to `>= 2`. The intake caller moved from\nthe ci-workflows intake reusable to `pr-run-activity-read.yml`, so one\nfewer caller holds model legs through a ci-workflows reusable; the two\nleft are `pr-review-hosted.yml` and `pr-review-security-hosted.yml`, and\neach must still pass the transcript key. The read runner's transcripts\nare checked by the lane-transcript puller tests, which now list\n`triage-issue`.\n- `.github/scripts/intake-triage/apply-verdict.test.mjs`, \"offers\nexactly the flags and typed fields the verdict reads\": each dimension\noption key now only has to match the schema's `pattern`, where before it\nhad to equal the schema's enum, and `required` now only has to include\nthe five verdict fields, where before it had to equal them. The skill's\nschema no longer carries the repository's dimension enums: the read\nrunner writes them into a per-run copy, and\n`.github/actions/collect-base-activity/collect-base-activity.test.mjs`\nasserts the exact enums the runner writes. `check-ci-verdict.mjs` and\n`post-triage.mjs` check every verdict against that per-run schema before\nany write.\n\n## Related\n\n- Not in this PR: `.github/scripts/intake-triage/triage-rubric.txt` is\nno longer passed to a model, but it stays in place because\n`refine.test.mjs`, `reentry-prompt.test.mjs`, `apply-verdict.test.mjs`,\nthe `reentry-eval` harness and `merge-holds.mjs` still read it. Retiring\nit is a follow-up.\n- UNVERIFIED: whether the lanes token broker's `/check` allows the new\n`intake-triage / triage-issue` read activity on `issues` and\n`workflow_dispatch`. `pr-run-activity.md` says `issues` from\n`intake-triage.yml` and `workflow_dispatch` on `main` are allowed, but\nthe azure-iac code was not read.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\n---------\n\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
+              "verified_at": "2026-11-25T18:46:16Z"
+            }
+          },
+          "parents": [
+            {
+              "sha": "a971084ce964e5fa3702dc160ad5e5f1ff5afcd4"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "status": "ahead",
+      "ahead_by": 5,
+      "behind_by": 0,
+      "total_commits": 5,
+      "commits": [
+        {
+          "sha": "db1fc0fb9b89d94807a4211328efb93ab8aaa7cd",
+          "node_id": "C_kwDOTCGFQNoAKGRiMWZjMGZiOWI4OWQ5NDgwN2E0MjExMzI4ZWZiOTNhYjhhYWE3Y2Q",
+          "commit": {
+            "author": {
+              "name": "Kyle Sexton",
+              "email": "153232337+kyle-sexton@users.noreply.github.com",
+              "date": "2026-11-25T18:44:36Z"
+            },
+            "committer": {
+              "name": "GitHub",
+              "email": "noreply@github.com",
+              "date": "2026-11-25T18:44:36Z"
+            },
+            "verification": {
+              "verified": true,
+              "reason": "valid",
+              "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJrBy7CCRC1aQ7uu5UhlAAAN2kQAEPACQ0y4heWDlBcywK+YXTm\niXtbVTZuph5xuWKed51pGNYeFQD836TH73YiSBeltqgND9NqPJMs5ZeVb+vvHkeJ\nfD8pXkcdrZkvLD5Cyb+TUNIXCj15OVknfgRiP5vid/5hqVMMc5xj9pNfP25yZkh2\nrgWo3rY1v9ty2k2dGPbJvTAuQHNaL/gPooJIQd00+VSFuMDx2arphneOrd+9K3d9\nTQussPvnw7YdMFN7nr5Lykq/EHLKHaRu89mrN/ScjnWvGy/Xj9qXiAKV+8bZB8rx\nJPhv/4JgFQ64bb9atAL/yeSb9yyZquYHDXU226s3ZhcBhr1N4OgnDDdzbDfTGxkW\nbU3Nf2uYi/lk0XdYJjosLKInHvsvct1TQ7Hjebz3vsnI6j4Q4T7WDfQMxH0WPNOU\n2PjrxlwsSyL4JY1ijbVF2N1VgRZWAIvVdgPBCsYDtMaU7zY9N2oOQd0SOjUn+X8S\nBxZUYeGzFrtqhx5HAY9aYVLPLGyCbPetzyjDy/rRhdQmCatGZawGZWYw9O3icqBv\no8acKEUeV/zmvQZ08Kjz9VOWF0C6tjICC47jwgMTHQptKwxUkgKCN7r40TstofLV\n3lTq41Qh5Xwvz0kAXUZeOyVugMxczrY9ZWnm19N1BN4TvIIgBWBIovefaFrmbxqW\n0K8PI3ggFkjaBRqjuWqu\n=3OmR\n-----END PGP SIGNATURE-----\n",
+              "payload": "tree 9184a3f925d8df7d8a79fb1f1284ea9246e84c66\nparent 87a0c8774325183c4139f0160a45b14d652eebb2\nauthor Kyle Sexton <153232337+kyle-sexton@users.noreply.github.com> 1795632276 +0000\ncommitter GitHub <noreply@github.com> 1795632276 +0000\n\nperf(babysit-prs): let the verdict reader hand over the pass it judged (#19085)\n\nNo related issue: deepening candidate c5, owner-approved (architecture\ndocs/owner-decisions.md row 433)\n\n## Summary\n\nFirst of two stacked PRs that remove ci-status's second read of the\npr-verify pass in the merge\nqueue. `babysit_verify_evidence.py evidence` gains `--pass-out <file>`:\non an allow at the head it\nwrites the objects the judgment already read (each counted pass at the\nhead with its run, the\nfirst pass's verdict.json, the closing issues). The printed report does\nnot change, so pr-merge's\nenable-auto-merge caller (`enable-auto-merge.mjs`) sees no difference.\n\nThe workflow change that uses the flag is the second PR. They are split\nbecause ci-status runs this\nscript from main's checkout (`VERIFY_EVIDENCE_SCRIPT: .base/...`,\n`pr-require-checks.yml:6616`; `.base`\nis checked out at main's tip, `pr-require-checks.yml:5254-5259`). A\nworkflow that passed the new flag\nin the same change would run against main's old script in its own merge\ngroup and fail closed. This\nPR must merge first.\n\n## Fix\n\n- `Reader._run_state` keeps the `_run_fields` of each run it reads live\n(`_pass_runs`).\n`_closing_issues` keeps the closing issues trimmed to `totalCount`,\n`number` and `nameWithOwner`\n(`_closing_refs`), the shape the workflow's GraphQL read returns.\n`_evidence` keeps the counted\n  passes at the head (`_head_passes`).\n- `Reader.pass_link(number, head)` returns `{head, verdicts, record,\nclosing}`. `verdicts` holds each\ncounted pass as `{name, verdict, runId, artifact, run}`, the shape\nmerge-holds.mjs `verdictHold`\nreads. `record` is the verdict.json of the first pass in name order\n(pass before pass-notes,\nundigested first, then as listed). That is the pass the workflow's bash\njudged with `linkHold`. It\nis not always `_newest(passes)`, so a record the judgment did not\ndownload is downloaded once (the\ndownload the step makes today). A record that does not read is `null`,\nwhich `linkHold` holds.\n- `--pass-out` writes `pass_link` for an allow at the head. Any refusal\nwrites no pass, no record and\nno closing issues, which matches what the step's bash gives\nmerge-holds.mjs today in FAIL index\n  mode on a refusal (`listed=false`, `pr-require-checks.yml:7016-7020`).\n- A source-control changelog fragment (patch).\n\n## Verification\n\n- `test_babysit_verify_index.py` `PassOut` (4 new tests): an allow\nwrites the expected file and makes\nexactly one zip, one `actions/runs/1` and one closing-issues read in the\nwhole judgment. A FAIL\nwrites no pass. With two passes where `_newest` picks pass-notes, the\nrecord is `pass`'s (bash's\npick) after one extra download. A record that does not download is\n`null`.\n- babysit-prs package suite: `uvx --with pytest-xdist pytest -n 4\nplugins/source-control/skills/babysit-prs/scripts/tests`:\n  4715 passed, 20 skipped.\n- `selection-audit.sh trace --strict` on `test_babysit_verify_index.py`:\nno gap.\n- Call savings are measured on the second PR, which removes the reads.\n\n## Related\n\n- Measurement and design: `.work/gh-optimization/c5-1125/finding.md`\n(local).\n-\n[#19087](https://github.com/melodic-software/claude-code-plugins/pull/19087):\nthe workflow change\n  that uses this flag. It is stacked on this PR and merges after it.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\n---------\n\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
+              "verified_at": "2026-11-25T18:53:55Z"
+            }
+          },
+          "parents": [
+            {
+              "sha": "87a0c8774325183c4139f0160a45b14d652eebb2"
+            }
+          ]
+        },
+        {
+          "sha": "616a7b00a6af509a5de6189f66e086b7f639987c",
+          "node_id": "C_kwDOTCGFQNoAKDYxNmE3YjAwYTZhZjUwOWE1ZGU2MTg5ZjY2ZTA4NmI3ZjYzOTk4N2M",
+          "commit": {
+            "author": {
+              "name": "Kyle Sexton",
+              "email": "153232337+kyle-sexton@users.noreply.github.com",
+              "date": "2026-11-25T19:05:25Z"
+            },
+            "committer": {
+              "name": "GitHub",
+              "email": "noreply@github.com",
+              "date": "2026-11-25T19:05:25Z"
+            },
+            "verification": {
+              "verified": true,
+              "reason": "valid",
+              "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJrBzF3CRC1aQ7uu5UhlAAAUsIQAAvF8u4dDoFbHLhqFS8YQZn9\nzMYe12NRbkvw8m4XQsBY9b6qk7phvAGyCVDFwkxbNDv0qH9E4QFaCEowo5wNU6T2\nUYFM+gr6JenugPmQouXWqDnrzqYDJU5feGaKjxMhce08ZZvbIRW2L6WMyKSWr2W/\nYDG9bjBD0/6wCAItTMsIok9uOx7XQ1QETMdLKCDsWr4QVtceyIUoQukQjkyYmkug\nXohlxx8sgXtOsoioYtfw1JF5JeT+ajUut+Qcnq7k87HWXg8MB+HN2MAE3XFoZAA/\nF6Lw2SC6z9+opb69ZsmvxTKm8JDItajUjOEcPygHrwPnfj9PYjZ/Agq5DAEU1lzq\naGfKV1D5yGwbOE2kIw45WZhwhTiuzTqRCZr6ZTjJhYlz0vRfsD9KxTLfWHWosxYY\nj9Xc2a/uWophxPIU3EJbbHAipLO4cOig5vtV1Xv4NdrYSgJbyf5ZFwm5qCd9g0F2\naNNVJg5bdP6Z5IpbT9dDk+6KprDr2UR4GJet7N+f6gxzEzTetSUSeDYpkwlHk64j\n1o+Xs+rzZrCxqgHXmAzO6g7kwbmno5S6SQ2jGtWKZD91ErXB0jVnUmExNVd8jiAU\nzAQQTgraoQwgER7sIf+sKYXKW8H89LCZib93qn5EhxVY2SPunsM5RXClpgWup+Y2\nEDz1vS1ZVajQFex1PwN4\n=OKHB\n-----END PGP SIGNATURE-----\n",
+              "payload": "tree a85cb2def421a2b427aeb564a5f5a245f325244d\nparent db1fc0fb9b89d94807a4211328efb93ab8aaa7cd\nauthor Kyle Sexton <153232337+kyle-sexton@users.noreply.github.com> 1795633525 +0000\ncommitter GitHub <noreply@github.com> 1795633525 +0000\n\nperf(pr-pipeline): serve repeated GitHub GETs as conditional reads in the shared client (#19084)\n\nNo related issue: deepening candidate c2, owner-approved (architecture\ndocs/owner-decisions.md row 433)\n\n## Summary\n\nThe shared GitHub client now has one conditional-read store. When a job\nrepeats a GET of the same URL with the same token, the request carries\n`If-None-Match` with the kept ETag, and a 304 returns the kept body.\nGitHub: \"Making a conditional request does not count against your\nprimary rate limit if a `304` response is returned and the request was\nmade while correctly authorized with an Authorization header\" ([REST\nbest practices, Use conditional requests if\nappropriate](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests-if-appropriate),\nread 2026-11-25). The gate's inputs are still answered by GitHub. A 304\nmeans GitHub confirmed the kept body is current, so no verdict changes.\n\n## Fix\n\n- `github-client.mjs`: adds `readStore(dir)` and `conditionalReads(send,\nstore)`. `createGitHub` wraps its retrying sender with them.\n- Only GETs are conditional. The key is the full URL plus the\nAuthorization header.\n- The store is in memory for each client. When `GITHUB_READ_STORE` names\na directory, entries are also written there (one file per key, mode\n0600), so a later step of the same job can use them. Nothing outlives\nthe job: no cache, no artifact.\n- It fails closed. Any answer other than a 304 to a request the store\nmade conditional is returned exactly as before. A 304 with no kept\nanswer still throws `GitHubError` 304. A body `retryServerErrors` would\nresend is never kept. A store file that cannot be read, or that names\nanother URL, counts as absent. A GET that carries its own\n`If-None-Match` passes through untouched, so `resolve-pr.mjs`'s\nempty-listing ETag reuse is unchanged.\n- A replay keeps the kept headers but takes the 304's `x-ratelimit-*`\nvalues, so `onResponse` throttlers see current readings.\n- Reuses or replaces the existing conditional-read code rather than\nadding a second copy:\n- `budgetedFetch` (`request-budget.mjs`) drops its own ETag map and\ncalls `conditionalReads`.\n- The trigger gate's `pagesSeen` memo (re-run record listing) is\nremoved. The client's store now does that job, and the existing tests\nfor it already go through a real `createGitHub` and pass unchanged.\n- `check-trusted-trigger.mjs` `resolveRunPull` now reads\n`commits/{sha}/pulls?per_page=100&page=1`, the first-page URL\n`resolve-pr.mjs` `pullsOfCommit` reads.\n- `pr-verify.yml` sets `GITHUB_READ_STORE: ${{ runner.temp\n}}/github-reads` only on the resolver and gate steps of the key job. The\nsubscription and fallback jobs are re-rendered by\n`scripts/sync-credential-legs.mjs`.\n- Out of scope: the bash conditional readers (`pr-require-checks.yml`\nreview-wait poll, `rerun-ci-status.sh`, `handoff-evidence.sh`) run in\nanother language and stay as they are.\n\n## Verification\n\nMeasured before the change (method:\n`.work/gh-monitor/limits/gh-job-calls.jsonl`, the job-end `api-routes`\nnotices). I counted each job's route counts once per run attempt, over\nthe 7 full days 2026-11-18 to 2026-11-24 (UTC). The `routes` counts\nalready leave out 304s, so every repeat counted here is a charged call.\nScript: `.work/c2/measure.py`.\n\n| repeat served conditionally | where | per day, measured | saved per\nday |\n|---|---|---|---|\n| A: `commits/{sha}/pulls`, resolver step then gate step, same SHA, same\n`github.token` | `resolve-pr.mjs:555`, `check-trusted-trigger.mjs:170`\n(base) | 313 (2,193 in 7 days; 308 in the 24 h to 2026-11-25 14:00Z) |\n~313: the two reads are seconds apart |\n| B: dispatcher run read twice in one gate process |\n`check-trusted-trigger.mjs:354`, then `:300` (`requireRecorded`) | 300\n`/ Run` jobs on the dispatcher path (2,102 in 7 days) | up to 300; the\nshare answered 304 is not measured, because the dispatcher run may still\nbe changing |\n\nExpected after: about 313 to 613 fewer charged core calls a day. At the\nsame 2026-11-25 14:00Z cut, Check Intent Subscription's\n`commits/{sha}/pulls` drops from 2 to 1 charged read per full-judgment\nrun, and the second shows up as `not-modified=` in the job's `api-calls`\nnotice. The 600-700 a day the deepening scan estimated is the upper end.\nThe measured floor is 313.\n\nLive check (3 calls): a conditional re-read of\n`commits/d2eed45.../pulls?per_page=100&page=1` 5 s after the first read\nanswered `HTTP/2.0 304 Not Modified`. The same path without the query\nanswered the same ETag. Even so, the store keys by exact URL, which is\nwhy the gate's URL was aligned.\n\nMerge latency: no added waits. A conditional read is the same request\nwith one more header.\n\nTests:\n- New `createGitHub` tests in `check-trusted-trigger.test.mjs` cover:\n  - a 304 replays the kept body with the 304's rate-limit headers\n  - a changed answer is returned and kept\n- fail-closed paths: a 304 with no kept answer, and a 404, 403 or 500 to\na conditional GET\n  - an unparsable body is never kept\n  - a caller's own `If-None-Match` passes through\n  - a POST is never conditional\n- the directory store carries entries to a later client on the same\ntoken only\n  - an unreadable or wrong-URL store file counts as absent\n- Every `.test.mjs` that imports a changed module, tests a module that\nimports one, or reads `pr-verify.yml`: 81 suites, 7,250 pass, 0 fail.\n- `lane-lib` package `node --test`: 309 pass. `pr-unblock` package:\n1,572 pass. `scripts/ci-lanes-pr-hold.test.sh`: 356 pass.\n- `scripts/sync-credential-legs.mjs --check` is clean.\n- `selection-audit.sh trace --strict` on the two changed suites reports\n2 gaps. Both predate this change: `workflow.test.mjs` reads two\nstandards schema fixtures its `test-scope` line omits, and #19080 adds\nexactly those two files to that line.\n\n## Related\n\n- #19080 (c1) edits `resolve-pr.mjs`, `pr-verify.yml` and\n`workflow.test.mjs`. This branch does not touch `resolve-pr.mjs`. Its\n`pr-verify.yml` and `workflow.test.mjs` lines sit outside #19080's\nhunks, so the two should merge in either order.\n- `pr-verify.yml` has no `workflow_call` trigger.\n`check-trusted-trigger`'s inputs and outputs are unchanged.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\n---------\n\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
+              "verified_at": "2026-11-25T19:05:28Z"
+            }
+          },
+          "parents": [
+            {
+              "sha": "db1fc0fb9b89d94807a4211328efb93ab8aaa7cd"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "status": "ahead",
+      "ahead_by": 5,
+      "behind_by": 0,
+      "total_commits": 5,
+      "commits": [
+        {
+          "sha": "86aff57218aea7e9b61fc559378642652582b324",
+          "node_id": "C_kwDOTCGFQNoAKDg2YWZmNTcyMThhZWE3ZTliNjFmYzU1OTM3ODY0MjY1MjU4MmIzMjQ",
+          "commit": {
+            "author": {
+              "name": "Kyle Sexton",
+              "email": "153232337+kyle-sexton@users.noreply.github.com",
+              "date": "2026-11-25T19:12:12Z"
+            },
+            "committer": {
+              "name": "GitHub",
+              "email": "noreply@github.com",
+              "date": "2026-11-25T19:12:12Z"
+            },
+            "verification": {
+              "verified": true,
+              "reason": "valid",
+              "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJrBzO8CRC1aQ7uu5UhlAAAkBUQAKHyO2Yjq3tjz051VoSiTNb9\nXl8Z6w2bxtvLrMwXgY4QgcMQqdOyZAPT4jOm1wLokZcS3EzxNsCLJmeizIJSq+3V\nbfqpz1OIjAbwok2mOp3NRcT6oD7ohXw8uzBzi2BaekmFpP6+V/y0Pv0Jc0f7olQl\n8NjWnF2A6Jlq9AliZCx8bXcm91vFHZidQjEJ474uI/DCaY4q7dG1hwtTzQpATzwC\ne+P3hcflMxrylCKl4g+LlOqI/jCKIvqBbmQd0QfcFfRAR7iHzLio9gb9qsJWt4mY\nWGCdk/heAuzXUmUTdoJa2iNK9XsqXvJ3WkUO38+9RaOj3j68Kcj2ZMkmMC9Fgz9b\n11tMSObI2jEapEy1R+xGtHuxpXs7sLv0IQ14x8E+VHEWFCh9Mh4WiB2Y44IYvzsq\nQ8wrKMIMuTPCgayFBArZ2/A/eTbfkVHgd7e+sCKqPV8RrW4qQJRlQn+hSJrqMicZ\np97JvkihHXQqISch2UyCn2pAaKdH9nkLjDZ8hMyG0afRl6dadiOdN2+SJL6eM4zH\nh9dHbyYharMSqEcQDyUnFqukEMEn5OEXx+Lb7HCwWepaAk+I3jOOVMUBVW7Fq299\nfhJhdG6Dbv2sBSGXmwYO/iZaqsGk0LGfoR90dCfmdJPDZS7QUrJSkie5LrnzxyNt\ndDsU5ONKGTYVyQxyo46X\n=0/mF\n-----END PGP SIGNATURE-----\n",
+              "payload": "tree d36cb3bd45e9e21f89d228be9dab3c25d8aa4ffa\nparent 616a7b00a6af509a5de6189f66e086b7f639987c\nauthor Kyle Sexton <153232337+kyle-sexton@users.noreply.github.com> 1795633932 +0000\ncommitter GitHub <noreply@github.com> 1795633932 +0000\n\nfix(ci): read the eval select path list the same with CRLF line endings (#19120)\n\nNo related issue: found while dispatching eval compare runs for\nhttps://github.com/melodic-software/claude-code-plugins/pull/19114 and\nhttps://github.com/melodic-software/claude-code-plugins/pull/19115 on\nWindows.\n\n## Summary\n\n`select-plugins.mjs` read its stdin path list split on `\\n` only. A list\nwith CRLF line endings (what `select-cases.py` sends on Windows, where\n`text=True` writes `\\r\\n`) left a trailing `\\r` on every path, so\n`PLUGIN_PATH` matched none of them and every refusal was skipped: the\nscript exited 0 and `/evals:plugin-eval select` reported that compare\nmode would accept a pull request CI then refused. The check fails open\non input it did not parse.\n\n## Fix\n\n- `.github/scripts/plugin-eval/select-plugins.mjs`: split stdin on\n`/\\r?\\n/`, so a CRLF list is read exactly like an LF one.\n- `.github/scripts/plugin-eval/select-plugins.test.mjs`: one test feeds\na refused path beside an eval file with LF and with CRLF line endings\nand asserts the refusal line itself both times (exit code alone is not\nenough: the unreadable-tree refusal already exits 1 without `--repo`).\n\n## Verification\n\n- Before the fix the CRLF arm failed (`AssertionError`, no `h.sh`\nrefusal line); after it, `node --test --test-concurrency=4\n.github/scripts/plugin-eval/select-plugins.test.mjs` passes 37 of 37.\n- CI runs on Linux and was never affected; this fixes local `select` on\nWindows.\n\n## Related\n\n- None.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
+              "verified_at": "2026-11-25T19:15:08Z"
+            }
+          },
+          "parents": [
+            {
+              "sha": "616a7b00a6af509a5de6189f66e086b7f639987c"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "status": "ahead",
+      "ahead_by": 5,
+      "behind_by": 0,
+      "total_commits": 5,
+      "commits": []
+    }
+  ]
+}

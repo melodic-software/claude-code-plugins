@@ -37,10 +37,10 @@ Seven skills, one capability:
   naming what each absent one costs.
 - **`/code-tidying:audit-comment-residue`**. Flags out-of-context comment residue
   and edits nothing, by running `remove-comments`' `audit` action.
-- **`/code-tidying:tidy`**. Proactively hunts a rotated, glob-scoped *lane* of
+- **`/code-tidying:tidy`**. Proactively hunts a rotated, glob-scoped *focus area* of
   the codebase for safe structural improvements (Beck's 15 tidyings + a Fowler
   subset + prose tidyings), applies scope-budgeted edits, and ships one tight
-  structure-only PR. Scope is a rotated lane or an ad hoc glob
+  structure-only PR. Scope is a rotated focus area or an ad hoc glob
   (`tidy [dry-run] <glob>...`). `in-place` skips the branch and PR and leaves the
   edits staged; `in-place=commit` makes one commit. Overflow is filed as deferred work items, never silently
   dropped.
@@ -76,30 +76,30 @@ Seven skills, one capability:
   are blind to and lands as `dead`, `uncertain`, or `alive`. Reports in-session;
   writes nothing and deletes nothing.
 - **`/code-tidying:setup`**. `check` inspects the tracked
-  `.claude/tidy-lanes/<lane>.md` project lanes read-only (presence, required
+  `.claude/tidy-areas/<area>.md` project focus areas read-only (presence, required
   sections, leftover placeholders, tracked-not-ignored), validates the optional
   `.claude/code-tidying/exclusion-overrides.md`, and reports the stored
   `hard_exclusions` posture; `apply` interviews the
-  repo and scaffolds those lane files from the bundled templates, so `tidy`
+  repo and scaffolds those focus area files from the bundled templates, so `tidy`
   resolves project-specific scope globs deterministically instead of falling back
-  to the generic bundled lanes. Re-runnable to add or retune lanes.
+  to the generic bundled focus areas. Re-runnable to add or retune focus areas.
 
 Neither `tidy` nor `batch-simplify` is `/simplify` itself: `/simplify` refines the diff you just
 wrote; `batch-simplify` catches up on a window of them; `tidy` hunts drift no
 one has filed yet.
 
-## Lanes, the extension surface
+## Focus areas, the extension surface
 
-`tidy` operates on lanes. Bundled lanes cover surfaces that look the same in
-most repos (`shell-tooling`, `docs-prose`); your project defines its own lanes
-by dropping files into **`.claude/tidy-lanes/<lane>.md`**, which take
-precedence over bundled lanes of the same name. Copy the closest scaffold from
+`tidy` operates on focus areas. Bundled focus areas cover surfaces that look the same in
+most repos (`shell-tooling`, `docs-prose`); your project defines its own focus areas
+by dropping files into **`.claude/tidy-areas/<area>.md`**, which take
+precedence over bundled focus areas of the same name. Copy the closest scaffold from
 the plugin's `skills/tidy/templates/` (dependency-root, host-wiring, apps,
 polyglot-services patterns) and fill in your scope globs, watch-for patterns,
 exclusions, and verification commands. This surface does not resolve user-global
-layers or `*.local.*` personal overrides. The bundled lane is the portable baseline, and
-personal variation is limited to lane names the team does not track: an uncommitted
-`.claude/tidy-lanes/<lane>.md` never added to the index (see `setup` and the
+layers or `*.local.*` personal overrides. The bundled focus area is the portable baseline, and
+personal variation is limited to focus area names the team does not track: an uncommitted
+`.claude/tidy-areas/<area>.md` never added to the index (see `setup` and the
 [config-cascade contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/config-cascade/README.md)).
 
 ## Safety model
@@ -119,7 +119,7 @@ personal variation is limited to lane names the team does not track: an uncommit
   would otherwise drop. Every lifted path is named in the run's report beside
   the channel that lifted it. What no channel lifts: the behavioral guards
   (structure-only is the skills' contract, not a path limit), the work-tracking
-  exclusions, and the self-update lane's protection of this plugin's own
+  exclusions, and the self-update focus area's protection of this plugin's own
   contract surface.
 - **Backlog throttle**: open `chore/tidy-*` PRs at the `upkeep_max_open` limit
   (default 3, [reference/config.md](reference/config.md)) stop the run instead
@@ -130,7 +130,7 @@ personal variation is limited to lane names the team does not track: an uncommit
 
 ## Works in any repo
 
-- Self-contained: taxonomy, scope budget, exclusion lists, lane
+- Self-contained: taxonomy, scope budget, exclusion lists, focus area
   templates, and the throttle script all ship inside the plugin under
   `${CLAUDE_PLUGIN_ROOT}`. The bundled scripts require **Bash 4.3+** (they use
   `mapfile`, case-conversion expansions, and namerefs). On native Windows, install
@@ -175,13 +175,13 @@ whole job:
 | `apply_local_renames` | `true` | Apply a function-local rename that `change-shape.py` certifies as RENAME-ONLY even with no test net; `false` proposes it. |
 
 Everything else routes through
-`.claude/tidy-lanes/` lane files, the optional
+`.claude/tidy-areas/` focus area files, the optional
 `.claude/code-tidying/exclusion-overrides.md`, and your project's own `CLAUDE.md` /
 `.claude/rules` (protected paths, verification commands). Run
-**`/code-tidying:setup apply`** to interview your repo and scaffold those lane files
-from the bundled templates (or `check` to inspect existing lanes, validate the
+**`/code-tidying:setup apply`** to interview your repo and scaffold those focus area files
+from the bundled templates (or `check` to inspect existing focus areas, validate the
 overrides file, and report the stored `hard_exclusions` posture read-only). It is
-idempotent and safe to re-run to add or retune lanes.
+idempotent and safe to re-run to add or retune focus areas.
 
 ### Option details
 
@@ -266,18 +266,28 @@ session-start probe names a missing or stale copy. It needs `python3` with pygme
 (`python3 -m pip install pygments`); either missing follows the check-placement skip key,
 `git -c checks.skipmissing=python3` or `checks.skipmissing=pygments`.
 
-**CI recipe.** CI re-runs the lint on the pull request's change, judged against the base branch's
-settings, so a branch cannot lower its own level:
+**CI.** CI re-runs the lint on each change, judged against the base branch's settings, so a commit
+that skipped the hook is still checked and a branch cannot lower its own level. The plugin ships
+the script; `/code-tidying:setup apply install-ci` writes the step that calls it. It finds the
+repository's CI system from the files present, reads how the existing jobs get Python and their
+change's commits, asks only what that leaves open, and proposes the step in that system's own
+format and the repository's conventions, written only on your yes. No CI system is a default and no
+vendor template ships. `/code-tidying:setup check` reports the job that runs the script, or the
+drift when a call no longer matches its interface.
 
-1. Fetch the base branch and add a detached worktree of the pull request head.
-2. In it, `git reset --soft "$(git merge-base origin/<base> HEAD)"`, so the whole change is the
-   staged diff.
-3. Take the files the settings come from as the base commit holds them, restoring each with
-   `git restore --source=<merge base> --worktree` or deleting it when the base has none: first the
-   root `AGENTS.md` and `CLAUDE.md`, which bind `<home>`, then `<home>/code-tidying.yaml` and
-   `<home>/code-tidying.local.yaml`.
-4. From the worktree, run `sh <plugin>/git-hooks/comment-lint.sh` with Python 3 and pygments on
-   `PATH`; under `block` it exits 1 on a finding.
+```text
+bash git-hooks/comment-lint-ci.sh <head> <base>
+```
+
+`<head>` is the change's head commit, `<base>` the ref it merges into (such as `origin/main`) or a
+commit id; run it from inside the clone, with history back to their merge base and Python 3 with
+pygments on `PATH`. It adds a worktree at `<head>` without checking files out, soft-resets it to
+the merge base so the change is the staged diff, takes `AGENTS.md`, `CLAUDE.md` and the home's
+`code-tidying.yaml` and `code-tidying.local.yaml` as the merge base holds them, runs
+`comment-lint.sh` from beside itself, and removes the worktree. It exits with the lint's status
+(1 on a finding under `block`) and 2 on a usage error. A shared install
+(`apply install-git-hooks scope=shared`) commits it under `.githooks/code-tidying/` beside the
+hook.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 

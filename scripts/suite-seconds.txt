@@ -887,7 +887,6 @@ scripts/vendor-gitleaks-rules.test.sh 2
 .github/scripts/pr-merge 42
 .github/scripts/pr-merge-risk 3
 .github/scripts/pr-refine 1
-.github/scripts/pr-review 1
 .github/scripts/pr-review-main 16
 .github/scripts/pr-run-activity-read 19
 .github/scripts/pr-unblock 51

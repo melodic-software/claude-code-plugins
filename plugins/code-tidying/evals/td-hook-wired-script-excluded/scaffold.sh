@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a lane script, a tidyable hook script under scripts/hooks/ wired in .claude/settings.json, and the test, then switches to a feature branch.
 set -euo pipefail
 
 seed="$(dirname "${BASH_SOURCE[0]}")/../fixtures/td-seed.sh"

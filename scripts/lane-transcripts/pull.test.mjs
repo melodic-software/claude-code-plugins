@@ -209,7 +209,7 @@ test("every read runner call's activity, with each leg and fix-ci's rung up, is 
       calls += 1;
     });
   }
-  assert.equal(calls, 21, "the read runner's callers");
+  assert.equal(calls, 24, "the read runner's callers");
 });
 
 test("every ci-workflows reusable called with the transcript key, and the lane it is called with, is in the puller's list", () => {

@@ -1,16 +1,3 @@
-// The Work status reader for the status-label readers (models.issue-status).
-// The field a trusted account set (issue-status.mjs issueStatus) decides an
-// issue's queue state, agent-ready included; hold labels still hold on top of
-// it. An unset field or an untrusted setter leaves the labels as they are; a failed read throws StatusReadError. Event-history readers read statusEvents: the
-// REST label events plus the field's changes shaped as label events.
-// Imports nothing outside node at load, so a reader whose job installs no
-// resolve-config dependencies loads it, warns once, and every read throws.
-//
-// For the scripts that build on it:
-// - statusLabels(state, names, config) -> label names (pure)
-// - statusEvents({github, repository, number, config, since, fieldEvents}) -> REST-shaped events
-// - statusReader({...}) -> labels(number, names), with labels.events(number), labels.state(number), labels.unset(number) and labels.fieldRows(number); each throws StatusReadError
-// - resolve-config.mjs issuesByStatus(github, repository, states, {since, config, trustedActors})
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -19,8 +6,6 @@ import { FIELD_API } from "./write-status.mjs";
 const STANDARDS_TRUSTED_ACTORS = "components/trusted-actors/trusted-actors.json";
 export const HOLD_STATES = ["needs-human", "needs-owner-decision", "needs-reporter-info", "needs-spec"];
 const LABEL_STATE = "agent-ready";
-// A Work status read that failed or would pass the reader's limit: the
-// caller stops, since the labels alone could miss a hold set on the field.
 export class StatusReadError extends Error {
   constructor(number, cause) {
     super(`#${number}'s Work status could not be read: ${cause?.message ?? cause}`, { cause });
@@ -34,16 +19,9 @@ const fold = (name) => String(name).toLowerCase();
 export const DECISION_LABELS = Object.freeze(["needs-owner-decision"]);
 export const INFO_LABELS = Object.freeze(["needs-reporter-info"]);
 const HOLD_NAMES = new Set([...DECISION_LABELS, ...INFO_LABELS]);
-// The name in `names` the issue carries, or undefined. `labels` are as read.
 export const carried = (labels, names) => names.find((name) => labels.includes(name));
-// Whether `name` is a status label: a `status:` label or a hold.
 export const isStatusLabel = (name) => fold(name).startsWith("status:") || HOLD_NAMES.has(fold(name));
 
-// `names` as the field's trusted `state` decides them. With no state, `names`
-// unchanged. With one: every queue-state label (a state not held, agent-ready
-// included) is dropped, hold labels are kept, and the state's first label is
-// added unless present, so a field-only agent-ready reads as the label.
-// Pure.
 export function statusLabels(state, names, config) {
   if (state === null || state === undefined || !config) {
     return names;
@@ -58,12 +36,6 @@ export function statusLabels(state, names, config) {
   return label === undefined || kept.some((name) => fold(name) === fold(label)) ? kept : [...kept, label];
 }
 
-// `field`, label names as the field decides them (statusLabels), with
-// status: ready added beside admission-deferred: a deferred issue is a ready
-// one waiting for room. Not when the issue's `own` labels carry
-// admission-deferred without status: ready (status: ready lost while
-// deferred) and `fieldDeferred()` does not show the field itself at deferred.
-// Names compare as given.
 export async function readyWhileDeferred(field, own, fieldDeferred = async () => false) {
   if (!field.includes("admission-deferred") || field.includes("status: ready")) {
     return field;
@@ -72,10 +44,6 @@ export async function readyWhileDeferred(field, own, fieldDeferred = async () =>
   return lost ? field : [...field, "status: ready"];
 }
 
-// One Work status field event (resolve-config.mjs fieldEvents) as 0, 1 or 2
-// REST label events: `unlabeled` of the state it left, then `labeled` of the
-// state it set, each the state's first label. agent-ready, and a state
-// `config` gives no label, make no event.
 export function syntheticFrom(event, config) {
   const actor = { id: event.actorId, login: event.actorType === "Bot" ? `${event.actorLogin}[bot]` : event.actorLogin, type: event.actorType };
   return [
@@ -87,12 +55,6 @@ export function syntheticFrom(event, config) {
   });
 }
 
-// The issue's REST events merged with its Work status field events as label
-// events (syntheticFrom), by time, then REST before field at the same second,
-// then REST id. `since` (default `config["field-events-since"]`) drops bot
-// field events older than it, which mirrored label changes; a person's are
-// always kept, and with no `since` every one is. `fieldEvents(github,
-// repository, number)` defaults to resolve-config.mjs's. Throws on a failed read.
 export async function statusEvents({ github, repository, number, config, since = config?.["field-events-since"], fieldEvents }) {
   const { paginate } = await import("../../scripts/lib/github-client.mjs");
   const events = fieldEvents ?? (await import("./resolve-config.mjs")).fieldEvents;
@@ -115,23 +77,12 @@ export function loadTrustedActors(env = {}) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
-// The state the issue's Work status field holds (issue-status.mjs
-// issueStatus over the issue's field events), or null when no counted account
-// set it; throws when the field cannot be read or its two reads (GraphQL field
-// events, REST values) disagree. `issueStatusSetter` and `fieldEvents` default
-// to the modules'.
 export async function fieldStatus(read) {
   return (await fieldStatusSetter(read)).state;
 }
 
-// How long fieldStatusSetter waits before it reads a disagreeing field again.
 export const DISAGREEMENT_WAIT_MS = 3000;
 
-// fieldStatus's `{state, setter}`: the trusted state and the account id whose
-// event decided it (issue-status.mjs issueStatusSetter). When the two reads
-// disagree (StatusDisagreement), it waits once and reads both again, asking
-// `fieldEvents` for a fresh read (`{ again: true }`); a second disagreement
-// throws.
 export async function fieldStatusSetter({ github, repository, number, config, trustedActors, issueStatusSetter, fieldEvents, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
   const status = issueStatusSetter ?? (await import("./issue-status.mjs")).issueStatusSetter;
   const events = fieldEvents ?? (await import("./resolve-config.mjs")).fieldEvents;

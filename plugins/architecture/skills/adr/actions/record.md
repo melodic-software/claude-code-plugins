@@ -9,27 +9,21 @@ action.
 This section is the one statement of the test: callers hand decisions here instead of carrying a
 copy ([Composition](../SKILL.md#composition)), and `audit` checks records against it.
 
-A decision earns a record when **a real alternative was weighed** and at least one of these holds:
+A decision earns a record only when all three parts hold:
 
-- it is **hard to reverse**: backing it out would take real rework (a migration, a public contract,
-  data already written in the new shape);
-- it **shapes the system's structure**: boundaries, dependencies, interfaces, integration patterns
-  between contexts, a technology carrying lock-in;
-- it **shapes a key quality attribute**, such as security, privacy, performance, availability or
-  cost;
-- it is **not discoverable from the code**: infrastructure, cloud or external services, or a
-  decision not to do something;
-- it matches an entry in `adr_extra_triggers` ([Settings](../SKILL.md#settings)), a trigger the
-  team added.
+1. **A real alternative was weighed.** Without one, the record would say "we did the obvious
+   thing".
+2. **It is a one-way door** by the [shared definition](../../../reference/one-way-doors.md), or it
+   matches an `adr_extra_triggers` entry ([Settings](../SKILL.md#settings)), a decision the team
+   treats as one.
+3. **Its reason is not visible in the code**: a reader of the code sees what was chosen, not why.
 
-No alternative weighed means nothing to record: the record would say "we did the obvious thing".
-A decision still provisional on a prototype that has not run fails the test; it becomes eligible
-once the prototype's verdict confirms it.
-A decision that would surprise a reader without its context is a reason to write the record well,
-not a gate on writing it.
+A two-way door never earns a record, however surprising it is: its reason belongs beside the code
+or setting it explains, or in the pull request. A decision still provisional on a prototype that
+has not run fails the test; it becomes eligible once the prototype's verdict confirms it.
 
-When the decision plainly fails the test, say so once, naming the part it fails, and offer to skip.
-The human's call wins: if they still want the record, write it.
+When the decision fails the test, say so once, naming the part it fails, and offer to skip. The
+human's call wins: if they still want the record, write it.
 
 ## Step 1. Discover the convention
 

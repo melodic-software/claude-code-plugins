@@ -2,7 +2,7 @@
   "skill": "user-interface:audit",
   "plugin": "user-interface",
   "skill_dir": "plugins/user-interface/skills/audit",
-  "ranking_note": "Written from the description of user-interface:audit on main, which reviews interface code one concern lane at a time over the diff, the whole tree, or every lane before a launch. Most positives exercise the motion lane (the animation in a diff, every animation in the tree, where motion would help or must not go, and why an animation drops frames, with --fix behind a yes); pos-train-08 asks for the launch sweep and pos-validation-05 for a non-motion lane. Near-misses aim at the other user-interface skills: write-animation builds one animation, glossary names an effect, write-css writes or reviews styles, and design shapes a component or CLI output.",
+  "ranking_note": "Written from the description of user-interface:audit on main, which reviews interface code one concern at a time over the diff, the whole tree, or every concern before a launch. Most positives exercise the motion concern (the animation in a diff, every animation in the tree, where motion would help or must not go, and why an animation drops frames, with --fix behind a yes); pos-train-08 asks for the launch sweep and pos-validation-05 for a non-motion concern. Near-misses aim at the other user-interface skills: write-animation builds one animation, glossary names an effect, write-css writes or reviews styles, and design shapes a component or CLI output.",
   "competitors": [
     "user-interface:write-animation",
     "user-interface:glossary",

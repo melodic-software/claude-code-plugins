@@ -170,10 +170,6 @@ def summarize(measures: list[dict[str, Any]], root: str = "") -> dict[str, Any]:
         for replica in (row.get("replicas") or {}).get("files") or []:
             if replica:
                 files.add(replica)
-        # One function produces one row per collector that resolves for it
-        # (lizard's cyclomatic row and radon's halstead row for the same
-        # Python function), so a per-row count reports more functions than the
-        # scope holds. A row with no `function` is a file row and is not one.
         if row.get("function"):
             starts = functions.setdefault(
                 (row.get("file") or "", row["function"]), set()
@@ -801,10 +797,6 @@ def render(
         row for row in doc.get("run", []) if COLLECT_FAILED in (row.get("reason") or "")
     ]
     if failed:
-        # The dispatcher's `collect failed (exit 3)` reason is what makes the
-        # entry script exit 3, in this skill and in a skill whose run rows carry
-        # it forward. Naming the row here keeps that exit from being the only
-        # trace of a collector that ran and produced nothing parseable.
         named = []
         for row in failed:
             reason = row.get("reason") or ""

@@ -24,8 +24,8 @@ When persisting (never under `--dry-run`), prepend:
 type: bug-scan
 date: <ISO-8601 UTC, e.g. 2026-08-23T09:15:00Z>
 project-root: <absolute path of the scanned project root>
-mode: targeted | lane | rotation
-lane: <lane name, or the target expression for a targeted run>
+mode: targeted | area | rotation
+area: <focus area name, or the target expression for a targeted run>
 ---
 ```
 
@@ -51,7 +51,7 @@ when the gate proposed a check that did not run.
 **Suggested fix location**: `<file path>` `<function or class>` (no patch)
 **Evidence**: reproduced | verified-by-reading | unverified
 **Lens**: <lens id, e.g. lens-2 boundary/edge-case>
-**Scope**: in-lane | out-of-lane (via `<scoped path>`)
+**Scope**: in-area | out-of-area (via `<scoped path>`)
 **Proposed check**: `<exact command>`, not run: <unattended | declined | unanswered | could not run>
 
 ### Steps to reproduce
@@ -109,13 +109,13 @@ Always present, even when empty. Its absence would read as "nothing was rejected
 
 When the gate refuted nothing, write `None — every candidate this run survived the gate.` When the
 gate refuted everything, the report still ships: the refuted tail, the cursor block (rotation runs; a
-targeted run uses its no-cursor line instead), and one line saying the lane produced no verified
+targeted run uses its no-cursor line instead), and one line saying the focus area produced no verified
 findings.
 
 ## Candidates not gated (retained tail)
 
 Always present, after the refuted tail. The candidates triage cut above the gate cap, with no
-verdict: Step 3 of the next run over this lane seeds its triage from these rows instead of
+verdict: Step 3 of the next run over this focus area seeds its triage from these rows instead of
 re-deriving them, and a reader can tell a cut from a kill.
 
 ```markdown
@@ -123,7 +123,7 @@ re-deriving them, and a reader can tell a cut from a kill.
 
 | # | Candidate | Lens | Scope | Location |
 |---|---|---|---|---|
-| 1 | <one-line symptom> | <lens id> | in-lane | `<path>:<line>` |
+| 1 | <one-line symptom> | <lens id> | in-area | `<path>:<line>` |
 ```
 
 When nothing was cut, write `None.`
@@ -145,18 +145,19 @@ When there are none, write `None.`
 
 ## Cursor metadata block
 
-The last section of every persisted **rotation-mode** report, meaning a bare invocation or `--lane`,
+The last section of every persisted **rotation-mode** report, meaning a bare invocation or `--area`,
 the two modes that advance rotation. It is also rung 2 of the cursor ladder. Keep the key names and
-the fenced-YAML shape stable: a later run parses this, not the prose. A key, once shipped, never
-changes meaning; new keys are only ever added.
+the fenced-YAML shape stable: a later run parses this, not the prose. A key, once shipped, keeps its
+meaning. Renaming or removing one is a breaking (`major`) change: older cursors stop matching,
+and rotation restarts from the date floor.
 
 ````markdown
 ## Scan cursor
 
 ```yaml
-lane: <lane name>
-lane-index: <0-based index in the resolved lane list>
-lane-count: <number of lanes in the resolved list>
+area: <focus area name>
+area-index: <0-based index in the resolved focus area list>
+area-count: <number of focus areas in the resolved list>
 rung: tracker | report | date-floor
 scanned-at: <ISO-8601 UTC>
 scope-class: small | medium | large
@@ -166,15 +167,15 @@ candidates: <count reaching the gate>
 not-gated: <count in the candidates-not-gated tail>
 verified: <count of findings in this report>
 refuted: <count in the refuted tail>
-out-of-lane: <count of findings and refuted candidates tagged out-of-lane>
+out-of-area: <count of findings and refuted candidates tagged out-of-area>
 lenses-skipped: [<lens ids skipped, with reason in prose above>]
 ```
 ````
 
-`rung` records how *this* run chose its lane, so an operator can tell tracker-derived rotation from
-the zero-state date floor. `scope-list` is what makes a lane pass reproducible: the next run on this
-lane can read the same files, or deliberately sample their complement, instead of re-deriving a
-subset from prose lane definitions. `--dry-run` writes no report and therefore no cursor block. That
+`rung` records how *this* run chose its focus area, so an operator can tell tracker-derived rotation from
+the zero-state date floor. `scope-list` is what makes a focus area pass reproducible: the next run on this
+focus area can read the same files, or deliberately sample their complement, instead of re-deriving a
+subset from prose focus area definitions. `--dry-run` writes no report and therefore no cursor block. That
 is what "neither persists nor advances the cursor" means in practice.
 
 **A targeted run omits this section entirely**, and says so in one line where it would have sat:
@@ -183,8 +184,8 @@ is what "neither persists nor advances the cursor" means in practice.
 *No scan cursor: targeted run, rotation not advanced.*
 ```
 
-Its `lane`, `lane-index`, and `rung` keys have no rotation meaning, and a later run reading it as a
-cursor would skip a lane. Rung 2 therefore searches backward for the newest report that *does* carry
+Its `area`, `area-index`, and `rung` keys have no rotation meaning, and a later run reading it as a
+cursor would skip a focus area. Rung 2 therefore searches backward for the newest report that *does* carry
 this block, skipping targeted-run reports and `/bugs:write`'s reports, which share the
 directory and never carry one, rather than trusting the newest file blindly.
 
@@ -201,11 +202,11 @@ visible. The rotation-run form:
 ```markdown
 *No verified findings.*
 
-**Lane**: <lane> (<n> files read, <n> candidates, all refuted)
-**Cursor**: advanced to <next lane>
+**Focus area**: <area> (<n> files read, <n> candidates, all refuted)
+**Cursor**: advanced to <next focus area>
 ```
 
-A targeted run drops that `**Cursor**` line, having advanced nothing, and keeps the `**Lane**` line
+A targeted run drops that `**Cursor**` line, having advanced nothing, and keeps the `**Focus area**` line
 as the scope it hunted.
 
 Followed by the refuted tail, the candidates not gated, the side observations, and the cursor block,

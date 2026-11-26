@@ -1,8 +1,8 @@
 # Frame capture
 
-How the `motion` lane reviews an animation from its captured frame state: slow it down, record it,
+How the `motion` concern reviews an animation from its captured frame state: slow it down, record it,
 point at the frame that is wrong, hand that frame's state to the agent, and read an export. The
-lane's procedure is [motion.md](motion.md); the rules a frame is judged against stay in the
+concern's procedure is [motion.md](motion.md); the rules a frame is judged against stay in the
 `motion` concern's spokes ([catalog.md](../../../reference/animation/catalog.md),
 [behaviors.md](../../../reference/animation/behaviors.md),
 [gestures.md](../../../reference/animation/gestures.md),

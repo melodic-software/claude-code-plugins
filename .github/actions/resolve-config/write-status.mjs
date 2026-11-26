@@ -1,12 +1,7 @@
 export const FIELD_API = { "X-GitHub-Api-Version": "2026-03-10" };
 
-// The wait between a restart's clear and its set. GitHub can stamp the removal
-// after an add sent right behind it; the newest event then reads as a removal
-// while the field holds a value, and every status listing that could match the
-// issue fails until the field is written again.
 export const RESTART_GAP_MS = 3000;
 
-// The statuses GitHub answers a field value that names no option with.
 const NAME_REFUSED = new Set([400, 422]);
 const AGENT_READY = "agent-ready";
 const HOST_RUN_OR_PARK_STOP_STATE = "confirmed";
@@ -14,13 +9,6 @@ const fold = (name) => String(name).toLowerCase();
 const notFound = (error) => error?.status === 404 || /\bstatus 404\b/.test(String(error?.message ?? error));
 const titleCased = (name) => name.charAt(0).toUpperCase() + name.slice(1);
 
-// Writes `values` ({field_id, value}, each a lowercase option name) through
-// `post(values)` and returns the rows GitHub answered. The REST write takes an
-// option name, not an id, and the Size, Complexity and Uncertainty options
-// (`titled` holds their field ids) move from Title case to lowercase: the write
-// goes lowercase, then Title-cased when GitHub refuses it, then one field at a
-// time, each in either casing, while part of a rename has landed. Any other
-// failure throws.
 export async function postOptionNames(post, values, titled, log = console.log) {
   const send = async (batch) => {
     try {
@@ -56,8 +44,6 @@ export async function postOptionNames(post, values, titled, log = console.log) {
   return answered;
 }
 
-// A Work status write that did not land, for a writer whose field write must
-// fail its run.
 export class StatusWriteError extends Error {
   constructor(message, options) {
     super(message, options);
@@ -65,12 +51,6 @@ export class StatusWriteError extends Error {
   }
 }
 
-// Sets the issue's Work status field to `state` (a models.issue-status state)
-// with one POST, and throws StatusWriteError on any failure: no config, a
-// state no option maps, a failed call, or GitHub keeping another option.
-// `current`, when the writer already read the field, is the option id it
-// holds: a match skips the write. Never PUT, which replaces every field value
-// on the issue, and never DELETE.
 export async function writeState({ github, repository, number, state, config, current }) {
   const fail = (why, cause) => {
     throw new StatusWriteError(`#${number}'s Work status field was not set to \`${state}\`: ${why}`, cause === undefined ? undefined : { cause });
@@ -91,8 +71,6 @@ export async function writeState({ github, repository, number, state, config, cu
   const fieldId = config["field-id"];
   let written;
   try {
-    // Safe to send twice: the POST sets the field to one option, so a second
-    // copy after a 5xx that GitHub did apply sets the same value.
     written = await github(
       "POST",
       `/repos/${repository}/issues/${number}/issue-field-values`,
@@ -110,45 +88,6 @@ export async function writeState({ github, repository, number, state, config, cu
   return { outcome: "written", state, option };
 }
 
-// What a state writer's entry point hands its run, over the base config's
-// models.issue-status and trusted-actor list (read-status.mjs
-// loadTrustedActors):
-// - `set(number, state, {fields, keepHold, releases, from})` writes `state`
-//   (writeState), skipping an option this process already wrote for the
-//   issue, or one `fields` (field id -> {option}) shows it holds. `fields`
-//   must come from a trusted read (read-status.mjs fieldStatus's rule): an
-//   option an untrusted account set would otherwise stop a write the field
-//   needs. With `keepHold`, the field is read first on every call, and that
-//   read alone decides a skip; a hold (HOLD_STATES) a listed human set is not
-//   replaced unless it is `releases`, the hold the write answers: `set`
-//   answers `{outcome: "held", state}` and the caller treats the issue as held.
-//   `from`, the trusted states the write may replace (null for unset), reads
-//   the field the same way and leaves any other state: a listing read before
-//   it can be stale, so the write must not demote a state set since. `set`
-//   answers `{outcome: "moved", state}` with the state it found;
-// - `leaveAgentReady(number, state, {orUnset})` writes `state` only while the
-//   field's trusted state (read-status.mjs fieldStatus) is agent-ready, so
-//   taking agent-ready off never resets another state. With `orUnset`, it also
-//   writes while no trusted state is set: an unset field leaves the labels
-//   deciding (read-status.mjs statusLabels), so only a set field takes an
-//   agent-ready label off.
-// Before `set` or `restart` writes agent-ready, the issue's labels are read
-// and each status label of another state is removed (clearStatusLabels): the
-// lanes token broker reads labels, and refuses the issue lane's token while
-// the issue carries any status label but agent-ready, such as the
-// needs-triage an issue form adds, which a field write never removes. A hold
-// label stays and the write answers `{outcome: "held", state}`; a read or
-// removal that fails throws, so agent-ready is never set over a status label
-// left on, and a `set` whose field write then fails puts the removed labels
-// back.
-// A `set` that writes confirmed or a hold removes the agent-ready label after
-// the field write lands (dropAgentReadyLabel), so label queries stop reading
-// the issue as lane-ready
-// (https://github.com/melodic-software/claude-code-plugins/issues/17860); a
-// removal that fails is logged, not thrown. A queue
-// state keeps the label: admission reads its `unlabeled` event as a stop.
-// A config that cannot be read makes every call throw StatusWriteError; a
-// trusted-actor list that cannot be read, every call that reads the field.
 export async function statusWriter({ env, github, repository, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), log = console.log }) {
   let config;
   let trustedActors;
@@ -171,12 +110,6 @@ export async function statusWriter({ env, github, repository, sleep = (ms) => ne
       throw new StatusWriteError(`#${number}'s Work status field could not be read: ${error?.message ?? error}`, { cause: error });
     }
   };
-  // Removes each of the issue's labels that config.labels maps to a state
-  // other than agent-ready and no hold (read-status.mjs HOLD_STATES), and
-  // answers `{removed}`, the names it took off; or answers
-  // `{outcome: "held", state}` for the first hold label, removing nothing. A
-  // label already gone (404) is not on the issue; any other failure throws
-  // StatusWriteError.
   const clearStatusLabels = async (number) => {
     const path = `/repos/${repository}/issues/${number}/labels`;
     let names;
@@ -281,13 +214,6 @@ export async function statusWriter({ env, github, repository, sleep = (ms) => ne
     const leave = held === "agent-ready" || (orUnset && (held === null || held === undefined));
     return leave ? set(number, state) : { outcome: "unchanged", state: held };
   };
-  // Restarts the issue lane: clears the field, then sets agent-ready with no
-  // skip, so GitHub sends the field_added that starts a run. A hold a listed
-  // human set stops it (`{outcome: "held"}`), as does a hold label
-  // (clearStatusLabels, before the clear); so does a trusted state outside
-  // `from` (the states the caller restarts from, null for unset), since a
-  // person may have moved the issue off agent-ready after the caller's read
-  // (`{outcome: "moved"}`). With no `from`, any state but a hold restarts.
   const restart = async (number, { from } = {}) => {
     if (failure) {
       throw failure;

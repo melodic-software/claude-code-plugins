@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# discover-instruction-surfaces.sh — enumerate the CLAUDE.md, AGENTS.md and rules files in
-# audit scope, each tagged with the scope it loads from.
-# Exists because a bare `find` from the current directory never sees the user-global
-# surfaces, which load in every session; the scope tag keeps project-only criteria off them.
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -77,7 +72,6 @@ canon_dir() {
   (cd "$1" 2>/dev/null && pwd -P) || true
 }
 
-# Avoids readlink -f, which is absent on some platforms.
 canon_file() {
   [[ -f "$1" ]] || return 0
   local d

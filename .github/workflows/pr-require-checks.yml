@@ -857,6 +857,7 @@ jobs:
       node_legs: ${{ steps.plan.outputs.node_legs }}
       node_plan: ${{ steps.plan.outputs.node_plan }}
       selection_suites: ${{ steps.suites.outputs.list }}
+      selection_shards: ${{ steps.shards.outputs.list }}
       # The one Playwright browser cache key test-bash and test-python restore
       # and save under. It is named here because workflow- and job-level env
       # allow neither runner nor hashFiles. It names the install arguments, so
@@ -1156,6 +1157,17 @@ jobs:
           cat "$RUNNER_TEMP/changed-suites.txt"
           if [ -s "$RUNNER_TEMP/changed-suites.txt" ]; then echo "any=true"; else echo "any=false"; fi >>"$GITHUB_OUTPUT"
           echo "list=$(jq -Rnc '[inputs]' <"$RUNNER_TEMP/changed-suites.txt")" >>"$GITHUB_OUTPUT"
+      - name: Shard the listed suites
+        id: shards
+        if: steps.suites.outputs.any == 'true'
+        env:
+          SUITES: ${{ steps.suites.outputs.list }}
+          PER_SHARD: 8
+        run: |
+          count=$(jq length <<<"$SUITES")
+          shards=$(((count + PER_SHARD - 1) / PER_SHARD))
+          ((shards <= 256)) || shards=256
+          echo "list=$(jq -nc --argjson n "$shards" '[range($n)]')" >>"$GITHUB_OUTPUT"
       - name: Log what a narrower merge-group run would skip
         id: mq_scope
         if: github.event_name == 'merge_group'
@@ -1507,7 +1519,12 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         shell: bash scripts/run-hygiene-gate.sh comment-lint {0}
-        run: scripts/check-comment-lint.sh
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::comment lint declined on a $GITHUB_EVENT_NAME event; there is no pull request diff to judge."
+            exit 0
+          fi
+          bash plugins/code-tidying/git-hooks/comment-lint-ci.sh "$HEAD_SHA" "origin/$BASE_REF"
 
       - name: Check no changed file crosses the size reference
         id: size_check
@@ -3974,8 +3991,14 @@ jobs:
     timeout-minutes: 19
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.select-tests.outputs.selection_shards || '[0]') }}
     env:
       SUITES: ${{ needs.select-tests.outputs.selection_suites }}
+      SHARD: ${{ strategy.job-index }}
+      SHARDS: ${{ strategy.job-total }}
     steps:
       - name: Check out
         uses: actions/checkout@v7
@@ -4032,7 +4055,7 @@ jobs:
             exit 1
           fi
           rc=0
-          scripts/selection-audit.sh trace --strict --jobs 3 --budget 720 \
+          scripts/selection-audit.sh trace --strict --shard "$SHARD/$SHARDS" --jobs 3 --budget 720 \
             --out "$RUNNER_TEMP/selection-audit" "${suites[@]}" || rc=$?
           case "$rc" in
           0) ;;
@@ -4058,7 +4081,7 @@ jobs:
         if: ${{ failure() }}
         uses: actions/upload-artifact@v7
         with:
-          name: selection-trace-${{ github.run_id }}-${{ github.run_attempt }}
+          name: selection-trace-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
           path: |
             ${{ runner.temp }}/selection-audit/*.md
             ${{ runner.temp }}/selection-audit/*.tsv
@@ -5747,11 +5770,12 @@ jobs:
           # `ran` lists, per lane, the heads of its runs from this repository
           # started before the decision.
           notices='[]' vetted='' ran='[]'
-          # Each lane's status job names, `|`-separated: its caller job's
-          # display name over pr-review-cli.yml's status job `Status`, then the
-          # caller job id, the name a head tested before the rename shows, then
-          # both over the job's earlier name `review-status`, then both over its
-          # planned name `Publish Review`.
+          # The base's REVIEW_LANES, one `<file> <status job names, |-separated>` line each.
+          # shellcheck disable=SC2016 # JavaScript, not shell
+          lanes=$(node --input-type=module -e 'import { pathToFileURL } from "node:url";
+            const { REVIEW_LANES } = await import(pathToFileURL(process.argv.at(-1)).href);
+            for (const [file, names] of REVIEW_LANES) console.log(`${file} ${names.join("|")}`);' \
+            REVIEW_LANES "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs") || keep "the review lanes could not be read"
           while read -r file checks; do
             runs=$(read_api "repos/$repo/actions/workflows/$file/runs?event=pull_request&branch=$ref&per_page=100" --paginate) || keep "the $file runs are unreadable"
             ran=$(jq -nc --argjson ran "$ran" --arg repo "$repo" --argjson decided "$decided_at" '$ran + [[inputs.workflow_runs[]
@@ -5761,11 +5785,8 @@ jobs:
               [ -n "$id" ] || continue
               [[ $sha =~ ^[0-9a-f]{40}$ ]] || keep "run $id names no head commit"
               if [[ " $vetted " != *" $sha "* ]]; then
-                diff=$(read_api "repos/$repo/compare/$BASE_SHA...$sha") || keep "the changes of $sha are unreadable"
-                changed=$(jq -er '[.files[].filename] as $f
-                  | if ($f | length) >= 300 then "too many files"
-                    elif any($f[]; . == ".github/workflows/pr-review-hosted.yml" or . == ".github/workflows/pr-review-security-hosted.yml") then "a review-lane workflow"
-                    else "" end' <<<"$diff") || keep "the changes of $sha do not parse"
+                read_api "repos/$repo/compare/$BASE_SHA...$sha" >"$RUNNER_TEMP/cost-hold-lane-diff.json" || keep "the changes of $sha are unreadable"
+                changed=$(holds_js laneChange "$RUNNER_TEMP/cost-hold-lane-diff.json") || keep "the changes of $sha do not parse"
                 [ -z "$changed" ] || keep "lane run $id ran on $sha, which changes $changed"
                 vetted+=" $sha"
               fi
@@ -5782,8 +5803,7 @@ jobs:
             done < <(jq -nr --arg repo "$repo" --argjson since "$since" --argjson decided "$decided_at" '[inputs.workflow_runs[]
               | select(.head_repository.full_name == $repo)
               | select((.updated_at | fromdateiso8601) > $since or (.created_at | fromdateiso8601) < $decided) | "\(.id) \(.head_sha)"] | unique[]' <<<"$runs")
-          done <<<'pr-review-hosted.yml PR Review / Status|pr-review / Status|PR Review / review-status|pr-review / review-status|PR Review / Publish Review|pr-review / Publish Review
-          pr-review-security-hosted.yml PR Review Security / Status|pr-review-security / Status|PR Review Security / review-status|pr-review-security / review-status|PR Review Security / Publish Review|pr-review-security / Publish Review'
+          done <<<"$lanes"
           # The decided head: the sha of the newest cost notice before the
           # decision that names its own run's head; none when two heads share
           # that time.
@@ -6524,9 +6544,6 @@ jobs:
       # IN THE MERGE QUEUE A LANES APP PULL REQUEST ALSO NEEDS A VERIFIER PASS
       # AT ITS HEAD: a PASS or PASS-NOTES artifact of a completed, successful
       # pr-verify.yml run on main (merge-holds.mjs verdictHold), taken by
-      # exact name from the reader's listing (below), with and without the
-      # head-branch digest, stopping at the first name that holds such a run:
-      # one run read per artifact taken. The same approval of the head lifts
       # it. A lanes App pull request whose files are exactly the hold config's
       # merge.baseline-file needs no pass and no link (merge-holds.mjs
       # baselineOnly, on the pull request saved at BABYSIT_VERIFY_PULL,
@@ -6855,7 +6872,6 @@ jobs:
               echo "::error::the head branch of #$pr could not be read."
               exit 1
             fi
-            digest=$(printf '%s' "$ref" | sha256sum | cut -c1-16)
             # pr-merge's head-ref map: a read that fails leaves none, and the
             # reader downloads each untied FAIL instead.
             node "$PR_MERGE_SCRIPTS/head-ref-map.mjs" read || echo "::notice::no head-ref map from pr-merge's last run; the verdict reader reads each untied FAIL."
@@ -6952,99 +6968,30 @@ jobs:
               fi
               echo "::notice::no carried run cache from pr-merge's last run; GITHUB_TOKEN has $remaining requests left (cold reads for $entries queue entries need $need), so the verdict reader reads every FAIL."
             fi
-            rm -f "$BABYSIT_VERIFY_LISTING"
+            passed=$RUNNER_TEMP/verify-pass.json
+            rm -f "$BABYSIT_VERIFY_LISTING" "$passed"
             # An unread wait leaves nothing: a queued pull request read that
             # did not report one failed, and check-plugins fails the group.
             waited=$QUEUED_PR_WAITED
             [[ $waited =~ ^[0-9]+$ ]] || waited=$MERGE_GROUP_WAIT_SECONDS
             floor_wait=$((waited < MERGE_GROUP_WAIT_SECONDS ? MERGE_GROUP_WAIT_SECONDS - waited : 0))
-            report=$(BABYSIT_READ_FLOOR_WAIT_SECONDS=$floor_wait BABYSIT_READ_FLOOR_STOP=1 python3 "$VERIFY_EVIDENCE_SCRIPT" evidence --repo "$GITHUB_REPOSITORY" --base-sha "$BASE_SHA" "$pr" "$head") || {
+            report=$(BABYSIT_READ_FLOOR_WAIT_SECONDS=$floor_wait BABYSIT_READ_FLOOR_STOP=1 python3 "$VERIFY_EVIDENCE_SCRIPT" evidence --pass-out "$passed" --repo "$GITHUB_REPOSITORY" --base-sha "$BASE_SHA" "$pr" "$head") || {
               echo "::error::babysit_verify_evidence.py could not judge #$pr at $head; re-run this run."
               exit 1
             }
             printf '%s\n' "$report" | tail -n 1 >"$RUNNER_TEMP/evidence.json"
-            : >"$RUNNER_TEMP/verdicts.jsonl"
-            # A refusal returned before any listing (an unread config or
-            # commit list) goes on with no pass names: merge-holds.mjs
-            # holds on it and on the missing pass, and a trusted approval of the
-            # head lifts both. An allow with no listing has no pass to bind.
-            listed=true
-            pass_names=("pr-verify-$pr-$head-pass" "pr-verify-$pr-$head-pass-$digest"
-              "pr-verify-$pr-$head-pass-notes" "pr-verify-$pr-$head-pass-notes-$digest")
-            if [ ! -s "$BABYSIT_VERIFY_LISTING" ]; then
-              if jq -e --arg head "$head" '.head == $head and (.refusal | type) == "string"' "$RUNNER_TEMP/evidence.json" >/dev/null 2>&1; then
-                listed=false
-                when="before listing artifacts"
-                [ "$index_mode" = false ] || when="in FAIL index mode, which saves no listing"
-                echo "::notice::the verdict reader refused #$pr $when; merge-holds.mjs judges its refusal with no pass."
-              elif [ "$index_mode" = true ]; then
-                # FAIL index mode: the reader reads by exact name and saves no
-                # listing, so the head's pass names are read the same way.
-                found=""
-                for name in "${pass_names[@]}"; do
-                  page=$(read_api "the $name artifacts" "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$name&per_page=100" --jq '.artifacts[]') || exit 1
-                  found+="$page"$'\n'
-                done
-                jq -sc '{artifacts: .}' <<<"$found" >"$BABYSIT_VERIFY_LISTING" || {
-                  echo "::error::the pass artifacts of #$pr do not parse."
-                  exit 1
-                }
-                echo "the verdict reader ran in FAIL index mode for #$pr; its pass artifacts were read by exact name."
-              else
-                echo "::error::the verdict reader read no artifact listing for #$pr: $(tr -d '\r\n%' <"$RUNNER_TEMP/evidence.json")"
-                exit 1
-              fi
-            fi
-            [ "$listed" = false ] || for name in "${pass_names[@]}"; do
-              verdict=${name#"pr-verify-$pr-$head-"}
-              verdict=${verdict%"-$digest"}
-              runs=$(jq -r --arg name "$name" '.artifacts[] | select(.name == $name and .expired == false) | "\(.workflow_run.id) \(.id)"' "$BABYSIT_VERIFY_LISTING") || {
-                echo "::error::the verdict reader's artifact listing does not parse."
-                exit 1
-              }
-              while read -r run artifact; do
-                [[ $run =~ ^[1-9][0-9]*$ && $artifact =~ ^[1-9][0-9]*$ ]] || continue
-                record=$(read_api "run $run" "repos/$GITHUB_REPOSITORY/actions/runs/$run") || exit 1
-                jq -c --arg name "$name" --arg verdict "$verdict" --argjson id "$run" --argjson artifact "$artifact" '{name: $name, verdict: $verdict, runId: $id, artifact: $artifact, run: .}' <<<"$record" >>"$RUNNER_TEMP/verdicts.jsonl" || exit 1
-              done <<<"$runs"
-              # A pass merge-holds.mjs verdictHold would count ends the lookup.
-              ! jq -se --arg repo "$GITHUB_REPOSITORY" 'any(.runId as $id | .run | .id == $id and .status == "completed" and .conclusion == "success"
-                and .path == ".github/workflows/pr-verify.yml" and .event == "workflow_run" and .head_branch == "main"
-                and .repository.full_name == $repo and .head_repository.full_name == $repo)' "$RUNNER_TEMP/verdicts.jsonl" >/dev/null || break
-            done
-            # The counted pass's record and the closing issues, for linkHold.
-            artifact=$(jq -sr --arg repo "$GITHUB_REPOSITORY" '[.[] | select(.runId as $id | .run | .id == $id and .status == "completed" and .conclusion == "success"
-              and .path == ".github/workflows/pr-verify.yml" and .event == "workflow_run" and .head_branch == "main"
-              and .repository.full_name == $repo and .head_repository.full_name == $repo)] | first | .artifact // empty' "$RUNNER_TEMP/verdicts.jsonl") || exit 1
-            # A 5xx or a network error with no HTTP response is read again
-            # after each of 5, 15 and 30 s: the grep below takes the reader's
-            # _transient 5xx and NETWORK_ERRORS phrases but the JSON decoder's
-            # (a zip download is not JSON). GitHub answered three downloads
-            # 503 over 26 s in merge group run 41063238235 (judgment on that
-            # run). Any other failure is final.
-            record=null
-            if [[ $artifact =~ ^[1-9][0-9]*$ ]]; then
-              for wait in 5 15 30 ''; do
-                # gh-read-exempt: a binary archive, which gh_read's text capture would corrupt.
-                if gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip" >"$RUNNER_TEMP/verdict.zip" 2>"$RUNNER_TEMP/verdict.err"; then
-                  record=$(unzip -p "$RUNNER_TEMP/verdict.zip" verdict.json | jq -c .) || record=null
-                  break
-                fi
-                cat "$RUNNER_TEMP/verdict.err" >&2
-                if [ -z "$wait" ] || ! grep -qiE 'HTTP 5[0-9][0-9]|error connecting to|connection reset by peer|connection refused|i/o timeout|tls handshake timeout|unexpected eof' "$RUNNER_TEMP/verdict.err"; then
-                  echo "::error::could not read the verdict of artifact $artifact; re-run this run."
-                  exit 1
-                fi
-                sleep "$wait"
-              done
-            fi
-            # shellcheck disable=SC2016 # GraphQL variables, not shell
-            closing=$(read_api "the closing issues of #$pr" graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){closingIssuesReferences(first:10){totalCount nodes{number repository{nameWithOwner}}}}}}' \
-              -F owner="${GITHUB_REPOSITORY%%/*}" -F name="${GITHUB_REPOSITORY#*/}" -F number="$pr" --jq '.data.repository.pullRequest.closingIssuesReferences') || exit 1
-            jq -cn --argjson record "${record:-null}" --argjson closing "${closing:-null}" '{record: $record, closing: $closing}' >"$RUNNER_TEMP/link.json" || {
-              echo "::error::the verdict record or closing issues of #$pr do not parse."
+            # What the reader judged on (babysit_verify_evidence.py
+            # `--pass-out`): for an allow at the head, its counted passes with
+            # their runs, the first one's verdict.json and the closing issues;
+            # for a refusal none, which merge-holds.mjs holds on with the
+            # refusal, and a trusted approval of the head lifts both. A file
+            # that does not read holds.
+            if ! jq -e --arg head "$head" '.head == $head and (.verdicts | type) == "array" and has("record") and has("closing")' "$passed" >/dev/null 2>&1 ||
+              ! jq -c '.verdicts[]' "$passed" >"$RUNNER_TEMP/verdicts.jsonl" ||
+              ! jq -c '{record, closing}' "$passed" >"$RUNNER_TEMP/link.json"; then
+              echo "::error::the verdict reader left no readable pass file for #$pr at $head; re-run this run."
               exit 1
-            }
+            fi
             verdicts=("$RUNNER_TEMP/verdicts.jsonl" "$RUNNER_TEMP/link.json" "$RUNNER_TEMP/evidence.json")
           fi
           export BASE_SHA

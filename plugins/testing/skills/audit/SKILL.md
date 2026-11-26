@@ -89,7 +89,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/cant-fail-scan.sh" --file <path
 Scan root: the current repo's git toplevel, or `$CANT_FAIL_SCAN_ROOT` to narrow or point it (a
 supported operator lever). A whole-tree scan runs the per-file engine on every core, or on
 `$CANT_FAIL_SCAN_JOBS` files at a time, with the serial run's output. Ecosystems, each defined by an
-adapter file in `adapters/`: JS/TS (`*.test.*`/`*.spec.*`: Jest, Vitest, node:test, Playwright),
+adapter file in `adapters/` ([format](reference/adapter-format.md)): JS/TS (`*.test.*`/`*.spec.*`: Jest, Vitest, node:test, Playwright),
 Python (`test_*.py`/`*_test.py`: pytest, unittest), C# (`*Test.cs`/`*Tests.cs`, Reqnroll
 `*StepDefinitions.cs` with each `[Then]` step judged as a test, `UnitTest*.cs`, and any other
 `*.cs` file holding a test attribute such as `[Fact]`: xUnit, NUnit, MSTest), Bash (`*.test.sh`

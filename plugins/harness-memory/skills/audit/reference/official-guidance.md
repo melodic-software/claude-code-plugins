@@ -88,10 +88,16 @@ those commands to be discovered per session rather than read. Backs C9.
 
 The audit treats `@path/to/import` content as loaded at launch with the file that imports it, so an
 import never saves context. It resolves and follows imports the way the page describes (path
-resolution, recursion depth, approval of an external import); the scripts' import walker
-(`scripts/lib/imports.sh`) carries the depth it stops at and cites this pointer.
+resolution, recursion depth, approval of an external import). The scripts' import walker
+(`scripts/lib/imports.sh`) resolves a path against the importing file, stops at four hops, and
+skips fenced code and code spans. A backslash keeps a space inside a path, a bare space ends it,
+and a quoted path is not an import. The four-hop bound is written twice, in `il_walk` and in
+`il_reaches`; change both together.
 
 - **Pointer**: [Import additional files](https://code.claude.com/docs/en/memory#import-additional-files).
+- **As of**: 2026-11-04
+- **Recheck trigger**: that section changes path resolution, the recursion depth, what import
+  parsing skips, or how spaces or quotes in a path are read.
 
 ## claudeMdExcludes setting
 
@@ -305,11 +311,17 @@ comes back, and which bodies come back at all, is read at the pointer at run tim
 The audit models an `AGENTS.md` as loading either directly, where no `CLAUDE.md`,
 `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it displaces it and
 `AGENTS.md` support is available, or through a `CLAUDE.md` that imports or symlinks it, on that
-`CLAUDE.md`'s row. Read directly, it differs from a `CLAUDE.md` in the ways the pointer lists;
+`CLAUDE.md`'s row. The displacement walk continues above the repository root, because a
+`CLAUDE.md` up there displaces the file as one beside it does. A user-scope `~/.claude/CLAUDE.md`
+and `.claude/rules/` files load alongside an `AGENTS.md` and never displace it; a bare `CLAUDE.md`
+in the home directory is not the user-scope file and does displace it. Both `AGENTS.md` names load,
+with no precedence between them. `scripts/lib/agents-md.sh` applies this condition for every audit
+script. Read directly, it differs from a `CLAUDE.md` in the ways the pointer lists;
 imported, it behaves as part of its `CLAUDE.md`. The audit never counts `disableAllHooks` or
-`allowManagedHooksOnly` against direct support. The model assumes the default value of the setting that chooses
-which instruction files load; a repository on another value is outside it, and the audit says so
-rather than pricing it, the same stated assumption `scripts/lib/agents-md.sh` carries.
+`allowManagedHooksOnly` against direct support. The model assumes the default value
+(`claude-md-or-agents-md`) of the setting that chooses which instruction files load, and a session
+able to read `AGENTS.md` at all; a repository on another value is outside it, and the audit says so
+rather than pricing it.
 
 - **Pointer**: for when an `AGENTS.md` is read, the setting that changes it, when support is
   unavailable, and how it differs from `CLAUDE.md`, see
@@ -323,8 +335,9 @@ rather than pricing it, the same stated assumption `scripts/lib/agents-md.sh` ca
   for which settings stop built-in mods,
   [Mods built into Claude Code](https://code.claude.com/docs/en/plugins/mods/overview#mods-built-into-claude-code).
 - **As of**: 2026-10-11 for the memory page; 2026-10-18 for the mods overview
-- **Recheck trigger**: those sections change which file names displace an `AGENTS.md`, the setting's
-  values or default, or which sessions lack support, the `/memory` listing or the difference table
+- **Recheck trigger**: those sections change which file names displace an `AGENTS.md`, name a
+  precedence between `AGENTS.md` and `.claude/AGENTS.md`, change the setting's values or default
+  (`claude-md-or-agents-md`) or which sessions lack support, the `/memory` listing or the difference table
   changes, the mods overview changes which settings stop a built-in mod, or a release note names
   `AGENTS.md`.
 

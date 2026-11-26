@@ -579,11 +579,6 @@ def excludes(config: dict[str, Any]) -> list[str]:
     patterns = (config.get("scope") or {}).get("exclude")
     if patterns is None:
         patterns = []
-    # `scope.exclude` is a closed list. A scalar (`exclude: "vendor/**"`, the
-    # shape setup-apply.py writes for a one-glob value) iterates as characters,
-    # so the dispatcher would receive `v`, `e`, `n`, ... as globs: the audit
-    # exits 0 having measured the directory it was told to drop, and having
-    # possibly dropped unrelated single-character paths.
     if not isinstance(patterns, list):
         layer = (config.get("_layers") or {}).get("scope.exclude", "bundled default")
         raise ConfigTypeError(

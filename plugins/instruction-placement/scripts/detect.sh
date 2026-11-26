@@ -147,7 +147,6 @@ classify_tier() {
     *conventions*.md | *Conventions*.md | \
     *standards*.md | *Standards*.md | \
     *style*.md | *Style*.md) printf 'named' ;;
-  # `*` matches `/` in a case glob, so `docs/*.md` already covers every depth.
   docs/*.md | documentation/*.md | .github/*.md) printf 'docs' ;;
   */README.md) printf 'module-readme' ;;
   *) printf 'other' ;;
@@ -207,11 +206,6 @@ fi
 
 emit_file_facts() {
   local file="$1"
-  # The path comes in through ENVIRON rather than `awk -v`: POSIX has -v process
-  # escape sequences, so a path containing a backslash is rewritten before the
-  # program sees it (gawk reads `\t` as a tab and drops an unknown escape's
-  # backslash; mawk passes both through). Every fact this emits is keyed by the
-  # path, so a mangled one silently misattributes findings.
   IP_FILE_PATH="$file" awk '
     function flush_section(endline,   markerlist) {
       if (sec_start == 0) return
@@ -323,7 +317,6 @@ emit_file_facts() {
 
 lang_hints() {
   local file="$1"
-  # ENVIRON rather than `awk -v`, for the reason given in emit_file_facts above.
   IP_FILE_PATH="$file" awk '
     # One matcher for both tables below: what separates them is which spellings
     # they carry, not how a spelling is matched.

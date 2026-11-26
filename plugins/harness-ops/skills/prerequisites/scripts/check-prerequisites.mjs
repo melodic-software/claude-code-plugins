@@ -1,29 +1,4 @@
 #!/usr/bin/env node
-// Read-only fleet prerequisite table. Never installs.
-//
-//   check-prerequisites.mjs --plugin-root <dir> [--plugin-root <dir>...]
-//   check-prerequisites.mjs
-//
-// With no roots and a claude executable on PATH, read the enabled set and each
-// install path from `claude plugin list --json`: user and managed rows, plus
-// project and local rows whose projectPath is the current project
-// ($CLAUDE_PROJECT_DIR, else the git toplevel); the most specific scope wins per
-// id. When claude is absent or prints nothing, merge enabledPlugins from
-// settings.json and settings.local.json in ~/.claude (or $CLAUDE_CONFIG_DIR) and
-// the project's .claude directory instead, skipping a whole file whose
-// enabledPlugins holds a non-Boolean value (Claude Code ignores that file's
-// keys), then the managed settings files, which win, and pick install records by the
-// same project and scope rule. A session started with a settings file that
-// SESSION_SETTINGS_FILE names (lib/enabled-plugin-roots.mjs) takes the settings
-// route with that file read, since `claude plugin list` does not see it. Output that is not a
-// JSON list is an error (exit 2), never a fallback. Only when none of that state
-// exists and this repo has plugins/*/prerequisites.json, scan those.
-//
-// The table is lib/prerequisites.mjs report mode:
-//   plugin id kind need status check install
-// then `missing=N present=M`. Exit 0 when no required entry is missing, 1 when
-// one is, 2 on a usage error, an unreadable listing or a manifest that fails
-// the schema.
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";

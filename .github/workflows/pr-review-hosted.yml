@@ -1,72 +1,19 @@
 name: PR Review Hosted
 
-# Locally owned: the `claude-review-hosted-caller` component of
-# melodic-software/standards
-# (https://github.com/melodic-software/standards/blob/main/components/claude-lanes-hosted/claude-review.yml)
-# is `locally-owned` for this repository in distribution/sync-manifest.yml, so
-# this copy can add the check-kill-switch and wait-for-refine jobs
-# below. It differs from the component in those jobs and these comments.
-#
-# Thin caller for the org's pr-review-cli reusable, lane `code`. The reusable
-# owns the launcher, the credential order (the reviews role's API key, then
-# its subscription token after a handoff) and the secret-handling model; per
-# its header, this caller owns the triggers, concurrency, and the GITHUB_TOKEN
-# permission grant (a called workflow can only downgrade the caller's grant,
-# never elevate it).
-#
-# The reusable skips fork PRs (they receive no secrets and a read-only token),
-# Dependabot, and every `[bot]` actor whose sender id is not in
-# `allowed-bot-sender-ids` (below), so none is reviewed by design. On a public
-# repository that means the lane reviews only pull requests from branches of
-# this repository: fork and Dependabot pull requests get no secrets.
-#
-# RUNNER PLACEMENT: every job of the reusable runs on ubuntu-24.04; it takes
-# no runner input. The job id `pr-review` keeps the check
-# `pr-review / claude-review-status`.
-#
-# No ruleset requires this check. ci-status, the one required check, needs
-# its success on the head and fails while the hold label is on (github-iac
-# ADR 0017).
-
-# API_BUDGET_HOLD (outage posture element 2): only wait-for-refine's wait step sets it,
-# since wait-refine.mjs reviews on a refused call. The other steps gate the review
-# (check-trusted-trigger, the upstream status) or end red on a failed read.
-# A step opts in only once its script is shown to hold green with a notice on
-# a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
-# a hold would pass what it could not read, so the rest still end red on a
-# rate limit past the guard's budget.
 on:
   pull_request:
-    # `synchronize` re-reviews every push, including the push that resolves a
-    # merge conflict: GitHub runs no pull_request workflow while a PR
-    # conflicts with its base, so a once-per-PR trigger set silently skipped
-    # any PR that conflicted when it opened. The reusable narrows a push's
-    # review to the files changed since the lane's last completed review and
-    # skips a push that changed none of the PR's files; opened, reopened and
-    # ready_for_review review the whole PR.
-    #
-    # Re-running the job does NOT review a newer head: a re-run replays the
-    # ORIGINAL event payload. Push to review the current head.
+    # No pull_request workflow runs while a PR has a merge conflict, so synchronize must re-review.
+    # https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows
     types: [opened, synchronize, ready_for_review, reopened]
 
 permissions:
   contents: read
 
-# Per-PR group: a newer event for the same PR waits for the running review
-# instead of cancelling it, because the guardrails merge guard reads a
-# cancelled run as red. The security caller does the same. The group is the
-# `${{ github.workflow }}`-prefixed canonical form the standards
-# `concurrency-policy` component requires.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: false
 
 jobs:
-  # The reusable reads no kill switch, so this caller does. The org
-  # and repository switches fail closed (check-kill-switch); the lane's own
-  # CLAUDE_REVIEW_DISABLED stops it only at `true`, as github-iac's README
-  # documents for the review-lane switches. A failed job leaves proceed empty,
-  # which also stops the review.
   check-kill-switch:
     name: Check Kill Switch
     if: github.event.pull_request.draft == false
@@ -136,11 +83,6 @@ jobs:
         run: |
           echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable} cause=${CAUSE:-unreadable} reset=${RESET:-none}, CLAUDE_REVIEW_DISABLED: ${LANE_SWITCH:-unset})"
 
-      # A skip fails this job, so the run is a failed first attempt: the
-      # lost-run reconciler re-runs it once GitHub Actions is operational
-      # (reconcile.mjs `upstream`), the merge gate binds that re-run on this
-      # error (babysit_review_evidence UPSTREAM_STOP_RE), and ci-status names
-      # the stop. The reason is the gate's own one-line output.
       - name: Stop on upstream status
         if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded == 'true' && vars.CLAUDE_REVIEW_DISABLED != 'true'
         env:
@@ -157,127 +99,29 @@ jobs:
         with:
           tokens: github-token
 
-  # The review waits for this head's Refine (pr-refine.yml fix-docs), so it
-  # judges tidied code. It waits here, inside this pull_request run, because
-  # ci-status and the other review readers find only pull_request runs on the
-  # head, and a Refine started with GITHUB_TOKEN fires no workflow_run event
-  # that could start a review after it. A head that moved while it waited is
-  # not reviewed: the push that moved it, Refine's or another, starts the
-  # new head's review. Every other outcome reviews, and a wait step that
-  # fails or times out leaves proceed empty and the job green, which reviews
-  # too (.github/scripts/pr-review/wait-refine.mjs). It waits only when the
-  # kill switch lets the review run.
-  wait-for-refine:
-    name: Wait For Refine
-    needs: [check-kill-switch]
-    if: github.event.pull_request.draft == false && needs.check-kill-switch.outputs.proceed == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 50
-    permissions:
-      actions: read # the dispatcher and pr-refine runs and the dispatch record
-      contents: read # check out the default branch for the script; each poll's read of refs/pull/<n>/head
-      pull-requests: read # the pull request's state and head at the end, at a poll whose ref read differs or fails, and at the start only when the event lacks the base ref or head repository
-    outputs:
-      proceed: ${{ steps.wait.outputs.proceed }}
-    env:
-      API_BUDGET_TOKEN: github-token
-    steps:
-      - name: Resolve main's tip
-        id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
-        with:
-          branch: main
-      - name: Check out the default branch
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ steps.tip.outputs.sha }}
-          path: .base
-          persist-credentials: false
-          sparse-checkout: |
-            /.github/actions/check-kill-switch/
-            /.github/actions/check-trusted-trigger/
-            /.github/actions/log-api-budget/
-            /.github/scripts/lib/github-client.mjs
-            /.github/scripts/lib/trusted-actors.mjs
-            /.github/scripts/pr-review/
-            /.github/scripts/pr-unblock/request-budget.mjs
-            /.node-version
-          sparse-checkout-cone-mode: false
-
-      - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
-        with:
-          node-version-file: .base/.node-version
-
-      - name: Wait for this head's refine run
-        id: wait
-        continue-on-error: true
-        timeout-minutes: 45
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
-          PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
-          API_BUDGET_HOLD: "1"
-        run: node .base/.github/scripts/pr-review/wait-refine.mjs
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          tokens: github-token
-
   pr-review:
     name: PR Review
-    needs: [check-kill-switch, wait-for-refine]
-    if: ${{ !cancelled() && github.event.pull_request.draft == false && needs.check-kill-switch.outputs.proceed == 'true' && needs.wait-for-refine.outputs.proceed != 'false' }}
-    # The model jobs narrow this to contents: read and pull-requests: read;
-    # only the reusable's status job (the claude-review-status check) writes.
+    needs: [check-kill-switch]
+    if: github.event.pull_request.draft == false && needs.check-kill-switch.outputs.proceed == 'true'
     permissions:
-      actions: read          # the reusable's check-key-credit job reads this
-                             # workflow's runs for the key's recent credit stop,
-                             # and its status job reads them for cost decisions
-      checks: read           # the reusable's status job reads its earlier
-                             # runs' cost notices
+      actions: read
+      checks: read
       contents: read
-      pull-requests: write   # the review, its inline comments and the lane's
-                             # reviewed-head marker comment
+      pull-requests: write
     uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@main
     with:
       lane: code
       publish: comments
       lane-transcript-public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
-      # The key's credit window every model lane reads (callers.test.mjs
-      # KEY_CREDIT_WINDOW); empty runs the reusable's 1-hour default.
       key-credit-window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
       key-credit-reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
-      # Bot senders this lane reviews, by numeric user id: the
-      # automation-lanes App, so a commit it pushes to a pull request is
-      # reviewed. Where the repository does not set this variable the value is
-      # empty and the reusable reviews no bot.
       allowed-bot-sender-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
-      # People whose closing issues the review reads in full, by numeric user
-      # id: the `human` entries of https://github.com/melodic-software/standards/blob/main/components/trusted-actors/trusted-actors.json; empty
-      # would replace every person's closing issue with a placeholder. The
-      # bot ids in allowed-bot-sender-ids above also mark issues those bots
-      # wrote as trusted closing-issue context.
       allowed-author-ids: '153232337'
       docs-only-paths: ''
       generated-copies: scripts/shared-copies.txt
       generated-data: scripts/review-generated-data.txt
       media-paths: scripts/review-media-paths.txt
       binary-allowlist: scripts/review-binary-allowlist.txt
-      # A hold adds this label and a `claude-lane-hold` marker comment; ci-status
-      # fails while the label is on. The review holds only for a real-charge
-      # cost or a CRITICAL security finding; hold-paths names the files the
-      # prompt sends to extra security scrutiny and never holds by itself.
-      # scripts/sync-hold-floor.py writes the list from the floor,
-      # the same in both callers; ci-status's exempt-author hold_patterns name
-      # the same paths less the security review's own files, which are
-      # scrutiny only.
       hold-label: needs-human
       # BEGIN hold-floor hold-paths: generated by scripts/sync-hold-floor.py
       hold-paths: |
@@ -453,9 +297,6 @@ jobs:
         plugins/review/skills/security-review/**
         plugins/review/evals/security-review-*/**
       # END hold-floor hold-paths
-    # The reviews role's key runs first; its subscription token only after the
-    # key hands off, and the central fallback token only after the
-    # subscription token hands off. Named secrets only, never `secrets: inherit`.
     secrets:
       CLAUDE_API_KEY: ${{ secrets.REVIEWS_CLAUDE_API_KEY }}
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.REVIEWS_CLAUDE_CODE_OAUTH_TOKEN }}

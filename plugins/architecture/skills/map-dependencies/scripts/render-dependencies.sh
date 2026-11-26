@@ -1,43 +1,18 @@
 #!/usr/bin/env bash
-# Render dependency-graph.json as a mermaid flowchart of internal edges.
-#
-# WHY. The JSON document is the model. This script is the human view, and it
-# is the reader that refuses a document it cannot match line by line. A
-# reformatted but valid JSON file exits 1 with a message and writes nothing.
-# An empty diagram is not what an unrecognized ecosystem looks like: result
-# "unknown" is prose, with no flowchart.
-#
-# Usage:
-#   render-dependencies.sh --record <dependency-graph.json> --out <dir>
-#       [--include-external | --external-only] [--cycles-only]
-#   render-dependencies.sh --help
-#
-# Writes <dir>/dependency-graph.md. Prints one summary line on stdout:
-#
-#   dependencies: result=<ok|unknown> ecosystem=<name> nodes=<n>
-#   internal_edges=<i> external_edges=<e> unresolved=<u> membership=<m>
-#   unread_files=<f> cycles=<c> aggregated=<yes|no> drawn_edges=<d>
-#
-# membership counts unresolved solution members. unread_files counts files
-# with reference tags or manifest declarations the collector did not turn into
-# an edge.
-#
-# The flowchart is mermaid `flowchart` in both landscape_dialect settings.
-# This script does not read the dialect. External package nodes are collapsed
-# unless --include-external (internal and external) or --external-only.
-# --cycles-only draws only internal edges that sit on a reported cycle.
-# Above the record's node_threshold, the flowchart aggregates to directories
-# and says so. The JSON stays at project resolution.
-#
-# Portability: bash plus POSIX awk. No jq, no `grep -P`, no python.
-#
-# Exit: 0 = written, or result unknown written as prose; 1 = unreadable
-# record, not schema_version 1, or not the one-object-per-line layout
-# dependency-graph.sh writes (nothing is written); 2 = usage.
 set -uo pipefail
 
 usage() {
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Render dependency-graph.json as a mermaid flowchart of internal edges.
+Usage: render-dependencies.sh --record <dependency-graph.json> --out <dir> [options]
+  --record <file>      dependency-graph.json from dependency-graph.sh
+  --out <dir>          directory dependency-graph.md is written into
+  --include-external   draw internal and external package nodes
+  --external-only      draw only external package nodes
+  --cycles-only        draw only internal edges on a reported cycle
+Exit: 0 written, or result unknown written as prose; 1 unreadable record, not schema_version 1,
+or not the one-object-per-line layout (nothing written); 2 usage.
+EOF
 }
 
 die() {

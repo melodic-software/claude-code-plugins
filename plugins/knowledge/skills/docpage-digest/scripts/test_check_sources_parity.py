@@ -18,8 +18,6 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 GATE = os.path.join(HERE, "check-sources-parity.py")
 
-# Line numbers matter: 1-2 introduction, 3 H2 (markdown), 5 H2 (HTML tag),
-# 7 H3 (HTML tag), 8-11 a fence holding a fake heading of each form.
 SOURCE = (
     "# Title\n"
     "Intro text.\n"
@@ -87,8 +85,6 @@ class TestParity(Slice):
         self.assertIn("PASS heading and unit parity", proc.stdout)
 
     def test_fenced_headings_are_not_counted(self):
-        # The fence at lines 8-11 holds a `##` line and an `<h2 id>` tag; listing
-        # either in the Headings table is a mismatch, so they must stay uncounted.
         proc = self.build(headings=HEADINGS + "| 9 | H2 | not a heading |\n| 10 | H2 | Fake |\n")
         self.assert_fails(proc, "SOURCES.md Headings row is no source heading: line 9 H2")
         self.assertIn("line 10 H2", proc.stdout)

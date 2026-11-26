@@ -110,15 +110,9 @@ NAME = "mypy-report"
 TOOL = "mypy"
 MEASURE = "type_coverage"
 LANGUAGE = "python"
-# mypy's exit for a blocking error (duplicate module, usage or config error):
-# it stops before analyzing anything and its report carries no measurement.
 FATAL_EXIT = 2
-# mypy's own order: a stub beside a module wins (find_sources.PY_EXTENSIONS).
 PY_EXTENSIONS = (".pyi", ".py")
-# The error codes mypy gives an import it found no stubs or implementation for.
 MISSING_STUB_CODES = ("[import-untyped]", "[import-not-found]")
-# mypy's blocking error for two files deriving one module name; the path first
-# is the file it refused, the one after `also at` the file it kept.
 DUPLICATE_MODULE = re.compile(
     r'^(?P<path>.+?): error: Duplicate module named "(?P<name>[^"]+)"'
     r' \(also at "(?P<kept>[^"]+)"\)',
@@ -138,15 +132,11 @@ def probe() -> int:
     return 0
 
 
-# (anys, exprs, coverage percent or None); Optional because this alias is
-# evaluated at import time and the floor is Python 3.9.
 Counts = tuple[int, int, Optional[float]]
 
 
 def _counts(fields: list[str]) -> Counts:
     anys, exprs = int(fields[1]), int(fields[2])
-    # mypy prints 100.00% for an empty module; nothing was counted, so the
-    # percentage is null, never 100.
     return anys, exprs, float(fields[3].rstrip("%")) if exprs else None
 
 
@@ -194,9 +184,6 @@ def _crawl_dir(directory: str, base: str) -> str | None:
     if name.endswith("-stubs"):
         name = name[:-6]
     if _has_init(directory):
-        # A package is always named, whatever lies above it; mypy refuses a
-        # package whose directory name is not an identifier (exit 2, the
-        # exit-4 path here), so the file cannot reach this point.
         return _join(_crawl_dir(parent, base) or "", name)
     if not name.isidentifier():
         return None
@@ -268,19 +255,12 @@ def collect(language: str, measure: str, files: list[str]) -> int:
         explicit_bases = True
         result = _run_mypy(exe, report_dir, scope, explicit_bases)
         if result.returncode == FATAL_EXIT and _rejects_explicit_bases(result.stderr):
-            # The consumer's config turns namespace packages off, and mypy
-            # allows --explicit-package-bases only with them on. Overriding
-            # that config would measure a project the consumer did not
-            # configure, so the run repeats in mypy's own naming mode
-            # (packages from __init__.py files) and says so.
             explicit_bases = False
             result = _run_mypy(exe, report_dir, scope, explicit_bases)
             naming_note = (
                 "namespace packages are off in the mypy config, so modules are "
                 "named from __init__.py packages rather than their paths"
             )
-        # mypy stops at the first duplicate it meets, so each pass can surface
-        # one more; bounded by the scope, since every pass removes a file.
         while result.returncode == FATAL_EXIT:
             refused = _refused_duplicate(result.stdout, scope)
             if refused is None:
@@ -289,12 +269,6 @@ def collect(language: str, measure: str, files: list[str]) -> int:
             held_out.append(refused)
             result = _run_mypy(exe, report_dir, scope, explicit_bases)
         if result.returncode == FATAL_EXIT:
-            # A blocking error stopped mypy before analysis; the report it still
-            # wrote is empty, so there is no measurement to read. The tool
-            # resolved but cannot run on these files: the dispatcher writes an
-            # `unavailable` row carrying this reason (exit 4).
-            # mypy prints its error lines to stdout and usage errors to
-            # stderr, so the reason carries both.
             said = " ".join(
                 part.strip().replace("\n", " ")
                 for part in (result.stdout, result.stderr)

@@ -1,23 +1,20 @@
 #!/usr/bin/env bash
-CM_USAGE=$(cat <<'EOF'
-/code-metrics:audit-suppressions entry point: every lint and type-checker
-suppression in scope, with its rule ids, its reason, and whether it names a
-rule listed in `suppressions.correctness_rules`.
-
-  audit-suppressions.sh [--json | --findings [--memory-dir <dir>]] [--all] [--base <ref>]
-                        [--config <resolved.json>] [<path>...]
-
-The scope is the dispatcher's (scope.exclude and language opt-outs apply).
-With no path and no --all, the change: only the lines the commits since
-the merge-base with the default branch (or --base) add. --all and paths scan
-whole files. Prints the markdown report; --json prints the document
-instead. --findings also writes a review-findings file to
-<memory-dir>/reviews/<branch-slug>/ (memory dir `.work` under the repository
-root unless named) and prints its path; with no current branch it writes
-nothing and exits 2. Exit 0 report produced, 2 usage error or a scan that failed.
-EOF
-)
 set -uo pipefail
+
+USAGE="$(
+  cat <<'EOF'
+/code-metrics:audit-suppressions entry point: every lint and type-checker suppression in scope,
+with its rule ids, its reason, and whether it names a listed correctness rule.
+  audit-suppressions.sh [--json | --findings [--memory-dir <dir>]] [--all] [--base <ref>] [--config <resolved.json>] [<path>...]
+  --json                    print the document instead of the report
+  --findings                also write a review-findings file and print its path
+  --memory-dir <dir>        memory dir for --findings (default .work under the repository root)
+  --all                     scan whole files, not only the lines the change adds
+  --base <ref>              measure the change from the merge-base with <ref>
+  --config <resolved.json>  a resolved configuration
+Exit 0 report produced, 2 usage error or a scan that failed.
+EOF
+)"
 
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
@@ -55,7 +52,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --help | -h)
-      cm_usage_banner --usage "$CM_USAGE"
+      cm_usage_banner --usage "$USAGE"
       exit 0
       ;;
     *)

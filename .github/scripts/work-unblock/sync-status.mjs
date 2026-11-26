@@ -1,31 +1,3 @@
-// Writes a listed human's status-label edit into the issue's Work status
-// field (models.issue-status), the field being the state. It only adds: a
-// label's absence never resets the field.
-//
-// - `labeled` with a queue-state label (ready, confirmed, deferred,
-//   needs-triage): writes that label's state, unless the field's trusted
-//   state is a hold (read-status.mjs HOLD_STATES), since a label never
-//   releases a hold, or is that state already.
-// - `labeled agent-ready`: writes nothing. The App's agent-ready write would
-//   start a run with no admission record; a person sets the field directly.
-// - `labeled` with a hold label: writes nothing. The reader adds hold labels
-//   on top of the field, and a hold the App wrote would read as the App's.
-// - `unlabeled agent-ready`: a person stopping the lane. Writes confirmed,
-//   only while the field reads agent-ready (write-status.mjs
-//   leaveAgentReady): not ready or deferred, whose App write would read as a
-//   trusted status: ready after the removal and admit the issue again.
-// - any other `unlabeled`: writes nothing; the release paths own those.
-//
-// The workflow runs it only for a listed human's label event, one run per
-// issue at a time in event order, with the lanes
-// App token: the field's reader counts agent-ready only from a listed human or
-// the App.
-// A failed field write fails the run.
-//
-// Environment: GH_TOKEN, GITHUB_REPOSITORY, GITHUB_EVENT_NAME,
-// GITHUB_EVENT_PATH, GITHUB_API_URL, TRUSTED_ACTORS_PATH, KILL_SWITCH
-// (`proceed`, or the run stops before any API call), BASE_PATH (the base
-// checkout, default `.base`).
 import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -42,8 +14,6 @@ const annotate = (line) => String(line).replaceAll(/[\r\n%]/g, " ");
 const stateOf = (name, config) =>
   typeof name === "string" ? Object.keys(config.labels).find((state) => config.labels[state].some((label) => fold(label) === fold(name))) : undefined;
 
-// What a label event asks of the field: `{set: state}`, `{leave: true}` for
-// agent-ready taken off, or `{why}` when it asks nothing. Pure.
 export function translateLabel(event, config) {
   const state = stateOf(event?.label?.name, config);
   if (state === undefined) {
@@ -63,10 +33,6 @@ export function translateLabel(event, config) {
 
 export const STOPPED_STATE = "confirmed";
 
-// One label event. `status` holds `fieldState(number)` (the field's trusted
-// state, null when none) and the writer (write-status.mjs statusWriter's set
-// and leaveAgentReady). Returns the write's outcome, `unchanged`, or
-// `skipped` with why.
 export async function onLabelEvent({ event, config, status }) {
   if (event?.issue?.pull_request) {
     return { outcome: "skipped", reason: "a pull request" };

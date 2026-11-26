@@ -1,27 +1,20 @@
 #!/usr/bin/env bash
-CM_USAGE=$(cat <<'EOF'
-/code-metrics:audit-duplication entry point: clone groups across the scope,
-minus the replication the target repository declares about itself.
-
-  audit-duplication.sh [--json] [--all] [--base <ref>] [--config <resolved.json>]
-                       [--registry <file>]... [--keep] [<path>...]
-
-Prints the markdown report and keeps its document, the baseline the next
-run's clone trend compares against; `--json` prints the `code-metrics/v2`
-document instead and keeps it only with `--keep`. Scope, languages, and the collector ladder are the dispatcher's
-(scripts/dispatch.sh in the plugin root); this script owns the merge of the
-detector's clone pairs into clone classes (cluster-clones.py), `--registry`,
-and the duplication tunables it exports for the collector adapters
-(CODE_METRICS_DUP_MIN_TOKENS, CODE_METRICS_DUP_MIN_LINES,
-CODE_METRICS_DUP_IGNORE, CODE_METRICS_DUP_MAX_LINES, CODE_METRICS_DUP_MAX_SIZE,
-from `duplication.*` in the resolved config; a null or 0 cap exports empty).
-Registries come from every `--registry` plus `duplication.registries`, each
-resolved against the repository root; a named registry that does not exist is
-a usage error. Exit codes are the dispatcher's: 0 report produced, 2 usage
-error, 3 a collector ran and produced nothing parseable.
-EOF
-)
 set -uo pipefail
+
+USAGE="$(
+  cat <<'EOF'
+/code-metrics:audit-duplication entry point: clone groups across the scope, minus the
+replication the repository declares about itself.
+  audit-duplication.sh [--json] [--all] [--base <ref>] [--config <resolved.json>] [--registry <file>]... [--keep] [<path>...]
+  --json                    print the code-metrics/v2 document instead of the report
+  --all                     measure every file, not the change
+  --base <ref>              measure the change from the merge-base with <ref>
+  --config <resolved.json>  a resolved configuration
+  --registry <file>         a sanctioned-replication registry (repeatable)
+  --keep                    keep the document with --json as the next run's baseline
+Exit: 0 report produced; 2 usage error; 3 a collector ran and produced nothing parseable.
+EOF
+)"
 
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
@@ -68,7 +61,7 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   --help | -h)
-    cm_usage_banner --usage "$CM_USAGE"
+    cm_usage_banner --usage "$USAGE"
     exit 0
     ;;
   *)

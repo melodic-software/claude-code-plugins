@@ -1,15 +1,5 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2034,SC2154 # pr_fields is read by the sourcing step; GITHUB_REPOSITORY is set by Actions
-# read_pr_fields <number> <jq fields>: reads the pull request through `gh api`
-# (the api-budget wrapper's gh when the caller defined it) and leaves the
-# fields, one per line, in pr_fields. A failed read prints
-# `::error::the PR could not be read (<class>): <stderr>` and returns 1; the
-# caller ends the step, or, with READ_PR_FAILURE=warning or notice, goes on and
-# the line takes that level. Classes: rate-limit (a 429, a rate-limit message or the
-# wrapper's refusal) is never read again; transient (a 5xx, a network error or
-# a body that is not JSON) is read once more after a wait drawn from 0 to 10 s (full jitter); other is
-# final.
-# Source it from the default branch checkout, never from the PR's head.
 read_pr_fields() {
   local err attempt class reason level
   err=$(mktemp)

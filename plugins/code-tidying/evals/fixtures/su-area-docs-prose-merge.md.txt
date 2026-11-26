@@ -1,0 +1,14 @@
+# Focus area: docs-prose (project override)
+
+This repository keeps its prose in README.md and docs/; every other section comes from the bundled focus area.
+
+## Scope
+
+```text
+README.md
+docs/**.md
+```
+
+## Merge semantics
+
+Merge semantics: per the bundled focus area's declaration.

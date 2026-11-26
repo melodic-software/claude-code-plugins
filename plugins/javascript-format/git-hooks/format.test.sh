@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Expected values pinned against Biome 2.6.7: `check --write --linter-enabled=false`
-# formats and sorts imports and applies no lint fix, so a `let` useConst would
-# rewrite stays `let` (https://biomejs.dev/reference/cli/#biome-check).
-# BIOME_TEST_BIN names a native Biome binary; else `biome` on PATH is used.
 # test-scope: plugins/javascript-format/git-hooks/entries.json plugins/javascript-format/git-hooks/adapters.sh
 # test-scope: plugins/javascript-format/lib/git-hooks/check-lib.sh plugins/javascript-format/lib/git-hooks/install.mjs
 # test-scope: plugins/javascript-format/lib/git-hooks/resolve-tool.sh
@@ -105,7 +101,6 @@ expect "a partly staged file is refused with the contract line" "1||a.ts: partly
 expect "a refused file is left byte for byte" "$(printf 'export const a=1\nexport const b=2')" "$(cat "$REPO/a.ts")"
 expect "a refused file's index entry is left byte for byte" "export const a=1" "$(git -C "$REPO" show :a.ts)"
 
-# Biome reads its config from the work tree; the commit holds the index's.
 DRIFT='config differs between the index and the work tree; stage it or restore it, then commit'
 new_repo
 printf 'export const a=1\n' >"$REPO/a.ts"
@@ -269,8 +264,6 @@ git -C "$REPO" add pkg/a.ts
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOBIOME" bash "$CHECK" 2>&1)"
 expect "biome found in the governing config directory's node_modules/.bin" "0|pkg/a.ts" "$?|$out"
 
-# A node_modules the repository commits is never run, even when it shadows the
-# biome on PATH.
 new_repo
 mkdir -p "$REPO/node_modules/.bin"
 printf '#!/bin/sh\ntouch "%s"\nexit 0\n' "$WORK/committed-ran" >"$REPO/node_modules/.bin/biome"

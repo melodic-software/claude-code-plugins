@@ -35,11 +35,6 @@ test("a hold row's comment carries its class as the stop-reason code, and no oth
   assert.equal(stopReasonCode("probe-first"), "none");
 });
 
-// Owner decision on #11021: an issue its Uncertainty skips parks at
-// status: confirmed with no person, as admission parks the same refusal, and
-// one its Size skips goes to intake's size split (owner Q93). A patch carrying
-// a credential shape holds for the owner as a token-leak path (section 10); any
-// other invalid patch retries like patch-apply-failed.
 test("the dimension skips reach no person, and only a credential-shaped patch holds", () => {
   assert.equal(stopRoute("research-first"), "park");
   assert.equal(stopRoute("probe-first"), "park");
@@ -106,8 +101,6 @@ test("a run's stop reason routes by the code it opens with, and by none otherwis
   assert.equal(runCode(undefined), "stopped");
 });
 
-// Security review on #10978: `stopped` retries and then fails, so a security
-// code the run misformats must still reach a person.
 test("the security code opens the reason in any case and width, past emphasis, backticks and a Reason: label, with any separator or none", () => {
   for (const reason of [
     "Security-risk: a token leaks",
@@ -124,9 +117,6 @@ test("the security code opens the reason in any case and width, past emphasis, b
   }
 });
 
-// Security review on #10978: an uncoded reason naming a concern without one
-// of the first eight words retried and then failed, so nobody was told. The
-// reasons are the finding's own examples; the acronyms count only as words.
 test("an uncoded reason naming a password, an API key, a backdoor, XSS, RCE, a CVE, branch protection or ignored instructions is security-risk", () => {
   for (const reason of [
     "the issue asks to hard-code the admin password",
@@ -143,9 +133,6 @@ test("an uncoded reason naming a password, an API key, a backdoor, XSS, RCE, a C
   }
 });
 
-// Re-review on #10978: a space for the hyphen made "Design change in X" a
-// hold, so every other code needs its hyphenated form, then a colon, a
-// backtick, closing emphasis, a space or the end.
 test("every other code opens the reason in any case only in its hyphenated form", () => {
   for (const [reason, code] of [
     ["design-change: X", "design-change"],
@@ -208,10 +195,6 @@ test("a close, host-run or attended reason that names security holds as security
   assert.equal(runCode("host-only: needs the desktop's GPU"), "host-only", "a host-run that names no security");
 });
 
-// Owner rule: a capability limit routes to host-run or fail, never to a
-// person. Run 41012431399 held #10022 as security because its host-only reason
-// said "tokens" and "model credentials". After an ending code, a secret noun
-// holds unless it is part of a known needs-a-credential capability phrasing.
 test("an ending reason that names a secret noun as a capability keeps its route", () => {
   for (const reason of [
     "host-only: the work runs the eval suites against prepaid credit and records pass rate, tokens, advisor call rate and wall time. That needs `claude` eval runs on a host with model credentials; this lane cannot invoke `claude` or spend credit.",
@@ -411,9 +394,6 @@ test("a reason with no code that names a security word holds", () => {
   }
 });
 
-// #12362: run 10:29Z on 2026-11-02 held #7588 on the "attack" in the pstack
-// principle name attack-the-premise, which the run quoted while it reported
-// the work as done. A listed name (known-names.json) names no security word.
 test("a reason that quotes a listed name, and names no risk, keeps its route", () => {
   for (const reason of [
     "already-done: the change is on main at 13617b6a; `attack-the-premise` found no gap in the issue's premise",
@@ -503,8 +483,6 @@ test("the table does not load when a hold row's class is not an owner reason", a
   await assert.rejects(loadsWith({ ...STOP_ROUTES, pushback: { route: "hold", why: "no class" } }), /pushback/);
 });
 
-// Re-review on #10978: runCode's security backstop names the security-risk
-// row, and a class on a row that does not hold would read as an owner reason.
 test("the table does not load without a security-risk hold row, or with a class on a row that does not hold", async () => {
   const { "security-risk": _, ...noSecurity } = STOP_ROUTES;
   await assert.rejects(loadsWith(noSecurity), /security-risk/);

@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 
-# cm_py_lf runs the resolved interpreter with its stdout line endings
-# normalized to LF and returns the interpreter's own exit status. The sed
-# script holds a literal CR ($'...'), which BSD and GNU sed both match.
 cm_py_lf() {
   "${CM_PY_NATIVE[@]}" "$@" | sed $'s/\r$//'
   return "${PIPESTATUS[0]}"
@@ -12,8 +9,6 @@ cm_py_lf() {
 # PY is consumed by the sourcing script, not here.
 # shellcheck disable=SC2034
 cm_resolve_python() {
-  # The scripts use mapfile and associative arrays, so bash 3.2 (the macOS
-  # default) stops here with the remediation instead of a syntax error later.
   if ((BASH_VERSINFO[0] < 4)); then
     printf 'code-metrics needs bash 4 or later (this is %s); macOS: brew install bash; Windows: run under Git Bash\n' "$BASH_VERSION" >&2
     return 2
@@ -36,12 +31,10 @@ cm_resolve_python() {
 
 # shellcheck disable=SC2034
 _cm_probe() {
-  # _cm_probe <probe> <interpreter words...>: run the floor probe and, when it
-  # passes, set PY and CM_PY_NATIVE. The line is read with mapfile, as the
-  # consumers read theirs: Git Bash's $(...) drops a trailing CR, so a
-  # command substitution would never see one.
   local probe="$1" lines
   shift
+  # mapfile needs bash 4.0; bash 3.2 lacks it.
+  # https://cgit.git.savannah.gnu.org/cgit/bash.git/plain/NEWS
   mapfile -t lines < <("$@" -I -c "$probe" 2>/dev/null; printf '%s\n' "$?")
   [[ "${lines[${#lines[@]} - 1]}" == 0 ]] || return 1
   CM_PY_NATIVE=("$@")

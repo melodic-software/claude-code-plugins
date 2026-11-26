@@ -20,8 +20,8 @@ plugins/code-tidying/git-hooks/entries.json	melodic-software/claude-code-plugins
 plugins/code-tidying/schemas/code-tidying.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/code-tidying/skills/remove-comments/actions/remove.md	melodic-software/claude-code-plugins	3	raw link to this marketplace's own published doc
 plugins/code-tidying/skills/tidy/SKILL.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
-plugins/code-tidying/skills/tidy/lanes/docs-prose.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
-plugins/code-tidying/skills/tidy/lanes/shell-tooling.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
+plugins/code-tidying/skills/tidy/areas/docs-prose.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
+plugins/code-tidying/skills/tidy/areas/shell-tooling.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/codebase-health/schemas/codebase-health.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/corrections/schemas/corrections.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/corrections/schemas/findings-buffer.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema

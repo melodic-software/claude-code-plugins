@@ -66,8 +66,6 @@ def translate(raw: str, language: str, wanted: list[str]) -> list[dict]:
         parsed += 1
         if record[1] in PSEUDO:
             continue
-        # The pseudo-records append `|lines:comment:blank` to the file cell;
-        # a function record does not, but splitting is harmless either way.
         path = wanted_norm.get(normalize(record[0].split("|", 1)[0]))
         if path is None:
             continue

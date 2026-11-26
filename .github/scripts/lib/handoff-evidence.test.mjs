@@ -1,9 +1,4 @@
-// handoff-evidence.sh's job-listing reads, on a stub gh that gives each call
-// the next answer in turn: a read after the first sends each page it already
-// got with that page's ETag, a 304 gives back that page's stored body, each
-// page keeps its own ETag, and a page with no ETag or a failed one is read
-// again unconditionally. Then the waits between reads, and what a read that
-// never settles ends in.
+// test-scope: .github/workflows/*.yml
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -17,21 +12,14 @@ const SCRIPT = fileURLToPath(new URL("./handoff-evidence.sh", import.meta.url));
 const FIRST = "repos/o/r/actions/runs/7/jobs?filter=latest&per_page=100";
 const SECOND = "https://api.github.com/repositories/9/actions/runs/7/jobs?filter=latest&per_page=100&page=2";
 
-// gh api -i output: the status line, the headers, a blank line, then the body.
 const answer = (status, headers = {}, body) =>
   [`HTTP/2.0 ${status}`, ...Object.entries(headers).map(([name, value]) => `${name}: ${value}`), "", body === undefined ? "" : JSON.stringify(body)].join("\r\n");
 const listing = (...jobs) => ({ total_count: jobs.length, jobs });
 
 const BROKER = { name: "Fix Docs / Check Broker", conclusion: "success", steps: [] };
-// A report job the listing shows before its steps, then with them.
 const UNLISTED = { name: "Fix Docs / Report", conclusion: "success", steps: [] };
 const POSTED = { name: "Fix Docs / Report", conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] };
 
-// Runs `handoff-evidence.sh` with no waits, `posted` unless facts says; each
-// answer is [gh -i output, gh exit status]. A call past the last answer gets
-// nothing and exits 1. With `draw` set, shuf answers min(draw, the range's top)
-// and records the range, and sleep only records its argument; delays null leaves
-// the default.
 function run(answers, delays = "0 0 0", { calls = "fix-docs", draw, runnerTemp, env = {}, facts = ["posted"], marker = false } = {}) {
   const dir = tempDir("handoff-evidence-");
   try {
@@ -121,9 +109,6 @@ test("a run started before the rename is read by its job ids", () => {
   assert.equal(out.output, "posted=true\n");
 });
 
-// The broker allow job alone answers `allowed`; with it absent, the broker
-// check job answers through its broker step. Each is read under its name and
-// its id, current and from before the rename.
 test("the broker jobs are read under their current and earlier names and ids", () => {
   const ask = [{ name: "Ask the broker whether the lane may run", conclusion: "success" }];
   for (const [check, allow] of [
@@ -141,8 +126,6 @@ test("the broker jobs are read under their current and earlier names and ids", (
   assert.equal(other.output, "allowed=false\n", "a job of another name is no broker check");
 });
 
-// Each CALLS id a workflow passes, in Title Case, is the display name of that
-// workflow's job of that id, so the script finds the call's report job.
 test("every call a workflow names is read under that job's display name", () => {
   const dir = new URL("../../workflows/", import.meta.url);
   for (const file of ["pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"]) {
@@ -158,7 +141,6 @@ test("every call a workflow names is read under that job's display name", () => 
   }
 });
 
-// The 304 for page 1 carries no Link header: the next page is the one its 200 named.
 test("each page of the listing is read through its Link and keeps its own ETag", () => {
   const next = `<${SECOND}>; rel="next", <${SECOND}>; rel="last"`;
   const prev = `<https://api.github.com/repositories/9/actions/runs/7/jobs?filter=latest&per_page=100&page=1>; rel="prev"`;
@@ -185,8 +167,6 @@ test("a page that came with no ETag is read again unconditionally, and one answe
   assert.equal(out.output, "posted=true\n");
 });
 
-// gh prints a 200's headers before its body, so a stream cut off after them
-// leaves a 200 status line, no body and gh's exit 1.
 test("a 200 whose body was cut off or is empty is a failed read, not a listing of no jobs, and its ETag is not kept", () => {
   const out = run([
     [answer("200 OK", { Etag: '"e1"' }), 1],
@@ -209,11 +189,6 @@ test("a listing still unread after the last delay fails with no output, outside 
   assert.equal(out.output, "");
 });
 
-// Outage posture element 1: each wait is drawn from 0 to a cap, never the cap
-// itself. The caps are the script's documented 15 30 60 90 120 s, 315 s in all,
-// the window a listing measured lagging for five minutes needs. Worked by hand:
-// a draw of 40 waits 15+30+40+40+40 = 165 s over the list, then 40 s four more
-// times to reach 325 s; a draw of 0 reaches no window, so the read ceiling ends it.
 const UNSETTLED = Array.from({ length: 20 }, () => [answer("200 OK", {}, listing(UNLISTED)), 0]);
 
 test("each wait is a random draw from 0 to its cap, and reads go on at the last cap until the waits fill the window", () => {
@@ -233,10 +208,6 @@ test("draws that never fill the window stop at twelve reads", () => {
   assert.deepEqual(out.sleeps, Array(11).fill(0));
 });
 
-// Outage posture element 2: unknown holds green with a notice and no output,
-// which pr-refine.yml reads as no fallback. Element 1: at most 3 attempts on a
-// failed read. Only pr-refine's two calls that read it: every other caller goes
-// on failing closed (the fallback token step behind a red read hands nothing on).
 const BROKEN = [answer("502 Bad Gateway", {}, { message: "Server Error" }), 1];
 
 test("pr-refine's fix-docs calls hold green with a notice after three failed reads, and write no output", () => {
@@ -270,8 +241,6 @@ test("a listing that stays unsettled is no failed read: fix-docs reads on throug
   assert.equal(out.output, "");
 });
 
-// HANDOFF_EVIDENCE_LAG decides a last read that got the listing, the CALLS scope
-// one that did not, and the failed-read count runs across the reads between.
 test("a fix-docs call whose lag and failed reads mix ends on what its last read found", () => {
   const LAG = UNSETTLED[0];
   const env = { HANDOFF_EVIDENCE_LAG: "notice" };
@@ -306,8 +275,6 @@ test("every other caller still fails closed after six failed reads, a list of ca
   }
 });
 
-// A rate limit is refused the same way for every caller, so the budget stays
-// protected; on a fix-docs call its annotation is a notice (API_BUDGET_HOLD).
 test("a rate limit holds fix-docs under the gh wrapper: one request, a notice and no error; another call still gets the error", () => {
   const reset = Math.floor(Date.now() / 1000) + 900;
   const limited = [answer("403 Forbidden", { "X-Ratelimit-Limit": 1000, "X-Ratelimit-Remaining": 0, "X-Ratelimit-Reset": reset, "X-Ratelimit-Resource": "core" }, { message: "API rate limit exceeded for installation ID 1." }), 1];
@@ -373,29 +340,23 @@ const lagged = () => [
   [answer("200 OK", {}, listing(UNLISTED)), 0],
   [answer("200 OK", {}, listing(UNLISTED)), 0],
 ];
-// The job-level setting a pr-refine.yml job passes the script, read from the
-// job's block in the workflow file; this suite runs with no yaml dependency.
 function refineJobEnv(name) {
   const blocks = readFileSync(new URL("../../workflows/pr-refine.yml", import.meta.url), "utf8").split(/^(?=  [\w-]+:$)/m);
   const value = /^ {6}HANDOFF_EVIDENCE_LAG: (\S+)$/m.exec(blocks.find((block) => block.startsWith(`  ${name}:`)))?.[1];
   return value ? { HANDOFF_EVIDENCE_LAG: value } : {};
 }
 
-// An empty output starts a second leg in pr-unblock.yml, so the opt-in stays on
-// the two jobs whose empty facts start nothing.
-// Beside pr-refine.yml's two fix-docs handoff jobs, the upload-key-credit-markers
-// jobs name it: their empty outputs start nothing, so a read that cannot
-// settle ends with a notice and uploads no marker.
 test("only the fix-docs handoff jobs and the upload-key-credit-markers jobs name HANDOFF_EVIDENCE_LAG", () => {
   const dir = new URL("../../workflows/", import.meta.url);
   const text = (file) => readFileSync(new URL(file, dir), "utf8");
   const files = readdirSync(dir).filter((file) => /\.ya?ml$/.test(file) && text(file).includes("HANDOFF_EVIDENCE_LAG"));
-  assert.deepEqual(files, ["pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"]);
+  assert.deepEqual(files, ["intake-triage.yml", "pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"]);
   const jobsNaming = (file) =>
     text(file).split(/^(?=  [\w-]+:$)/m).filter((block) => block.includes("HANDOFF_EVIDENCE_LAG")).map((block) => /^ {2}([\w-]+):$/m.exec(block)?.[1]);
   assert.deepEqual(jobsNaming("pr-refine.yml"), ["fix-docs-handoff", "upload-key-credit-markers", "fix-docs-subscription-handoff"]);
   assert.deepEqual(jobsNaming("pr-unblock.yml"), ["upload-key-credit-markers"]);
   assert.deepEqual(jobsNaming("work-resolve-issue.yml"), ["upload-key-credit-markers"]);
+  assert.deepEqual(jobsNaming("intake-triage.yml"), ["upload-key-credit-markers"]);
 });
 
 test("a fact still unsettled in a listing that was read fails with no output by default", () => {
@@ -414,8 +375,6 @@ for (const name of ["fix-docs-handoff", "fix-docs-subscription-handoff"]) {
     assert.equal(out.output, "", "an empty output starts no later leg");
   });
 
-  // The opt-in names lag alone: a failed read holds through the CALLS scope, and
-  // the opt-in does not green one for any other call.
   test(`${name}: a read that failed fails under the opt-in outside the fix-docs calls and holds on them; a fact the script does not know still fails`, () => {
     const env = refineJobEnv(name);
     const failed = answer("403 Forbidden", {}, { message: "Resource not accessible by integration" });

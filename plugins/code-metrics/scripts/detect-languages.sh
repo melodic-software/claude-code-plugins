@@ -1,26 +1,23 @@
 #!/usr/bin/env bash
-CM_USAGE=$(cat <<'EOF'
-Classify files into the plugin's languages (design thread T2).
-
-  detect-languages.sh [--globs <language>=<glob>[,<glob>...]]... [--disable <language>]...
-                  [--paths-from <file>] [--] <file>...
-
-`--paths-from` reads the file list from a file, one path per line. A scope of
-tens of thousands of paths does not fit in one argument vector on every
-platform this runs on, and the file has no such ceiling.
-
-Prints one `<language><TAB><file>` line per file, in the order the files were
-given. The bundled map classifies by extension into the languages; a
-file whose extension no language claims lands in the catch-all `other`
-EOF
-)
+# Exit: 0 classified (an empty result is still 0); 2 usage or environment error.
 set -euo pipefail
+
+USAGE="$(
+  cat <<'EOF'
+Classify files into the plugin's languages; prints one <language><TAB><file> line per file.
+  detect-languages.sh [--globs <language>=<glob>[,<glob>...]]... [--disable <language>]... [--paths-from <file>] [--] <file>...
+  --globs <language>=<glob>  replace the language's extension mapping with these globs
+  --disable <language>       turn a language off
+  --paths-from <file>        read the file list from a file, one path per line
+Exit: 0 classified (an empty result is still 0); 2 usage or environment error.
+EOF
+)"
 
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 PATHGLOB="$SCRIPT_DIR/pathglob.py"
 
 usage() {
-  cm_usage_banner --usage "$CM_USAGE"
+  cm_usage_banner --usage "$USAGE"
 }
 
 # shellcheck source=python-resolve.sh
