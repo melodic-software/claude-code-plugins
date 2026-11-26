@@ -145,6 +145,10 @@ expect "a fragment path with a dot-led component is no proof" 1 ".changes/.p/fmt
 h="$(make_head tool-change "${FORMATTED[@]}" scripts/sync-shared-copies.sh '#!/usr/bin/env bash\nexit 0\n')"
 prove --classify "$BASE" "$h"
 expect "a change to a tool the proof runs is no proof" 1 "- scripts/sync-shared-copies.sh: the proof runs this file, so a change to it needs review"
+tg checkout -q -B lib-test "$BASE" && put scripts/lib/x.test.sh 'echo  x\n' && tg add -A && tg commit -q -m lib-test && LIBTEST_BASE="$(tg rev-parse HEAD)"
+h="$(tg checkout -q -B lib-test-fmt "$LIBTEST_BASE" && put scripts/lib/x.test.sh 'echo x\n' && tg add -A && tg commit -q -m fmt && tg rev-parse HEAD)"
+prove --classify "$LIBTEST_BASE" "$h"
+expect "a test file beside the proof's tools, which the proof never runs, can be proven" 0 "candidate: 1 shell"
 
 h="$(make_head stale-copy "${FORMATTED[@]}" plugins/p/a.sh "# GENERATED from lib/a.sh\n$A_FMT# edited\n")"
 prove "$BASE" "$h"

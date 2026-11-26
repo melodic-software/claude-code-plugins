@@ -134,6 +134,7 @@ while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
     continue
   fi
   case $path in
+    plugins/source-control/skills/babysit-prs/scripts/tests/* | scripts/lib/*.test.sh) ;;
     scripts/run-ruff.sh | scripts/sync-shared-copies.sh | scripts/sync-hold-floor.py | scripts/lib/* | \
       plugins/bash-format/git-hooks/* | plugins/source-control/skills/babysit-prs/scripts/*)
       no "$path: the proof runs this file, so a change to it needs review"

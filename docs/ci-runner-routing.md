@@ -103,8 +103,9 @@ GitHub merged into, so the local shfmt action, the Ruff pin and the script are
 the base's, and the head is read only as blob ids. The regenerators and the
 fragment validator run in the formatted tree, so a change to any file the
 proof runs (`scripts/run-ruff.sh`, `scripts/sync-shared-copies.sh`,
-`scripts/sync-hold-floor.py`, `scripts/lib/`, the bash-format hooks and the
-babysit-prs scripts `sync-hold-floor.py` imports) is no proof. shfmt is
+`scripts/sync-hold-floor.py`, `scripts/lib/` but its `*.test.sh` files, the
+bash-format hooks, and the babysit-prs scripts `sync-hold-floor.py` imports but
+their `tests/`) is no proof. shfmt is
 downloaded fresh and checked against the base action's SHA-256, never restored
 from a cache a pull request's earlier run could write, and the job checks that
 the test merge commit merges the event's head. The job and `ci-status`
