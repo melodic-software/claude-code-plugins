@@ -139,6 +139,14 @@ test("the gate's step summary heads as lane / gate, says the verdict verb first,
   assert.ok(due.split("\n").filter((row) => row.startsWith("- ")).length <= 5, "at most five bullets");
 });
 
+test("every workflow step that writes the step summary heads it as maintenance-scan-architecture / <job> with a verb-first verdict", () => {
+  const writers = Object.values(parse(WORKFLOW_TEXT).jobs).flatMap((job) => (job.steps ?? []).filter((step) => /GITHUB_STEP_SUMMARY/.test(step.run ?? "")));
+  assert.ok(writers.length >= 2, "the key and subscription handoffs write a summary");
+  for (const step of writers) {
+    assert.match(step.run, /printf '### maintenance-scan-architecture \/ %s\\n\\nHanded off: %s\.\\n' "\$GITHUB_JOB" "\$line" >>"\$GITHUB_STEP_SUMMARY"/, step.name);
+  }
+});
+
 test("every job that reads the improvement cascade installs resolve-config's packages first, since openItemCap loads yaml from them", () => {
   for (const [name, job] of Object.entries(parse(WORKFLOW_TEXT).jobs)) {
     const reads = job.steps?.findIndex((step) => /(gate|file-findings)\.mjs (gate|file)$/.test(step.run ?? "")) ?? -1;

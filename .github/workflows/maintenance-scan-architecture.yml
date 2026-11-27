@@ -362,7 +362,7 @@ jobs:
             *) line="AUTOMATIONS_CLAUDE_API_KEY hit a credit stop (class credit-stop); find-candidates-subscription runs on the subscription token" ;;
           esac
           echo "::warning::$line"
-          echo "$line" >>"$GITHUB_STEP_SUMMARY"
+          printf '### maintenance-scan-architecture / %s\n\nHanded off: %s.\n' "$GITHUB_JOB" "$line" >>"$GITHUB_STEP_SUMMARY"
 
       - name: Record the leg
         if: always() && steps.run.outcome != 'skipped'
@@ -598,7 +598,7 @@ jobs:
         run: |
           line="AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN handed off (${HANDOFF_REASON:-unknown}); find-candidates-fallback runs on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
           echo "::notice::$line"
-          echo "$line" >>"$GITHUB_STEP_SUMMARY"
+          printf '### maintenance-scan-architecture / %s\n\nHanded off: %s.\n' "$GITHUB_JOB" "$line" >>"$GITHUB_STEP_SUMMARY"
 
       - name: Record the leg
         if: always() && steps.run.outcome != 'skipped'
