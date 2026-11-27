@@ -321,13 +321,37 @@ def shell_comment_start(line):
     return None
 
 
+def yaml_comment_scan(line):
+    """(index of the `#` that starts a comment after a value on a YAML `line`, or None; whether a
+    quoted scalar is still open at its end). A quote opens a scalar only where one can start (the
+    line start, or after `: `, `- `, `[`, `{` or `,`), `''` escapes inside single quotes and `\\`
+    inside double quotes, so an apostrophe in a plain scalar opens nothing."""
+    quote, start_ok, index = None, True, 0
+    while index < len(line):
+        char = line[index]
+        if quote == "'":
+            if char == "'" and line[index + 1 : index + 2] == "'":
+                index += 1
+            elif char == "'":
+                quote = None
+        elif quote == '"':
+            if char == "\\":
+                index += 1
+            elif char == '"':
+                quote = None
+        elif char in "'\"" and start_ok:
+            quote = char
+        elif char == "#" and index and line[index - 1] in " \t":
+            return (index if line[:index].strip() else None), False
+        elif not char.isspace():
+            start_ok = char in "[{," or char in "-:" and line[index + 1 : index + 2] in (" ", "")
+        index += 1
+    return None, quote is not None
+
+
 def _yaml_comment_start(line):
-    """Index of the first `#` after a blank with every quote before it closed, else None."""
-    for match in re.finditer(r"[ \t]#", line):
-        head = line[: match.start()]
-        if head.strip() and not (head.count('"') - head.count('\\"')) % 2 and not head.count("'") % 2:
-            return match.start() + 1
-    return None
+    """Index of the `#` that starts a comment after a value on `line`, else None."""
+    return yaml_comment_scan(line)[0]
 
 
 def _trailing_comments(path, text, inside, parse):
@@ -365,11 +389,12 @@ def comment_style(path, text="", hidden=False, parse=None):
     string, the trailing comments `_trailing_comments` finds) for a code, YAML, shell or
     `.editorconfig` file; None for markdown and any other type, whose comments a model may read as
     instructions, for an eval file unless `hidden` (the agent under test never sees it), and for a
-    cgo file, whose preamble comment is C code."""
+    cgo file, whose preamble comment is C code. An `.editorconfig` comment holds editor settings,
+    never instructions, so its style holds under `evals/` too."""
     ext = os.path.splitext(path)[1].lower()
     kind = "hash" if ext in HASH_COMMENT_EXTS else "slash" if ext in SLASH_COMMENT_EXTS else None
     if os.path.basename(path) == ".editorconfig":
-        kind = "ini"
+        return "ini", frozenset(), {}
     if "/evals/" in "/" + path and not hidden or ext == ".go" and 'import "C"' in text:
         return None
     inside = _string_block_lines(ext, text) if kind else None

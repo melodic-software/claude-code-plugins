@@ -340,6 +340,236 @@ class SelectCasesHiddenTest(unittest.TestCase):
         self.assertIn("one-basic", block.get("cases", "").split(), "the agent can read a skill folder")
 
 
+    def test_literal_heredoc_written_then_run_still_runs(self):
+        self._base(
+            scaffold=RUN_SETUP + "cat >runner.sh <<'EOF'\ncp -r \"$(dirname \"$0\")/../fixtures\" ./copy\nEOF\n"
+            "bash runner.sh\n"
+        )
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "the scaffold runs the script the heredoc wrote")
+
+    def test_literal_heredoc_made_executable_still_runs(self):
+        self._base(
+            scaffold=RUN_SETUP + "cat >runner.sh <<'EOF'\ncp -r \"$(dirname \"$0\")/../fixtures\" ./copy\nEOF\n"
+            "chmod +x runner.sh\n"
+        )
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "a file made executable may be run")
+
+    def test_running_one_written_file_leaves_other_heredocs_inert(self):
+        self._base(
+            scaffold=RUN_SETUP + "cat >tool <<'EOF'\necho ok\nEOF\nchmod +x tool\n"
+            "cat >notes.sh <<'EOF'\ncd \"$(dirname \"${BASH_SOURCE[0]}\")\"\nEOF\n"
+        )
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_free(block, "only tool runs; notes.sh stays text")
+
+    def test_a_written_file_run_by_another_written_file_still_runs(self):
+        self._base(
+            scaffold=RUN_SETUP + "cat >a.sh <<'EOF'\nbash b.sh\nEOF\n"
+            "cat >b.sh <<'EOF'\ncp -r \"$(dirname \"$0\")/../fixtures\" ./copy\nEOF\nbash a.sh\n"
+        )
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "a.sh runs b.sh")
+
+    def _written_runner(self, run_lines, body='cp -r "$(dirname "$0")/../fixtures" ./copy'):
+        self._base(scaffold=RUN_SETUP + "cat >gen.sh <<'EOF'\n" + body + "\nEOF\n" + run_lines)
+        return self._select(SETUP, "# Prints the fixture.\n", "")
+
+    def test_written_file_run_through_a_wrapper_or_variable_still_runs(self):
+        for run in (
+            "nice bash gen.sh\n", "timeout 60 bash gen.sh\n", "env -i bash gen.sh\n",
+            "f=gen.sh\nbash \"$f\"\n", "\"$SHELL\" gen.sh\n", "cd sub && ./gen.sh\n",
+        ):
+            with self.subTest(run=run):
+                self.assert_runs(self._written_runner(run), "the scaffold may run gen.sh")
+
+    def test_written_file_renamed_or_linked_still_runs(self):
+        for run in ("mv gen.sh run.sh\nbash run.sh\n", "ln -s gen.sh run.sh\n", "cp gen.sh x.sh\n"):
+            with self.subTest(run=run):
+                self.assert_runs(self._written_runner(run), "gen.sh moves to a name that runs")
+
+    def test_written_file_only_committed_read_or_appended_is_no_run(self):
+        for run in (
+            "git add gen.sh\n", "printf 'x\\n' >>gen.sh\n", 'f=gen.sh\ntext="$(cat "$f")"\nprintf "%s" "$text" >"$f"\n',
+        ):
+            with self.subTest(run=run):
+                self.assert_free(self._written_runner(run), "nothing runs gen.sh")
+
+    def test_written_file_named_in_unquoted_heredoc_text(self):
+        free = self._written_runner("cat >notes.txt <<EOF\nrun: bash gen.sh in $PWD\nEOF\n")
+        self.assert_free(free, "the unquoted heredoc only writes the text")
+        runs = self._written_runner("cat >notes.txt <<EOF\n$(bash gen.sh)\nEOF\n")
+        self.assert_runs(runs, "the command substitution runs gen.sh")
+
+    def test_shadowed_cat_or_path_change_still_runs(self):
+        for prefix in ("cat() { bash -s; }\n", 'PATH="$PWD/bin:$PATH"\n', "alias cat=bash\n"):
+            with self.subTest(prefix=prefix):
+                self._base(
+                    scaffold=RUN_SETUP + prefix + "cat >out.txt <<'EOF'\n"
+                    'cp -r "$(dirname "$0")/../fixtures" ./copy\nEOF\n'
+                )
+                block = self._select(SETUP, "# Prints the fixture.\n", "")
+                self.assert_runs(block, "cat no longer just writes text")
+
+    def test_heredoc_in_a_file_that_sources_a_library_still_runs(self):
+        _write(self.repo, "plugins/alpha/evals/fixtures/lib.sh", "cat() { bash -s; }\n")
+        self._base(
+            scaffold=RUN_SETUP + 'source "$(dirname "$0")/../fixtures/lib.sh"\n'
+            "cat >out.txt <<'EOF'\ncp -r \"$(dirname \"$0\")/../fixtures\" ./copy\nEOF\n"
+        )
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "the sourced library may redefine cat")
+
+    def test_git_hooks_path_or_hooks_heredoc_still_runs(self):
+        for extra in ("git config core.hooksPath hooks\n", "cat >.git/hooks/pre-commit <<'H'\nx\nH\n"):
+            with self.subTest(extra=extra):
+                self.assert_runs(self._written_runner(extra), "git runs hooks it finds")
+
+    def test_hooks_path_dev_null_keeps_heredocs_inert(self):
+        self.assert_free(
+            self._written_runner("git -c core.hooksPath=/dev/null commit -q -m x\n"),
+            "hooks are switched off",
+        )
+
+    def test_heredoc_with_a_variable_target_still_runs(self):
+        self._base(
+            scaffold=RUN_SETUP + 'f=x.sh\ncat >"$f" <<\'EOF\'\ncp -r "$(dirname "$0")/../fixtures" ./copy\nEOF\n'
+        )
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "the written name is not literal")
+
+    def test_pushd_into_the_suite_still_runs(self):
+        self._base(
+            scaffold=RUN_SETUP + 'pushd "$(dirname "${BASH_SOURCE[0]}")"\npushd ..\ntar c fixtures | tar x -C ws\n'
+        )
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "after the pushd, fixtures names the helper's folder")
+
+    def test_literal_heredoc_in_a_case_that_runs_make_still_runs(self):
+        self._base(
+            scaffold=RUN_SETUP + "cat >Makefile <<'EOF'\nall:\n\tcp -r \"$(dirname \"$0\")/../fixtures\" copy\nEOF\nmake\n"
+        )
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "make runs the Makefile the heredoc wrote")
+
+    def test_if_source_of_a_written_file_still_runs(self):
+        self._base(
+            scaffold=RUN_SETUP + "cat >env.sh <<'EOF'\ncp \"$(dirname \"$0\")/../fixtures/setup.sh\" ws/\nEOF\n"
+            "if source ./env.sh; then :; fi\n"
+        )
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "the sourced file runs with the scaffold as $0")
+
+    def _positional_base(self, calls):
+        _write(
+            self.repo,
+            "plugins/alpha/evals/fixtures/seed.sh",
+            '#!/usr/bin/env bash\nfixtures="$(dirname "${BASH_SOURCE[0]}")"\n'
+            'while [[ $# -ge 2 ]]; do\n  src="$1" dest="$2"\n  shift 2\n  cp "$fixtures/$src" "$dest"\ndone\n',
+        )
+        self._base(scaffold=RUN_SETUP + calls)
+
+    def test_positional_copy_with_literal_arguments_is_no_run(self):
+        self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" \\\n  a.txt out/a \\\n  b.txt out/b\n')
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_free(block, "every call copies a.txt or b.txt")
+
+    def test_positional_copy_in_a_helper_setting_shell_options_is_no_run(self):
+        self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" a.txt out/a\n')
+        seed = self.repo / "plugins/alpha/evals/fixtures/seed.sh"
+        seed.write_text(seed.read_text(encoding="utf-8").replace("while", "set -euo pipefail\nwhile", 1))
+        _commit_all(self.repo, "strict mode")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_free(block, "set -euo pipefail sets options, not arguments")
+
+    def test_positional_copy_naming_the_helper_still_runs(self):
+        self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" setup.sh out/s\n')
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "a call copies setup.sh")
+
+    def test_positional_copy_with_a_variable_argument_still_runs(self):
+        self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" "$1" out/s\n')
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "$1 may name setup.sh")
+
+    def test_positional_copy_with_a_glob_argument_still_runs(self):
+        self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" se*.sh out/s\n')
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "the glob can match setup.sh")
+
+    def test_positional_copy_with_rebound_arguments_still_runs(self):
+        for extra in (
+            'set -e -- "set""up.sh"\n', "set -u setup.sh\n", 'src+=".sh"\n', "src[0]=setup.sh\n",
+            'printf -v "src" setup.sh\n', 'copy() { src="$1"; }\n',
+        ):
+            with self.subTest(extra=extra):
+                self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" a.txt out/a\n')
+                seed = self.repo / "plugins/alpha/evals/fixtures/seed.sh"
+                text = seed.read_text(encoding="utf-8").replace("while", extra + "while", 1)
+                seed.write_text(text, encoding="utf-8")
+                _commit_all(self.repo, "rebind")
+                _git(self.repo, "branch", "-f", "base", "HEAD")
+                block = self._select(SETUP, "# Prints the fixture.\n", "")
+                self.assert_runs(block, "the copied name is not only the call's argument")
+
+    def test_positional_copy_named_by_a_non_shell_script_still_runs(self):
+        _write(self.repo, "plugins/alpha/scripts/call.py", 'run(["bash", "seed.sh", "setup.sh"])\n')
+        self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" a.txt out/a\n')
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "a Python caller's arguments are not read")
+
+    def test_positional_copy_called_from_another_plugin_still_runs(self):
+        _write(
+            self.repo,
+            "plugins/beta/evals/fixtures/use.sh",
+            'bash "$(dirname "$0")/../../../alpha/evals/fixtures/seed.sh" "$1" out\n',
+        )
+        self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" a.txt out/a\n')
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "the other plugin passes a variable")
+
+    def test_positional_copy_reassigned_still_runs(self):
+        self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" a.txt out/a\n')
+        seed = self.repo / "plugins/alpha/evals/fixtures/seed.sh"
+        seed.write_text(seed.read_text(encoding="utf-8") + "src=setup.sh\n", encoding="utf-8")
+        _commit_all(self.repo, "reassign")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "src is not only a positional argument")
+
+    def test_quoted_hash_in_a_description_edit_stays_description_only(self):
+        _write(
+            self.repo,
+            CASE,
+            'schema_version: "1.1"\nname: one-basic\ndescription: "Covers issue #12"\n'
+            "tags: [alpha:one]\ncontext:\n  scaffold_script: scaffold.sh\n",
+        )
+        _commit_all(self.repo, "set description")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        block = self._select(CASE, '"Covers issue #12"', '"Covers issue #12 and #13"')
+        self.assertNotIn("cases", block, "the # sits inside the quoted description")
+
+    def test_dropping_a_comment_after_an_apostrophe_is_not_description_only(self):
+        for line in ('description: "Don\'t break alpha" # keep tabs', "description: Don't panic # keep tabs"):
+            with self.subTest(line=line):
+                _write(
+                    self.repo,
+                    CASE,
+                    'schema_version: "1.1"\nname: one-basic\n' + line + "\n"
+                    "tags: [alpha:one]\ncontext:\n  scaffold_script: scaffold.sh\n",
+                )
+                _write(
+                    self.repo,
+                    SCAFFOLD,
+                    "#!/usr/bin/env bash\n" + RUN_SETUP + 'grep "#" "$(dirname "$0")/case.yaml" >notes.txt\n',
+                )
+                _commit_all(self.repo, "comment after apostrophe")
+                _git(self.repo, "branch", "-f", "base", "HEAD")
+                block = self._select(CASE, " # keep tabs", "")
+                self.assert_runs(block, "the scaffold writes the comment into the workspace")
+
     def _editorconfig_select(self, rel, old, new):
         _write(self.repo, rel, "root = true\n# Tabs for fixtures.\n; Kept as is.\n[*]\nindent_style = tab # x\n")
         _commit_all(self.repo, "add editorconfig")
@@ -359,11 +589,47 @@ class SelectCasesHiddenTest(unittest.TestCase):
         )
         self.assertIn("one-basic", block.get("cases", "").split(), "the # is part of the value")
 
-    def test_editorconfig_comment_in_a_skill_evals_folder_still_runs(self):
-        block = self._editorconfig_select(
-            "plugins/alpha/skills/one/evals/.editorconfig", "# Tabs for fixtures.\n", ""
-        )
-        self.assertIn("one-basic", block.get("cases", "").split(), "an evals/ comment the agent can read")
+    def test_editorconfig_comment_in_an_evals_folder_is_no_run(self):
+        for rel in ("plugins/alpha/skills/one/evals/.editorconfig", "plugins/alpha/evals/one-basic/.editorconfig"):
+            with self.subTest(rel=rel):
+                block = self._editorconfig_select(rel, "# Tabs for fixtures.\n", "")
+                self.assertNotIn("cases", block, "an editor-settings comment changes nothing the agent does")
+
+    def test_editorconfig_key_change_in_an_evals_folder_still_runs(self):
+        for old, new in (("root = true", "root = false"), ("indent_style = tab # x", "indent_style = tab")):
+            with self.subTest(old=old):
+                block = self._editorconfig_select("plugins/alpha/skills/one/evals/.editorconfig", old, new)
+                self.assertIn("one-basic", block.get("cases", "").split(), "a setting changed")
+
+
+class CommandStartTest(unittest.TestCase):
+    def setUp(self):
+        import suite_refs
+
+        self.runs, self.cd = suite_refs.RUNS_STRING_RE, suite_refs.CD_WORD_RE
+
+    def test_every_command_position_is_seen(self):
+        for prefix in (
+            "", "  ", "a; ", "a && ", "a || ", "a | ", "a & ", "( ", "{ ", "$( ", "`", "! ",
+            "if ", "elif ", "then ", "else ", "do ", "while ", "until ", "x) ", "time ", "nohup ",
+            "env ", "env A=1 ", "A=1 ", "exec ", "command ", "builtin ", "sudo ", "xargs ",
+            "time -p ", "env -i ", "env -u X ", "command -p ", "sudo -E ", "exec -a name ", "nice ",
+            "timeout 60 ", "stdbuf -oL ", "setsid ", "coproc ", "<( ", 'A="x y" ', "f() { ",
+        ):
+            with self.subTest(prefix=prefix):
+                self.assertTrue(self.runs.search(prefix + "eval \"$x\""), prefix)
+                self.assertTrue(self.runs.search(prefix + "source /dev/stdin <<<'x'"), prefix)
+                self.assertTrue(self.runs.search(prefix + ". <(cat x)"), prefix)
+                self.assertTrue(self.cd.search(prefix + "cd dir"), prefix)
+
+    def test_words_that_only_look_like_commands(self):
+        for line in (
+            "git config user.name eval", "echo resource", "cp -r . ws", "abcd x",
+            '. "$here/lib.sh"', 'value="\\"bash x.sh"',
+        ):
+            with self.subTest(line=line):
+                self.assertIsNone(self.runs.search(line), line)
+                self.assertIsNone(self.cd.search(line), line)
 
 
 class ShellCommentStartTest(unittest.TestCase):

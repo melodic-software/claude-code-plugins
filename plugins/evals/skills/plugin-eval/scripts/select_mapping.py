@@ -495,10 +495,17 @@ def classify_skill_md(repo_root, diff_base, merge_base, rel_path):
 
 
 def _comment_lines(text):
-    """Every comment-shaped run in `text`, whole-line or after code, each with its line."""
-    return [
-        line.strip() for line in text.splitlines() if re.search(r"(?:^|[ \t])#", line)
-    ]
+    """Every YAML comment in `text`: each whole comment line, and each comment after a value that
+    starts outside a quoted scalar; every line holding a `#` when a quoted scalar spans lines."""
+    found, lines = [], text.splitlines()
+    for line in lines:
+        stripped = line.strip()
+        start, open_quote = (None, False) if stripped.startswith("#") else no_run_text.yaml_comment_scan(line)
+        if open_quote:
+            return [line.strip() for line in lines if "#" in line]
+        if stripped.startswith("#") or start is not None:
+            found.append(stripped if start is None else line[start:])
+    return found
 
 
 def is_description_only_case_edit(repo_root, merge_base, rel_path, filename):

@@ -27,7 +27,8 @@ directive comment (`//go:build`, `/// <reference`, `# shellcheck`, `# coding:` a
 comment in a cgo file, a `/*` opener deleted without its `*/` and a PowerShell `#>` closer are
 never deletable comments; a swap in a skill's `name` or a skill or agent rename always runs; a script gets no swap exemption; a change with no hunks is never exempt; a
 plugin-wide file is always listed. A comment deletion under `evals/` runs its case, since the
-model running the case may read it, unless the agent under test cannot see the file: the case's
+model running the case may read it, except in an `.editorconfig` (editor settings, which cannot
+change what the agent does) and unless the agent under test cannot see the file: the case's
 `case.yaml` when no file of a case reaching it names its case folder, the evals folder or a folder
 above, and no script under the evals folder that names `case.yaml` holds the deleted comment's text
 or a quoted pattern matching it; or a `.sh` or `.bash` script a case's scaffold runs (`bash`, `sh`, `source` or `.`
@@ -40,11 +41,13 @@ last expansion (`.txt` in `"$dir/$1.txt"`) neither the script's name nor a folde
 with, a line that only binds a variable to the script's exact path (never exported or expanded with an operator,
 in a file with no `eval`), a `(cd <dir> && bash <script> <args>)` run whose `<dir>` names nothing in or above the
 suite, and an `echo`, `printf` or `${1:?message}` message that only prints the name. A file that pipes into a shell,
-runs a string (`eval`, `bash -c`, `trap`, `alias`), sources or exports gets neither the heredoc nor the single-quote
-reading. A case file that `cd`s into the suite, or finds its own folder any other way than `$(dirname ...)` (`${0%/*}`,
+runs a string (`eval`, `bash -c`, `trap`, `alias`) or sources a stream (`/dev/stdin`, `<(...)`, a here-string) gets neither the heredoc nor the single-quote
+reading. A case file that `cd`s or `pushd`es into the suite, or finds its own folder any other way than `$(dirname ...)` (`${0%/*}`,
 `realpath "$0"`, `__file__`), makes the script visible, and a case script naming `case.yaml` makes `case.yaml`
-visible. A trailing comment (code, then
-` # ...`, the code left byte for byte) counts as a comment deletion in a shell file and in a `case.yaml`, there
+visible. A literal heredoc's body counts as code once any case shell file names the file it writes on a line other than its opener or a plain `git add`, `rm` or `commit` (running, sourcing, renaming, linking or making it executable), and every body does when a case file runs a tool that executes files it finds (`make`, `npm`, `python`, `find`), points git's `hooksPath` anywhere but `/dev/null`, writes a heredoc into a hooks folder or to a name that is not literal, or redefines `cat`, `tee`, `PATH`, `BASH_ENV` or a sourced file; a file that sources anything gets no heredoc reading. A copy whose source is a
+helper's positional argument (`cp "$dir/$src"` with `src="$1"`) exposes nothing when every call site of the helper
+passes only literal arguments and none names the script or a folder holding it. A trailing comment (a `#` comment
+after code, the code left byte for byte) counts as a comment deletion in a shell file and in a `case.yaml`, there
 only when the file parses the same without it; a `case.yaml` edit that drops one is never a description-only edit.
 A `plugins/*/skills/*/evals/` file is not in the plugin's eval directory, so the agent can read it with the skill
 and its comments get no hidden exemption. A heredoc or quoted-string line stays content. A swap under `evals/`

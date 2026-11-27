@@ -31,11 +31,24 @@ LITERAL_HEREDOC_RE = re.compile(
     r"""^\s*(?:cat|tee)(?:\s+(?:>>?\s*)?[^\s<>|;&]+)*\s*<<-?\s*(['"])([A-Za-z_]\w*)\1"""
     r"""\s*(?:>>?\s*[^\s<>|;&]+\s*)?$"""
 )
+COMMAND_START = (
+    r"(?:^|[;&|({`)]|\$\(|<\(|>\(|!|\b(?:if|elif|then|do|else|while|until|coproc)\b"
+    r"|\b(?:exec|command|builtin|time|nohup|env|sudo|doas|su|xargs|nice|timeout|stdbuf|setsid"
+    r"|ionice|chroot|strace|busybox|chrt|taskset|unbuffer)\b"
+    r"""(?:\s+(?:-\S+(?:\s+[^\s-]\S*)?|\d\S*|'[^']*'|[A-Za-z_]\w*=\S*))*"""
+    r"""|(?:^|\s)[A-Za-z_]\w*\+?=(?:"[^"]*"|'[^']*'|[^\s"'])*\s)\s*"""
+)
 RUNS_STRING_RE = re.compile(
-    r"(?:^\s*|[;&|({]\s*|\b(?:then|do|else|exec|command|!)\s+)(?:eval|source|export|trap|alias|\.)\s"
+    COMMAND_START + r"(?:eval|trap|alias)(?=\s|$)"
+    r"|" + COMMAND_START + r"(?:source|\.)\s+(?:/dev/|<\(|-(?:\s|$)|[^\n]*<<)"
     r"|\|\s*(?:ba|z)?sh\b|\b(?:ba|z)?sh\s+(?:-[A-Za-z]+\s+)*-[A-Za-z]*c\b"
 )
-CD_WORD_RE = re.compile(r"(?:^|[;&|({]\s*|\b(?:then|do|else)\s+)cd\b")
+CD_WORD_RE = re.compile(COMMAND_START + r"(?:cd|pushd|popd)\b")
+SHADOWS_WRITER_RE = re.compile(
+    r"(?:^|[\s;&|({])(?:function\s+)?(?:cat|tee)\s*\(\s*\)|\b(?:function\s+(?:cat|tee)\b|alias\s+(?:cat|tee)=)"
+    r"|(?:^|[\s;&|(])(?:export\s+)?PATH\+?=|\benable\s+-f|\bexport\s+-f|\bBASH_ENV\b|\bENV="
+)
+SOURCES_RE = re.compile(COMMAND_START + r"(?:source|\.)(?=\s)")
 PLUGINS_FIELD_RE = re.compile(r"""^plugins:\s*\[\s*["'][^"']+["']\s*(?:,\s*["'][^"']+["']\s*)*\]\s*$""")
 SCRIPT_RUN_RE = re.compile(
     r"""^(?:\(\s*cd\s+(?P<cd>"[^"]*"|'[^']*'|[^\s;&|]+)\s*&&\s*)?"""
@@ -317,7 +330,7 @@ def _line_refs(line, base_dir, var_dirs, eval_norm, wide=None, tails=None):
 
 def runs_strings(lines, inside):
     """Some code line outside the heredoc and string lines `inside` (1-based) pipes into a shell,
-    runs a string (`eval`, `bash -c`, `trap`, `alias`), sources a file or exports a variable, so
+    runs a string (`eval`, `bash -c`, `trap`, `alias`) or sources a stream (`/dev/stdin`, `<(...)`, a here-string), so
     text this reading takes as literal may run."""
     return any(
         number not in inside and not line.lstrip().startswith("#") and RUNS_STRING_RE.search(line)
@@ -325,29 +338,69 @@ def runs_strings(lines, inside):
     )
 
 
-def literal_heredoc_lines(lines):
+def shadows_writers(lines, inside=frozenset()):
+    """Some code line outside `inside` (1-based) sources a file or redefines what `cat`, `tee` or
+    a child shell runs (a `cat` or `tee` function or alias, `PATH`, `BASH_ENV`, `export -f`)."""
+    return any(
+        number not in inside
+        and not line.lstrip().startswith("#")
+        and (SHADOWS_WRITER_RE.search(line) or SOURCES_RE.search(line))
+        for number, line in enumerate(lines, 1)
+    )
+
+
+def literal_heredoc_lines(lines, run=frozenset()):
     """0-based numbers of the body lines of each `cat` or `tee` heredoc with a quoted delimiter,
     which the shell writes out as literal text and never runs; an unterminated one counts none,
     and none count when the file's strings do not read cleanly, an opener sits in a string, or
-    the file pipes into a shell, sources, evaluates or exports anything."""
+    the file pipes into a shell, evaluates anything, sources any file (which may redefine `cat`),
+    or redefines `cat` or `tee` or the `PATH` that finds them. A heredoc writing a file named in
+    `run` (files the case may run) is not counted."""
     inside = no_run_text._string_block_lines(".sh", "\n".join(lines))
-    if inside is None or runs_strings(lines, inside):
+    if inside is None or runs_strings(lines, inside) or shadows_writers(lines, inside):
         return set()
-    found, body, closer = set(), [], None
+    found, body, closer, counted = set(), [], None, False
     for number, line in enumerate(lines):
         if closer is None and number + 1 in inside:
             continue
         if closer is not None:
             if line.lstrip("\t") == closer:
-                found.update(body)
+                found.update(body if counted else ())
                 closer = None
             else:
                 body.append(number)
             continue
         opener = LITERAL_HEREDOC_RE.match(line)
         if opener:
+            names = _heredoc_names(line, opener)
             closer, body = opener.group(2), []
+            counted = names is not None and not names & run
     return found
+
+
+def _heredoc_names(line, opener):
+    """The file names the heredoc `opener` on `line` writes to, or None when one is not literal."""
+    head = line[: line.index("<<")] + " " + line[opener.end(2) + 1 :]
+    if re.match(r"\s*tee\b", head):
+        words = [w for w in head.split()[1:] if not w.startswith(("-", ">"))]
+    else:
+        words = re.findall(r">>?\s*([^\s<>|;&]+)", head)
+    names = {word.strip("\"'").rsplit("/", 1)[-1] for word in words}
+    return names if names and all(n and "$" not in n and "`" not in n for n in names) else None
+
+
+def literal_heredoc_targets(lines):
+    """The file names each `cat` or `tee` literal heredoc writes to, or None when one has a target
+    whose name is not literal (a bare variable) or none at all."""
+    names = set()
+    for line in lines:
+        opener = LITERAL_HEREDOC_RE.match(line)
+        if opener:
+            found = _heredoc_names(line, opener)
+            if found is None:
+                return None
+            names |= found
+    return names
 
 
 def binding_lines(fpath, text, target):
@@ -384,19 +437,23 @@ def _plain_cd_run(shape, base_dir, var_dirs, eval_norm):
     return top is not None and not re.search(r"[;&|()]", top)
 
 
-def _suite_ref_sites(fpath, text, eval_norm, visibility=False):
+def _suite_ref_sites(fpath, text, eval_norm, visibility=False, inert_heredocs=True):
     """Each reference `fpath` makes into the suite: (line, refs, runs, rest, rest_refs, wide,
     narrow), where `runs` is the one script a shell line or a `scaffold_script` value executes,
     `rest` the line after that script's path, `wide` whether it names the suite folder or one
     above, and `narrow` maps each ref every occurrence of which names only paths ending in one of
     its tails (`_quoted_tail`) to those tails. With `visibility`, the body of a literal `cat` or
     `tee` heredoc is skipped, and so is a top-level `plugins: [...]` line of a `case.yaml` or
-    `prompt.md` naming the plugin the suite belongs to, which is the plugin loaded by default."""
+    `prompt.md` naming the plugin the suite belongs to, which is the plugin loaded by default.
+    `inert_heredocs=False` reads every such body, and a frozenset of file names reads the bodies
+    writing those files, for a case that may run what one writes."""
     base_dir = os.path.dirname(fpath)
     lines = text.splitlines()
     var_dirs, assign_lines = _shell_var_dirs(lines, base_dir)
     is_shell = os.path.splitext(fpath)[1].lower() in HIDDEN_SCRIPT_EXTS
-    skipped = literal_heredoc_lines(lines) if visibility and is_shell else set()
+    run = inert_heredocs if isinstance(inert_heredocs, frozenset) else frozenset()
+    skip = visibility and is_shell and inert_heredocs is not False
+    skipped = literal_heredoc_lines(lines, run) if skip else set()
     own_plugin = os.path.basename(fpath) in ("case.yaml", "prompt.md") and visibility
     sites = []
     for line_no, line in enumerate(lines):
@@ -457,9 +514,9 @@ def _extract_suite_refs(fpath, text, eval_norm):
     return {ref for site in _suite_ref_sites(fpath, text, eval_norm) for ref in site[1]}
 
 
-def _case_suite_files(case, eval_norm, visibility=False):
+def _case_suite_files(case, eval_norm, visibility=False, inert_heredocs=True):
     """{path: (text, sites)} for every file of `case` and every suite file they reach, with
-    `visibility` passed to `_suite_ref_sites`."""
+    `visibility` and `inert_heredocs` passed to `_suite_ref_sites`."""
     queue = collections.deque()
     for dirpath, dirnames, filenames in os.walk(case.abs_dir):
         dirnames[:] = sorted(
@@ -479,7 +536,9 @@ def _case_suite_files(case, eval_norm, visibility=False):
         if fpath in files:
             continue
         text = _read_text_safe(fpath)
-        sites = _suite_ref_sites(fpath, text, eval_norm, visibility) if text else []
+        sites = (
+            _suite_ref_sites(fpath, text, eval_norm, visibility, inert_heredocs) if text else []
+        )
         files[fpath] = (text, sites)
         for site in sites:
             for ref_path in site[1]:

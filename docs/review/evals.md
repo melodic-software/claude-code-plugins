@@ -82,7 +82,7 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   eval dir itself is hidden from the agent",
   [case-authoring.md:56-57](../../plugins/evals/skills/plugin-eval/reference/case-authoring.md), and a
   probe of 150 scaffolds found none of their non-heredoc comments in any workspace file or git
-  history). A trailing comment (code, then ` # ...`, the code left byte for byte) in a shell file
+  history). A trailing comment (a `#` comment after code, the code left byte for byte) in a shell file
   or a `case.yaml` counts like a whole comment line under that rule, in `case.yaml` only when the
   file parses the same without it, and a `case.yaml` edit that drops one is never a
   description-only edit. The static check sets aside only these reference forms: the body of a
@@ -90,15 +90,21 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   plugin, a double-quoted copy whose literal ending neither the script's name nor a folder holding
   it can match, a line that only binds a variable to the script's exact path that is only run, a
   `(cd <dir> && bash <script>)` run whose `<dir>` is outside the suite, a line that only prints the
-  script's name, and `$0` inside an `awk`, `sed`, `grep` or `jq` program; a file that pipes into a
-  shell, runs a string, sources or exports gets none of the heredoc or quote readings, and a case
-  file that `cd`s into the suite or finds its own folder in an unresolved form keeps the script
-  visible (owner, 2026-11-27, "Go with recommendations": extend the
-  tooling so more eval comment deletions are proven hidden, sweep what it proves, and bring back
-  the rest with an exact case and run count). A `plugins/*/skills/*/evals/` file is not in the
-  plugin's eval directory, the only one a run hides
+  script's name, `$0` inside an `awk`, `sed`, `grep` or `jq` program, and a `cp "$dir/$src"` whose
+  `src` is a positional argument when every call of that helper passes only literal arguments and
+  none names the script or a folder holding it. A file that pipes into a shell, runs a string or
+  sources a stream gets none of the heredoc or quote readings; a literal heredoc's body counts as code once any case shell file names the file it writes on a line other than its opener or a plain `git add`, `rm` or `commit` (running, sourcing, renaming, linking or making it executable), and every body does when a case file runs a tool that executes files it finds (`make`, `npm`, `python`, `find`), points git's `hooksPath` anywhere but `/dev/null`, writes a heredoc into a hooks folder or to a name that is not literal, or redefines `cat`, `tee`, `PATH`, `BASH_ENV` or a sourced file; a file that sources anything gets no heredoc reading; and a case file that `cd`s or `pushd`es into the suite or
+  finds its own folder in an unresolved form keeps the script visible (owner, 2026-11-27, "Go with
+  recommendations": extend the tooling so more eval comment deletions are proven hidden, sweep
+  what it proves, and bring back the rest with an exact case and run count). A
+  `plugins/*/skills/*/evals/` file is not in the plugin's eval directory, the only one a run hides
   ([plugin-evals](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated)), so the
-  agent can read it with the skill and its comments get no hidden exemption.
+  agent can read it with the skill and its comments get no hidden exemption. Deleting whole-line
+  `#` or `;` comments from an `.editorconfig` anywhere under an `evals/` folder runs nothing,
+  whether or not the agent can see the folder; any other `.editorconfig` edit keeps the rules
+  above (owner, 2026-11-27, "Go with recommendations" on: "(a) exempt comment-only deletions in
+  `.editorconfig` files under eval folders, so deleting them runs nothing; an editor-settings
+  comment can't change what the agent does").
 - No run for a description-only case edit, an additive skill edit (added instructions can still
   lower adherence to the rest, so `select` lists its cases as affected but not run, Q8), a restated upstream fact swapped
   for a pointer to its source ([skills-and-agents.md](skills-and-agents.md), C3), or a repair that
