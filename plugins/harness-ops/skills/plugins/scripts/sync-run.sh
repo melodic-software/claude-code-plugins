@@ -909,14 +909,54 @@ path_row() {
     "$j_id" "$j_sc" "$j_path" "$j_old" "$j_cat" "$j_rlabel" "$j_home" "$j_result" "$j_reason" "$3" "$call"
 }
 
+PU_DIR="" PU_BEFORE="" PU_STOPPED="" PU_OUTCOME="" PU_REASON=""
+path_update_reset() { PU_DIR="" PU_BEFORE="" PU_STOPPED=""; }
+path_update() {
+  local cwd="$1" dir="$1" shown="$2" id="$3" scope="$4" label after=""
+  PU_OUTCOME="" PU_REASON=""
+  [[ "$MODE" == "sync" ]] || dir=""
+  if [[ -n "$dir" && "$dir" == "$PU_STOPPED" ]]; then
+    PU_OUTCOME=not_tried
+    PU_REASON="not tried: the .claude/ settings in this path changed after an earlier call"
+    return 0
+  fi
+  if [[ -n "$dir" && "$dir" != "$PU_DIR" ]]; then
+    PU_DIR="$dir"
+    settings_state PU_BEFORE "$dir"
+  fi
+  label="claude plugin update $id -s $scope --json"
+  if [[ -n "$shown" ]]; then
+    label="(cd \"$shown\" && $label)"
+    CLI_CWD="$cwd"
+  fi
+  cli_call "$label" plugin update "$id" -s "$scope" --json
+  CLI_CWD=""
+  if [[ "$CLI_PREDICTED" == "true" ]]; then
+    PU_OUTCOME=would
+    return 0
+  fi
+  [[ -z "$dir" ]] || settings_state after "$dir"
+  if [[ -n "$dir" && "$after" != "$PU_BEFORE" ]]; then
+    PU_STOPPED="$dir"
+    PU_OUTCOME=stopped
+    PU_REASON="the .claude/ settings in this path changed after this call, so the path was stopped"
+  elif ((CLI_RC != 0)); then
+    PU_OUTCOME=failed
+    PU_REASON=$(cli_outcome_line "$CLI_OUT")
+  else
+    PU_OUTCOME=called
+  fi
+}
+
+# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+POST_RECORD_DEF='def post_record($p; $id; $sc; $path):
+    first($p.installed[]? | select(.id == $id and .scope == $sc
+      and (if $path == null then ($sc == "user" or .currentProject == true) else .projectPath == $path end)));'
+
 other_paths_step() {
   local mp="$1"
   local cands="$RUN_DIR/ids.other-paths.$mp.txt"
-  local path id scope old cat rlabel home fs reason
-  local before=""
-  local after=""
-  local cur=""
-  local stopped=""
+  local path id scope old cat rlabel home
   if ! project_ids update-candidates-other-paths "$RUN_DIR/mid.$mp.json" "$cands"; then
     mp_error "other-paths projection failed, step not run: $(proj_err)"
     return 0
@@ -926,36 +966,17 @@ other_paths_step() {
       >"$RUN_DIR/.other-paths-skipped.$mp.jsonl" || mp_error "other-paths count failed"
     return 0
   fi
+  path_update_reset
   while IFS=$'\t' read -r id scope path old cat home rlabel; do
     [[ -n "$id" ]] || continue
-    fs="${path//\\//}"
-    if [[ "$path" != "$cur" ]]; then
-      cur="$path"
-      settings_state before "$fs"
-    fi
-    if [[ "$path" == "$stopped" ]]; then
-      PATH_ROWS+=("$(path_row failed "not tried: the .claude/ settings in this path changed after an earlier call" true)")
-      continue
-    fi
-    CLI_CWD="$fs"
-    cli_call "(cd \"$path\" && claude plugin update $id -s $scope --json)" plugin update "$id" -s "$scope" --json
-    CLI_CWD=""
-    if [[ "$CLI_PREDICTED" == "true" ]]; then
-      PATH_ROWS+=("$(path_row would "" false call)")
-      continue
-    fi
-    settings_state after "$fs"
-    if [[ "$after" != "$before" ]]; then
-      stopped="$path"
-      PATH_ROWS+=("$(path_row failed "the .claude/ settings in this path changed after this call, so the path was stopped" true call)")
-      continue
-    fi
-    if ((CLI_RC != 0)); then
-      reason=$(cli_outcome_line "$CLI_OUT")
-      PATH_ROWS+=("$(path_row failed "exit $CLI_RC: $reason" false call)")
-      continue
-    fi
-    PATH_ROWS+=("$(path_row called "" false call)")
+    path_update "${path//\\//}" "$path" "$id" "$scope"
+    case "$PU_OUTCOME" in
+      not_tried) PATH_ROWS+=("$(path_row failed "$PU_REASON" true)") ;;
+      stopped) PATH_ROWS+=("$(path_row failed "$PU_REASON" true call)") ;;
+      would) PATH_ROWS+=("$(path_row would "" false call)") ;;
+      failed) PATH_ROWS+=("$(path_row failed "exit $CLI_RC: $PU_REASON" false call)") ;;
+      *) PATH_ROWS+=("$(path_row called "" false call)") ;;
+    esac
   done <"$cands"
 }
 
@@ -972,13 +993,11 @@ finalize_other_paths() {
   [[ -f "$skipped" ]] || skipped=/dev/null
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to result -c -n --slurpfile rows "$rows_file" --slurpfile post "$post" --slurpfile pre "$pre" \
-    --slurpfile skipped "$skipped" "$TRIPLE_DEF"'
+    --slurpfile skipped "$skipped" "$TRIPLE_DEF$POST_RECORD_DEF"'
     ($post[0] | if type == "object" then . else {} end) as $q
     | ($pre[0] | if type == "object" then . else {} end) as $p
     | [$rows[0][] | select(.result == "called")
-       | . as $r
-       | . + {new: (first($q.installed[]? | select(.id == $r.id and .scope == $r.scope
-                     and .projectPath == $r.path) | .version) // null)}
+       | . + {new: (post_record($q; .id; .scope; .path).version // null)}
        | . + {moved: ((.new | triple) != null and (.old | triple) < (.new | triple))}] as $called
     | {updated: [$called[] | select(.moved) | {id, scope, path, old, new}],
        not_moved: [$called[] | select((.moved | not) and (.record_label != "" or .home))
@@ -1455,7 +1474,7 @@ step_marketplace_update() {
 }
 
 step_in_repo_update() {
-  local mp="$1" rc id scope old new result reason
+  local mp="$1" rc id scope old new result
   fleet_read "$mp" "$RUN_DIR/pre.$mp.json" pre || return 2
   jq_to CATALOG_LAST_UPDATED -r '.marketplace.lastUpdated // ""' "$RUN_DIR/pre.$mp.json"
   jq_to PROJECT_ROOT_JSON -c '.project_root' "$RUN_DIR/pre.$mp.json"
@@ -1482,50 +1501,33 @@ step_in_repo_update() {
             else "" end' "$RUN_DIR/pre.$mp.json"
     fi
     local ir_root=""
-    local ir_before=""
-    local ir_after=""
-    local ir_stopped=0
     jq_to ir_root -r '.project_root // ""' "$RUN_DIR/pre.$mp.json"
     ir_root="${ir_root//\\//}"
-    if [[ "$MODE" == "sync" && -n "$ir_root" ]]; then
-      settings_state ir_before "$ir_root"
-    fi
+    path_update_reset
     while IFS=$'\t' read -r id scope old; do
       [[ -n "$id" ]] || continue
-      if ((ir_stopped == 1)); then
-        ir_stopped_add "$id" "$scope" "$ir_root" \
-          "not tried: the .claude/ settings in this path changed after an earlier call"
-        continue
-      fi
       if [[ -n "$live_path" ]]; then
         IR_LIVE+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" --arg path "$live_path" \
           '{id: $id, scope: $sc, installed: $old, path: $path}')")
         continue
       fi
-      cli_call "claude plugin update $id -s $scope --json" plugin update "$id" -s "$scope" --json
-      if [[ "$CLI_PREDICTED" == "true" ]]; then
-        IR_WOULD+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$id" --arg sc "$scope" --arg old "$old" \
-          '$call + {id: $id, scope: $sc, installed: $old}')")
-        continue
-      fi
-      if [[ -n "$ir_root" ]]; then
-        settings_state ir_after "$ir_root"
-        if [[ "$ir_after" != "$ir_before" ]]; then
-          ir_stopped=1
-          ir_stopped_add "$id" "$scope" "$ir_root" \
-            "the .claude/ settings in this path changed after this call, so the path was stopped"
-          continue
-        fi
-      fi
-      if ((CLI_RC != 0)); then
-        reason=$(cli_outcome_line "$CLI_OUT")
-        IR_FAILED+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$id" --arg sc "$scope" \
-          --arg reason "$reason" '$call + {id: $id, scope: $sc, reason: $reason}')")
-        continue
-      fi
-      cli_update_result result new "$CLI_OUT"
-      printf 'in_repo\t%s\t%s\t%s\t%s\t%s\n' "$id" "$scope" "${old:--}" "${new:--}" "$result" \
-        >>"$RUN_DIR/moves.$mp.tsv"
+      path_update "$ir_root" "" "$id" "$scope"
+      case "$PU_OUTCOME" in
+        not_tried | stopped) ir_stopped_add "$id" "$scope" "$ir_root" "$PU_REASON" ;;
+        would)
+          IR_WOULD+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$id" --arg sc "$scope" --arg old "$old" \
+            '$call + {id: $id, scope: $sc, installed: $old}')")
+          ;;
+        failed)
+          IR_FAILED+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$id" --arg sc "$scope" \
+            --arg reason "$PU_REASON" '$call + {id: $id, scope: $sc, reason: $reason}')")
+          ;;
+        *)
+          cli_update_result result new "$CLI_OUT"
+          printf 'in_repo\t%s\t%s\t%s\t%s\t%s\n' "$id" "$scope" "${old:--}" "${new:--}" "$result" \
+            >>"$RUN_DIR/moves.$mp.tsv"
+          ;;
+      esac
     done <"$RUN_DIR/ids.pre.$mp.txt"
   fi
   return 0
@@ -1890,16 +1892,13 @@ finalize_moves() {
   [[ -f "$RUN_DIR/moves.$mp.tsv" ]] || return 0
   if [[ -f "$post" ]]; then
     # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-    jq_to joined -r --rawfile moves "$RUN_DIR/moves.$mp.tsv" '
+    jq_to joined -r --rawfile moves "$RUN_DIR/moves.$mp.tsv" "$POST_RECORD_DEF"'
       . as $p
       | $moves | gsub("\r"; "") | split("\n")[] | select(length > 0)
-      | . as $line | split("\t") as $f | $f[1] as $id | $f[2] as $sc
-      | [$line,
-         (first($p.installed[]? | select(.id == $id and .scope == $sc
-            and ($sc == "user" or .currentProject == true)) | .version) // "" | tostring),
-         ($p.catalog_versions[$id]? // "" | tostring),
-         (first($p.installed[]? | select(.id == $id and .scope == $sc and .currentProject == true)
-            | .label) // "" | tostring)]
+      | . as $line | split("\t") as $f | $f[1] as $id
+      | (post_record($p; $id; $f[2]; null) // {}) as $r
+      | [$line, ($r.version // "" | tostring), ($p.catalog_versions[$id]? // "" | tostring),
+         (if $r.currentProject == true then $r.label // "" else "" end | tostring)]
       | join("\u001f")' "$post" 2>/dev/null || joined=""
   fi
   [[ -n "$joined" ]] || joined=$(<"$RUN_DIR/moves.$mp.tsv")

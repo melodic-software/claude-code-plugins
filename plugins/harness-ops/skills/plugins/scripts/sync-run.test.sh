@@ -3117,6 +3117,19 @@ assert_eq "guard: an untried present pin stays counted for converge" "1" \
 report=$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$out")
 assert_contains "guard: the failure is under Action needed" "$report" "update stopped in"
 
+paths_fixture
+EXTRA_ENV=(HOME="$case_dir/home" CLAUDE_STUB_NEW_VERSION=2.0.0 CLAUDE_STUB_KEY_CWD=1
+  CLAUDE_STUB_INEFFECTIVE_PATHS="$case_dir/plain" CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" --update-other-paths)
+assert_eq "other paths: a called record that did not move, outside a worktree or home, is a failure" \
+  "alpha@market1 local|beta@market1 local" \
+  "$(jq -r '[.marketplaces[0].other_paths.failed[] | select(.stopped == false) | "\(.id) \(.scope)"] | sort | join("|")' <<<"$out")"
+assert_eq "other paths: and its reason names the version left behind" \
+  "the record did not move: still at 1.0.0, the catalog reads 2.0.0" \
+  "$(jq -r '.marketplaces[0].other_paths.failed[0].reason' <<<"$out")"
+assert_eq "other paths: the paths that did move are still read back as updated" "4" \
+  "$(jq -r '.marketplaces[0].other_paths.updated | length' <<<"$out")"
+
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 2.0.0
