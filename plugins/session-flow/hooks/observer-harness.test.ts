@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { commandKey, errorKey, harness, harnessInitial, type HarnessEvent, type HarnessState, hookRunsFrom, p95, sessionCommand, type Where } from './observer-harness.ts'
+import { codify, commandKey, errorKey, harness, harnessInitial, type HarnessEvent, type HarnessState, hookRunsFrom, p95, sessionCommand, type Where } from './observer-harness.ts'
 import { fixText, ledgerSection, noteFor, summarize } from './observer-live.ts'
 import { initial, readOptions, step } from './observer-machine.ts'
 import HOOK_LOG from './observer-harness.hook-log.ts'
@@ -229,4 +229,14 @@ test('summarize shows harness findings beside the live checks', () => {
   expect(summarize(rows).split('\n').at(-1)).toBe('harness: hook-latency 1, cache-miss 1 reported; 2 cache miss(es) seen')
   expect(summarize([{ harness: 'cache-miss', cause: 'idle' }])).toBe('no checks yet\nharness: none reported; 1 cache miss(es) seen')
   expect(summarize([])).toBe('no checks yet')
+})
+
+test('codify reports a rule at the threshold across two or more sessions, never within one session or below it', () => {
+  const rows = (sids: string[], rule = 'R6 merge only after the verdict') => sids.map(sid => ({ sid, outcome: 'shown', rule }))
+  const f = codify([...rows(['a', 'b']), ...rows(['c'], 'r6 merge only after the verdict.')], 'R6 merge only after the verdict', 3, WSL)
+  expect(f?.check).toBe('codify')
+  expect(f?.finding.fix).toEqual({ route: 'session', how: 'codify it into a check in a dedicated session', command: `cd '/srv/repo' && claude -n codify-r6-merge-only-after-the-verdict "/corrections:codify R6 merge only after the verdict"` })
+  expect(codify(rows(['a', 'a', 'a']), 'R6 merge only after the verdict', 3, WSL)).toBeUndefined()
+  expect(codify(rows(['a', 'b']), 'R6 merge only after the verdict', 3, WSL)).toBeUndefined()
+  expect(codify([...rows(['a', 'b', 'c']), { sid: 'd', outcome: 'deduped', rule: 'R6 merge only after the verdict' }], 'R6 merge only after the verdict', 0, WSL)).toBeUndefined()
 })

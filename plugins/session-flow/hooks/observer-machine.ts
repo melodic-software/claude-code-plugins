@@ -1,5 +1,6 @@
 import {
   AUTO_NOTE,
+  CATEGORIES,
   CHECK_EVERY,
   CLEAR_AFTER_PROMPTS,
   FIELD_MAX,
@@ -46,7 +47,16 @@ export type Options = HarnessOptions & {
   gateTimeoutMs: number
   gateRefusals: number
   requestCheck: boolean
+  skillCheck: boolean
+  improvementCheck: boolean
+  deferKinds: readonly string[]
+  codifyThreshold: number
 }
+
+const KINDS: readonly string[] = [...CATEGORIES, 'harness']
+
+export const optionalKinds = (o: Options) =>
+  (['request', 'skill', 'improvement'] as const).filter(k => (k === 'request' ? o.requestCheck : k === 'skill' ? o.skillCheck : o.improvementCheck))
 
 export const GATE_PATTERN = String.raw`\b(git\s+push|gh\s+pr\s+(create|merge|comment|review)|gh\s+issue\s+(create|comment)|gh\s+api\b.*\s(-X|--method)\s*(POST|PATCH|PUT|DELETE))\b`
 
@@ -93,6 +103,10 @@ export const readOptions = (raw: Readonly<Record<string, unknown>>): { options: 
     gateTimeoutMs: int('observer_gate_timeout_seconds', 30, 1) * 1000,
     gateRefusals: int('observer_gate_refusals', 1, 0),
     requestCheck: bool('observer_request_check', false),
+    skillCheck: bool('observer_skill_check', false),
+    improvementCheck: bool('observer_improvement_check', false),
+    deferKinds: pick('observer_defer_kinds', [], v => typeof v === 'string' && v.split(',').every(k => k.trim() === '' || KINDS.includes(k.trim())), (v: string) => v.split(',').map(k => k.trim()).filter(Boolean)),
+    codifyThreshold: int('observer_codify_threshold', 3, 0),
     harnessCheck: bool('observer_harness_check', false),
     hookLogDir: text('observer_hook_log_dir', '.observability/claude'),
     hookP95Ms: int('observer_hook_p95_ms', 1000, 1),
@@ -131,6 +145,7 @@ export type State = {
   lastTurnWasObserver: boolean
   changed: boolean
   refused: Readonly<Record<string, number>>
+  deferred: readonly Card[]
 }
 
 export const initial = (): State => ({
@@ -153,6 +168,7 @@ export const initial = (): State => ({
   lastTurnWasObserver: false,
   changed: false,
   refused: {},
+  deferred: [],
 })
 
 export type CheckRequest = { trigger: Trigger; turnId: string; step: number; gen: number; open: Card | null; source?: string }
@@ -175,7 +191,7 @@ export type Event =
   | { kind: 'finding-accepted'; req: CheckRequest; finding: Finding; ledger: string | undefined }
   | { kind: 'check-finished' }
   | { kind: 'prompt-submitted'; byPerson: boolean; ours: boolean; paused: boolean; typedPast: number }
-  | { kind: 'delivered'; cardId: number; delivery: Delivery; chars: number; stepsLate?: number; error?: string }
+  | { kind: 'delivered'; cardId: number; delivery: Delivery; chars: number; stepsLate?: number; deferred?: number; error?: string }
   | { kind: 'command'; arg: 'on' | 'off' }
   | { kind: 'noted'; ok: boolean }
   | { kind: 'send' }
@@ -193,7 +209,7 @@ export type Effect =
   | { kind: 'store'; key: string; value: unknown }
   | { kind: 'record'; row: object }
   | { kind: 'ledger'; path: string; line: LedgerKind; finding: Finding; detail?: string }
-  | { kind: 'deliver'; cardId: number; delivery: Delivery; text: string; stepsLate?: number }
+  | { kind: 'deliver'; cardId: number; delivery: Delivery; text: string; stepsLate?: number; deferred?: number }
   | { kind: 'drop'; reason: string }
   | { kind: 'abort'; turnId: string }
   | { kind: 'gate-fork'; command: string }
@@ -216,6 +232,8 @@ const answered = (s: State, answer: string, toast?: string): Result => ({
   ],
 })
 
+const undefer = (s: State, card: Card | null): State => (card === null ? s : { ...s, deferred: s.deferred.filter(c => c.id !== card.id) })
+
 const failure = ({ reason, lengths }: ParseFailure): ParseFailure => (lengths ? { reason, lengths } : { reason })
 
 const replied = (s: State, e: Extract<Event, { kind: 'check-replied' }>, o: Options): Result => {
@@ -236,7 +254,7 @@ const replied = (s: State, e: Extract<Event, { kind: 'check-replied' }>, o: Opti
   const effects: Effect[] = []
   if (isCurrent && open !== null && s.card?.id === open.id && isResolved(text)) {
     effects.push({ kind: 'ledger', path: open.ledger, line: 'resolved', finding: open.finding }, { kind: 'record', row: { answer: 'resolved' } }, { kind: 'invalidate' })
-    state = { ...state, card: null }
+    state = { ...undefer(state, open), card: null }
   }
   if (!isCurrent) return finish(state, 'stale', effects, { held: parsed.kind === 'finding' })
   if (parsed.kind === 'none') return finish(state, 'none', effects)
@@ -251,7 +269,7 @@ export const step = (s: State, e: Event, o: Options): Result => {
     case 'session-started':
       return none({ ...s, ended: false, on: true })
     case 'session-changed':
-      return none({ ...s, card: null })
+      return none({ ...s, card: null, deferred: [] })
     case 'session-ended':
       return none({ ...s, ended: true, on: false })
     case 'turn-started': {
@@ -281,6 +299,8 @@ export const step = (s: State, e: Event, o: Options): Result => {
       const times = s.refused[e.command] ?? 0
       const row = { trigger: 'gate', latencyMs: e.latencyMs, usage: e.usage, ...(times > 0 ? { repeat: true } : {}) }
       const parsed = e.reply.isAnswered ? parseReply(e.reply.text, o.fieldMax) : undefined
+      if (parsed?.kind === 'finding' && o.deferKinds.includes(parsed.value.category))
+        return { state: s, effects: [{ kind: 'record', row: { ...row, outcome: 'deferred', finding: parsed.value.finding, category: parsed.value.category } }] }
       if (parsed?.kind === 'finding' && times < o.gateRefusals)
         return {
           state: { ...s, refused: { ...s.refused, [e.command]: times + 1 } },
@@ -304,7 +324,12 @@ export const step = (s: State, e: Event, o: Options): Result => {
       const state = { ...s, turnRunning: false, lastTurnWasObserver: wasObserver, observerTurnId: null }
       const effects: Effect[] = wasObserver ? [{ kind: 'record', row: { observerTurn: e.turnId, matched: s.observerTurnMatched, durationMs: e.durationMs, usage: e.usage } }] : []
       if (s.on && o.turnEndCheck && !e.isAborted && s.tools > 0) effects.push({ kind: 'check', trigger: 'turn-end', turnId: e.turnId, step: -1 })
-      return { state, effects }
+      if (wasObserver || state.deferred.length === 0 || s.submitWaiting) return { state, effects }
+      if (!s.on || !o.autoSend) return { state: { ...state, deferred: [] }, effects }
+      const text = state.deferred.map(c => noteFor(c.finding, 'plugin', o.autoNote)).join('\n\n')
+      const last = state.deferred[state.deferred.length - 1]!
+      effects.push({ kind: 'deliver', cardId: last.id, delivery: 'submit', text, deferred: state.deferred.length })
+      return { state: { ...state, deferred: [], submitWaiting: true, pendingSubmit: text }, effects }
     }
     case 'check-requested':
       if (s.inFlight || e.paused) return none()
@@ -318,7 +343,9 @@ export const step = (s: State, e: Event, o: Options): Result => {
       const card: Card = { id: s.nextCard, finding: e.finding, ledger: e.ledger, source, promptsSurvived: 0, isOpen: false }
       const state = { ...s, card, nextCard: s.nextCard + 1 }
       const effects: Effect[] = [{ kind: 'invalidate' }]
-      if (o.autoSend && s.on && e.finding.fix?.route !== 'session') {
+      if (o.autoSend && s.on && e.finding.fix?.route !== 'session' && s.turnRunning && o.deferKinds.includes(e.finding.category)) {
+        state.deferred = [...s.deferred, card]
+      } else if (o.autoSend && s.on && e.finding.fix?.route !== 'session') {
         const delivery: Delivery = !s.turnRunning && !s.submitWaiting && !s.lastTurnWasObserver ? 'submit' : 'append'
         const text = noteFor(card.finding, 'plugin', o.autoNote)
         if (delivery === 'submit') Object.assign(state, { submitWaiting: true, pendingSubmit: text })
@@ -334,7 +361,7 @@ export const step = (s: State, e: Event, o: Options): Result => {
           state: e.delivery === 'submit' ? { ...s, submitWaiting: false, pendingSubmit: null, nextTurnIsObserver: false } : s,
           effects: [{ kind: 'record', row: { answer: 'auto_send_failed', delivery: e.delivery, error: e.error } }],
         }
-      const effects: Effect[] = [{ kind: 'record', row: { answer: 'auto_sent', delivery: e.delivery, chars: e.chars, ...(e.stepsLate === undefined ? {} : { stepsLate: e.stepsLate }) } }]
+      const effects: Effect[] = [{ kind: 'record', row: { answer: 'auto_sent', delivery: e.delivery, chars: e.chars, ...(e.stepsLate === undefined ? {} : { stepsLate: e.stepsLate }), ...(e.deferred === undefined ? {} : { deferred: e.deferred }) } }]
       if (card === null) return { state: s, effects }
       effects.push({ kind: 'ledger', path: card.ledger, line: 'auto-sent', finding: card.finding, detail: e.delivery }, { kind: 'invalidate' })
       return { state: { ...s, card: { ...card, sent: e.delivery } }, effects }
@@ -360,7 +387,7 @@ export const step = (s: State, e: Event, o: Options): Result => {
       }
     }
     case 'command': {
-      const state = e.arg === 'on' ? { ...s, on: !s.ended } : s
+      const state = e.arg === 'on' ? { ...s, on: !s.ended } : { ...s, deferred: [] }
       const pause: Effect = { kind: 'store', key: 'paused', value: e.arg === 'off' }
       if (e.arg === 'off' && s.card !== null) {
         const r = answered(state, 'dismissed')
@@ -372,20 +399,20 @@ export const step = (s: State, e: Event, o: Options): Result => {
       return s.card === null ? none() : answered(s, 'noted', e.ok ? 'observer: noted in the running-retro ledger' : `observer: could not write ${s.card.ledger}`)
     case 'send': {
       if (s.card === null) return none()
-      const r = answered(s, 'sent')
+      const r = answered(undefer(s, s.card), 'sent')
       return { state: r.state, effects: [{ kind: 'fill', text: noteFor(s.card.finding, 'person', o.sendNote) }, ...r.effects] }
     }
     case 'dispute': {
       if (s.card === null) return none()
       const { finding, ledger } = s.card
-      const r = answered(s, 'disputed', 'observer: disputed; it will not be reported again')
+      const r = answered(undefer(s, s.card), 'disputed', 'observer: disputed; it will not be reported again')
       return { state: r.state, effects: [{ kind: 'store', key: 'disputed', value: remember(e.disputed, finding.finding, o.listMax) }, { kind: 'ledger', path: ledger, line: 'disputed', finding }, ...r.effects] }
     }
     case 'why':
       return s.card === null ? none() : { state: { ...s, card: { ...s.card, isOpen: !s.card.isOpen } }, effects: [{ kind: 'invalidate' }] }
     case 'dismiss': {
       if (s.card === null) return none()
-      const r = answered({ ...s, dismissed: s.card.finding }, 'dismissed')
+      const r = answered({ ...undefer(s, s.card), dismissed: s.card.finding }, 'dismissed')
       return { state: { ...r.state, asked: true }, effects: [...r.effects, { kind: 'after', ms: o.askedMs, event: { kind: 'asked-expired' } }, { kind: 'invalidate' }] }
     }
     case 'asked-expired':

@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "10.12.1",
+  "version": "10.13.0",
   "license": "MIT",
   "engines": {
     "claude-code": ">=2.1.331"
@@ -139,6 +139,31 @@
       "title": "Observer request check",
       "description": "Add a request category to the live checks: a skipped or unanswered part of the person's latest request, or work drifting from the goal the session stated. Off by default.",
       "default": false
+    },
+    "observer_skill_check": {
+      "type": "boolean",
+      "title": "Observer skill check",
+      "description": "Add a skill category to the live checks: work done by hand where a listed skill or written rule assigns it to a skill, or a skill run that missed a case, ran inefficiently or skipped its Next step. A repository's observer.skill_check wins over this. Off by default.",
+      "default": false
+    },
+    "observer_improvement_check": {
+      "type": "boolean",
+      "title": "Observer improvement check",
+      "description": "Add an improvement category to the live checks: a step that ran far longer than it should, a bug or failure seen and not raised, or work against a principle the repository's loaded docs state. A repository's observer.improvement_check wins over this. Off by default.",
+      "default": false
+    },
+    "observer_defer_kinds": {
+      "type": "string",
+      "title": "Observer deferred kinds",
+      "description": "Comma-separated finding categories that auto-send holds until the turn ends instead of appending mid-turn, such as improvement; they are written to the ledger at once. A repository's observer.defer_kinds wins over this. Empty by default.",
+      "default": ""
+    },
+    "observer_codify_threshold": {
+      "type": "number",
+      "title": "Observer codify threshold",
+      "description": "With observer_harness_check on, once findings citing the same rule reach this count across two or more sessions, report one finding that suggests a dedicated /corrections:codify session for it; 0 turns it off. A repository's observer.codify_threshold wins over this. Default 3.",
+      "default": 3,
+      "min": 0
     },
     "observer_harness_check": {
       "type": "boolean",

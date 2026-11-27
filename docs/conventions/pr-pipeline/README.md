@@ -205,7 +205,7 @@ not a lane, such as `maintenance-measure-skill-edit-pass` and `maintenance-scan-
 
 A lane section's `enabled: false` turns every slot of the lane off, and `every-days` (default 1) is
 how many days a scheduled lane with a cadence gate waits, counted from its last run whose `Scan` job
-succeeded. `maintenance-scan-architecture` ships off. Its gate job
+succeeded. `maintenance-scan-architecture` is on. Its gate job
 (`.github/scripts/maintenance-scan-architecture/gate.mjs`) reads both keys and `find_open_item_cap`
 from the improvement config cascade (default 5). Before any API read it stops a run as `lane-off`
 when the lane is off, `reads-unconfined` unless the gate step sets `READS_CONFINED=true` (it does
