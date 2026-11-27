@@ -85,7 +85,7 @@ is enabled; when it is not, say so once in the report and take its fallback:
 
 Run `C collect --data-dir "<D>" --sources-file '${user_config.transcript_sources_file}'` with the
 retention and excerpt options `/session-flow:audit-sessions` resolves (the same store; its Options
-section names them, and `--retention-days` goes only when its option is set), then pass the same
+section names them, and `--retention-days` goes only when its option renders a whole number), then pass the same
 options (`<collector options>`) to `mine`, which forwards them to each `--source` collect:
 
 ```bash

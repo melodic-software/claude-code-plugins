@@ -120,10 +120,11 @@ Exit 2 means what Step 2 says, or that the publish redactor failed closed and no
 Resolve each option into the shell variable named, from its rendered value. A value still reading
 `${user_config.…}`, or empty, is unset: use the default given here.
 
-- `RETENTION` ← `${user_config.audit_sessions_retention_days}`. Unset: drop `--retention-days`
-  from Step 1, so collect applies the option's default (180) raised to the longest
-  `cleanupPeriodDays` of the sources it reads. Set: pass it as given; collect warns when it is
-  below a source's `cleanupPeriodDays`.
+- `RETENTION` ← `${user_config.audit_sessions_retention_days}`. The option has no default, so
+  it renders a number only when set. Anything but a whole number (empty, or still reading
+  `${user_config.…}`) is unset: drop `--retention-days` from Step 1, so collect applies 180 days
+  raised to the longest `cleanupPeriodDays` of the sources it reads. Set: pass it as given;
+  collect warns when it is below a source's `cleanupPeriodDays`.
 - `EXCERPT_CHARS` ← `${user_config.audit_sessions_excerpt_chars}` (default 240)
 - `EXCERPT_WORDS` ← `${user_config.audit_sessions_excerpt_words}` (default 60)
 - `MIN_COUNT` ← `${user_config.audit_sessions_drift_min_count}` (default 20)

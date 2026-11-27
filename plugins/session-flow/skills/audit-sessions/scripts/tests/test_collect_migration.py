@@ -225,17 +225,16 @@ def test_a_symlink_in_the_old_store_is_counted_and_keeps_it(data_dir, multi, old
     assert v1_dir(data_dir).is_dir() and (elsewhere / "old-0009.json").is_file()
 
 
-def test_unset_retention_without_a_readable_default_is_an_error(data_dir, multi, plugin_copy):
+def test_an_unset_retention_option_passes_no_flag_so_the_floor_applies(data_dir, multi, plugin_copy):
     root, _ = multi
-    manifest = plugin_copy / ".claude-plugin" / "plugin.json"
-    spec = json.loads(manifest.read_text(encoding="utf-8"))
-    del spec["userConfig"]["audit_sessions_retention_days"]
-    manifest.write_text(json.dumps(spec), encoding="utf-8")
+    manifest = json.loads((plugin_copy / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    option = manifest["userConfig"]["audit_sessions_retention_days"]
+    assert "default" not in option, "a declared default renders into the skill, which then always passes the flag"
+    (root.parent / "settings.json").write_text(json.dumps({"cleanupPeriodDays": 400}), encoding="utf-8")
     args = [sys.executable, str(plugin_copy / "scripts" / "collect.py"), "collect", *LOCK, "--data-dir", str(data_dir)]
     unset = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", timeout=60, env=config_env(root))
-    assert (unset.returncode, envelope(unset)["status"]) == (2, "error")
-    given = subprocess.run([*args, "--retention-days", "0"], capture_output=True, text=True, encoding="utf-8", timeout=60, env=config_env(root))
-    assert given.returncode == 0, given.stdout + given.stderr
+    assert unset.returncode == 0, unset.stdout + unset.stderr
+    assert envelope(unset)["data"]["retention"] == {"requested_days": None, "days": 400, "floor_applied": True}
 
 
 @pytest.mark.parametrize("beside", [None, "notes.txt"])

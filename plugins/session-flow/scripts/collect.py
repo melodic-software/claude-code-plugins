@@ -24,8 +24,8 @@ collector stored for one is deleted. A session whose fingerprint matches its sto
 skipped, unless that record was written by a collector whose code or rules differ (the
 COLLECTOR_INPUTS digest), under other excerpt limits, or with redaction failing closed where it now
 works or the reverse. With a retention window, records and prompts that ended before it are pruned
-and such sessions are not ingested. With `--retention-days` unset the retention is the
-`audit_sessions_retention_days` default raised to the longest source `cleanupPeriodDays`, each
+and such sessions are not ingested. With `--retention-days` unset the retention is
+`DEFAULT_RETENTION_DAYS` raised to the longest source `cleanupPeriodDays`, each
 reader moving its own cutoff back to its own value; any value given is kept, and one shorter than a
 source's `cleanupPeriodDays` warns. A source's `cleanupPeriodDays` is its reader's hello, else the last one its diagnostics
 recorded, else Claude Code's default, the basis named in its diagnostics.
@@ -93,7 +93,7 @@ from transcript_values import epoch  # noqa: E402  (beside this script)
 SCHEMA = "audit-sessions.collect/v1"
 V1_RECORD_SCHEMA = "session-record/v1"
 QUARANTINE = re.compile(r"v1\.quarantine-(\d{4}-\d{2}-\d{2})(?:-[0-9a-f]{6})?")
-RETENTION_OPTION = "audit_sessions_retention_days"
+DEFAULT_RETENTION_DAYS = 180
 CENSUS_SCHEMA = "audit-sessions.census/v1"
 DRIFT_SCHEMA = "audit-sessions.drift/v1"
 COLLECTOR_INPUTS = (
@@ -140,7 +140,7 @@ def _manifest() -> dict:
 
 
 def declared_default(option: str) -> int | None:
-    """The userConfig option's declared default, the one place the excerpt and retention defaults live; None when unreadable."""
+    """The userConfig option's declared default, the one place the excerpt defaults live; None when unreadable."""
     spec = _obj(_obj(_manifest().get("userConfig")).get(option))
     value = spec.get("default")
     return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
@@ -149,14 +149,6 @@ def declared_default(option: str) -> int | None:
 def option_default(option: str) -> int:
     """`declared_default`, or 0 (no excerpt) when unreadable."""
     return declared_default(option) or 0
-
-
-def unknown_retention(args: argparse.Namespace) -> tuple[str, str, dict, int] | None:
-    """The error an unset `--retention-days` meets when plugin.json declares no readable default, else None."""
-    if args.retention_days is not None or declared_default(RETENTION_OPTION) is not None:
-        return None
-    manifest = str(PLUGIN_ROOT / ".claude-plugin" / "plugin.json")
-    return "error", f"--retention-days is unset and {manifest} declares no readable {RETENTION_OPTION} default", {"manifest": manifest}, 2
 
 
 class StoreWriter:
@@ -377,11 +369,11 @@ def retry_command(args: argparse.Namespace) -> list[str]:
 
 
 def effective_retention(requested: int | None, cleanup_days: Iterable[int]) -> int:
-    """The retention a run applies: the value the user set, or when unset the option's declared default
-    raised to the longest `cleanup_days`."""
+    """The retention a run applies: the value the user set, or when unset `DEFAULT_RETENTION_DAYS` raised to
+    the longest `cleanup_days`."""
     if requested is not None:
         return requested
-    return max([declared_default(RETENTION_OPTION) or 0, *cleanup_days])
+    return max([DEFAULT_RETENTION_DAYS, *cleanup_days])
 
 
 def v1_store(data_dir: Path) -> Path:
@@ -602,9 +594,6 @@ def collect_into(args: argparse.Namespace, sources: Sources) -> tuple[str, str, 
             since = datetime.strptime(args.since, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp()
         except ValueError:
             return "error", f"--since is not YYYY-MM-DD: {args.since}", {}, 2
-    failed = unknown_retention(args)
-    if failed is not None:
-        return failed
     unknown = sorted(set(args.source or ()) - {entry.name for entry in sources.all()})
     if unknown:
         return "error", f"--source names no configured source: {', '.join(unknown)}", {"unknown": unknown}, 2
@@ -672,7 +661,7 @@ def collect_into(args: argparse.Namespace, sources: Sources) -> tuple[str, str, 
         "retention": {
             "requested_days": args.retention_days,
             "days": retention,
-            "floor_applied": args.retention_days is None and retention > (declared_default(RETENTION_OPTION) or 0),
+            "floor_applied": args.retention_days is None and retention > DEFAULT_RETENTION_DAYS,
         },
         "migration": migration,
         "store_records": sum(1 for _ in store.glob(census.RECORD_GLOB)),
@@ -742,9 +731,6 @@ def migrate_command(args: argparse.Namespace) -> tuple[str, str, dict, int]:
 def migrate_dry_run(args: argparse.Namespace, sources: Sources, own: SourceEntry) -> tuple[str, str, dict, int]:
     """List the own source and read the old store, through a capped child that writes nothing, and predict the
     quarantine by the rule `settle_v1` applies, given that every rebuild a real run attempts succeeds."""
-    failed = unknown_retention(args)
-    if failed is not None:
-        return failed
     data_dir = Path(args.data_dir)
     root = v1_store(data_dir)
     if not root.is_dir():

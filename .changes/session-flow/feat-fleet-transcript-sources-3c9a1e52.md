@@ -9,3 +9,4 @@ bump: minor
 ### Fixed
 
 - Redacting a secret at the end of a line no longer joins the next line onto the redacted one.
+- An unset `audit_sessions_retention_days` option now applies its documented floor: 180 days raised to the longest `cleanupPeriodDays` of the sources read. A declared default had made the option always read as set.
