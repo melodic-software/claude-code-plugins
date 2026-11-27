@@ -419,6 +419,8 @@ class SelectCasesHiddenTest(unittest.TestCase):
             "git setup\n", "HOME=\"$PWD\" git status\n",
             "git init -q --bare meta\ncat >>meta/config <<'EOF'\n[alias]\n\tsetup = !bash ../gen.sh\nEOF\ngit -P -C meta setup\n",
             "git --no-pager setup\n",
+            "git init -q --bare meta\ncat >>meta/config <<'EOF'\n[remote \"o\"]\n\turl = .\n\tuploadpack = bash ../gen.sh\nEOF\ngit -C meta fetch o\n",
+            "git -C meta -c 'user.name=a status' setup\n",
         ):
             with self.subTest(run=run):
                 self.assert_runs(self._written_runner(run), "the scaffold may run gen.sh")
