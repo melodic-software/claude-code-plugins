@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.0.5] - 2026-11-27
+
+### Fixed
+
+- `/source-control:worktree create` and entering an existing worktree now work by explicit path, with no `EnterWorktree` call, when the worktree root is one of the session's working directories, so the person is not asked to approve a move the session does not need. A session that cannot reach the root still enters with `EnterWorktree(path:)`.
+
 ## [15.0.4] - 2026-11-27
 
 ### Fixed
