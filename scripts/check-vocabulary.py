@@ -26,9 +26,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 from pathlib import Path
 
 # `from __future__ import annotations` needs Python 3.7:
@@ -51,6 +54,7 @@ SELF_FILES = frozenset(
     )
 )
 TEXT_LIMIT = 200
+CHUNK = 1024
 
 
 class Unusable(Exception):
@@ -121,6 +125,7 @@ def load_senses(path: Path) -> list:
             )
         if not rules:
             raise Unusable(f"{sid}: no rules")
+        prefilter = [re.compile(m.pattern, m.flags | re.MULTILINE) for m, _ in rules]
         paths, phrases = [], []
         for k, entry in enumerate(objects(raw, "allow", sid)):
             where = f"{sid} allow {k}"
@@ -135,7 +140,9 @@ def load_senses(path: Path) -> list:
                 paths.append(glob_regex(entry["path"]))
             else:
                 phrases.append(compile_regex(entry["phrase"], where))
-        senses.append({"id": sid, "rules": rules, "paths": paths, "phrases": phrases})
+        senses.append(
+            {"id": sid, "rules": rules, "prefilter": prefilter, "paths": paths, "phrases": phrases}
+        )
     if not senses:
         raise Unusable(f"{path.name} defines no senses")
     return senses
@@ -187,8 +194,12 @@ def scan(rel: str, senses: list) -> list:
     data = (REPO_ROOT / rel).read_bytes()
     if b"\0" in data[:8192]:
         return []
+    body = data.decode("utf-8", "replace")
+    active = [s for s in active if any(p.search(body) for p in s["prefilter"])]
+    if not active:
+        return []
     findings = []
-    lines = data.decode("utf-8", "replace").split("\n")
+    lines = body.split("\n")
     for lineno, line in enumerate(lines, 1):
         for sense in active:
             hit = any(
@@ -222,7 +233,14 @@ def main(argv: list) -> int:
     except Unusable as exc:
         print(f"check-vocabulary: {exc}", file=sys.stderr)
         return 2
-    findings = [f for rel in files for f in scan(rel, senses)]
+    cores = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else os.cpu_count() or 1
+    workers = min(cores, -(-len(files) // CHUNK))
+    if workers > 1:
+        with ProcessPoolExecutor(workers) as pool:
+            per_file = list(pool.map(partial(scan, senses=senses), files, chunksize=CHUNK))
+    else:
+        per_file = [scan(rel, senses) for rel in files]
+    findings = [f for found in per_file for f in found]
     for finding in findings:
         print(finding)
     if findings:
