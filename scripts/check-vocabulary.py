@@ -55,6 +55,7 @@ SELF_FILES = frozenset(
 )
 TEXT_LIMIT = 200
 CHUNK = 1024
+LINE_BOUND = re.compile(r"\(\?(?![:=]|<=)|[*+?}]\+|\\[AZzG]")
 
 
 class Unusable(Exception):
@@ -139,7 +140,12 @@ def load_senses(path: Path) -> list:
                 paths.append(glob_regex(entry["path"]))
             else:
                 phrases.append(compile_regex(entry["phrase"], where))
-        senses.append({"id": sid, "rules": rules, "paths": paths, "phrases": phrases})
+        prefilter = None
+        if not any(LINE_BOUND.search(m.pattern) for m, _ in rules):
+            prefilter = [re.compile(m.pattern, m.flags | re.MULTILINE) for m, _ in rules]
+        senses.append(
+            {"id": sid, "rules": rules, "prefilter": prefilter, "paths": paths, "phrases": phrases}
+        )
     if not senses:
         raise Unusable(f"{path.name} defines no senses")
     return senses
@@ -191,8 +197,14 @@ def scan(rel: str, senses: list) -> list:
     data = (REPO_ROOT / rel).read_bytes()
     if b"\0" in data[:8192]:
         return []
+    body = data.decode("utf-8", "replace")
+    active = [
+        s for s in active if s["prefilter"] is None or any(p.search(body) for p in s["prefilter"])
+    ]
+    if not active:
+        return []
     findings = []
-    lines = data.decode("utf-8", "replace").split("\n")
+    lines = body.split("\n")
     for lineno, line in enumerate(lines, 1):
         for sense in active:
             hit = any(
