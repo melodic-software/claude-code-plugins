@@ -3,6 +3,12 @@
 All notable changes to the `docs-naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.13] - 2026-11-27
+
+### Fixed
+
+- **`audit-file-names` composes the plan's home in the emitter.** The skill had the model build the plan path by hand, so a run's trace never showed where the path came from. With no `--out`, `emit-findings.sh` now composes `<memory root>/docs-hygiene/<branch slug>/file-names.md` itself (memory root `.work` unless `--memory-root` names another) and prints it on a `home` line.
+
 ## [0.9.12] - 2026-11-26
 
 ### Changed
