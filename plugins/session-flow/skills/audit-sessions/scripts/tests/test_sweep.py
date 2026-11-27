@@ -9,6 +9,7 @@ from pathlib import Path
 
 import census
 import pytest
+import sweep as sweep_module
 from conftest import SCRIPTS, envelope, run_cli
 
 RULES = json.loads((SCRIPTS.parent / "reference" / "sweep-rules.json").read_text(encoding="utf-8"))
@@ -399,6 +400,36 @@ def test_canary_lost_degrades_metric(data_dir, tmp_path):
     assert md.returncode == 1 and "unavailable" in md.stdout
     drift_md = md.stdout.split("## Drift", 1)[1].split("## Unchecked", 1)[0]
     assert "- canary-lost: `key_path:user:message.content`" in drift_md
+
+
+def test_published_report_keeps_metric_names_the_secret_rules_would_take(data_dir, tmp_path):
+    canaries = tmp_path / "canaries.json"
+    lost = "key_path:user:message.content"
+    canaries.write_text(
+        json.dumps(
+            {
+                "schema": census.CANARY_SCHEMA,
+                "canaries": [{"key": lost, "record_type": "user", "feeds": ["tokens.main", "cache.missed_input_tokens"]}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    write_store(
+        data_dir,
+        record("old", census={"2.0.1|*": {"record_type:user": 5, lost: 5}}),
+        record("new", census={"2.0.2|*": {"record_type:user": 5}}, cc_versions=["2.0.2"]),
+    )
+    args = ("--canaries", str(canaries), "--min-count", "1", "--versions", "1", "--session-floor", "1")
+    assert sweep(data_dir, *args, "--write-report").returncode == 1
+    written = json.loads(next((data_dir / "audit-sessions" / "reports" / "machine").glob("*.json")).read_text("utf-8"))
+    assert sorted(written["data"]["drift"]["degraded_metrics"]) == ["cache.missed_input_tokens", "tokens.main"]
+    assert written["summary"].endswith("; unavailable: " + ", ".join(written["data"]["drift"]["degraded_metrics"]))
+
+
+def test_report_field_names_cover_metrics_and_canary_keys_with_and_without_their_prefix():
+    names = sweep_module.report_field_names([{"key": "usage_key:cache_creation.ephemeral_5m_input_tokens"}])
+    assert {"cache.missed_input_tokens", "edits.churn_per_pr", "cache.write_5m_share"} <= names
+    assert {"usage_key:cache_creation.ephemeral_5m_input_tokens", "cache_creation.ephemeral_5m_input_tokens"} <= names
 
 
 def test_drift_markdown_keeps_a_hostile_key_inside_one_bullet():

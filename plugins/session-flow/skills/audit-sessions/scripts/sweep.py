@@ -215,6 +215,13 @@ def load_rules(path: Path) -> dict:
     return rules
 
 
+def report_field_names(canaries: list[dict]) -> frozenset[str]:
+    """The metric names and canary keys the report prints, each also without its `kind:` prefixes, so the
+    publish redactor's secret rules leave them whole."""
+    keys = [canary["key"] for canary in canaries]
+    return frozenset({*PER_SESSION, *MACHINE_WIDE, *PER_TICKET, *keys, *(key.rsplit(":", 1)[-1] for key in keys)})
+
+
 def p90(values: list[float]) -> float | None:
     """collect.py's `_percentile` rule, so a store p90 reads like a stored one."""
     if not values:
@@ -852,11 +859,19 @@ def main(argv: list[str] | None = None) -> int:
         return fail("--pr and --repo OWNER/REPO go together", 2)
     if args.scope == "project" and not (args.state_key and STATE_KEY_RE.fullmatch(args.state_key)):
         return fail("--scope project needs --state-key <identity>/<worktree>", 2)
+    try:
+        canaries = census.load_canaries(Path(args.canaries))["canaries"]
+        rules_file = load_rules(BUNDLED_RULES)
+        verdicts = load_verdicts(Path(args.judged)) if args.judged is not None else None
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        return fail(str(exc), 2)
     md_out = unpublished
     sources = transcript_sources.load_reported(args.sources_file)
     if args.format == "md" or args.write_report or args.excerpts or args.correction_candidates:
         try:
-            md_out = publish.publisher(args.sources_file, args.redact_identifiers, sources=sources).redact
+            md_out = publish.publisher(
+                args.sources_file, args.redact_identifiers, sources=sources, allow=report_field_names(canaries)
+            ).redact
         except publish.PublishError as exc:
             return fail(str(exc), 2)
     data_dir = Path(args.data_dir)
@@ -864,9 +879,6 @@ def main(argv: list[str] | None = None) -> int:
         return fail(f"no audit-sessions store under {data_dir}; run collect first", 3)
     try:
         records, skipped = census.load_records(data_dir)
-        canaries = census.load_canaries(Path(args.canaries))["canaries"]
-        rules_file = load_rules(BUNDLED_RULES)
-        verdicts = load_verdicts(Path(args.judged)) if args.judged is not None else None
     except (OSError, ValueError, KeyError, TypeError) as exc:
         return fail(str(exc), 2)
     if skipped:

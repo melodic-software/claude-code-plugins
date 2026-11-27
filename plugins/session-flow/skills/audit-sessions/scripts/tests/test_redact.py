@@ -295,6 +295,32 @@ def test_rule_that_does_not_compile_is_skipped_counted_and_fails_closed(
     assert redactor.excerpt("abc", 240) is None
 
 
+FIELD = "cache.missed_input_tokens"
+FIELD_TEXT = "unavailable: tokens.main, " + FIELD
+SECRET_TEXT = "token: " + "".join(("Zx9Qw2", "Lm4Pk7Rt5", "Vn8Bc3"))
+GENERIC = "<redacted:generic-api-key>"
+
+
+def test_an_allowed_field_name_survives_while_the_same_rule_redacts_a_secret() -> None:
+    redactor = redact.load_redactor(allow={FIELD})
+    assert redactor.redact(FIELD_TEXT + "\n" + SECRET_TEXT) == FIELD_TEXT + "\n" + GENERIC
+
+
+def test_a_name_only_sharing_a_prefix_with_an_allowed_one_is_still_redacted() -> None:
+    redactor = redact.load_redactor(allow={FIELD})
+    assert redactor.redact(FIELD_TEXT + "_v2") == "unavailable: " + GENERIC
+
+
+def test_an_empty_allow_set_redacts_a_field_name_as_before() -> None:
+    assert redact.load_redactor().allow == frozenset()
+    assert redact.load_redactor(allow=()).redact(FIELD_TEXT) == "unavailable: " + GENERIC
+
+
+def test_the_publish_redactor_passes_its_allow_set_to_the_secret_rules() -> None:
+    assert publisher(allow={FIELD}).redact(FIELD_TEXT) == FIELD_TEXT
+    assert publisher().redact(FIELD_TEXT) == "unavailable: " + GENERIC
+
+
 def test_excerpt_truncates_after_redacting() -> None:
     text = "a" * 10 + " " + AWS_EXAMPLE_KEY
     assert redact.load_redactor().excerpt(text, 16) == "aaaaaaaaaa <reda"

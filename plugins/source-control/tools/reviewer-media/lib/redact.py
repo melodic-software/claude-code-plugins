@@ -4,15 +4,17 @@ r"""Redact secrets, emails and home paths from text before audit-sessions stores
 identifiers from text a skill publishes.
 
 Public API:
-    load_redactor(path=RULES_FILE) -> Redactor
+    load_redactor(path=RULES_FILE, allow=()) -> Redactor
     Redactor.redact(text) -> str
     Redactor.excerpt(text, limit) -> str | None
     Redactor.skipped: dict[str, str]   rule id -> why it was skipped
     Redactor.fail_closed: bool         a rule was skipped or none loaded; excerpt() returns None
     Redactor.rule_count: int           gitleaks rules in force
     Redactor.version: str              the vendored gitleaks version, "" when unknown
+    Redactor.allow: frozenset[str]     names a gitleaks rule leaves in place when the span it would
+                                       replace is exactly one of them (a caller's report field names)
 
-    publish_redactor(sources, *, extra=(), machine=None, path=RULES_FILE) -> PublishRedactor
+    publish_redactor(sources, *, extra=(), machine=None, path=RULES_FILE, allow=()) -> PublishRedactor
     PublishRedactor.redact(text) -> str
     PublishRedactor.placeholders: dict[str, str]   lowercased identifier -> placeholder
     PublishRedactor.fail_closed: bool              the secret rules failed closed
@@ -127,6 +129,7 @@ class Redactor:
     rules: tuple[Rule, ...]
     skipped: dict[str, str] = field(default_factory=dict)
     version: str = ""
+    allow: frozenset[str] = frozenset()
 
     @property
     def fail_closed(self) -> bool:
@@ -143,7 +146,7 @@ class Redactor:
         lowered = text.lower()
         for rule in self.rules:
             if not rule.keywords or any(k in lowered for k in rule.keywords):
-                text = rule.pattern.sub(_placeholder(f"<redacted:{rule.id}>"), text)
+                text = rule.pattern.sub(_placeholder(f"<redacted:{rule.id}>", self.allow), text)
         for pattern, replacement in _PASSES:
             text = pattern.sub(replacement, text)
         for index, (_, label) in enumerate(_PRE_PASSES):
@@ -157,7 +160,7 @@ class Redactor:
         return self.redact(text)[:limit]
 
 
-def _placeholder(label: str) -> Callable[[re.Match[str]], str]:
+def _placeholder(label: str, allow: frozenset[str] = frozenset()) -> Callable[[re.Match[str]], str]:
     """Replace a rule match up to the end of its last capture group, keeping the terminator gitleaks
     rules match after the secret and each line break the match held before it."""
 
@@ -165,6 +168,8 @@ def _placeholder(label: str) -> Callable[[re.Match[str]], str]:
         groups = [i for i in range(1, (match.re.groups or 0) + 1) if match.start(i) >= 0]
         first = min((match.start(i) for i in groups), default=match.start())
         cut = max((match.end(i) for i in groups), default=match.end())
+        if match.string[first:cut] in allow:
+            return match[0]
         lead = match.string[match.start():first]
         return label + "\n" * lead.count("\n") + match.string[cut:match.end()]
 
@@ -177,13 +182,13 @@ def _compile(regex: str) -> re.Pattern[str]:
         return re.compile(regex)
 
 
-def load_redactor(path: Path = RULES_FILE) -> Redactor:
+def load_redactor(path: Path = RULES_FILE, allow: Iterable[str] = ()) -> Redactor:
     """Never raises: an unreadable file or rule lands in `skipped`, which fails closed."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         entries = list(data["rules"])
     except (OSError, ValueError, KeyError, TypeError) as exc:
-        return Redactor((), {path.name: f"{type(exc).__name__}: {exc}"})
+        return Redactor((), {path.name: f"{type(exc).__name__}: {exc}"}, allow=frozenset(allow))
     rules: list[Rule] = []
     skipped: dict[str, str] = {}
     for index, entry in enumerate(entries):
@@ -200,7 +205,7 @@ def load_redactor(path: Path = RULES_FILE) -> Redactor:
             )
         except (re.error, Warning, KeyError, TypeError) as exc:
             skipped[rule_id] = f"{type(exc).__name__}: {exc}"
-    return Redactor(tuple(rules), skipped, str(data.get("source_version", "")))
+    return Redactor(tuple(rules), skipped, str(data.get("source_version", "")), frozenset(allow))
 
 
 MIN_NAME = 2
@@ -304,6 +309,7 @@ def publish_redactor(
     extra: Iterable[str] = (),
     machine: tuple[Iterable[str], Iterable[str]] | None = None,
     path: Path = RULES_FILE,
+    allow: Iterable[str] = (),
 ) -> PublishRedactor:
     machine_hosts, machine_users = _this_machine() if machine is None else machine
     entries = sources.all()
@@ -354,7 +360,7 @@ def publish_redactor(
     placeholders = {key: _settle(claimed) for key, claimed in {**names, **paths}.items()}
     ordered = sorted(names, key=len, reverse=True)
     return PublishRedactor(
-        load_redactor(path),
+        load_redactor(path, allow),
         placeholders,
         tuple((_path_pattern(key), placeholders[key]) for key in sorted(paths, key=len, reverse=True)),
         re.compile(
