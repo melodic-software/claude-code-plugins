@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.6.2] - 2026-11-27
+
+### Changed
+
+- `/knowledge:video-digest` points at the yt-dlp wiki and README and the ffmpeg download page for install and update commands, instead of stating package-manager commands and vendor behavior ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
 ## [3.6.1] - 2026-11-26
 
 ### Changed
