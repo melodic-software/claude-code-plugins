@@ -25,6 +25,8 @@
     {"answer": "There's a conflict between your 4000-character limit and how much detail you want in the condition, so I trimmed the constraints. Paste it after typing /goal.", "why": "names a conflict between other things"},
     {"answer": "Which check is the required one? Tell me its name and I'll draft the condition.", "why": "asks a question, names no conflict"},
     {"answer": "The checks might be flaky and fail on a hold-labeled PR now and then, so I added a retry instruction to the condition.", "why": "treats the failure as flakiness, not as certain"},
-    {"answer": "I couldn't load the skill, so I can't help draft this condition.", "why": "refuses for another reason, names no conflict"}
+    {"answer": "I couldn't load the skill, so I can't help draft this condition.", "why": "refuses for another reason, names no conflict"},
+    {"answer": "The hold label does not conflict with every required check being green. The goal is fine as stated.", "why": "denies the conflict with 'does not'"},
+    {"answer": "The hold label doesn't conflict with anything in the required checks, so I drafted the condition as you asked.", "why": "denies the conflict with 'doesn't'"}
   ]
 }

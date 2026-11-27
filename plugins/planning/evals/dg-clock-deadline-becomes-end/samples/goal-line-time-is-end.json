@@ -97,6 +97,10 @@
     {
       "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty and a results line is in notes/status.md, both shown in this conversation, or 2026-11-27T06:00Z has arrived.\n──────────────────────────────────────────────────────────\n",
       "why": "the clock end names no command whose output the conversation can show"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty and notes/status.md holds a results line, and date -u shows 2026-11-28T06:00Z or later.\n──────────────────────────────────────────────────────────\n",
+      "why": "the clock is joined with and, so the queue must still empty; no alternative end"
     }
   ]
 }
