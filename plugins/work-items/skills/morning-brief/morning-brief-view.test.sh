@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # test-scope: docs/conventions/work-items.yaml
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE GIT_COMMON_DIR
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BRIEF="$SCRIPT_DIR/scripts/morning-brief.sh"
@@ -100,6 +101,46 @@ fi
 rc=0
 node "$BUILDER" </dev/null >/dev/null 2>&1 || rc=$?
 check "no --out exits 2" "$([[ $rc -eq 2 ]] && echo 1 || echo 0)"
+
+raw_template="$(<"$SCRIPT_DIR/templates/brief.html")"
+check "the template defines no literal palette color" "$([[ ! "$raw_template" =~ \#[0-9a-fA-F]{3,8} ]] && echo 1 || echo 0)"
+check "default page embeds shipped token layer, toggle, comment box and focus floor" "$([[ "$page" == *"--ivory: #FAF9F5;"* && "$page" != *'class="rv-brand"'* && "$page" == *'data-rv-theme="system" aria-pressed="true"'* && "$page" == *'data-rv-note="comment"'* && "$page" == *"outline: 3px solid var(--focus)"* ]] && echo 1 || echo 0)"
+
+mkdir -p "$TMP/brand-repo/docs/conventions" "$TMP/empty-home"
+git init -q "$TMP/brand-repo"
+cat >"$TMP/brand-repo/docs/conventions/rendered-views.yaml" <<'YAML'
+branding:
+  palette:
+    light:
+      bg: "#F8F4EC"
+      muted: "#595954"
+      link: "#1A4D8F"
+      fg: "#CCCCCC"
+  type:
+    sans: "IBM Plex Sans, sans-serif"
+  logo:
+    svg: '<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="6" fill="#1A4D8F"/></svg>'
+    label: "Acme Brief"
+YAML
+NODE_BIN="$(node -p 'process.execPath')"
+if CLAUDE_PROJECT_DIR="$TMP/brand-repo" HOME="$TMP/empty-home" USERPROFILE="$TMP/empty-home" CLAUDE_PLUGIN_OPTION_BRANDING="" "$NODE_BIN" "$BUILDER" --out "$TMP/branded.html" <"$TMP/brief.txt" >/dev/null 2>"$TMP/branded.err" && "$NODE_BIN" "$LIB" --check "$TMP/branded.html" >/dev/null; then
+  pass "branded brief builds and passes interactive profile"
+else
+  fail "branded brief builds and passes interactive profile"
+fi
+branded_err="$(<"$TMP/branded.err")"
+branded_page="$(<"$TMP/branded.html")"
+check "branded brief emits contrast-floor notice on stderr" "$([[ "$branded_err" == *"notice:"* && "$branded_err" == *"fg"* ]] && echo 1 || echo 0)"
+branded_style="${branded_page#*<style>}"
+branded_style="${branded_style%%</style>*}"
+check "branded brief strips all leading token header comments" "$([[ "$branded_style" != *"GENERATED"* && "$branded_style" != *"Provenance:"* ]] && echo 1 || echo 0)"
+check "branded brief applies palette, type, logo slot and enforces contrast floor" "$([[ "$branded_page" == *"--bg: #F8F4EC;"* && "$branded_page" == *"--link: #1A4D8F;"* && "$branded_page" != *"--fg: #CCCCCC;"* && "$branded_page" == *"--sans: IBM Plex Sans, sans-serif;"* && "$branded_page" == *'<div class="rv-bar"><div class="rv-brand"><svg viewBox="0 0 16 16"'* && "$branded_page" == *'<span class="rv-brand-label">Acme Brief</span>'* && "$branded_page" == *'data-rv-theme="dark"'* && "$branded_page" == *'data-rv-note="comment"'* && "$branded_page" == *"outline: 3px solid var(--focus)"* ]] && echo 1 || echo 0)"
+if CLAUDE_PROJECT_DIR="$TMP/empty-home" HOME="$TMP/empty-home" USERPROFILE="$TMP/empty-home" CLAUDE_PLUGIN_OPTION_BRANDING="" "$NODE_BIN" "$BUILDER" --out "$TMP/opt.html" --branding-option '{"logo":{"label":"CLI Brief"}}' <"$TMP/brief.txt" >/dev/null; then
+  opt_page="$(<"$TMP/opt.html")"
+  check "--branding-option passes userConfig branding into brief" "$([[ "$opt_page" == *'<span class="rv-brand-label">CLI Brief</span>'* ]] && echo 1 || echo 0)"
+else
+  fail "--branding-option passes userConfig branding into brief"
+fi
 
 if [[ -z "$chrome" ]]; then
   echo "SKIP: browser check, no Chrome or Chromium found (set CHROME to run it)"

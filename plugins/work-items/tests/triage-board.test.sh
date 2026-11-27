@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Exit 0 clean, 1 findings, 2 environment (node missing).
 set -euo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
 BUILDER="$PLUGIN_DIR/skills/triage/scripts/build-board.mjs"
@@ -25,7 +27,7 @@ work="$(mktemp -d)" || exit 2
 trap 'rm -rf "$work"' EXIT
 
 node --input-type=module - "$BUILDER" "$PLUGIN_DIR" "$work" "$chrome" <<'NODE'
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
@@ -112,6 +114,63 @@ check("input that is not JSON exits 1", build("not json").status === 1);
 check("a --connect with no value exits 2", spawnSync("node", [builder, "--out", `${work}/x.html`, "--connect"], { input: "{}", encoding: "utf8" }).status === 2);
 check("no --out exits 2", spawnSync("node", [builder], { input: "{}", encoding: "utf8" }).status === 2);
 check("an empty board still builds", build({}).status === 0);
+
+const rawTemplate = readFileSync(`${plugin}/skills/triage/templates/board.html`, "utf8");
+const rawStyle = /<style>([^]*?)<\/style>/i.exec(rawTemplate)?.[1] ?? "";
+check("the template defines no literal palette color", !/#[0-9a-fA-F]{3,8}(?![0-9a-fA-F])|rgb\(|hsl\(/i.test(rawStyle));
+check("default board embeds shipped token layer, toggle, comment box and focus floor",
+  page.includes("--ivory: #FAF9F5;") &&
+  !page.includes('class="rv-brand"') &&
+  page.includes('data-rv-theme="system" aria-pressed="true"') &&
+  page.includes('data-rv-theme="light"') &&
+  page.includes('data-rv-theme="dark"') &&
+  page.includes('data-rv-note="note"') &&
+  page.includes("outline: 3px solid var(--focus)"));
+
+const brandRepo = `${work}/brand-repo`;
+const emptyHome = `${work}/empty-home`;
+mkdirSync(`${brandRepo}/docs/conventions`, { recursive: true });
+mkdirSync(emptyHome, { recursive: true });
+spawnSync("git", ["init", "-q", brandRepo], { encoding: "utf8" });
+writeFileSync(`${brandRepo}/docs/conventions/rendered-views.yaml`, [
+  "branding:",
+  "  palette:",
+  "    light:",
+  '      bg: "#F8F4EC"',
+  '      muted: "#595954"',
+  '      link: "#1A4D8F"',
+  '      fg: "#CCCCCC"',
+  "  type:",
+  '    sans: "IBM Plex Sans, sans-serif"',
+  "  logo:",
+  '    svg: \'<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="6" fill="#1A4D8F"/></svg>\'',
+  '    label: "Acme Triage"',
+].join("\n") + "\n");
+const brandEnv = { ...process.env, CLAUDE_PROJECT_DIR: brandRepo, HOME: emptyHome, USERPROFILE: emptyHome };
+delete brandEnv.CLAUDE_PLUGIN_OPTION_BRANDING;
+const brandedOut = `${work}/branded-board.html`;
+const branded = spawnSync("node", [builder, "--out", brandedOut], { input: JSON.stringify({ repo: "o/r", generated: "2026-10-03", items: items.slice(0, 2) }), encoding: "utf8", env: brandEnv });
+const brandedPage = branded.status === 0 ? readFileSync(brandedOut, "utf8") : "";
+check("branded board builds and passes interactive profile", branded.status === 0 && validateView(brandedPage).ok, branded.stderr || validateView(brandedPage).failures);
+check("branded board emits contrast-floor notice on stderr", branded.stderr.includes("notice:") && branded.stderr.includes("fg"));
+const brandedStyle = /<style>([^]*?)<\/style>/i.exec(brandedPage)?.[1] ?? "";
+check("branded board strips all leading token header comments", !brandedStyle.includes("GENERATED") && !brandedStyle.includes("Provenance:"));
+check("branded board applies palette, type, logo slot and enforces contrast floor",
+  brandedPage.includes("--bg: #F8F4EC;") &&
+  brandedPage.includes("--link: #1A4D8F;") &&
+  !brandedPage.includes("--fg: #CCCCCC;") &&
+  brandedPage.includes("--sans: IBM Plex Sans, sans-serif;") &&
+  brandedPage.includes('<div class="rv-bar"><div class="rv-brand"><svg viewBox="0 0 16 16"') &&
+  brandedPage.includes('<span class="rv-brand-label">Acme Triage</span>') &&
+  brandedPage.includes('data-rv-theme="dark"') &&
+  brandedPage.includes('data-rv-note="note"') &&
+  brandedPage.includes("outline: 3px solid var(--focus)"));
+const optOut = `${work}/opt-board.html`;
+const optEnv = { ...process.env, CLAUDE_PROJECT_DIR: emptyHome, HOME: emptyHome, USERPROFILE: emptyHome };
+delete optEnv.CLAUDE_PLUGIN_OPTION_BRANDING;
+const optRun = spawnSync("node", [builder, "--out", optOut, "--branding-option", '{"logo":{"label":"CLI Triage"}}'], { input: JSON.stringify({ repo: "o/r", generated: "2026-10-03", items: items.slice(0, 2) }), encoding: "utf8", env: optEnv });
+const optPage = optRun.status === 0 ? readFileSync(optOut, "utf8") : "";
+check("--branding-option passes userConfig branding into board", optRun.status === 0 && optPage.includes('<span class="rv-brand-label">CLI Triage</span>'), optRun.stderr);
 
 // Browser.
 if (!chrome) {

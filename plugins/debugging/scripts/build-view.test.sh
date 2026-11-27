@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Exit 0 clean, 1 findings, 2 environment (node missing).
 set -euo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 
@@ -28,7 +30,7 @@ work="$(mktemp -d)" || exit 2
 trap 'rm -rf "$work"' EXIT
 
 node --input-type=module - "$SCRIPT_DIR" "$work" "$chrome" <<'NODE'
-import { copyFileSync, lstatSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, lstatSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
@@ -126,6 +128,63 @@ check("an output path that is a symlink is replaced, not followed", (() => {
   const built = build(data);
   return built.status === 0 && readFileSync(target, "utf8") === "untouched" && !lstatSync(link).isSymbolicLink();
 })());
+
+const rawStyle = /<style>([^]*?)<\/style>/i.exec(html)?.[1] ?? "";
+check("the template defines no literal palette color", !/#[0-9a-fA-F]{3,8}(?![0-9a-fA-F])|rgb\(|hsl\(/i.test(rawStyle));
+
+const defaultPage = readFileSync(path, "utf8");
+check("default page embeds shipped token layer", defaultPage.includes("--ivory: #FAF9F5;") && !defaultPage.includes('class="rv-brand"'));
+check("default page carries theme toggle, comment box and focus floor",
+  defaultPage.includes('data-rv-theme="system" aria-pressed="true"') &&
+  defaultPage.includes('data-rv-theme="light"') &&
+  defaultPage.includes('data-rv-theme="dark"') &&
+  defaultPage.includes('data-rv-note="note"') &&
+  defaultPage.includes("outline: 3px solid var(--focus)"));
+
+const brandRepo = `${work}/brand-repo`;
+const brandTmp = `${work}/brand-tmp`;
+const emptyHome = `${work}/empty-home`;
+mkdirSync(`${brandRepo}/docs/conventions`, { recursive: true });
+mkdirSync(brandTmp, { recursive: true });
+mkdirSync(emptyHome, { recursive: true });
+spawnSync("git", ["init", "-q", brandRepo], { encoding: "utf8" });
+writeFileSync(`${brandRepo}/docs/conventions/rendered-views.yaml`, [
+  "branding:",
+  "  palette:",
+  "    light:",
+  '      bg: "#F8F4EC"',
+  '      muted: "#595954"',
+  '      link: "#1A4D8F"',
+  '      fg: "#CCCCCC"',
+  "  type:",
+  '    sans: "IBM Plex Sans, sans-serif"',
+  "  logo:",
+  '    svg: \'<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="6" fill="#1A4D8F"/></svg>\'',
+  '    label: "Acme Debug"',
+].join("\n") + "\n");
+const brandEnv = { ...env, TMPDIR: brandTmp, TEMP: brandTmp, TMP: brandTmp, CLAUDE_PROJECT_DIR: brandRepo, HOME: emptyHome, USERPROFILE: emptyHome };
+delete brandEnv.CLAUDE_PLUGIN_OPTION_BRANDING;
+const branded = spawnSync("node", [`${dir}/build-view.mjs`], { input: JSON.stringify(data), encoding: "utf8", env: brandEnv });
+check("branded page builds and passes interactive profile", branded.status === 0 && verify(branded.stdout.trim()).status === 0, branded.stderr || verify(branded.stdout.trim()).stdout);
+const brandedPage = branded.status === 0 ? readFileSync(branded.stdout.trim(), "utf8") : "";
+check("branded page emits contrast-floor notice on stderr", branded.stderr.includes("notice:") && branded.stderr.includes("fg"));
+const brandedStyle = /<style>([^]*?)<\/style>/i.exec(brandedPage)?.[1] ?? "";
+check("branded page strips all leading token header comments", !brandedStyle.includes("GENERATED") && !brandedStyle.includes("Provenance:"));
+check("branded page applies palette, type, logo slot and enforces contrast floor",
+  brandedPage.includes("--bg: #F8F4EC;") &&
+  brandedPage.includes("--link: #1A4D8F;") &&
+  !brandedPage.includes("--fg: #CCCCCC;") &&
+  brandedPage.includes("--sans: IBM Plex Sans, sans-serif;") &&
+  brandedPage.includes('<div class="rv-bar"><div class="rv-brand"><svg viewBox="0 0 16 16"') &&
+  brandedPage.includes('<span class="rv-brand-label">Acme Debug</span>') &&
+  brandedPage.includes('data-rv-theme="dark"') &&
+  brandedPage.includes('data-rv-note="note"') &&
+  brandedPage.includes("outline: 3px solid var(--focus)"));
+const optEnv = { ...env, TMPDIR: brandTmp, TEMP: brandTmp, TMP: brandTmp, CLAUDE_PROJECT_DIR: emptyHome, HOME: emptyHome, USERPROFILE: emptyHome };
+delete optEnv.CLAUDE_PLUGIN_OPTION_BRANDING;
+const optRun = spawnSync("node", [`${dir}/build-view.mjs`, "--branding-option", '{"logo":{"label":"CLI Brand"}}'], { input: JSON.stringify(data), encoding: "utf8", env: optEnv });
+const optPage = optRun.status === 0 ? readFileSync(optRun.stdout.trim(), "utf8") : "";
+check("--branding-option passes userConfig branding into the built page", optRun.status === 0 && optPage.includes('<span class="rv-brand-label">CLI Brand</span>'), optRun.stderr);
 
 process.exit(failed ? 1 : 0);
 NODE
