@@ -180,7 +180,7 @@ wit_gh_emit_unavailable() {
 
 wit_gh_mutate_relates() {
   local verb="$1" mutation="$2" id="$3" o1="$4" r1="$5" n1="$6" other="$7" o2="$8" r2="$9" n2="${10}"
-  local extra_unavail id_a id_b gql_err
+  local extra_unavail id_a id_b gql_err mutation_query
   extra_unavail="$(jq -cn --arg other "$other" '{related_to: $other, linked: false}')"
   if [[ "$id" == "$other" ]]; then
     wit_usage_error "cannot relate an item to itself: $id"
@@ -210,8 +210,20 @@ wit_gh_mutate_relates() {
     exit "$EX_NOT_FOUND"
   fi
   # shellcheck disable=SC2016  # GraphQL variables, not bash expansions
+  case "$mutation" in
+  addRelatesTo)
+    mutation_query='mutation($issueId:ID!,$relatedIssueId:ID!){addRelatesTo(input:{issueId:$issueId,relatedIssueId:$relatedIssueId}){issue{number} relatedIssue{number}}}'
+    ;;
+  removeRelatesTo)
+    mutation_query='mutation($issueId:ID!,$relatedIssueId:ID!){removeRelatesTo(input:{issueId:$issueId,relatedIssueId:$relatedIssueId}){issue{number} relatedIssue{number}}}'
+    ;;
+  *)
+    printf '%s: unsupported relates mutation: %s\n' "$verb" "$mutation" >&2
+    exit "$EX_INTERNAL"
+    ;;
+  esac
   if ! wit_gh_capture write api graphql \
-    -f query="mutation(\$issueId:ID!,\$relatedIssueId:ID!){${mutation}(input:{issueId:\$issueId,relatedIssueId:\$relatedIssueId}){issue{number} relatedIssue{number}}}" \
+    -f query="$mutation_query" \
     -f issueId="$id_a" -f relatedIssueId="$id_b"; then
     if wit_gh_is_feature_unavailable "$WIT_GH_ERR" "$o1" "$r1" "$n1" 1; then
       wit_gh_emit_unavailable "$verb" "$id" "refs-comment" "$WIT_GH_ERR" "$extra_unavail"

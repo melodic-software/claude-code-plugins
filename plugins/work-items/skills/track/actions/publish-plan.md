@@ -78,7 +78,7 @@ this layout (marker line, blank line, plan text); a different layout takes a new
    comments.
 
 1. **Confirm:** "Published the plan to `<id>` (created comment `<cid>`)" or "(updated comment
-   `<cid>`)" — adding the companion `artifact.url` when step 4 stored one.
+   `<cid>`)", including the companion `artifact.url` when step 4 stored one.
 
 ## Notes
 
