@@ -1,5 +1,5 @@
 ---
-description: "Reproduce and fix (or diagnose at file:line, no edits) an observed failure with no repro: wrong, throwing, or broken behavior, slowness, or flaky/intermittent failure in UI, logs, production, or a screenshot. Use when 'debug this', 'why is X broken', 'diagnose this'. Not for deterministic failing tests or captured profiles, traces, or snapshots (`/debugging:analyze-profile`)."
+description: "Reproduce and fix (or diagnose at file:line, no edits) an observed failure with no repro: wrong, throwing, or broken behavior, slowness, or flaky/intermittent failure in UI, logs, production, or a screenshot. Use when 'debug this', 'why is X broken', 'diagnose this'. Not for an existing failing test (`/testing:fix-failing`) or a captured profile, trace, or snapshot with no repro (`/debugging:analyze-profile`)."
 argument-hint: "[diagnose] [--unattended] [bug description or observation]"
 user-invocable: true
 disable-model-invocation: false
