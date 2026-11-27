@@ -220,6 +220,7 @@ const rejects = {
   "style attribute": swap(bodyOpen, `${bodyOpen}<div style="color:red">x</div>`),
   "style @import": swap("* { box-sizing", "@import x; * { box-sizing"),
   "style url()": swap("* { box-sizing", "body { background: url(x) } * { box-sizing"),
+  "style image-set() string URL": swap("* { box-sizing", 'body { background-image: image-set("https://evil.example/pixel.png" 1x) } * { box-sizing'),
   "an image data URL outside the logo slot": swap("* { box-sizing", "body { background-image: url(data:image/png;base64,AA==) } * { box-sizing"),
   "a font data URL outside @font-face": swap("* { box-sizing", "body { background: url(data:font/woff2;base64,AA==) } * { box-sizing"),
   "an SVG data URL in the logo slot": swap("* { box-sizing", ".rv-logo { background-image: url(data:image/svg+xml;base64,AA==) } * { box-sizing"),

@@ -163,6 +163,11 @@ const hostileCss = [
   "body{background:u\\72l(//evil.example/p.gif)}",
   "@IMPORT url(//evil.example/x.css);",
   "body{width:expression(alert(1))}",
+  'body{background-image:image-set("https://evil.example/pixel.png" 1x)}',
+  "body{background-image:-webkit-image-set('//evil.example/pixel.png' 1x)}",
+  'body{background-image:IMAGE-SET("https://evil.example/pixel.png" 1x)}',
+  'body{background-image:image("https://evil.example/pixel.png")}',
+  'body{background-image:src("https://evil.example/pixel.png")}',
 ];
 for (const css of hostileCss) {
   const styled = stampPage(hand.replace("</head>", `<style>${css}</style></head>`));
