@@ -412,6 +412,8 @@ class SelectCasesHiddenTest(unittest.TestCase):
             'x="\ncat <<EOF\n"\nbash gen.sh\n', "cat >notes.txt <<EOF\n$\\\n(bash gen.sh)\nEOF\n",
             '"make"\n', "${MAKE:-make}\n", "cmake -S . -B build\n",
             "mkdir -p .git/hooks\ncp gen.sh .git/hooks/pre-commit\n", "cd .git/hooks\n",
+            "git init -q\ncat >>.git/config <<'EOF'\n[alias]\n\tsetup = !bash gen.sh\nEOF\ngit setup\n",
+            "cat >.gitattributes <<'EOF'\n* diff=x\nEOF\n",
         ):
             with self.subTest(run=run):
                 self.assert_runs(self._written_runner(run), "the scaffold may run gen.sh")
