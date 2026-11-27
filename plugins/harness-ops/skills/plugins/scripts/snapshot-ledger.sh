@@ -8,7 +8,7 @@ snapshot_ledger_load() {
   mapfile -t SNAPSHOT_ORDER <<<"${__sl_labels//$'\r'/}"
 }
 
-snapshot_file() { printf -v "$1" '%s' "$RUN_DIR/$2.$3.json"; }
+snapshot_file() { printf -v "$1" '%s' "${RUN_DIR:?}/$2.$3.json"; }
 
 snapshot_latest() {
   local __sl_i

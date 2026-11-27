@@ -2543,6 +2543,7 @@ jq_to DIGEST -c -n -L "$SCRIPT_DIR" \
 
 printf '%s\n' "$DIGEST" >"$RUN_DIR/digest.json"
 if [[ "$MODE" == "sync" ]] && ((ONLY_INSTALL_MODE == 0)); then
+  RUN_RECORD_RUN=""
   jq_to FIRST_PASS_TIMINGS -c '.timings | {total, resolution, outside_marketplaces}' <<<"$DIGEST" &&
     record_fields_to RUN_RECORD_RUN "${RR_RUN_FIELDS[@]}" &&
     run_record_write "$RUN_RECORD" "$RUN_DIR/.run-record.jsonl" "$RUN_RECORD_RUN" ||
