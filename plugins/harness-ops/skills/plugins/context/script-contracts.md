@@ -17,11 +17,16 @@ files directly, and never write them. `converge`'s committed-enable check
 "<skill-dir>/scripts/fleet-state.sh" --ids <selector> --from <report.json>
 ```
 
-The second form emits the plain id list a mutating step loops, instead of the JSON report. One
-tab-separated record per line, first field always the fully-qualified `<name>@<marketplace>`. Use it
-whenever a step needs ids; never hand-write a `jq` extraction over the JSON, which reintroduces a
+The second form emits the records a mutating step loops, instead of the JSON report. One
+tab-separated record per line, first field always the fully-qualified `<name>@<marketplace>`, then
+the fields the step needs. One selector table in `fleet-state.sh` defines each selector's report
+fields, its record filter and its columns; `--help` prints every selector with its columns, and an
+unknown selector is rejected with the same list. A column that can be empty is always last, since a
+tab-split `read` folds an empty middle field into the next. Use it whenever a step needs ids or
+their fields; never hand-write a `jq` extraction or join over the JSON, which reintroduces a
 trailing `\r` on Windows and silently corrupts every id but the last (see
-[gotchas.md](gotchas.md)).
+[gotchas.md](gotchas.md)). A step that needs a field no selector returns gets a column or a
+selector in the table.
 
 The third form projects that same id list from a report already on disk rather than recomputing the
 fleet, and is the form `sync`'s steps use: each step re-reads the full report anyway, and every

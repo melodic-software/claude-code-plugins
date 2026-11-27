@@ -303,7 +303,7 @@ json_lines() {
     printf -v "$__var" '%s' '[]'
     return 0
   fi
-  jq_to "$__var" -R -s -c 'gsub("\r"; "") | split("\n") | map(select(length > 0))' <"$__file"
+  jq_to "$__var" -R -s -c 'gsub("\r"; "") | split("\n") | map(select(length > 0) | split("\t")[0])' <"$__file"
 }
 
 json_array_of() {
@@ -411,17 +411,6 @@ if [[ -n "${SYNC_RUN_VERSION_DIRECTION:-}" ]]; then
   version_direction "${SYNC_RUN_VERSION_DIRECTION%%$'\t'*}" "${SYNC_RUN_VERSION_DIRECTION#*$'\t'}"
   exit 0
 fi
-
-version_at() {
-  local __var="$1"
-  local report="$2"
-  local id="$3"
-  local scope="$4"
-  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to "$__var" -r --arg id "$id" --arg sc "$scope" \
-    'first(.installed[]? | select(.id == $id and .scope == $sc
-      and ($sc == "user" or .currentProject == true)) | .version) // ""' "$report"
-}
 
 CLI_OUT=""
 CLI_RC=0
@@ -922,34 +911,22 @@ path_row() {
 
 other_paths_step() {
   local mp="$1"
-  local cands=""
+  local cands="$RUN_DIR/ids.other-paths.$mp.txt"
   local path id scope old cat rlabel home fs reason
   local before=""
   local after=""
   local cur=""
   local stopped=""
-  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  if ! jq_to cands -r "$TRIPLE_DEF"'
-    .catalog_versions as $cv
-    | [.installed[]? | select((.scope == "project" or .scope == "local") and .currentProject != true
-         and .projectPathPresent == true and (.projectPath // "") != "")
-       | select(($cv[.id] | triple) as $c | (.version | triple) as $v | $c != null and $v != null and $v < $c)
-       | {projectPath, id, scope, version, cat: $cv[.id], label: (.label // ""),
-          home: (.projectPathIsHome == true | tostring)}]
-    | sort_by(.projectPath, .id, .scope)[]
-    | [.projectPath, .id, .scope, .version, .cat, .label, .home] | join("\u001f")' "$RUN_DIR/mid.$mp.json"; then
-    mp_error "other-paths selection failed, step not run"
+  if ! project_ids update-candidates-other-paths "$RUN_DIR/mid.$mp.json" "$cands"; then
+    mp_error "other-paths projection failed, step not run: $(proj_err)"
     return 0
   fi
   if ((UPDATE_OTHER_PATHS == 0)); then
-    printf '%s\n' "$cands" | jq -c -R 'select(. != "") | gsub("\r"; "") | split("\u001f")
-      | {path: .[0], id: .[1], scope: .[2]}' >"$RUN_DIR/.other-paths-skipped.$mp.jsonl" ||
-      mp_error "other-paths count failed"
+    jq -c -R 'select(. != "") | split("\t") | {path: .[2], id: .[0], scope: .[1]}' "$cands" \
+      >"$RUN_DIR/.other-paths-skipped.$mp.jsonl" || mp_error "other-paths count failed"
     return 0
   fi
-  while IFS=$'\x1f' read -r path id scope old cat rlabel home; do
-    path="${path//$'\r'/}" id="${id//$'\r'/}" scope="${scope//$'\r'/}" old="${old//$'\r'/}"
-    cat="${cat//$'\r'/}" rlabel="${rlabel//$'\r'/}" home="${home//$'\r'/}"
+  while IFS=$'\t' read -r id scope path old cat home rlabel; do
     [[ -n "$id" ]] || continue
     fs="${path//\\//}"
     if [[ "$path" != "$cur" ]]; then
@@ -979,7 +956,7 @@ other_paths_step() {
       continue
     fi
     PATH_ROWS+=("$(path_row called "" false call)")
-  done <<<"$cands"
+  done <"$cands"
 }
 
 finalize_other_paths() {
@@ -1513,16 +1490,13 @@ step_in_repo_update() {
     if [[ "$MODE" == "sync" && -n "$ir_root" ]]; then
       settings_state ir_before "$ir_root"
     fi
-    while IFS=$'\t' read -r id scope; do
-      id="${id//$'\r'/}"
-      scope="${scope//$'\r'/}"
+    while IFS=$'\t' read -r id scope old; do
       [[ -n "$id" ]] || continue
       if ((ir_stopped == 1)); then
         ir_stopped_add "$id" "$scope" "$ir_root" \
           "not tried: the .claude/ settings in this path changed after an earlier call"
         continue
       fi
-      version_at old "$RUN_DIR/pre.$mp.json" "$id" "$scope"
       if [[ -n "$live_path" ]]; then
         IR_LIVE+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" --arg path "$live_path" \
           '{id: $id, scope: $sc, installed: $old, path: $path}')")
@@ -1577,16 +1551,7 @@ step_user_sweep() {
   if ((rc != 0)); then
     mp_error "user-scope projection failed (exit $rc), sweep not run: $(proj_err)"
   else
-    local sweep_rows=""
-    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-    jq_to sweep_rows -r --rawfile ids "$RUN_DIR/ids.mid.$mp.txt" '
-        . as $s
-        | $ids | gsub("\r"; "") | split("\n")[] | select(length > 0) as $id
-        | $id + "\u001f"
-          + (first($s.installed[]? | select(.id == $id and .scope == "user") | .version) // "" | tostring)' \
-      "$RUN_DIR/mid.$mp.json" || sweep_rows=$(<"$RUN_DIR/ids.mid.$mp.txt")
-    sweep_rows="${sweep_rows//$'\r'/}"
-    while IFS=$'\x1f' read -r id old; do
+    while IFS=$'\t' read -r id old; do
       [[ -n "$id" ]] || continue
       cli_call "claude plugin update $id -s user --json" plugin update "$id" -s user --json
       if [[ "$CLI_PREDICTED" == "true" ]]; then
@@ -1601,7 +1566,7 @@ step_user_sweep() {
       cli_update_result result new "$CLI_OUT"
       printf 'user_sweep\t%s\t%s\t%s\t%s\t%s\n' "$id" user "${old:--}" "${new:--}" "$result" \
         >>"$RUN_DIR/moves.$mp.tsv"
-    done <<<"$sweep_rows"
+    done <"$RUN_DIR/ids.mid.$mp.txt"
   fi
 
   while IFS=$'\t' read -r id scope old new; do
@@ -1841,7 +1806,7 @@ run_install_step() {
 }
 
 run_enable_step() {
-  local mp="$1" rc id row has_user has_local has_project ppath
+  local mp="$1" rc id has_user has_local has_project ppath
 
   fleet_snapshot "$mp" "$RUN_DIR/pre-enable.$mp.json" pre-enable
   rc=$?
@@ -1850,7 +1815,7 @@ run_enable_step() {
     return 0
   fi
 
-  project_ids missing-enabled "$RUN_DIR/pre-enable.$mp.json" "$RUN_DIR/ids.pre-enable.$mp.txt"
+  project_ids enable-targets "$RUN_DIR/pre-enable.$mp.json" "$RUN_DIR/ids.pre-enable.$mp.txt"
   rc=$?
   if ((rc != 0)); then
     mp_error "enable projection failed (exit $rc), Step 5 not run: $(proj_err)"
@@ -1858,19 +1823,8 @@ run_enable_step() {
   fi
   json_lines ENABLE_GAP "$RUN_DIR/ids.pre-enable.$mp.txt"
 
-  while IFS= read -r id; do
-    id="${id//$'\r'/}"
+  while IFS=$'\t' read -r id has_user has_local has_project ppath; do
     [[ -n "$id" ]] || continue
-    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-    jq_to row -r --arg id "$id" '
-      [.installed[]? | select(.id == $id)] as $r
-      | [(any($r[]; .scope == "user") | tostring),
-         (any($r[]; .scope == "local" and .currentProject == true) | tostring),
-         (any($r[]; .scope == "project" and .currentProject == true) | tostring),
-         (first($r[] | select(.scope == "project" and .currentProject == true) | .projectPath) // "")]
-      | @tsv' "$RUN_DIR/pre-enable.$mp.json"
-    IFS=$'\t' read -r has_user has_local has_project ppath <<<"$row"
-
     local enabled_here=0
     if [[ "$has_user" == "true" ]]; then
       enable_one "$id" user

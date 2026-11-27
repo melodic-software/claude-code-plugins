@@ -706,7 +706,8 @@ present, a user home and a linked worktree included, and runs `claude plugin upd
 --json` from that path (`-s project` and `-s local` have no path flag). It is forward-only, unlike Step 2: a record is
 called only when its version and the catalog's both parse and the record is below. A record with no
 readable catalog version, one at or above the catalog, and one in an absent path take no call;
-absent paths stay in the stale project records section.
+absent paths stay in the stale project records section. The records come from
+`--ids update-candidates-other-paths` projected off `mid.<mp>.json`.
 
 The step does not rest on `update` leaving the settings files alone (the record for that is in
 [scope-semantics.md](scope-semantics.md#a-projectpath-that-is-a-user-home-directory)); it checks: before the first call in a path and after each call it takes `git status --porcelain --

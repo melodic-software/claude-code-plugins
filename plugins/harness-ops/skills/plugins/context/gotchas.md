@@ -347,12 +347,13 @@ A surviving `\r` corrupts the value once it is either:
   hand-written `jq -r … | while read` over `fleet-state.sh`'s JSON produce it, with the all-but-last
   signature.
 
-**Never hand-write an id extraction.** `fleet-state.sh --ids <selector>` emits the id list for each
-`sync` step directly, one fully-qualified id per line, CR-free by construction, so the loop that
-feeds `claude plugin` needs no `jq` of its own at all:
+**Never hand-write an id extraction.** `fleet-state.sh --ids <selector>` emits the records for each
+`sync` step directly, one per line with the fully-qualified id first and the selector's other
+columns after a tab, CR-free by construction, so the loop that feeds `claude plugin` needs no `jq`
+of its own at all:
 
 ```bash
-while IFS= read -r id; do
+while IFS=$'\t' read -r id _; do
   [[ -n "$id" ]] || continue
   claude plugin update "$id" -s user
 done < <(…/scripts/fleet-state.sh --ids update-candidates-user)

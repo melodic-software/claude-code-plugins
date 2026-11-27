@@ -61,6 +61,64 @@ native_cwd_to() {
   printf -v "$1" '%s' "$__nc_v"
 }
 
+# shellcheck disable=SC2016  # jq programs: every $var is a jq variable
+SELECTOR_TABLE=(
+  'installed-user|installed:array|id|$block.installed[]? | select(.scope == "user")'
+  'update-candidates-user|installed:array catalog_versions:object|id version|$block.catalog_versions as $cvs | ($block.delisted // []) as $delisted
+     | $block.installed[]? | select(.scope == "user")
+     | select((($cvs[.id]) == null or ($cvs[.id]) != .version)
+              and (proven_downgrade(.version; $cvs[.id]) | not)
+              and (.id as $id | $delisted | index($id) | not))'
+  'update-candidates-project|installed:array catalog_versions:object|id scope version|$block.catalog_versions as $cvs | ([($block.delisted_project // [])[].id]) as $delisted
+     | $block.installed[]? | select(.currentProject == true)
+     | select((proven_downgrade(.version; $cvs[.id]) | not)
+              and (.id as $id | $delisted | index($id) | not))'
+  'update-candidates-other-paths|installed:array catalog_versions:object|id scope projectPath version catalog home label|$block.catalog_versions as $cvs
+     | [$block.installed[]? | select((.scope == "project" or .scope == "local") and .currentProject != true
+          and .projectPathPresent == true and (.projectPath // "") != "")
+        | select(($cvs[.id] | version_triple) as $c | (.version | version_triple) as $v
+                 | $c != null and $v != null and $v < $c)
+        | . + {catalog: $cvs[.id], home: (.projectPathIsHome == true)}]
+     | sort_by(.projectPath, .id, .scope)[]'
+  'downgrade-candidates|installed:array catalog_versions:object|id scope version catalog|$block.catalog_versions as $cvs | $block.installed[]?
+     | select(.scope == "user" or .currentProject == true)
+     | select(proven_downgrade(.version; $cvs[.id]))
+     | . + {catalog: $cvs[.id]}'
+  'current-project|installed:array|id scope|$block.installed[]? | select(.currentProject == true)'
+  'missing-user-install|missing_from_user_install:array|id|$block.missing_from_user_install[]? | {id: .}'
+  'missing-enabled|missing_from_enabled:array|id|$block.missing_from_enabled[]? | {id: .}'
+  'enable-targets|installed:array missing_from_enabled:array|id user local project projectPath|$block.missing_from_enabled[]? as $id
+     | [$block.installed[]? | select(.id == $id)] as $r
+     | {id: $id, user: any($r[]; .scope == "user"),
+        local: any($r[]; .scope == "local" and .currentProject == true),
+        project: any($r[]; .scope == "project" and .currentProject == true),
+        projectPath: (first($r[] | select(.scope == "project" and .currentProject == true) | .projectPath) // null)}'
+  'user-scope-orphans|user_scope_orphans:array|id|$block.user_scope_orphans[]? | {id: .}'
+)
+
+SELECTOR_NAMES=()
+SELECTOR_HELP=""
+for selector_entry in "${SELECTOR_TABLE[@]}"; do
+  IFS='|' read -r selector_name _ selector_cols _ <<<"$selector_entry"
+  SELECTOR_NAMES+=("$selector_name")
+  SELECTOR_HELP+="  $selector_name: ${selector_cols// /, }"$'\n'
+done
+
+selector_field() {
+  local entry name req cols
+  for entry in "${SELECTOR_TABLE[@]}"; do
+    IFS='|' read -r name req cols _ <<<"$entry"
+    [[ "$name" == "$1" ]] || continue
+    case "$2" in
+      required) printf '%s' "$req" ;;
+      columns) printf '%s' "$cols" ;;
+      *) ;;
+    esac
+    return 0
+  done
+  return 1
+}
+
 usage() {
   local text
   IFS= read -r -d '' text <<'EOF' || true
@@ -78,16 +136,14 @@ JSON; the first field is the <name>@<marketplace> id. --from projects --ids from
 a saved single-marketplace report instead of reading the fleet. --marketplaces
 prints every marketplace name, one per line.
 
-Selectors: installed-user, update-candidates-user, update-candidates-project,
-downgrade-candidates, current-project, missing-user-install, missing-enabled,
-user-scope-orphans.
-
 Exit: 0 ran to completion; 1 a single marketplace could not be resolved;
 2 usage error, jq missing, or a state file that does not match its expected shape.
 
 The output shapes are in context/script-contracts.md and context/scope-semantics.md.
+
+Selectors and their columns:
 EOF
-  printf '%s\n' "$text"
+  printf '%s%s' "$text" "$SELECTOR_HELP"
 }
 
 MODE="default"
@@ -155,37 +211,10 @@ if [[ -n "$IDS_SELECTOR" && "$MODE" == "all" ]]; then
   exit 2
 fi
 
-ids_selector_valid() {
-  case "$1" in
-    installed-user | update-candidates-user | update-candidates-project | downgrade-candidates | current-project | missing-user-install | missing-enabled | user-scope-orphans)
-      return 0
-      ;;
-    *)
-      echo "ERROR: unknown --ids selector: $1" >&2
-      echo "  expected one of: installed-user, update-candidates-user," >&2
-      echo "                   update-candidates-project, downgrade-candidates," >&2
-      echo "                   current-project, missing-user-install," >&2
-      echo "                   missing-enabled, user-scope-orphans" >&2
-      return 1
-      ;;
-  esac
-}
-
-ids_selector_required_fields() {
-  case "$1" in
-    installed-user | current-project) echo 'installed:array' ;;
-    update-candidates-user | update-candidates-project | downgrade-candidates)
-      echo 'installed:array catalog_versions:object'
-      ;;
-    missing-user-install) echo 'missing_from_user_install:array' ;;
-    missing-enabled) echo 'missing_from_enabled:array' ;;
-    user-scope-orphans) echo 'user_scope_orphans:array' ;;
-    *) echo '' ;;
-  esac
-}
-
-if [[ -n "$IDS_SELECTOR" ]]; then
-  ids_selector_valid "$IDS_SELECTOR" || exit 2
+if [[ -n "$IDS_SELECTOR" ]] && ! selector_field "$IDS_SELECTOR" columns >/dev/null; then
+  echo "ERROR: unknown --ids selector: $IDS_SELECTOR" >&2
+  printf '  expected one of:\n%s' "$SELECTOR_HELP" >&2
+  exit 2
 fi
 
 if ! command -v jq >/dev/null 2>&1; then
@@ -205,32 +234,17 @@ PROJECTION_PROGRAM='
   def proven_downgrade($iv; $cv):
     ($iv | version_triple) as $i | ($cv | version_triple) as $c
     | ($i != null and $c != null and $c < $i);
-  if $selector == "" then $block
-    elif $selector == "installed-user" then ($block.installed[]? | select(.scope == "user") | .id)
-    elif $selector == "update-candidates-user" then
-      ($block.catalog_versions as $cvs | ($block.delisted // []) as $delisted
-       | $block.installed[]? | select(.scope == "user")
-       | .id as $id
-       | select((($cvs[$id]) == null or ($cvs[$id]) != .version)
-                and (proven_downgrade(.version; $cvs[$id]) | not)
-                and ($delisted | index($id) | not))
-       | $id)
-    elif $selector == "update-candidates-project" then
-      ($block.catalog_versions as $cvs | ([($block.delisted_project // [])[].id]) as $delisted
-       | $block.installed[]? | select(.currentProject == true)
-       | .id as $id
-       | select((proven_downgrade(.version; $cvs[$id]) | not)
-                and ($delisted | index($id) | not))
-       | "\(.id)\t\(.scope)")
-    elif $selector == "downgrade-candidates" then
-      ($block.catalog_versions as $cvs | $block.installed[]?
-       | select(.scope == "user" or .currentProject == true)
-       | select(proven_downgrade(.version; $cvs[.id]))
-       | "\(.id)\t\(.scope)\t\(.version)\t\($cvs[.id])")
-    elif $selector == "current-project" then ($block.installed[]? | select(.currentProject == true) | "\(.id)\t\(.scope)")
-    elif $selector == "missing-user-install" then $block.missing_from_user_install[]?
-    elif $selector == "missing-enabled" then $block.missing_from_enabled[]?
-    elif $selector == "user-scope-orphans" then $block.user_scope_orphans[]?
+  def tsv($cols):
+    . as $r | [$cols[] | $r[.] | if . == null then "" else tostring | gsub("[\t\n\r]"; " ") end] | join("\t");
+  if $selector == "" then $block'
+for selector_entry in "${SELECTOR_TABLE[@]}"; do
+  IFS='|' read -r selector_name _ selector_cols _ <<<"$selector_entry"
+  selector_cols_json="\"${selector_cols// /\",\"}\""
+  PROJECTION_PROGRAM+="
+    elif \$selector == \"$selector_name\" then (${selector_entry#*|*|*|}) | tsv([$selector_cols_json])"
+done
+# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+PROJECTION_PROGRAM+='
     else error("unknown selector: " + $selector) end'
 
 FS_FROM_NAME=""
@@ -251,7 +265,7 @@ if [[ -n "$FROM_REPORT" ]]; then
   fi
   FS_FROM_CHECK=""
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  if ! jq_to FS_FROM_CHECK -r --arg required "$(ids_selector_required_fields "$IDS_SELECTOR")" '
+  if ! jq_to FS_FROM_CHECK -r --arg required "$(selector_field "$IDS_SELECTOR" required)" '
         if type != "object" then "err:not a JSON object"
         elif has("marketplaces") then "err:this is an --all envelope, not a single-marketplace report"
         elif (.marketplace | type) != "object" or (.marketplace.name | type) != "string"

@@ -187,12 +187,15 @@ and project from it:
   >"$run_dir/pre-enable.$mp.json"
 
 "<skill-dir>/scripts/fleet-state.sh" \
-  --ids missing-enabled --from "$run_dir/pre-enable.$mp.json" \
+  --ids enable-targets --from "$run_dir/pre-enable.$mp.json" \
   >"$run_dir/ids.pre-enable.$mp.txt"
 rc=$?   # exit 2 with empty output is a FAILED projection, not "nothing to enable"
 ```
 
-Check `rc` before looping the file, for the reason Step 4 gives.
+Check `rc` before looping the file, for the reason Step 4 gives. Each `enable-targets` record is
+one `missing_from_enabled` id with whether it has a user, a current-project local and a
+current-project project record, and that project record's path: the scopes the enables below pick
+from.
 
 Take `fleet-state.sh`'s `missing_from_enabled` from that projection: ids
 installed somewhere but never mentioned (true
