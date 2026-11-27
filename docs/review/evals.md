@@ -64,7 +64,19 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   may also drop a rejected word left after its decided one (`concern lane` to `concern`), and mix
   number across the two sides (owner, 2026-11-25, Q2217). A comment deletion in an eval case's own
   files (anything under `evals/`) still runs that case, since the model running it may read them;
-  a swap there stays exempt (owner, 2026-11-25, Q2218).
+  a swap there stays exempt (owner, 2026-11-25, Q2218). Except a comment the agent under test
+  cannot see, whose deletion runs nothing: a comment line in a case's `case.yaml`, and a shell
+  comment line outside any heredoc in a script the case's scaffold runs but never copies, prints
+  or writes into the workspace (the `scaffold.sh` its `context.scaffold_script` names, and the
+  helper scripts that runs). Fixtures, prompts, graders (a judge model reads them), samples, and
+  anything a scaffold copies, cats, installs or writes into the workspace keep running their case.
+  `select` decides it statically and keeps running the case when unsure: a script counts as hidden
+  only when a case's scaffold runs it, no file of a case that reaches it names it or its folder in
+  any other form, and it never reads its own source (owner, 2026-11-27, narrowing Q2218: "The eval
+  dir itself is hidden from the agent",
+  [case-authoring.md:56-57](../../plugins/evals/skills/plugin-eval/reference/case-authoring.md), and a
+  probe of 150 scaffolds found none of their non-heredoc comments in any workspace file or git
+  history).
 - No run for a description-only case edit, an additive skill edit (added instructions can still
   lower adherence to the rest, so `select` lists its cases as affected but not run, Q8), a restated upstream fact swapped
   for a pointer to its source ([skills-and-agents.md](skills-and-agents.md), C3), or a repair that

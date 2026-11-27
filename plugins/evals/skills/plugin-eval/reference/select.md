@@ -26,8 +26,12 @@ directive comment (`//go:build`, `/// <reference`, `# shellcheck`, `# coding:` a
 comment in a cgo file, a `/*` opener deleted without its `*/` and a PowerShell `#>` closer are
 never deletable comments; a swap in a skill's `name` or a skill or agent rename always runs; a script gets no swap exemption; a change with no hunks is never exempt; a
 plugin-wide file is always listed. A comment deletion under `evals/` runs its case, since the
-model running the case may read it; a swap there stays exempt. A hunk with any other change keeps
-the rules above.
+model running the case may read it, unless the agent under test cannot see the file: the case's
+`case.yaml`, or a `.sh` or `.bash` script a case's scaffold runs (`bash`, `sh`, `source` or `.`
+with the script's path, or its `context.scaffold_script`) that no file of a case reaching it names,
+or names its folder, in any other form, and that never reads its own source (`$0`, `BASH_SOURCE`
+outside `$(dirname ...)`, or its own name). A heredoc line stays content. A swap under `evals/`
+stays exempt. A hunk with any other change keeps the rules above.
 
 A `description` or `when_to_use` edit runs nothing when the old and new text are equal after three
 removals: each routing clause (a `Not for`, `Skip` or `prefer` clause that names a `plugin:skill`),
