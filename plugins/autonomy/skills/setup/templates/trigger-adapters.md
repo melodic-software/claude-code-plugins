@@ -198,10 +198,11 @@ A continuous routine never enqueues its run here: the feed emission may wake the
 ratified temporal surface, and the run enters via the temporal adapter carrying `signal.routine`
 and `signal.producer_identity`; `channel-feed` carries only the ordinary feed signal.
 
-Vendor facts this shape depends on, for Slack, where Claude ships as two separate products:
+Vendor facts this shape depends on, for Slack, where Claude ships as Claude Tag (the earlier
+Claude Code in Slack integration is retired):
 
 - **Claude Tag.** Pointer:
   [Plans that include Claude Tag](https://claude.com/docs/claude-tag/overview#plans-that-include-claude-tag).
-- **Claude Code in Slack, the earlier version.** Pointer:
+- **Claude Code in Slack, the earlier version (retired).** Pointer:
   [Claude Code in Slack](https://code.claude.com/docs/en/slack) and
-  [the migration guide](https://claude.com/docs/claude-tag/admins/migrate-from-earlier).
+  [How Claude Tag differs from the earlier app](https://claude.com/docs/claude-tag/admins/migrate-from-earlier#how-claude-tag-differs-from-the-earlier-app).
