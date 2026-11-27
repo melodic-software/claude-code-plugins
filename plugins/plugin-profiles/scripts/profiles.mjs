@@ -19,6 +19,7 @@ import { readText, replaceFile } from "../lib/atomic-file.mjs";
 import { appendExceptions, exceptionCounts, exceptionsToReview, PROFILE_NAME, readExceptions, SESSION_DAYS } from "../lib/exceptions.mjs";
 import { ALWAYS_ON, PLUGIN_ID, ProfileError, everyProfile, ignoredLine, parseProfile, profileLevels, profileNamed, profileText, readCatalog, readProfileFiles, resolveCatalog, sourcesOf } from "../lib/profile-files.mjs";
 import { folderLevel } from "../lib/folder-file.mjs";
+import { SESSION_START_KEY, hookEnabled } from "../lib/hook-enablement.mjs";
 import { listRecords, machineSettingsFiles, readPointers, repositoryHome, sessionFolders, writePointer } from "../lib/machine-records.mjs";
 import {
   ABSENT,
@@ -1090,6 +1091,7 @@ function writeRootPointer(where) {
 
 function status(opts, where, env, io) {
   if (opts.sessionStart) {
+    if (!hookEnabled(SESSION_START_KEY, true, { env })) return 0;
     const input = hookInput(io);
     const context = (() => {
       try {
