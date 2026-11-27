@@ -1145,6 +1145,7 @@ contract_keys() {
 contract_clean=$'run extra: [] missing: []\nrun verdict extra: [] missing: []\nblock extra: [] missing: []\nblock verdict extra: [] missing: []'
 assert_eq "digest contract: a sync run's run, block and verdict keys are the contract's, both ways" \
   "$contract_clean" "$(contract_keys "$REPORT_DIGEST")"
+assert_eq "digest version: a sync run's digest is version 1" "1" "$(jq -r '.digest_version' <<<"$REPORT_DIGEST")"
 assert_eq "digest contract: an audit run's run, block and verdict keys are the contract's, both ways" \
   "$contract_clean" \
   "$(contract_keys "$(run_sync "$case_dir" --marketplace market1 --audit --install-new none | head -n 1)")"
@@ -1724,20 +1725,17 @@ needs_check "audit would install" audit '{"install_gap":["b@m"],"installed":[{"i
 needs_check "audit would enable" audit '{"enable_gap":["b@m"],"enabled":[{"id":"b@m","scope":"user","label":"claude plugin enable b@m -s user","rc":null,"predicted":true}]}' \
   "would run: claude plugin enable b@m -s user" row
 needs_policy=none
-norm_render() { needs_digest "$1" "{\"normalize\":{\"output\":\"$2\"}}" | jq -r -f "$SCRIPT_DIR/render-report.jq"; }
-assert_contains "normalize render: the row counts moved keys of the total" \
-  "$(norm_render sync 'normalized moved=1 keys=101')" "Normalized: user enabledPlugins key order (1 of 101 keys moved)"
-assert_contains "normalize render: audit predicts the moved count" \
-  "$(norm_render audit 'would-normalize moved=2 keys=9')" "(would run: normalize-enabled-plugins.sh, 2 of 9 keys would move)"
-assert_contains "normalize render: a missing file is no user settings file" \
-  "$(norm_render sync 'missing-file keys=0')" "Normalized: skipped, no user settings file"
-assert_contains "normalize render: audit names a missing file the same way" \
-  "$(norm_render audit 'missing-file keys=0')" "Would normalize: skipped, no user settings file"
-assert_eq "normalize render: a missing file never reads as a reorder" "0" \
-  "$(norm_render sync 'missing-file keys=0' | grep -c 'key order' || true)"
-assert_contains "normalize render: a digest without moved= keeps its old row" \
-  "$(norm_render sync 'normalized keys=3')" "Normalized: user enabledPlugins key order (3 keys reordered)"
 field_render() { needs_digest "$1" "{\"normalize\":$2}" | jq -r -f "$SCRIPT_DIR/render-report.jq"; }
+norm_missing='{"output":"","status":"missing-file","moved":null,"keys":0}'
+assert_contains "normalize render: a missing file is no user settings file" \
+  "$(field_render sync "$norm_missing")" "Normalized: skipped, no user settings file"
+assert_contains "normalize render: audit names a missing file the same way" \
+  "$(field_render audit "$norm_missing")" "Would normalize: skipped, no user settings file"
+assert_eq "normalize render: a missing file never reads as a reorder" "0" \
+  "$(field_render sync "$norm_missing" | grep -c 'key order' || true)"
+assert_contains "normalize render: a reorder with no moved count names the keys reordered" \
+  "$(field_render sync '{"output":"","status":"normalized","moved":null,"keys":3}')" \
+  "Normalized: user enabledPlugins key order (3 keys reordered)"
 assert_contains "normalize fields: the row reads status, moved and keys, not the output text" \
   "$(field_render sync '{"output":"","status":"normalized","moved":3,"keys":7}')" \
   "Normalized: user enabledPlugins key order (3 of 7 keys moved)"
@@ -1750,15 +1748,9 @@ assert_contains "normalize fields: a refusal names its reason once under Action 
 assert_contains "normalize fields: an unsorted project map reads its status" \
   "$(field_render sync '{"output":"","status":"already-sorted","project_report":{"output":"","status":"project-unsorted","keys":2}}')" \
   "project-scope enabledPlugins map is unsorted"
-assert_contains "normalize render: a legacy refusal names its reason once" \
-  "$(norm_render sync 'refused: write-denied (x)')" "  - user-scope enabledPlugins reorder refused: write-denied (x)"
 stale_unwritten='{"stale_project_records":{"total":1,"paths":1,"by_parent":[{"parent":"/g/","count":1,"paths":1}],"more_parents":0,"list_file":null}}'
 assert_contains "stale render: a sync run with no list file says it was not written" \
   "$(needs_digest sync "$stale_unwritten" | jq -r -f "$SCRIPT_DIR/render-report.jq")" "  Full per-path list: not written this run"
-stale_legacy='{"stale_project_records":{"total":3,"by_parent":null,"by_path":[{"path":"/g/a","count":2},{"path":"/h/b","count":1}]}}'
-assert_contains "stale render: a pre-3.8.1 digest still renders its per-path rows" \
-  "$(needs_digest sync "$stale_legacy" | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')" \
-  $'Stale project records (m): 3 record(s) across 2 path(s) not present on this machine\n  - /g/a: 2 record(s)\n  - /h/b: 1 record(s)'
 stale_local_only='{"stale_project_records":{"total":2,"paths":1,"project":0,"local":2,"by_parent":[{"parent":"/g/","count":2,"paths":1}],"more_parents":0,"list_file":null}}'
 assert_not_contains "stale render: local-scope records only name no worktree audit" \
   "$(needs_digest sync "$stale_local_only" | jq -r -f "$SCRIPT_DIR/render-report.jq")" "/source-control:worktree audit"
@@ -1771,16 +1763,21 @@ assert_contains "user-home render: the records get a row of their own" \
 assert_not_contains "user-home render: no records, no row" \
   "$(needs_digest sync '{"user_home_records":{"total":0,"paths":[]}}' | jq -r -f "$SCRIPT_DIR/render-report.jq")" "User-home project records"
 pending_check "audit enable gap" audit '{"enable_gap":["b@m"]}' "missing_from_enabled, not enabled this run: b@m"
-assert_contains "self-update render: a digest without the row names no plugin" \
-  "$(needs_digest sync '{"self_updated":true,"user_sweep":{"updated":[{"id":"a@m","scope":"user","old":"1","new":"2"}]}}' |
-    jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')" $'Note: this plugin moved during this run\n  the algorithm'
+digest_notice='This digest predates this renderer (digest_version none, renderer 1): read report.txt in the same run directory, or re-run /harness-ops:plugins sync'
+assert_eq "digest version: a digest without digest_version renders the one-line notice alone" "$digest_notice" \
+  "$(needs_digest sync '{}' | jq -c 'del(.digest_version)' | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')"
+assert_eq "digest version: a digest of another version renders the notice with that version" \
+  "${digest_notice/version none/version 2}" \
+  "$(needs_digest sync '{}' | jq -c '.digest_version = 2' | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')"
+assert_eq "digest version: a current digest renders the report, not the notice" \
+  "Result: clean, nothing changed and nothing under Action needed" \
+  "$(needs_digest sync '{}' | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r' | head -n 1)"
 
 div_row_of() {
   needs_digest sync "$1" | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r' |
     awk '/^Divergences:/ { on = 1; print; next } on && /^ / { print; next } { on = 0 }'
 }
 div_attr='"pre_existing":4,"new_total":1,"new_by_interval":{"in_repo":1,"user_sweep":0}'
-div_attr_lines=$'  4 pre-existing\n  1 newly created by this run\n    1 by the in-repo update\n    0 by the user-scope sweep'
 div_origin_lines=$'  by origin:\n    4 pre-existing\n    1 newly created by this run\n      1 by the in-repo update\n      0 by the user-scope sweep'
 div_row=$(div_row_of "{\"project_root\":\"/w\",\"divergences\":{\"post\":5,$div_attr,\"actionable_here\":2,\"actionable_elsewhere\":3,\"in_worktrees\":0,\"blocked\":0}}")
 assert_eq "divergences split: all actionable points at converge only" \
@@ -1799,33 +1796,30 @@ assert_eq "divergences split: only blocked names the stale-records note" \
   $'Divergences: 7 in all\n  7 blocked, path not present\n    remedy: see Stale project records below\n'"$div_origin_lines" \
   "$div_row"
 assert_not_contains "divergences split: only blocked has no converge pointer" "$div_row" "converge"
-div_old="\"post\":5,$div_attr"
-assert_eq "divergences split: an old digest without split fields renders its count and the remedy" \
-  $'Divergences: 5 actionable\n'"$div_attr_lines"$'\n  remedy: run `/harness-ops:plugins converge`' \
-  "$(div_row_of "{\"divergences\":{$div_old}}")"
-assert_eq "divergences split: an old digest with a project names the here count under the machine-wide one" \
-  $'Divergences: 5 actionable on this whole machine\n  2 behind here\n'"$div_attr_lines"$'\n  remedy: run `/harness-ops:plugins converge`' \
-  "$(div_row_of "{\"project_root\":\"/w\",\"divergences_here\":2,\"divergences\":{$div_old}}")"
 assert_eq "divergences split: zero stays zero" 'Divergences: 0 actionable' \
   "$(div_row_of '{"divergences":{"post":0,"actionable_here":0,"actionable_elsewhere":0,"in_worktrees":0,"blocked":0}}')"
+div_row=$(div_row_of '{"project_root":"/w/repo","divergences":{"post":67,"pre_existing":24,"new_total":43,
+  "new_by_interval":{"in_repo":5,"user_sweep":38},"actionable_here":3,"actionable_elsewhere":64,"in_worktrees":0,"blocked":0}}')
+assert_eq "divergences split: the origin lines sum to the count they follow" "67 24 43 5 38 true" \
+  "$(awk '
+    /^Divergences: [0-9]+ in all$/ { t = $2 }
+    /^    [0-9]+ pre-existing$/ { p = $1 }
+    /^    [0-9]+ newly created by this run$/ { n = $1 }
+    /^      [0-9]+ by the in-repo update$/ { r = $1 }
+    /^      [0-9]+ by the user-scope sweep$/ { s = $1 }
+    END { print t, p, n, r, s, (t != "" && t == p + n && n == r + s) ? "true" : "false" }' <<<"$div_row")"
 
 div_by_path='{"post":6,"pre_existing":6,"new_total":0,"new_by_interval":{"in_repo":0,"user_sweep":0},
   "actionable_here":0,"actionable_elsewhere":6,"in_worktrees":0,"blocked":0,
-  "by_path":[{"path":"/w/a","count":5,"ids":["a@m","b@m","c@m"],"more":2},
-             {"path":"/w/b","count":2,"ids":["a@m","f@m"],"more":0}]}'
+  "by_path":[{"path":"/w/a","class":"actionable","count":5,"ids":["a@m","b@m","c@m"],"more":2},
+             {"path":"/w/b","class":"actionable","count":2,"ids":["a@m","f@m"],"more":0}],
+  "blocked_paths":{"paths":0,"records":0}}'
 div_text=$(needs_digest sync "{\"divergences\": $div_by_path}" | jq -r -f "$SCRIPT_DIR/render-report.jq")
 assert_golden "divergence by path, no project root: the report matches the golden" divergence-by-path-no-root.txt "$div_text"
 assert_eq "divergence by path: one sub-line per path" "2" \
   "$(grep -c '^    - /w/' <<<"$div_text")"
 assert_eq "divergence by path: exactly one sub-line is capped" "1" \
   "$(tr -d '\r' <<<"$div_text" | grep -c '^    - /w/.*, +[0-9][0-9]* more$')"
-div_legacy='{"post":2,"pre_existing":2,"new_total":0,"new_by_interval":{"in_repo":0,"user_sweep":0},
-  "actionable_here":0,"actionable_elsewhere":1,"in_worktrees":0,"blocked":1,
-  "by_path":[{"path":"/w/a","class":"actionable","count":1,"ids":["a@m"],"more":0},
-             {"path":"/gone","class":"blocked","count":2,"ids":["b@m"],"more":0}]}'
-assert_contains "divergence by path: an older digest's absent path becomes a count line" \
-  "$(needs_digest sync "{\"divergences\": $div_legacy}" | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')" \
-  $'  by project path:\n    - /w/a: 1 diverging record(s): a@m\n    - 1 path(s) not present: 2 diverging record(s), counted under Stale project records'
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -2794,24 +2788,6 @@ assert_contains "cache content: mixed, the repair names the rows it covers" "$ca
   "  remedy, for the rows not marked unreleased: remove"
 assert_not_contains "cache content: mixed, the other row is not labeled" "$cache_text" \
   "  - b@m 2.0.0: 1 file(s) differ (unreleased"
-
-CASE_NUM=$((CASE_NUM + 1))
-split_divergences='{"post": 67, "pre_existing": 24, "new_total": 43, "new_by_interval": {"in_repo": 5, "user_sweep": 38}}'
-div_text=$(needs_digest sync "{\"divergences\": $split_divergences}" | jq -r -f "$SCRIPT_DIR/render-report.jq")
-assert_golden "divergence split, no project root: the report matches the golden" divergence-split-no-root.txt "$div_text"
-div_text=$(needs_digest sync "{\"divergences\": $split_divergences, \"project_root\": \"/w/repo\",
-  \"in_repo_records\": 4, \"divergences_here\": 3}" | jq -r -f "$SCRIPT_DIR/render-report.jq")
-assert_golden "divergence split, project root: the report matches the golden" divergence-split-project-root.txt "$div_text"
-for variant in no-root project-root; do
-  assert_eq "divergence split, $variant: the split sums to the count it follows" "true" \
-    "$(tr -d '\r' <"$GOLDEN_DIR/divergence-split-$variant.txt" | awk '
-      /^Divergences: [0-9]+ actionable/ { t = $2 }
-      /^  [0-9]+ pre-existing$/ { p = $1 }
-      /^  [0-9]+ newly created by this run$/ { n = $1 }
-      /^    [0-9]+ by the in-repo update$/ { r = $1 }
-      /^    [0-9]+ by the user-scope sweep$/ { s = $1 }
-      END { print (t != "" && t == p + n && n == r + s) ? "true" : "false" }')"
-done
 
 CASE_NUM=$((CASE_NUM + 1))
 remedy_text=$(needs_digest audit '{"source_checkout": {"path": "/src", "state": "tracking", "branch": "main",

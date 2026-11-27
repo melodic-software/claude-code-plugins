@@ -5,7 +5,7 @@
 #
 # sync-run.sh runs this once per invocation, writes the result to
 # <run_dir>/report.txt, and prints it after the digest under `--render`. The
-# same command reproduces the report from a run directory at any later time.
+# same command reproduces the report from a run directory later.
 #
 # Every section, conditional row, annotation and `Action needed` bullet is
 # derived from a digest field; nothing here is judgment, so the report cannot
@@ -27,8 +27,13 @@
 # verdict.jq classifies the digest (status, pending and changed, the install and
 # enable outcomes, every `Action needed` item); this program lays those facts
 # and the digest's rows out as lines.
+#
+# It formats only the digest shape of digest-contract.json's `digest_version`;
+# a digest of any other version gets one line pointing at the report.txt its
+# own run wrote.
 
 include "verdict" {search: "./"};
+import "digest-contract" as $contract {search: "./"};
 
 def secs: if . == null then "n/a" else "\(.)s" end;
 def pair: "\(.old) -> \(.new)" + (if .direction == "unknown" then " (direction unknown)" else "" end);
@@ -52,7 +57,7 @@ def format_block($d; $v):
   | (.in_repo.would_update + (.user_sweep.would_update | map(. + {scope: "user"}))) as $would
   | .user_sweep.withheld_downgrades as $withheld
   | .other_paths as $op
-  | (.normalize | norm_fields) as $norm
+  | (.normalize // {}) as $norm
   | .timings as $t
   | .source_checkout as $src
   | .source_pull as $pull
@@ -217,10 +222,9 @@ def format_block($d; $v):
 
       # Divergences: version-skewed rows only (versionsMatch false), split by interval.
       # The interval lines follow the machine-wide count they sum to, and the per-step
-      # lines follow the newly created count, shown only when it is above zero.
-      # A digest from this version also splits the count by what can be done about each
-      # row: only the actionable parts point at converge. A digest written before that
-      # split carries no `blocked` field and renders its count with one converge remedy.
+      # lines follow the newly created count, shown only when it is above zero. The
+      # count is also split by what can be done about each row: only the actionable
+      # parts point at converge.
       (.divergences as $v
        | (["  \($v.pre_existing) pre-existing",
            "  \($v.new_total) newly created by this run"]
@@ -233,15 +237,6 @@ def format_block($d; $v):
        | if $v.post == null then
            "Divergences: not computed (\($v.note // "a snapshot was missing"))"
          elif $v.post == 0 then "Divergences: 0 actionable"
-         elif $v.blocked == null then
-           (if .project_root != null and .divergences_here != null then
-              "Divergences: \($v.post) actionable on this whole machine",
-              "  \(.divergences_here) behind here"
-            else
-              "Divergences: \($v.post) actionable"
-            end),
-           $intervals[],
-           "  remedy: run `/harness-ops:plugins converge`"
          else
            (($v.actionable_here // 0) + ($v.actionable_elsewhere // 0)) as $actionable
            | "Divergences: \($v.post) in all",
@@ -265,15 +260,11 @@ def format_block($d; $v):
            ($intervals[] | "  \(.)")
          end),
       # One sub-line per project path holding a skewed record, so the count names where
-      # the work is. A path converge cannot act on says why; a digest written before
-      # `class` renders every path bare. A digest written before `by_path` renders the
-      # count lines alone. The paths that are not present get one count line, since
-      # the stale project records section counts each of them; a digest written before
-      # `blocked_paths` carries them in `by_path`, and the count is taken from there.
-      ((.divergences.by_path // []) as $all
-       | [$all[] | select(.class != "blocked")] as $paths
-       | (.divergences.blocked_paths
-          // ([$all[] | select(.class == "blocked")] | {paths: length, records: (map(.count) | add // 0)})) as $absent
+      # the work is. A path converge cannot act on says why. The paths that are not
+      # present get one count line, since the stale project records section counts
+      # each of them. A run that did not compute the split carries neither field.
+      ((.divergences.by_path // []) as $paths
+       | .divergences.blocked_paths as $absent
        | if ($paths | length) == 0 and ($absent.paths // 0) == 0 then empty
          else
            "  by project path:",
@@ -287,12 +278,8 @@ def format_block($d; $v):
             else empty end)
          end),
 
-      # The digest names this plugin's own row; a digest written before it did
-      # carries no row, so the note names no plugin rather than guess one.
       (if .self_updated == true then
-         (if .self_update == null then "this plugin"
-          else "\(.self_update.id | split("@")[0]) (\(.self_update.old // "?") -> \(.self_update.new // "?"))" end) as $what
-         | "Note: \($what) moved during this run",
+         "Note: \(.self_update.id | split("@")[0]) (\(.self_update.old // "?") -> \(.self_update.new // "?")) moved during this run",
            "  the algorithm that ran is the pre-update one: ${CLAUDE_PLUGIN_ROOT} still resolves to the version loaded at session start",
            "  remedy: /reload-plugins before relying on the new version"
        else empty end),
@@ -302,18 +289,12 @@ def format_block($d; $v):
       (if .stale_project_records.total > 0 then
          # The records come from this marketplace's install records only, so the label names it.
          .name as $name | .stale_project_records as $s
-         # A digest written before 3.8.1 carries only `by_path`; render it the way it was rendered then.
-         | if $s.by_parent == null then
-             "Stale project records (\($name)): \($s.total) record(s) across \($s.by_path | length) path(s) not present on this machine",
-             ($s.by_path[] | "  - \(.path): \(.count) record(s)")
-           else
-             "Stale project records (\($name)): \($s.total) record(s) across \($s.paths) path(s) not present on this machine",
-             ($s.by_parent[] | "  - \(.parent): \(.count) record(s) across \(.paths) path(s)"),
-             (if $s.more_parents > 0 then "  +\($s.more_parents) more parent director(ies)" else empty end),
-             (if $audit then "  Full per-path list: not kept, the audit scratch directory is removed on exit"
-              elif $s.list_file == null then "  Full per-path list: not written this run"
-              else "  Full per-path list: \($s.list_file)" end)
-           end,
+         | "Stale project records (\($name)): \($s.total) record(s) across \($s.paths) path(s) not present on this machine",
+           ($s.by_parent[] | "  - \(.parent): \(.count) record(s) across \(.paths) path(s)"),
+           (if $s.more_parents > 0 then "  +\($s.more_parents) more parent director(ies)" else empty end),
+           (if $audit then "  Full per-path list: not kept, the audit scratch directory is removed on exit"
+            elif $s.list_file == null then "  Full per-path list: not written this run"
+            else "  Full per-path list: \($s.list_file)" end),
          # Only project-scope records under the source-control worktree root are that audit's to
          # classify, so the pointer needs a project-scope record and says which of them it covers.
          (if $s.project > 0 then
@@ -371,6 +352,7 @@ def format_block($d; $v):
        else "Action needed:", ($v.actions[].lines | bullet) end)
     ];
 
+def format_run:
 . as $d
 | ($d.mode == "audit") as $audit
 | classify as $v
@@ -414,4 +396,9 @@ def format_block($d; $v):
        "  if it warns, rerun it as /reload-plugins --force"
      end)
   ]
-| join("\n")
+| join("\n");
+
+$contract::contract[0].run.digest_version as $current
+| if .digest_version == $current then format_run
+  else "This digest predates this renderer (digest_version \(.digest_version // "none"), renderer \($current)): read report.txt in the same run directory, or re-run /harness-ops:plugins sync"
+  end

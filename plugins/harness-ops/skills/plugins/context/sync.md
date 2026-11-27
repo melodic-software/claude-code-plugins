@@ -71,6 +71,9 @@ default, and the script builds each block and the run object on it, so a field a
 compute carries its default and is never absent. What the fields mean, where it is not plain from
 the name:
 
+- `digest_version` names the digest shape. `render-report.jq` formats only the contract's
+  version; a digest of any other version, or one without the field, renders one line pointing at
+  the `report.txt` its own run wrote. A change to the shape the renderer reads bumps it.
 - `source_checkout` describes a `directory` source as of the checkout's last fetch and is `null`
   for any other source kind. The script fetches or pulls that checkout only on a `--pull-source`
   request, because the user owns it; `source_pull` says what the run did or would do with a behind

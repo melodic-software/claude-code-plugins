@@ -4,9 +4,6 @@
 # sync-run.sh writes them into the digest as each block's and the run's
 # `verdict` (keys in digest-contract.json).
 
-# The first line of a journaled CLI output that is the CLI's own, not the
-# `$ <command>` echo the journal opens with.
-def first_line: (. // "") | split("\n") | map(select(startswith("$ ") | not)) | (.[0] // "");
 # Capture-time classification lives in .reason. This fallback is the same rule
 # as sync-run.sh's cli_outcome_line for a row that has no reason yet: CRs
 # dropped, `$` and empty lines skipped, then the first ✘ / Failed / Error line,
@@ -25,19 +22,6 @@ def scoped: "\(.id) (\(.scope))";
 def listed($head; $items):
   if ($items | length) <= 3 then ["\($head): \($items | join(", "))"]
   else ["\($head):"] + ($items | map("- \(.)")) end;
-# A digest written before sync-run.sh parsed the normalizer line carries only
-# `output`, read here into the same fields.
-def norm_fields:
-  if . == null then {}
-  elif has("status") then .
-  else (.output // "") as $o
-    | {status: ($o | if test("^normalized ") then "normalized" elif test("^would-normalize") then "would-normalize"
-                 elif test("^missing-file") then "missing-file" elif test("^refused:") then "refused"
-                 elif test("^project-unsorted") then "project-unsorted" else null end),
-       moved: ($o | capture("moved=(?<m>[0-9]+)").m // null),
-       keys: ($o | capture("keys=(?<k>[0-9]+)").k // null),
-       reason: ($o | first_line | ltrimstr("refused: "))}
-  end;
 def item($kind): {kind: $kind, lines: .};
 
 # One marketplace block's facts: its status, the pending actions and their
@@ -61,8 +45,8 @@ def classify_block($d):
   # enable at user scope.
   | ([$enabled_ok[] | select(.scope == "user") | .id]) as $on
   | [$installed_ok[] | select(.disabled_by_default == true) | .id | select(IN($on[]) | not)] as $installed_disabled
-  | (.normalize | norm_fields) as $norm
-  | (.normalize.project_report | norm_fields) as $pnorm
+  | (.normalize // {}) as $norm
+  | (.normalize.project_report // {}) as $pnorm
   | (.enable_gap - ($enabled_ok | map(.id)) - ($would_enable | map(.id))
      - (.project_enable_rows | map(.id))) as $enable_unfilled
   | (.install_enable_deferred == true and (.install_gap | length) > 0

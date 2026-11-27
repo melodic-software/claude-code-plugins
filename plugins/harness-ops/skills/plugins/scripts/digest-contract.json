@@ -1,5 +1,6 @@
 {
   "run": {
+    "digest_version": 1,
     "run_dir": null,
     "cwd": null,
     "mode": null,

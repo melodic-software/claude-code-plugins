@@ -236,7 +236,8 @@ record behind them.
 Step 6 is rendered by the script. `sync-run.sh --render` prints the fixed-section report after the
 digest line, every run writes the same text to `<run_dir>/report.txt`, and
 `jq -r -f "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/render-report.jq <run_dir>/digest.json`
-reproduces it from a run directory later.
+reproduces it from a run directory later. A digest of another `digest_version` renders one line
+pointing at that run's `report.txt` instead.
 
 Every section, conditional row, annotation and `Action needed` bullet is a function of digest
 fields, which keeps a number, an id or a scope from being misstated between the run and the report.
