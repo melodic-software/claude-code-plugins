@@ -18328,7 +18328,6 @@ class ApplyPerCandidateProbeTests(unittest.TestCase):
                 self.assertEqual(4, len(report["skipped"]))
                 self.assertTrue((self.batch / "file-0.tmp").exists())
 
-
     def test_the_apply_command_spawns_two_lsof_for_one_candidate(self) -> None:
         snapshot, plan = self.fixture(50)
         data_root = self.target.parent / "plugin-data"
@@ -18441,6 +18440,7 @@ class ApplyPerCandidateProbeTests(unittest.TestCase):
             {item["path"]: item["outcome"] for item in report["skipped"]},
         )
         self.assertTrue(held.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
