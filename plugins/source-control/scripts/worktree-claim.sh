@@ -13,8 +13,9 @@
 #      process holds the session, the session registry is missing or malformed,
 #      or a transcript changed within the idle window; for a session-less
 #      "lane active on <host> since <utc>" lock: set within the idle window, a
-#      live session's cwd or a recent transcript's cwd at or under the path, an
-#      unparseable time or unconvertible cwd, or a host other than Linux)
+#      live session with no cwd or one at or under the path, a process whose cwd
+#      is there, a recent transcript naming the path or unreadable, an
+#      unconvertible cwd, or a host other than Linux)
 #   2  usage (release: main worktree, or no session id to prove ownership;
 #      handover: main worktree, or --session-id / --to missing)
 #   3  check-enter: the worktree is unlocked (UNCLAIMED)
@@ -699,13 +700,6 @@ session_is_free() {
   return 0
 }
 
-utc_epoch() {
-  local s
-  s="$(date -u -d "$1" +%s 2>/dev/null)" || s="$(date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$1" +%s 2>/dev/null)" || return 1
-  [[ "$s" =~ ^[0-9]+$ ]] || return 1
-  printf '%s' "$s"
-}
-
 posix_cwd() {
   local cwd="${1//\\\\/\\}"
   if [[ "$cwd" == /* ]]; then
@@ -721,33 +715,57 @@ at_or_under() {
   [[ "$1" == "$2" || "$1" == "$2"/* ]]
 }
 
-TRANSCRIPT_CWD_SCAN=""
-TRANSCRIPT_CWDS=()
-scan_transcript_cwds() {
-  [[ -z "$TRANSCRIPT_CWD_SCAN" ]] || return 0
-  local raw cwd canon
+RECENT_SCAN=""
+RECENT_TRANSCRIPTS=()
+scan_recent_transcripts() {
+  [[ -z "$RECENT_SCAN" ]] || return 0
+  local list
   TRANSCRIPT_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
   if [[ ! -d "$TRANSCRIPT_DIR" || ! -r "$TRANSCRIPT_DIR" ]]; then
-    TRANSCRIPT_CWD_SCAN=unreadable
+    RECENT_SCAN=unreadable
     return 0
   fi
-  # shellcheck disable=SC2016  # awk program, not a shell expansion.
-  if ! raw="$(find "$TRANSCRIPT_DIR" -type f -name '*.jsonl' -mmin "-$idle_minutes" -print0 2>/dev/null |
-    xargs -0 -r awk '{ s = $0; while (match(s, /"cwd":"[^"]*"/)) { c[substr(s, RSTART + 7, RLENGTH - 8)] = 1; s = substr(s, RSTART + RLENGTH) } }
-      END { for (k in c) print k }' 2>/dev/null)"; then
-    TRANSCRIPT_CWD_SCAN=failed
+  list="$(mktemp)" || {
+    RECENT_SCAN=failed
+    return 0
+  }
+  if ! find "$TRANSCRIPT_DIR" -type f -name '*.jsonl' -mmin "-$idle_minutes" -print0 >"$list" 2>/dev/null; then
+    rm -f "$list"
+    RECENT_SCAN=failed
     return 0
   fi
-  TRANSCRIPT_CWD_SCAN=ok
-  while IFS= read -r cwd; do
-    [[ "$cwd" == /* ]] || continue
-    canonicalize_path_to canon "$cwd"
-    TRANSCRIPT_CWDS+=("$canon")
-  done < <(printf '%s\n' "$raw" | sort -u)
+  mapfile -t -d '' RECENT_TRANSCRIPTS <"$list"
+  rm -f "$list"
+  RECENT_SCAN=ok
+}
+
+transcript_naming() {
+  local wt="$1" esc out rc b
+  local -a pats=()
+  esc="$(jq -rn --arg p "$wt" '$p | @json' 2>/dev/null)" || return 2
+  esc="${esc:1:${#esc}-2}"
+  for b in '"' '/' ' ' "'" "\\" ';' ')' ',' ':' '|' '&'; do
+    pats+=(-e "$esc$b")
+  done
+  out="$(grep -F -l "${pats[@]}" -- "${RECENT_TRANSCRIPTS[@]}" 2>/dev/null)"
+  rc=$?
+  ((rc == 0)) && printf '%s' "${out%%$'\n'*}"
+  return "$rc"
+}
+
+PROC_CWD_SCAN=""
+PROC_CWDS=()
+scan_proc_cwds() {
+  [[ -z "$PROC_CWD_SCAN" ]] || return 0
+  local line
+  while IFS= read -r line; do
+    PROC_CWDS+=("$line")
+  done < <(find /proc -mindepth 2 -maxdepth 2 -name cwd -printf '%h\t%l\n' 2>/dev/null)
+  if ((${#PROC_CWDS[@]} > 0)); then PROC_CWD_SCAN=ok; else PROC_CWD_SCAN=failed; fi
 }
 
 sessionless_stale() {
-  local wt="$1" host="$2" since="$3" since_s now_s sid pid start cwd canon rc
+  local wt="$1" host="$2" since="$3" now cutoff sid pid start cwd canon rc hit line
   if [[ "$host" != "$THIS_HOST" ]]; then
     STALE_NOTE="not provable: the lock is from host $host, not this host"
     return 1
@@ -757,18 +775,15 @@ sessionless_stale() {
     STALE_NOTE="not provable: a lock that names no session is judged on Linux only"
     return 1
   fi
-  if ! since_s="$(utc_epoch "$since")"; then
-    STALE_NOTE="not provable: cannot parse the lock time $since"
-    return 1
-  fi
-  printf -v now_s '%(%s)T' -1
-  if ((now_s - since_s < idle_minutes * 60)); then
+  printf -v now '%(%s)T' -1
+  TZ=UTC0 printf -v cutoff '%(%Y-%m-%dT%H:%M:%SZ)T' "$((now - idle_minutes * 60))"
+  if [[ ! "$since" < "$cutoff" ]]; then
     STALE_NOTE="not provable: the lock was set within $idle_minutes minutes ($since)"
     return 1
   fi
   registry_readable || return 1
   while IFS=$'\t' read -r sid pid start cwd; do
-    [[ -n "$sid" && -n "$cwd" ]] || continue
+    [[ -n "$sid" ]] || continue
     proc_start_time "$pid"
     rc=$?
     if ((rc == 2)); then
@@ -777,6 +792,10 @@ sessionless_stale() {
     fi
     if ((rc != 0)) || [[ "$PROC_START" != "$start" ]]; then
       continue
+    fi
+    if [[ -z "$cwd" ]]; then
+      STALE_NOTE="not provable: live session $sid records no cwd"
+      return 1
     fi
     if ! cwd="$(posix_cwd "$cwd")" || [[ -z "$cwd" ]]; then
       STALE_NOTE="not provable: live session $sid has a non-POSIX cwd and cygpath is not available to convert it"
@@ -788,8 +807,21 @@ sessionless_stale() {
       return 1
     fi
   done <<<"$REGISTRY_ROWS"
-  scan_transcript_cwds
-  case "$TRANSCRIPT_CWD_SCAN" in
+  scan_proc_cwds
+  if [[ "$PROC_CWD_SCAN" != ok ]]; then
+    STALE_NOTE="not provable: cannot read process working directories under /proc"
+    return 1
+  fi
+  for line in "${PROC_CWDS[@]}"; do
+    cwd="${line#*$'\t'}"
+    if at_or_under "$cwd" "$wt"; then
+      pid="${line%%$'\t'*}"
+      STALE_NOTE="not provable: process ${pid##*/} works in $cwd"
+      return 1
+    fi
+  done
+  scan_recent_transcripts
+  case "$RECENT_SCAN" in
     unreadable)
       STALE_NOTE="not provable: transcript directory $TRANSCRIPT_DIR is unreadable"
       return 1
@@ -800,13 +832,18 @@ sessionless_stale() {
       ;;
     *) ;;
   esac
-  for cwd in ${TRANSCRIPT_CWDS[@]+"${TRANSCRIPT_CWDS[@]}"}; do
-    if at_or_under "$cwd" "$wt"; then
-      STALE_NOTE="not provable: a transcript changed within $idle_minutes minutes works in $cwd"
+  if ((${#RECENT_TRANSCRIPTS[@]} > 0)); then
+    hit="$(transcript_naming "$wt")"
+    rc=$?
+    if ((rc == 0)); then
+      STALE_NOTE="not provable: transcript $hit changed within $idle_minutes minutes and names $wt"
+      return 1
+    elif ((rc != 1)); then
+      STALE_NOTE="not provable: a transcript under $TRANSCRIPT_DIR changed within $idle_minutes minutes could not be read"
       return 1
     fi
-  done
-  STALE_NOTE="stale: lock from $host since $since names no session, and no live session or transcript within $idle_minutes minutes works in $wt"
+  fi
+  STALE_NOTE="stale: lock from $host since $since names no session, and no live session, process or transcript within $idle_minutes minutes works in $wt"
   return 0
 }
 
