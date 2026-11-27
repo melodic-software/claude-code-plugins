@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.0.3] - 2026-11-27
+
+### Changed
+
+- The shared redactor copy (`redact.py`) gains a published-output redactor for fleet identifiers; this plugin's own redaction is unchanged.
+- The shared redactor copy (`redact.py`) can leave report field names its caller lists unredacted; this plugin lists none, so its redaction is unchanged.
+
+### Fixed
+
+- Redacting a secret at the end of a line no longer joins the next line onto the redacted one.
+- A secret whose gitleaks rule marks only part of it, such as a base64 JWT, a Teams webhook URL or a Kubernetes Secret's later data values, is redacted whole; only line breaks and a trailing quote, space or semicolon are kept.
+
 ## [15.0.2] - 2026-11-27
 
 ### Changed
