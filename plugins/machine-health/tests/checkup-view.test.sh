@@ -137,7 +137,8 @@ mkdirSync(views);
 const notesFile = `discovery-${stamp}.md`;
 writeFileSync(latestPath, `﻿${JSON.stringify({ ...latest, discovery_path: `D:\\Reports\\reports\\${notesFile}` })}`);
 const args = ["--latest", latestPath, "--views-dir", views, "--run-stamp", stamp, "--remediations", "restart-stopped-service,clear-temp-files", "--report", "decision-report.md"];
-const run = spawnSync("node", [builder, ...args], { encoding: "utf8", timeout: 60000 });
+const runBuilder = (argv) => spawnSync("node", [builder, ...argv], { encoding: "utf8", timeout: 60000 });
+const run = runBuilder(args);
 check("a page builds", run.status === 0, run.stderr);
 check("the builder writes exactly the run's three files",
   readdirSync(views).sort().join(",") === [`checkup-${stamp}.html`, `checkup-${stamp}.ids.json`, `checkup-${stamp}.json`].join(","), readdirSync(views));
@@ -176,12 +177,11 @@ check("the builder refuses a run value that is not an opaque token", refused ins
 threw = false;
 try { withRunChoice(template.replace('value="run-stamp"', ""), stamp); } catch { threw = true; }
 check("a template without the run placeholder is refused", threw);
-const badStamp = spawnSync("node", [builder, ...args.slice(0, 5), "../x", ...args.slice(6)], { encoding: "utf8", timeout: 60000 });
+const badStamp = runBuilder([...args.slice(0, 5), "../x", ...args.slice(6)]);
 check("a malformed run stamp exits 2", badStamp.status === 2, badStamp.status);
-check("an unknown flag exits 2", spawnSync("node", [builder, ...args, "--out", "x"], { encoding: "utf8", timeout: 60000 }).status === 2);
+check("an unknown flag exits 2", runBuilder([...args, "--out", "x"]).status === 2);
 writeFileSync(`${work}/bad.json`, "not json");
-check("latest.json that is not JSON exits 1",
-  spawnSync("node", [builder, "--latest", `${work}/bad.json`, ...args.slice(2)], { encoding: "utf8", timeout: 60000 }).status === 1);
+check("latest.json that is not JSON exits 1", runBuilder(["--latest", `${work}/bad.json`, ...args.slice(2)]).status === 1);
 
 // Headless browser over the DevTools protocol.
 const profile = `${work}/profile`;
