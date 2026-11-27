@@ -20,7 +20,7 @@ git status --porcelain -z 2>/dev/null |
   while IFS= read -r f; do
     if [[ "${f,,}" =~ $CODE_EXT ]] ||
       { [[ "${f##*/}" != *.* && -f "$top/$f" ]] && grep -qE -f "$SHEBANG" < <(head -n 1 -- "$top/$f"); }; then
-      printf '%s\n' "$f"
+      printf '%s\n' "$f" 2>/dev/null || break
     fi
   done |
   head -n "$MAX"

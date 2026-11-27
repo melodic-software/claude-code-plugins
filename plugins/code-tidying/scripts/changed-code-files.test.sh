@@ -75,6 +75,14 @@ line_count=$(printf '%s\n' "$out" | grep -c .)
 assert_exit "capped run exits 0" 0 "$rc"
 assert_equal "cap of 1 emits 1 line" 1 "$line_count"
 
+MANY="$TEST_TMPDIR/many"
+make_repo "$MANY"
+for i in $(seq 1 400); do printf 'x\n' >"$MANY/f$i.ts"; done
+err=$(cd "$MANY" && trap '' PIPE && bash "$SCRIPT" 1 2>&1 >/dev/null)
+out=$(cd "$MANY" && trap '' PIPE && bash "$SCRIPT" 1 2>/dev/null)
+assert_equal "cap of 1 over 400 files emits 1 line" 1 "$(printf '%s\n' "$out" | grep -c .)"
+assert_equal "cap closing the pipe writes nothing to stderr" "" "$err"
+
 CLEAN="$TEST_TMPDIR/clean"
 make_repo "$CLEAN"
 printf 'base\n' >"$CLEAN/a.ts"

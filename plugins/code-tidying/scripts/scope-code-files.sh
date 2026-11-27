@@ -59,7 +59,7 @@ emit() {
   n=$(printf '%s' "$list" | grep -c . || true)
   printf 'rung=%s base=%s files=%s\n' "$rung" "${base:-none}" "$n"
   if [[ -n "$list" ]]; then
-    if [[ -n "$MAX" ]]; then printf '%s\n' "$list" | head -n "$MAX"; else printf '%s\n' "$list"; fi
+    if [[ -n "$MAX" ]]; then printf '%s\n' "$list" 2>/dev/null | head -n "$MAX"; else printf '%s\n' "$list"; fi
   fi
 }
 
