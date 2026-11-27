@@ -2,11 +2,12 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { appendFileSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, errorLabel, GitHubError, paginate } from "../lib/github-client.mjs";
-import { readRawTrustedActors, trustedListPath } from "../lib/trusted-actors.mjs";
+import { loadTrustedList, readRawTrustedActors, trustedListPath } from "../lib/trusted-actors.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { laneChecker } from "../lib/lane-binding.mjs";
 import { bindTimeline, DEQUEUE_MUTATION, humanGatedLabelFrom, laneReader, leaveQueueOnHold, QUEUE_ENTRY_QUERY, quote } from "../pr-unblock/address-feedback.mjs";
@@ -33,6 +34,7 @@ import {
   HUMAN_VETO,
   costHold,
   humansOf,
+  isDependencyManager,
   LANE_HOLD,
   liftersOf,
   MEMBERS,
@@ -45,7 +47,7 @@ import {
   unblockStops,
   vetoers,
 } from "./merge-holds.mjs";
-import { ARM_HOLDS } from "../lib/lane-vocabulary.mjs";
+import { ARM_HOLDS, NEEDS_HUMAN } from "../lib/lane-vocabulary.mjs";
 
 export { BODY_HOLD, HUMAN_VETO } from "./merge-holds.mjs";
 
@@ -65,9 +67,9 @@ export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: Strin
     pullRequests(states: OPEN, baseRefName: "main", first: 100, after: $after) {
       pageInfo { hasNextPage endCursor }
       nodes {
-        id number isDraft isCrossRepository headRefName headRefOid baseRefOid body updatedAt mergeStateStatus
+        id number isDraft isCrossRepository isInMergeQueue headRefName headRefOid baseRefOid body updatedAt mergeStateStatus
         stack { baseRefName entries(first: 100) { totalCount nodes { position pullRequest { number state } } } }
-        author { __typename login }
+        author { __typename login ... on User { databaseId } ... on Bot { databaseId } }
         userContentEdits(first: 100) { totalCount nodes { editor { __typename login } } }
         labels(first: 100) { totalCount nodes { name } }
         autoMergeRequest { enabledAt }
@@ -769,13 +771,13 @@ export const costLine = ({ number, calls, ms }) =>
 
 const readerEnv = (env, timeoutMs) => ({ ...env, BABYSIT_VERIFY_DEADLINE_SECONDS: String(timeoutMs / 1000), BABYSIT_VERIFY_CALLER: "enable-auto-merge.mjs" });
 
-export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) {
+export function pythonVerify(env, { spawn = spawnSync, clock = Date.now, lane = true } = {}) {
   const verify = async ({ number, headRefOid: head, baseRefOid: base }, rung) => {
     if (!SHA.test(String(base))) {
       throw new Error("its base commit is not a commit SHA");
     }
-    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--lane-link", "--lane-reviews", "--lane-queue", "--shared-listing", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
-    if (typeof rung === "string") {
+    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", ...(lane ? ["--lane-link", "--lane-reviews", "--lane-queue"] : []), "--shared-listing", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
+    if (lane && typeof rung === "string") {
       args.push("--rung", rung);
     }
     const started = clock();
@@ -888,6 +890,103 @@ export function pythonWholeReview(env, spawn = spawnSync) {
     toggle: (pull, humanGated) => run(["toggle", "--node-id", pull.id, "--human-gated", humanGated]),
     recover: (drafts) => run(["recover", ...repo, "--drafts", "/dev/stdin"], JSON.stringify(drafts)),
   };
+}
+
+const LANE_SOURCE_CHECK = [
+  "import json, sys",
+  "sys.path.insert(0, sys.argv[1])",
+  "import babysit_review_evidence as ev",
+  "print(json.dumps([p for p in sys.stdin.read().split('\\n') if p and ev.lane_source(p)]))",
+].join("\n");
+export const LANE_SOURCE_TIMEOUT_MS = 30_000;
+
+export function pythonLaneSource(env, spawn = spawnSync) {
+  return (paths) => {
+    const scripts = dirname(env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT);
+    const done = spawn("python3", ["-I", "-c", LANE_SOURCE_CHECK, scripts], { encoding: "utf8", input: paths.join("\n"), timeout: LANE_SOURCE_TIMEOUT_MS });
+    if (done.status !== 0) {
+      throw new Error(`babysit_review_evidence.lane_source exited ${done.status ?? done.signal}: ${lastLine(done.stderr ?? "")}`);
+    }
+    const found = JSON.parse(lastLine(done.stdout));
+    if (!Array.isArray(found) || !found.every((path) => typeof path === "string")) {
+      throw new Error("babysit_review_evidence.lane_source answered no list of paths");
+    }
+    return found;
+  };
+}
+
+export const TRUSTED_READS = Object.freeze(["files", "lane-source", "verify"]);
+const PASSES = Object.freeze(["pass", "pass-notes"]);
+
+export function trustedHoldReason(pull, humanGated) {
+  const held = holdReason(pull, humanGated) ?? holdReason(pull, NEEDS_HUMAN);
+  return held ?? (BODY_HOLD.test(String(pull.body ?? "")) ? "its body holds it" : null);
+}
+
+export function trustedVerdictHold(evidence, head) {
+  if (evidence === null || typeof evidence !== "object" || !("refusal" in evidence)) {
+    return "its verifier verdict could not be read";
+  }
+  if (evidence.head !== head) {
+    return "its verifier verdict was read at another head";
+  }
+  if (evidence.refusal !== null) {
+    return `${READER_HOLDS.verdict}${escapeCommand(evidence.refusal)})`;
+  }
+  return Array.isArray(evidence.atHead) && evidence.atHead.some((verdict) => PASSES.includes(verdict)) ? null : "pr-verify has no PASS or PASS-NOTES at its head";
+}
+
+export const laneSourceReason = (paths) =>
+  `it changes ${paths.slice(0, 3).join(", ")}${paths.length > 3 ? ` and ${paths.length - 3} more` : ""}, a lane source pr-review-main reviews, and no reader decides whether pr-review-main's findings at a head are settled, so a person merges it`;
+
+export function decideTrusted(pull, humanGated, facts = {}) {
+  const none = (reason) => ({ action: "none", reason });
+  if (pull.autoMergeRequest != null) {
+    return none("already armed");
+  }
+  if (pull.isInMergeQueue !== false) {
+    return none(pull.isInMergeQueue === true ? "it is in the merge queue" : "its merge queue state did not read");
+  }
+  if (pull.stack != null) {
+    return none("it is a layer of a stack, and only the lanes App's stack path merges a stack");
+  }
+  const held =
+    pull.isDraft !== false
+      ? "it is a draft"
+      : pull.isCrossRepository !== false
+        ? "it is from another repository"
+        : !SHA.test(String(pull.headRefOid))
+          ? "its head is not a commit SHA"
+          : trustedHoldReason(pull, humanGated);
+  if (held !== null) {
+    return none(held);
+  }
+  if (!("files" in facts)) {
+    return { action: "files", reason: "its changed files are not read yet" };
+  }
+  if (facts.files?.capped === true) {
+    return none(FILES_CAPPED_REASON);
+  }
+  if (!Array.isArray(facts.files?.paths)) {
+    return none("its changed files could not be read");
+  }
+  if (facts.files.paths.length === 0) {
+    return none(EMPTY_DIFF_REASON);
+  }
+  if (!("laneSources" in facts)) {
+    return { action: "lane-source", reason: "its lane-source paths are not checked yet" };
+  }
+  if (!Array.isArray(facts.laneSources)) {
+    return none("its lane-source paths could not be checked");
+  }
+  if (facts.laneSources.length > 0) {
+    return none(laneSourceReason(facts.laneSources));
+  }
+  if (!("verify" in facts)) {
+    return { action: "verify", reason: "its verifier verdict is not read yet" };
+  }
+  const unverified = trustedVerdictHold(facts.verify, pull.headRefOid);
+  return unverified === null ? { action: "arm", reason: "pr-verify passed its head and no hold stands" } : none(unverified);
 }
 
 export function readRoom(answer) {
@@ -1173,7 +1272,7 @@ async function listPulls(github, owner, name) {
   throw new ListingFull(`more than ${MAX_PAGES * 100} open pull requests into main`);
 }
 
-export async function main({ env = process.env, github, actions, laneReads, verify, room, close, whole, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now, mainInputs, mergeRisk } = {}) {
+export async function main({ env = process.env, github, actions, laneReads, verify, trustedVerify, laneSource, room, close, whole, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now, mainInputs, mergeRisk } = {}) {
   try {
     const repo = REPO.exec(env.GITHUB_REPOSITORY ?? "");
     if (!repo) {
@@ -1558,8 +1657,85 @@ export async function main({ env = process.env, github, actions, laneReads, veri
     }
     const humans = trustedHumans(env);
     const judging = { bot: slug, humanGated, holdPaths, pathHolds };
+    let trustedIds;
+    const trustedAuthor = (pull) => {
+      const id = pull.author?.databaseId;
+      if (lanes(pull) || !Number.isSafeInteger(id) || isDependencyManager({ type: pull.author.__typename, login: pull.author.login })) {
+        return false;
+      }
+      if (trustedIds === undefined) {
+        try {
+          trustedIds = loadTrustedList(trustedListPath(env, env.TRUSTED_ACTORS)).ids;
+        } catch (error) {
+          trustedIds = null;
+          console.log(`enable-auto-merge: the trusted-actor list did not read, so no trusted author's pull request is armed this run: ${describe(error)}`);
+        }
+      }
+      return trustedIds?.has(id) === true;
+    };
+    trustedVerify ??= pythonVerify(env, { lane: false });
+    laneSource ??= pythonLaneSource(env);
+    const armTrusted = async (pull) => {
+      const facts = {};
+      let { action, reason } = decideTrusted(pull, humanGated, facts);
+      while (TRUSTED_READS.includes(action)) {
+        if (!reads) {
+          ({ action, reason } = { action: "none", reason: READER_RUNS_ARM });
+          break;
+        }
+        if (stopped !== null) {
+          ({ action, reason } = { action: "none", reason: stopped.message });
+          break;
+        }
+        if (action === "verify" && now() > deadline) {
+          ({ action, reason } = { action: "none", reason: NO_TIME_LEFT });
+          break;
+        }
+        const key = { files: "files", "lane-source": "laneSources", verify: "verify" }[action];
+        try {
+          facts[key] =
+            action === "files" ? await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number) : action === "lane-source" ? laneSource(facts.files.paths) : await trustedVerify(pull);
+        } catch (error) {
+          facts[key] = null;
+          if (!readerStopped(error)) {
+            console.log(`enable-auto-merge: #${pull.number} trusted author: its ${action} read failed: ${describe(error)}`);
+          }
+        }
+        ({ action, reason } = decideTrusted(pull, humanGated, facts));
+      }
+      if (action === "none") {
+        console.log(`enable-auto-merge: #${pull.number} trusted author: left: ${escapeCommand(reason)}`);
+        leave(pull, `${pull.autoMergeRequest != null ? "armed" : "refused"}: ${reason}`);
+        return;
+      }
+      if (!write) {
+        console.log(`enable-auto-merge: #${pull.number} trusted author: would arm (report-only) at ${pull.headRefOid}: ${escapeCommand(reason)}`);
+        leave(pull, `refused: report-only, would arm: ${reason}`);
+        return;
+      }
+      leave(pull, "refused: its arm failed");
+      try {
+        await sendSettled("arm", pull);
+      } catch (error) {
+        const body = answer === null ? { said: "", runWide: false } : await answerBody(answer.text);
+        const shown = describe(body.said ? new Error(`${error.message}: ${body.said}`) : error);
+        if (refused(error, answer?.limited || body.runWide) || transient(error)) {
+          console.log(`::warning title=enable-auto-merge::#${pull.number} trusted author: arm not made, skipped this run: ${shown}`);
+        } else {
+          failed += 1;
+          console.log(`::error title=enable-auto-merge::#${pull.number} trusted author: arm: ${shown}`);
+        }
+        return;
+      }
+      leave(pull, "armed");
+      console.log(`enable-auto-merge: #${pull.number} trusted author: armed at ${pull.headRefOid}`);
+    };
     const order = rotated(pulls, Number(env.GITHUB_RUN_NUMBER));
     for (let pull of scarce ? oldestFirst(order, candidate) : order) {
+      if (trustedAuthor(pull)) {
+        await armTrusted(pull);
+        continue;
+      }
       if (stopped === null && lanes(pull) && !(pull.labels?.totalCount <= (pull.labels?.nodes?.length ?? 0))) {
         try {
           pull = { ...pull, labels: await allLabels(github, repo[0], pull.number) };
@@ -2023,7 +2199,7 @@ export async function main({ env = process.env, github, actions, laneReads, veri
       failed += 1;
       console.log(`${stopped.serverError ? SERVER_ERROR : GUARD_ERROR}enable-auto-merge: ${escapeCommand(stopped.message)}; no pull request is read, noted or armed after it this run, and each armed lanes App pull request is disarmed`);
     }
-    const summary = [...lines.map(([, text]) => text), ...unblockSkips, ...(verify.costs ?? []).map(costLine), ...riskTokens];
+    const summary = [...lines.map(([, text]) => text), ...unblockSkips, ...[...(verify.costs ?? []), ...(trustedVerify.costs ?? [])].map(costLine), ...riskTokens];
     if (summary.length > 0) {
       appendSummary(summary.map((text) => `enable-auto-merge: ${text}\n`).join(""));
     }

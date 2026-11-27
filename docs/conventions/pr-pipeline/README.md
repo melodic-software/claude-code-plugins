@@ -2314,6 +2314,26 @@ to disarm. The token broker mints `merge` only for `pr-merge.yml`, and outside t
 for a listed human's run. While `merge.report-only` is true it reports each decision and writes
 nothing.
 
+The same job arms a trusted author's pull request, one whose author's numeric id (`User.databaseId`
+or `Bot.databaseId`, never the login) is on the trusted-actor list, other than the lanes App and a
+dependency manager, which keep their own paths (`enable-auto-merge.mjs` `decideTrusted`). It arms
+with the lanes App token and `expectedHeadOid` the head it judged, only when the pull request is
+open into main from a branch of this repository, not a draft, not armed, not in the merge queue and
+not a stack layer; carries none of the gate's hold labels (`do-not-merge`, `pr-verify-failed`,
+`security: outside-actor`), `needs-human` or the human-gated label; has no body line that
+`BODY_HOLD` matches (the adoption rule's `BODY_MERGE_HOLD_RE`, a `Hold:` line or "do not merge"),
+whoever wrote it; changes no lane source pr-review-main reviews (`babysit_review_evidence.lane_source`
+over its whole file list, which must read and stay under GitHub's 3000-file cap); and
+`babysit_verify_evidence.py evidence`, with no lane flag, refuses nothing at the head and counts a
+PASS or PASS-NOTES there. A lane-source pull request is never armed here: no reader decides whether
+pr-review-main's findings at a head are settled (the gate's risk score holds only a CRITICAL
+security finding, `diff_risk.py`), so a person merges it. Any read that fails refuses, with the
+reason on the run's `left:` line. It posts no pin, comment, label or status, and never disarms: an
+arm it made stays until the merge queue takes or ejects the head or a person turns it off. Only a
+scheduled or hand-started run arms one; the pr-verify wake does not, since the token broker mints
+that wake only for a lanes App pull request (`untrusted-author` otherwise), so a trusted author's
+pull request waits up to one scheduled interval after its pass.
+
 Each verifier read is a full read. The arm step's skip records (`merge.skip-unchanged`) cross runs
 only as the `pr-merge-verify-answers` artifact of a scheduled or hand-started run on main
 (`verify-answers.mjs`, as the head-ref map is read). Every reader run keeps a file, empty when it
