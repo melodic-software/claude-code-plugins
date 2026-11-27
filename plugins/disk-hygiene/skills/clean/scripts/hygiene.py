@@ -3486,11 +3486,10 @@ def posix_handle_state(
         return "unverified", "lsof-timeout"
     if run.stderr.strip():
         return "unverified", f"lsof-diagnostic: {run.stderr.strip()[:200]}"
-    if run.returncode == 0 and run.stdout.strip():
+    names = [Path(line[1:]) for line in run.stdout.splitlines() if line[:1] == "n"]
+    if run.returncode in (0, 1) and names:
         if open_paths is not None:
-            open_paths.update(
-                Path(line[1:]) for line in run.stdout.splitlines() if line[:1] == "n"
-            )
+            open_paths.update(names)
         return "open", "lsof-reported-open-file"
     if run.returncode == 1 and not run.stdout.strip():
         return "clear", None

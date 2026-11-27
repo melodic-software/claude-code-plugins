@@ -6654,6 +6654,26 @@ class LeastObservableEnginePathTests(unittest.TestCase):
         self.assertEqual(("open", "lsof-reported-open-file"), state)
         self.assertEqual(["--", str(probe)], captured["command"][-2:])
 
+    def test_posix_handle_directory_probe_reports_names_on_exit_one(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "held-dir"
+            directory.mkdir()
+            held = directory / "held.log"
+            reported: set[Path] = set()
+            with (
+                mock.patch.object(
+                    hygiene.shutil, "which", return_value="/usr/bin/lsof"
+                ),
+                mock.patch.object(
+                    hygiene.subprocess,
+                    "run",
+                    return_value=self.lsof_result(1, stdout=f"p2388915\nn{held}\n"),
+                ),
+            ):
+                state = hygiene.posix_handle_state(directory, reported)
+        self.assertEqual(("open", "lsof-reported-open-file"), state)
+        self.assertEqual({held}, reported)
+
     def test_posix_handle_directory_probe_walks_descendants(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary) / "held-dir"
@@ -18266,7 +18286,7 @@ class ApplyPerCandidateProbeTests(unittest.TestCase):
         snapshot, plan = self.fixture(1)
         held = self.batch / "sub" / "held.log"
         report = self.apply(
-            snapshot, plan, [(1, "", ""), (0, f"p4242\nf3\nn{held}\n", "")]
+            snapshot, plan, [(1, "", ""), (1, f"p4242\nn{held}\n", "")]
         )
         self.assertEqual(
             {"batch/sub/free.tmp", "batch/file-0.tmp"},
@@ -18287,7 +18307,7 @@ class ApplyPerCandidateProbeTests(unittest.TestCase):
         snapshot, plan = self.fixture(3)
         late = self.batch / "created-after-scan.tmp"
         report = self.apply(
-            snapshot, plan, [(1, "", ""), (0, f"p4242\nf3\nn{late}\n", "")]
+            snapshot, plan, [(1, "", ""), (1, f"p4242\nn{late}\n", "")]
         )
         self.assertEqual([], report["removed"])
         self.assertEqual({"locked"}, {item["outcome"] for item in report["skipped"]})
@@ -18376,6 +18396,53 @@ class ApplyPerCandidateProbeTests(unittest.TestCase):
         for (child, parent), expected in cases.items():
             with self.subTest(child=child, parent=parent):
                 self.assertIs(expected, hygiene.is_within(Path(child), Path(parent)))
+
+    @unittest.skipUnless(shutil.which("lsof"), "the real lsof probe is required")
+    def test_a_file_held_open_by_another_process_keeps_only_its_branch(self) -> None:
+        (self.batch / "sub").mkdir()
+        held = self.batch / "sub" / "held.log"
+        held.write_text("x", encoding="utf-8")
+        (self.batch / "sub" / "free.tmp").write_text("x", encoding="utf-8")
+        snapshot, plan = self.fixture(1)
+        real_preview = hygiene.preview
+        holders: list[subprocess.Popen[str]] = []
+
+        def preview_then_hold(*args: Any) -> dict[str, Any]:
+            checked = real_preview(*args)
+            holder = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-c",
+                    "import sys, time; handle = open(sys.argv[1]);"
+                    " print('held', flush=True); time.sleep(60)",
+                    str(held),
+                ],
+                stdout=subprocess.PIPE,
+                text=True,
+            )
+            holders.append(holder)
+            self.addCleanup(holder.stdout.close)
+            self.addCleanup(holder.wait)
+            self.addCleanup(holder.kill)
+            self.assertEqual("held", holder.stdout.readline().strip())
+            return checked
+
+        with mock.patch.object(hygiene, "preview", side_effect=preview_then_hold):
+            report = hygiene.apply_plan(snapshot, plan)
+        self.assertEqual(1, len(holders), "the file is held only after preview")
+        self.assertEqual(
+            {"batch/sub/free.tmp", "batch/file-0.tmp"},
+            {item["path"] for item in report["removed"]},
+        )
+        self.assertEqual(
+            {
+                "batch/sub/held.log": "locked",
+                "batch/sub": "locked",
+                "batch": "locked",
+            },
+            {item["path"]: item["outcome"] for item in report["skipped"]},
+        )
+        self.assertTrue(held.exists())
 
 if __name__ == "__main__":
     unittest.main()
