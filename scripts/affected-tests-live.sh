@@ -9,7 +9,36 @@ cd "$REPO_ROOT" || exit 1
 
 has_line() { [[ $'\n'$1$'\n' == *$'\n'"$2"$'\n'* ]]; }
 
+declare -A PROBE_OUT=() PROBE_RC=()
+
+prefetch() {
+  local dir jobs i=0 n p
+  dir="$(mktemp -d "${TMPDIR:-/tmp}/affected-tests-live.XXXXXX")" || return 0
+  jobs="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"
+  for p in "$@"; do
+    [[ -n "$p" ]] || continue
+    {
+      bash scripts/affected-tests.sh "$p" >"$dir/$i.out" 2>/dev/null
+      echo "$?" >"$dir/$i.rc"
+    } &
+    i=$((i + 1))
+    ((i % jobs)) || wait
+  done
+  wait
+  n=0
+  for p in "$@"; do
+    [[ -n "$p" ]] || continue
+    [[ -s "$dir/$n.rc" ]] && PROBE_OUT["$p"]="$(cat "$dir/$n.out")" PROBE_RC["$p"]="$(cat "$dir/$n.rc")"
+    n=$((n + 1))
+  done
+  rm -rf -- "${dir:?}"
+}
+
 select_for() {
+  if [[ $# -eq 1 && -n "$1" && -n "${PROBE_RC[$1]+set}" ]]; then
+    out="${PROBE_OUT[$1]}" RC="${PROBE_RC[$1]}"
+    return
+  fi
   out="$(bash scripts/affected-tests.sh "$@" 2>/dev/null)"
   RC=$?
 }
@@ -52,6 +81,61 @@ if [[ "$live_missing" -eq 0 ]]; then
   ok "every live scripts/sync-*.sh implements --print-manifest"
 fi
 
+wf_yaml=""
+while IFS= read -r c; do
+  [[ "$c" == .github/workflows/* ]] && continue
+  if ! git grep -q -F -- "${c##*/}" \
+    -- '*.sh' '*.bash' '*.js' '*.mjs' '*.cjs' '*.py' '*.ps1' '*.psm1' 2>/dev/null; then
+    wf_yaml="$c"
+    break
+  fi
+done < <(git ls-files '.github/*.yaml' '.github/*.yml')
+if [[ -z "$wf_yaml" ]]; then
+  wf_yaml=.github/unreferenced-$$-$RANDOM.yaml
+  : >"$wf_yaml"
+  trap 'rm -f -- "$wf_yaml"' EXIT
+fi
+
+body_probes=('plugins/github/skills/advise/S*.md|plugins/github/github.test.sh'
+  'plugins/planning/skills/interview/S*.md|plugins/planning/tests/interview-defenses.test.sh')
+s_session=plugins/planning/shared/tests/test_session.py
+s_dims=plugins/work-items/tests/set-dimensions.test.sh
+gh_adapter=plugins/work-items/tools/work-item-tracker/adapters/github
+tracker_lib=plugins/work-items/tools/work-item-tracker/lib
+pl_fix=plugins/planning/shared/tests/fixtures
+read_pairs=(
+  "$s_session|plugins/planning/shared/schema/event.schema.json"
+  "$s_session|plugins/planning/shared/schema/question-shape.schema.json"
+  "$s_session|plugins/planning/surface/schema/event.schema.json"
+  "$s_session|plugins/planning/surface/schema/ops.schema.json"
+  "$s_session|plugins/planning/surface/schema/responses.schema.json"
+  "$s_session|plugins/planning/surface/schema/visual.schema.json"
+  "$s_dims|$gh_adapter/capabilities.json"
+  "$s_dims|$gh_adapter/common.sh"
+  "$s_dims|$gh_adapter/set-fields.sh"
+  "$s_dims|$tracker_lib/id.sh"
+  "$s_dims|$tracker_lib/lease.sh"
+  "plugins/python-format/hooks/python-format.test.sh|plugins/python-format/lib/git-hooks/install.mjs"
+  "plugins/python-format/hooks/python-format.test.sh|plugins/python-format/lib/prerequisites.mjs"
+  "plugins/javascript-format/hooks/javascript-format-end-of-turn.test.sh|plugins/javascript-format/hooks/exec-bash.mjs"
+  "plugins/code-metrics/skills/audit/scripts/audit-complexity.test.sh|plugins/code-metrics/scripts/yaml_subset.py"
+  "plugins/instruction-placement/git-hooks/index-check.test.sh|plugins/instruction-placement/.claude-plugin/plugin.json"
+  "lib/view-settings.test.sh|plugins/architecture/.claude-plugin/plugin.json"
+  "scripts/check-data-root.test.sh|plugins/architecture/.claude-plugin/plugin.json"
+)
+for fixture in events-v1 invalid-device-scope-on-prototype invalid-reaction-agree \
+  invalid-recommendation-on-choice state-full state-v7-live wire-heartbeat wire-presence; do
+  read_pairs+=("$s_session|$pl_fix/$fixture.json")
+done
+
+probes=(lib/hook-utils.sh "$standards_src" "$wf_yaml"
+  plugins/source-control/skills/babysit-prs/scripts/babysit_lease.py
+  plugins/eol-normalizer/hooks/eol-normalizer.sh
+  plugins/disk-hygiene/lib/hook_telemetry.py)
+for probe in "${body_probes[@]}"; do probes+=("$(git ls-files "${probe%%|*}")"); done
+for pair in "${read_pairs[@]}"; do probes+=("${pair#*|}"); done
+prefetch "${probes[@]}"
+
 select_for lib/hook-utils.sh
 if [[ "$RC" -eq 0 ]] &&
   has_line "$out" lib/hook-utils.test.sh &&
@@ -71,20 +155,6 @@ else
   fail "standards-contract fan-out (rc=$RC): $out"
 fi
 
-wf_yaml=""
-while IFS= read -r c; do
-  [[ "$c" == .github/workflows/* ]] && continue
-  if ! git grep -q -F -- "${c##*/}" \
-    -- '*.sh' '*.bash' '*.js' '*.mjs' '*.cjs' '*.py' '*.ps1' '*.psm1' 2>/dev/null; then
-    wf_yaml="$c"
-    break
-  fi
-done < <(git ls-files '.github/*.yaml' '.github/*.yml')
-if [[ -z "$wf_yaml" ]]; then
-  wf_yaml=.github/unreferenced-$$-$RANDOM.yaml
-  : >"$wf_yaml"
-  trap 'rm -f -- "$wf_yaml"' EXIT
-fi
 select_for "$wf_yaml"
 if [[ "$RC" -eq 0 && -z "$out" ]]; then
   ok ".github YAML stays a recorded no-suite class via .github/*: $wf_yaml"
@@ -128,8 +198,7 @@ else
   fi
 fi
 
-for probe in 'plugins/github/skills/advise/S*.md|plugins/github/github.test.sh' \
-  'plugins/planning/skills/interview/S*.md|plugins/planning/tests/interview-defenses.test.sh'; do
+for probe in "${body_probes[@]}"; do
   body="$(git ls-files "${probe%%|*}")"
   select_for "$body"
   if [[ -n "$body" && "$RC" -eq 0 ]] && has_line "$out" "${probe#*|}"; then
@@ -139,35 +208,6 @@ for probe in 'plugins/github/skills/advise/S*.md|plugins/github/github.test.sh' 
   fi
 done
 
-s_session=plugins/planning/shared/tests/test_session.py
-s_dims=plugins/work-items/tests/set-dimensions.test.sh
-gh_adapter=plugins/work-items/tools/work-item-tracker/adapters/github
-tracker_lib=plugins/work-items/tools/work-item-tracker/lib
-pl_fix=plugins/planning/shared/tests/fixtures
-read_pairs=(
-  "$s_session|plugins/planning/shared/schema/event.schema.json"
-  "$s_session|plugins/planning/shared/schema/question-shape.schema.json"
-  "$s_session|plugins/planning/surface/schema/event.schema.json"
-  "$s_session|plugins/planning/surface/schema/ops.schema.json"
-  "$s_session|plugins/planning/surface/schema/responses.schema.json"
-  "$s_session|plugins/planning/surface/schema/visual.schema.json"
-  "$s_dims|$gh_adapter/capabilities.json"
-  "$s_dims|$gh_adapter/common.sh"
-  "$s_dims|$gh_adapter/set-fields.sh"
-  "$s_dims|$tracker_lib/id.sh"
-  "$s_dims|$tracker_lib/lease.sh"
-  "plugins/python-format/hooks/python-format.test.sh|plugins/python-format/lib/git-hooks/install.mjs"
-  "plugins/python-format/hooks/python-format.test.sh|plugins/python-format/lib/prerequisites.mjs"
-  "plugins/javascript-format/hooks/javascript-format-end-of-turn.test.sh|plugins/javascript-format/hooks/exec-bash.mjs"
-  "plugins/code-metrics/skills/audit/scripts/audit-complexity.test.sh|plugins/code-metrics/scripts/yaml_subset.py"
-  "plugins/instruction-placement/git-hooks/index-check.test.sh|plugins/instruction-placement/.claude-plugin/plugin.json"
-  "lib/view-settings.test.sh|plugins/architecture/.claude-plugin/plugin.json"
-  "scripts/check-data-root.test.sh|plugins/architecture/.claude-plugin/plugin.json"
-)
-for fixture in events-v1 invalid-device-scope-on-prototype invalid-reaction-agree \
-  invalid-recommendation-on-choice state-full state-v7-live wire-heartbeat wire-presence; do
-  read_pairs+=("$s_session|$pl_fix/$fixture.json")
-done
 for pair in "${read_pairs[@]}"; do
   suite="${pair%%|*}" file="${pair#*|}"
   select_for "$file"
