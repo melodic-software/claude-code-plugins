@@ -289,7 +289,7 @@
     "audit_sessions_retention_days": {
       "type": "number",
       "title": "Session store retention (days)",
-      "description": "How long audit-sessions keeps a session's record in its local store after the session ended. Unset: 180, raised to the longest cleanupPeriodDays of the sources read. A value you set is kept as given, with a warning when it is shorter than a source's cleanupPeriodDays. 0 keeps every record. Collect drops older records and never ingests a session already past the window.",
+      "description": "Days audit-sessions keeps a session's record after it ended; older records are dropped and never ingested. Unset: 180, raised to the longest cleanupPeriodDays read. A set value is kept, with a warning when shorter than a source's cleanupPeriodDays. 0 keeps every record.",
       "min": 0
     },
     "audit_sessions_excerpt_chars": {
