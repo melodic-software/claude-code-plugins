@@ -4312,7 +4312,7 @@ class HygieneTests(unittest.TestCase):
                 mock.patch.object(
                     hygiene,
                     "tracked_blocker",
-                    side_effect=[None, "vcs-tracked-content"],
+                    side_effect=["vcs-tracked-content"],
                 ),
                 mock.patch.object(hygiene, "execution_blockers", return_value=[]),
                 mock.patch.object(
@@ -6653,6 +6653,26 @@ class LeastObservableEnginePathTests(unittest.TestCase):
             )
         self.assertEqual(("open", "lsof-reported-open-file"), state)
         self.assertEqual(["--", str(probe)], captured["command"][-2:])
+
+    def test_posix_handle_directory_probe_reports_names_on_exit_one(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "held-dir"
+            directory.mkdir()
+            held = directory / "held.log"
+            reported: set[Path] = set()
+            with (
+                mock.patch.object(
+                    hygiene.shutil, "which", return_value="/usr/bin/lsof"
+                ),
+                mock.patch.object(
+                    hygiene.subprocess,
+                    "run",
+                    return_value=self.lsof_result(1, stdout=f"p2388915\nn{held}\n"),
+                ),
+            ):
+                state = hygiene.posix_handle_state(directory, reported)
+        self.assertEqual(("open", "lsof-reported-open-file"), state)
+        self.assertEqual({held}, reported)
 
     def test_posix_handle_directory_probe_walks_descendants(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -18191,6 +18211,235 @@ class ApplyPlanSnapshotExactNamesRegressionTests(unittest.TestCase):
             with mock.patch.object(Path, "read_text", spy):
                 hygiene.scan_tree(target, policy)
             self.assertEqual(1, baseline_reads)
+
+
+@unittest.skipUnless(
+    hygiene.os_key() == "linux", "descriptor-relative removal is Linux-only"
+)
+class ApplyPerCandidateProbeTests(unittest.TestCase):
+    """Apply probes handles and repositories once per candidate, not per entry."""
+
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.target = Path(temporary.name).resolve() / "target"
+        self.batch = self.target / "batch"
+        self.batch.mkdir(parents=True)
+        self.calls: list[str] = []
+
+    def fixture(self, files: int) -> tuple[dict[str, Any], dict[str, Any]]:
+        for index in range(files):
+            (self.batch / f"file-{index}.tmp").write_text("x", encoding="utf-8")
+        snapshot = hygiene.scan_tree(self.target, hygiene.load_policy(None))
+        plan = {"version": 1, "tier": "high", "candidates": [candidate("batch")]}
+        return snapshot, plan
+
+    def apply(self, snapshot, plan, lsof_results: list[Any]) -> dict[str, Any]:
+        """Run apply with lsof answering from ``lsof_results`` in call order.
+
+        Git answers as outside a repository (exit 128), its documented status.
+        """
+        lsof_answers = iter(lsof_results)
+
+        def run(command, *args, **kwargs):
+            tool = Path(command[0]).name
+            self.calls.append(tool)
+            if tool == "lsof":
+                answer = next(lsof_answers)
+                if isinstance(answer, BaseException):
+                    raise answer
+                return subprocess.CompletedProcess(command, *answer)
+            return subprocess.CompletedProcess(
+                command, 128, "", "fatal: not a git repository\n"
+            )
+
+        with (
+            mock.patch.object(
+                hygiene.shutil, "which", side_effect=lambda name: f"/usr/bin/{name}"
+            ),
+            mock.patch.object(hygiene.subprocess, "run", side_effect=run),
+        ):
+            return hygiene.apply_plan(snapshot, plan)
+
+    def test_lsof_and_git_spawns_stay_fixed_as_entries_grow(self) -> None:
+        for files in (1, 50):
+            with self.subTest(files=files):
+                self.calls.clear()
+                self.batch.mkdir(exist_ok=True)
+                snapshot, plan = self.fixture(files)
+                with mock.patch.object(
+                    hygiene, "tracked_blocker", wraps=hygiene.tracked_blocker
+                ) as tracked:
+                    report = self.apply(snapshot, plan, [(1, "", ""), (1, "", "")])
+                self.assertEqual("completed", report["status"], report["skipped"])
+                self.assertEqual(files + 1, report["paths_removed"])
+                self.assertEqual(2, self.calls.count("lsof"), "preview + apply")
+                self.assertEqual(2, tracked.call_count, "preview + apply gate")
+                self.assertEqual(2, self.calls.count("git"), "one rev-parse per check")
+
+    def test_an_open_descendant_is_kept_and_its_siblings_removed(self) -> None:
+        (self.batch / "sub").mkdir()
+        (self.batch / "sub" / "held.log").write_text("x", encoding="utf-8")
+        (self.batch / "sub" / "free.tmp").write_text("x", encoding="utf-8")
+        snapshot, plan = self.fixture(1)
+        held = self.batch / "sub" / "held.log"
+        report = self.apply(
+            snapshot, plan, [(1, "", ""), (1, f"p4242\nn{held}\n", "")]
+        )
+        self.assertEqual(
+            {"batch/sub/free.tmp", "batch/file-0.tmp"},
+            {item["path"] for item in report["removed"]},
+        )
+        self.assertEqual(
+            {
+                "batch/sub/held.log": "locked",
+                "batch/sub": "locked",
+                "batch": "locked",
+            },
+            {item["path"]: item["outcome"] for item in report["skipped"]},
+        )
+        self.assertTrue(held.exists())
+        self.assertEqual(2, self.calls.count("lsof"))
+
+    def test_an_unattributable_open_name_holds_every_entry(self) -> None:
+        snapshot, plan = self.fixture(3)
+        late = self.batch / "created-after-scan.tmp"
+        report = self.apply(
+            snapshot, plan, [(1, "", ""), (1, f"p4242\nn{late}\n", "")]
+        )
+        self.assertEqual([], report["removed"])
+        self.assertEqual({"locked"}, {item["outcome"] for item in report["skipped"]})
+        self.assertEqual(4, len(report["skipped"]))
+
+    def test_an_unverifiable_probe_skips_the_whole_candidate(self) -> None:
+        cases = {
+            "diagnostic": (1, "", "lsof: WARNING: can't stat() fuse file system\n"),
+            "timeout": subprocess.TimeoutExpired("lsof", 20),
+        }
+        for name, answer in cases.items():
+            with self.subTest(case=name):
+                snapshot, plan = self.fixture(3)
+                report = self.apply(snapshot, plan, [(1, "", ""), answer])
+                self.assertEqual([], report["removed"])
+                self.assertEqual(
+                    {"handle-state-unverified"},
+                    {item["outcome"] for item in report["skipped"]},
+                )
+                self.assertEqual(4, len(report["skipped"]))
+                self.assertTrue((self.batch / "file-0.tmp").exists())
+
+    def test_the_apply_command_spawns_two_lsof_for_one_candidate(self) -> None:
+        snapshot, plan = self.fixture(50)
+        data_root = self.target.parent / "plugin-data"
+        data_root.mkdir()
+        snapshot_path = data_root / "snapshot.json"
+        plan_path = data_root / "plan.json"
+        snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+        plan_path.write_text(json.dumps(plan), encoding="utf-8")
+        arguments = [
+            "--snapshot",
+            str(snapshot_path),
+            "--plan",
+            str(plan_path),
+            "--data-root",
+            str(data_root),
+        ]
+
+        def run(command, *args, **kwargs):
+            tool = Path(command[0]).name
+            self.calls.append(tool)
+            if tool == "lsof":
+                return subprocess.CompletedProcess(command, 1, "", "")
+            return subprocess.CompletedProcess(
+                command, 128, "", "fatal: not a git repository\n"
+            )
+
+        with (
+            mock.patch.object(
+                hygiene.shutil, "which", side_effect=lambda name: f"/usr/bin/{name}"
+            ),
+            mock.patch.object(hygiene.subprocess, "run", side_effect=run),
+            redirect_stdout(io.StringIO()) as output,
+        ):
+            self.assertEqual(0, hygiene.main(["preview", *arguments]))
+            token = json.loads(output.getvalue())["approval_token"]
+            self.calls.clear()
+            code = hygiene.main(
+                [
+                    "apply",
+                    "--execute",
+                    *arguments,
+                    "--confirm-tier",
+                    "high",
+                    "--approval-token",
+                    token,
+                    "--report",
+                    str(data_root / "report.json"),
+                ]
+            )
+        self.assertEqual(0, code)
+        self.assertFalse(self.batch.exists())
+        self.assertEqual(2, self.calls.count("lsof"), "token preview + apply")
+
+    def test_is_within_matches_whole_components_only(self) -> None:
+        cases = {
+            ("/a/b", "/a"): True,
+            ("/a", "/a"): True,
+            ("/a", "/"): True,
+            ("/ab", "/a"): False,
+            ("/a", "/a/b"): False,
+            ("a/b", "/a"): False,
+        }
+        for (child, parent), expected in cases.items():
+            with self.subTest(child=child, parent=parent):
+                self.assertIs(expected, hygiene.is_within(Path(child), Path(parent)))
+
+    @unittest.skipUnless(shutil.which("lsof"), "the real lsof probe is required")
+    def test_a_file_held_open_by_another_process_keeps_only_its_branch(self) -> None:
+        (self.batch / "sub").mkdir()
+        held = self.batch / "sub" / "held.log"
+        held.write_text("x", encoding="utf-8")
+        (self.batch / "sub" / "free.tmp").write_text("x", encoding="utf-8")
+        snapshot, plan = self.fixture(1)
+        real_preview = hygiene.preview
+        holders: list[subprocess.Popen[str]] = []
+
+        def preview_then_hold(*args: Any) -> dict[str, Any]:
+            checked = real_preview(*args)
+            holder = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-c",
+                    "import sys, time; handle = open(sys.argv[1]);"
+                    " print('held', flush=True); time.sleep(60)",
+                    str(held),
+                ],
+                stdout=subprocess.PIPE,
+                text=True,
+            )
+            holders.append(holder)
+            self.addCleanup(holder.stdout.close)
+            self.addCleanup(holder.wait)
+            self.addCleanup(holder.kill)
+            self.assertEqual("held", holder.stdout.readline().strip())
+            return checked
+
+        with mock.patch.object(hygiene, "preview", side_effect=preview_then_hold):
+            report = hygiene.apply_plan(snapshot, plan)
+        self.assertEqual(1, len(holders), "the file is held only after preview")
+        self.assertEqual(
+            {"batch/sub/free.tmp", "batch/file-0.tmp"},
+            {item["path"] for item in report["removed"]},
+        )
+        self.assertEqual(
+            {
+                "batch/sub/held.log": "locked",
+                "batch/sub": "locked",
+                "batch": "locked",
+            },
+            {item["path"]: item["outcome"] for item in report["skipped"]},
+        )
+        self.assertTrue(held.exists())
 
 
 if __name__ == "__main__":

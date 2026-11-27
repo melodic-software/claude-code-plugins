@@ -449,6 +449,14 @@ def _validate_protection_glob_entry(entry: Any) -> None:
 
 
 def is_within(path: Path, parent: Path) -> bool:
+    if (
+        os.name != "nt"
+        and isinstance(path, PurePosixPath)
+        and isinstance(parent, PurePosixPath)
+    ):
+        child, root = str(path), str(parent)
+        if child[:1] == root[:1] == "/" and "//" not in (child[:2], root[:2]):
+            return child == root or child.startswith(root.rstrip("/") + "/")
     try:
         return os.path.commonpath(
             [os.path.normcase(path), os.path.normcase(parent)]
@@ -3457,7 +3465,13 @@ def windows_handle_state(path: Path) -> tuple[str, str | None]:
     return "clear", None
 
 
-def posix_handle_state(path: Path) -> tuple[str, str | None]:
+def posix_handle_state(
+    path: Path, open_paths: set[Path] | None = None
+) -> tuple[str, str | None]:
+    """Probe ``path`` (a directory's whole subtree) with one lsof run.
+
+    When ``open_paths`` is given, every name lsof reports is added to it.
+    """
     lsof = shutil.which("lsof")
     if not lsof:
         return "unverified", "lsof-not-found"
@@ -3472,15 +3486,22 @@ def posix_handle_state(path: Path) -> tuple[str, str | None]:
         return "unverified", "lsof-timeout"
     if run.stderr.strip():
         return "unverified", f"lsof-diagnostic: {run.stderr.strip()[:200]}"
-    if run.returncode == 0 and run.stdout.strip():
+    names = [Path(line[1:]) for line in run.stdout.splitlines() if line[:1] == "n"]
+    if run.returncode in (0, 1) and names:
+        if open_paths is not None:
+            open_paths.update(names)
         return "open", "lsof-reported-open-file"
     if run.returncode == 1 and not run.stdout.strip():
         return "clear", None
     return "unverified", f"lsof-exit-{run.returncode}"
 
 
-def handle_state(path: Path) -> tuple[str, str | None]:
-    return windows_handle_state(path) if os.name == "nt" else posix_handle_state(path)
+def handle_state(
+    path: Path, open_paths: set[Path] | None = None
+) -> tuple[str, str | None]:
+    if os.name == "nt":
+        return windows_handle_state(path)
+    return posix_handle_state(path, open_paths)
 
 
 def handle_state_contest_reason(state: str, detail: str | None) -> str | None:
@@ -4219,14 +4240,18 @@ def anchored_remove(
     target: Path,
     *,
     purge_protected: Callable[[Path], bool] | None = None,
+    resolved_parents: dict[str, Path] | None = None,
 ) -> None:
     parent_fd, name = open_anchored_parent(target_fd, relative, entries)
     try:
         current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
-        expected_parent = target.joinpath(*PurePosixPath(relative).parts[:-1]).resolve(
-            strict=True
-        )
-        actual_parent = Path(f"/proc/self/fd/{parent_fd}").resolve(strict=True)
+        parent_parts = PurePosixPath(relative).parts[:-1]
+        cache = {} if resolved_parents is None else resolved_parents
+        key = "/".join(parent_parts)
+        if key not in cache:
+            cache[key] = target.joinpath(*parent_parts).resolve(strict=True)
+        expected_parent = cache[key]
+        actual_parent = Path(os.readlink(f"/proc/self/fd/{parent_fd}"))
         if actual_parent != expected_parent:
             raise HygieneError("anchored parent is no longer at its expected path")
         if entry["kind"] == "directory":
@@ -4282,14 +4307,43 @@ def protected_skip(
     }
 
 
-def handle_state_skip(relative: str, path: Path) -> dict[str, str] | None:
-    state, detail = handle_state(path)
+def candidate_handle_skips(
+    target: Path, relative: str, names: list[str]
+) -> dict[str, dict[str, str]]:
+    """Handle skips by entry name, from one probe of the whole candidate.
+
+    An entry is held when lsof names it or a path beneath it. A reported name
+    that maps to no entry, or an open verdict with no names, holds every entry.
+    """
+    reported: set[Path] = set()
+    path = target.joinpath(*PurePosixPath(relative).parts)
+    state, detail = handle_state(path, open_paths=reported)
     if state == "clear":
-        return None
+        return {}
     outcome = {"open": "locked", "needs_elevation": "needs-elevation"}.get(
         state, "handle-state-unverified"
     )
-    return {"path": relative, "outcome": outcome, "detail": detail or ""}
+    held = set(names)
+    if state == "open" and reported:
+        known = set(names)
+        root = path.resolve()
+        mapped: set[str] = set()
+        for open_path in reported:
+            if not is_within(open_path, root):
+                break
+            name = PurePosixPath(relative, *open_path.relative_to(root).parts)
+            if name.as_posix() not in known:
+                break
+            while name.as_posix() != relative:
+                mapped.add(name.as_posix())
+                name = name.parent
+            mapped.add(relative)
+        else:
+            held = mapped
+    return {
+        name: {"path": name, "outcome": outcome, "detail": detail or ""}
+        for name in held
+    }
 
 
 def removal_failure_skip(relative: str, exc: HygieneError | OSError) -> dict[str, str]:
@@ -4319,7 +4373,11 @@ def apply_nothing_removed_report(
     }
 
 
-def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
+def apply_plan(
+    snapshot: dict[str, Any],
+    plan: dict[str, Any],
+    fresh_preview: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     target = Path(snapshot["target"]).absolute()
     entries = entry_map(snapshot)
     candidates = validate_plan(plan, entries)
@@ -4331,7 +4389,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
             target,
             [protected_skip(item["path"], detail) for item in candidates],
         )
-    checked = preview(snapshot, plan)
+    checked = fresh_preview or preview(snapshot, plan)
     if checked["status"] != "ready-for-explicit-approval":
         by_path = {item["path"]: item for item in checked["candidates"]}
         return apply_nothing_removed_report(
@@ -4384,13 +4442,19 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                 )
             )
             continue
+        fresh_mounts, fresh_mount_error = linux_mount_points()
+        handle_skips = (
+            {}
+            if fresh_mount_error
+            else candidate_handle_skips(target, candidate["path"], selected)
+        )
+        resolved_parents: dict[str, Path] = {}
         for relative in selected:
             entry = entries[relative]
             path = target.joinpath(*PurePosixPath(relative).parts)
             if not same_removal_identity(path, entry) or is_linkish(path):
                 skipped.append({"path": relative, "outcome": "changed-or-link"})
                 continue
-            fresh_mounts, fresh_mount_error = linux_mount_points()
             if fresh_mount_error:
                 skipped.append(protected_skip(relative, "mount-state-unverified"))
                 continue
@@ -4404,9 +4468,6 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
             consumer_matches = consumer_protection_matches(path, target, globs)
             if consumer_matches:
                 fresh_protections.append("consumer-protected-path")
-            fresh_vcs = tracked_blocker(path, target)
-            if fresh_vcs:
-                fresh_protections.append(fresh_vcs)
             if fresh_protections:
                 skipped.append(
                     protected_skip(
@@ -4416,12 +4477,18 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                     )
                 )
                 continue
-            handle_skip = handle_state_skip(relative, path)
-            if handle_skip:
-                skipped.append(handle_skip)
+            if relative in handle_skips:
+                skipped.append(handle_skips[relative])
                 continue
             try:
-                anchored_remove(target_fd, relative, entry, entries, target)
+                anchored_remove(
+                    target_fd,
+                    relative,
+                    entry,
+                    entries,
+                    target,
+                    resolved_parents=resolved_parents,
+                )
             except (HygieneError, OSError) as exc:
                 skipped.append(removal_failure_skip(relative, exc))
                 continue
@@ -5163,7 +5230,7 @@ def unlink_handoff_path(
     def consumer_protected(path: Path) -> bool:
         return bool(consumer_protection_matches(path, target, globs))
 
-    def path_blockers(path: Path, mounts: set[Path]) -> list[str]:
+    def path_blockers(path: Path, mounts: set[Path], tracked: bool) -> list[str]:
         reasons = evidence_adjusted_protections(
             hard_protection(
                 path,
@@ -5179,7 +5246,7 @@ def unlink_handoff_path(
         )
         if consumer_protected(path):
             reasons.append("consumer-protected-path")
-        if path not in git_metadata:
+        if tracked and path not in git_metadata:
             try:
                 vcs = tracked_blocker(path, target)
             except (OSError, subprocess.SubprocessError):
@@ -5192,7 +5259,7 @@ def unlink_handoff_path(
     if mount_error:
         return [], [protected_skip(relative, "mount-state-unverified")]
     candidate_blockers = path_blockers(
-        target.joinpath(*PurePosixPath(relative).parts), known_mounts
+        target.joinpath(*PurePosixPath(relative).parts), known_mounts, tracked=True
     )
     candidate_blockers += [
         blocker
@@ -5203,18 +5270,23 @@ def unlink_handoff_path(
         return [], [protected_skip(relative, ", ".join(candidate_blockers))]
     removed: list[dict[str, Any]] = []
     skipped: list[dict[str, str]] = []
-    for name in removal_entries(relative, entries):
+    selected = removal_entries(relative, entries)
+    fresh_mounts, fresh_mount_error = linux_mount_points()
+    handle_skips = (
+        {} if fresh_mount_error else candidate_handle_skips(target, relative, selected)
+    )
+    resolved_parents: dict[str, Path] = {}
+    for name in selected:
         entry = entries[name]
         path = target.joinpath(*PurePosixPath(name).parts)
         if not same_removal_identity(path, entry) or is_linkish(path):
             skipped.append({"path": name, "outcome": "changed-or-link"})
             continue
-        fresh_mounts, fresh_mount_error = linux_mount_points()
         if fresh_mount_error:
             skipped.append(protected_skip(name, "mount-state-unverified"))
             continue
         purge = entry["kind"] == "directory" and path in git_metadata
-        fresh_blockers = path_blockers(path, fresh_mounts)
+        fresh_blockers = path_blockers(path, fresh_mounts, tracked=False)
         if purge and not fresh_blockers:
             contents_blocker = opaque_contents_blocker(
                 path, target, globs, fresh_mounts
@@ -5223,9 +5295,8 @@ def unlink_handoff_path(
         if fresh_blockers:
             skipped.append(protected_skip(name, ", ".join(fresh_blockers)))
             continue
-        handle_skip = handle_state_skip(name, path)
-        if handle_skip:
-            skipped.append(handle_skip)
+        if name in handle_skips:
+            skipped.append(handle_skips[name])
             continue
         try:
             anchored_remove(
@@ -5235,6 +5306,7 @@ def unlink_handoff_path(
                 entries,
                 target,
                 purge_protected=consumer_protected if purge else None,
+                resolved_parents=resolved_parents,
             )
         except (HygieneError, OSError) as exc:
             skipped.append(removal_failure_skip(name, exc))
@@ -5751,7 +5823,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.approval_token != checked["approval_token"]:
             raise HygieneError("approval token does not match the fresh preview")
         report_path = model_output_path(args.report)
-        report = apply_plan(snapshot, plan)
+        report = apply_plan(snapshot, plan, checked)
         write_json(report_path, report)
         close_clean_runs(report_path)
         return emit(report, 4 if report["skipped"] else 0)
