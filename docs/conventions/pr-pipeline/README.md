@@ -2325,11 +2325,19 @@ not a stack layer; carries none of the gate's hold labels (`do-not-merge`, `pr-v
 whoever wrote it; changes no lane source pr-review-main reviews (`babysit_review_evidence.lane_source`
 over its whole file list, which must read and stay under GitHub's 3000-file cap); and
 `babysit_verify_evidence.py evidence`, with no lane flag, refuses nothing at the head and counts a
-PASS or PASS-NOTES there. A lane-source pull request is never armed here: no reader decides whether
-pr-review-main's findings at a head are settled (the gate's risk score holds only a CRITICAL
-security finding, `diff_risk.py`), so a person merges it. Any read that fails refuses, with the
-reason on the run's `left:` line. It posts no pin, comment, label or status, and never disarms: an
-arm it made stays until the merge queue takes or ejects the head or a person turns it off. Only a
+PASS or PASS-NOTES there. The arm skips every lane-source pull request until a reader exists that
+decides whether pr-review-main's findings at a head are settled: none does today (the gate's risk
+score holds only a CRITICAL security finding, `diff_risk.py`), so a person merges it. Any read that
+fails refuses, with the reason on the run's `left:` line. Just before the arm it posts the lanes
+App's `<!-- babysit-merge-pin sha=... -->` comment for that head, unless its newest pin already
+names it, and posts no other comment, label or status. GitHub keeps the arm through a push by
+someone with write access, so the merge queue's `ci-status` holds any pull request whose newest
+lanes App pin names another head, or was edited, or whose edit time does not read, whoever opened it
+(`merge-holds.mjs` `pinHold`, run on every judged author's queued pull request); a trusted person's
+approval of the live head lifts it, as for a lanes App pull request. The next scheduled run also
+disarms an armed trusted author's pull request whose newest lanes App pin names another head or was
+edited (`pinMoved`), then judges and pins the new head before arming it again; one a session armed,
+with no lanes App pin, is left armed. Only a
 scheduled or hand-started run arms one; the pr-verify wake does not, since the token broker mints
 that wake only for a lanes App pull request (`untrusted-author` otherwise), so a trusted author's
 pull request waits up to one scheduled interval after its pass.
@@ -2497,8 +2505,13 @@ there: a `User` or `Bot` whose id the trusted-actor list holds). For such an aut
 same verdict reader and holds only when it reports `verify:fail` or `verify:earlier-fail` for the
 head, judged by the base module's `evidenceHold`. The `merge.max-verify-fails` cap
 (`verify:repeated-fail`) only warns. No pass, a stale or untrusted-spec pass, `verify:unreadable`,
-`verify:too-old` and a reader that does not judge it leave it to merge. It reads only the reviews, bodies blanked, and no file list, so the
-kill switch, member veto, hold paths and cost paths stay the lanes App's.
+`verify:too-old` and a reader that does not judge it leave it to merge. Before the reader it holds
+on the lanes App's pin, as for a lanes App pull request: a newest pin that names another head, was
+edited, or whose edit time does not read holds it, so a trusted author's pull request
+`enable-auto-merge` armed at a passing head does not merge a later push (`pinHold`); with no
+lanes App pin, nothing holds here. It reads the reviews, bodies blanked, and the issue comments for
+the pin, and no file list, so the kill switch, member veto, hold paths and cost paths stay the
+lanes App's.
 A trusted approval of the head lifts the FAIL hold, but
 [a pull request's author cannot approve it](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/approving-a-pull-request-with-required-reviews),
 and the trusted-actor list names one person, so on an owner-login pull request the lift is a new

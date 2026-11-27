@@ -2139,9 +2139,12 @@ jobs:
             echo "::warning::wake-pr-merge: the passing job named no pull request number; nothing woken"
             exit 0
           fi
-          # pr-merge arms only lanes App pull requests, and the token broker
-          # mints for this wake only on one, so one read here spares every
-          # other pass a whole pr-merge run. One already armed or held by
+          # The token broker mints this wake only for a lanes App pull request
+          # (azure-iac src/lanes-token-broker/src/authorize.mjs checkWakePull,
+          # untrusted-author otherwise), so pr-merge's scheduled and
+          # hand-started sweeps arm a trusted author's pull request, and one
+          # read here spares every other pass a whole pr-merge run that the
+          # broker would refuse. One already armed or held by
           # do-not-merge needs no wake: the scheduled sweep runs the same
           # decision on it, disarms included, and ci-status holds do-not-merge
           # in the merge queue. A failed read, or no lanes App id, dispatches

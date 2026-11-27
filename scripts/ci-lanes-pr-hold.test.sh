@@ -88,6 +88,10 @@ discussion() {
   [[ "$(grep -cE '/(comments|reviews)\?' "$STUB_LOG")" -gt "${STUB_FAILS:-0}" ]] || { echo 'gh: Server Error (HTTP 502)' >&2; exit 1; }
 }
 case "$*" in
+"api graphql "*lastEditedAt*)
+  unedited='{"data":{"node":{"lastEditedAt":null}}}'
+  printf '%s\n' "${STUB_EDITED:-$unedited}"
+  ;;
 "api graphql "*)
   echo '{"data":{}}'
   ;;
@@ -95,7 +99,7 @@ case "$*" in
 */pulls/*/files\?*)
   jq -c '[.[] | {filename: .[0], previous_filename: .[1], status: (.[2] // (if .[1] then "renamed" else "modified" end))}]' <<<"$STUB_FILES" | jq -r "${*: -1}"
   ;;
-*/issues/*/comments\?*) discussion; rows "${STUB_ISSUE:-}" ;;
+*/issues/*/comments\?*) [[ -z "${STUB_COMMENTS_FAIL:-}" ]] || { echo 'gh: Server Error (HTTP 502)' >&2; exit 1; }; discussion; rows "${STUB_ISSUE:-}" ;;
 */pulls/*/reviews\?*) discussion; rows "${STUB_REVIEWS:-}" ;;
 */pulls/*/comments\?*) discussion; rows "${STUB_INLINE:-}" ;;
 */actions/artifacts\?name=*)
@@ -902,43 +906,64 @@ files_read() { grep -c '/files?' "$TMP_ROOT/log"; }
 NOT_HELD="#7: not held: pull requests of an author pr-verify judges, other than the lanes App's, hold only on a FAIL"
 export STUB_CONFIG="$OWNER_CONFIG"
 STUB_PULL="$(pull 'Closes #1' "$KYLE")" STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
-expect "in the merge queue, an owner pull request the reader allows passes" 0 1 "$NOT_HELD, and the reader reports none for $SHA."
-if [[ "$(readers)" -eq 1 && "$(files_read)" -eq 0 && "$(runs)" -eq 0 ]] && grep -q 'pulls/7/reviews?' "$TMP_ROOT/log" && ! grep -qE '(issues|pulls)/7/comments\?' "$TMP_ROOT/log"; then
-  ok "an owner pull request runs the verdict reader and reads only its reviews: no files, comments or pass runs"
+expect "in the merge queue, an owner pull request the reader allows passes" 0 2 "$NOT_HELD, and the reader reports none for $SHA."
+if [[ "$(readers)" -eq 1 && "$(files_read)" -eq 0 && "$(runs)" -eq 0 ]] && grep -q 'pulls/7/reviews?' "$TMP_ROOT/log" && grep -q 'issues/7/comments?' "$TMP_ROOT/log" && ! grep -q 'pulls/7/comments?' "$TMP_ROOT/log"; then
+  ok "an owner pull request runs the verdict reader and reads its reviews and issue comments: no files, inline comments or pass runs"
 else
   fail "an owner pull request read: '$(sort -u "$TMP_ROOT/log")'"
 fi
-STUB_EVIDENCE="$(evidence verify:repeated-fail)" expect "in the merge queue, the repeated-fail cap warns and does not hold an owner pull request" 0 1 \
+STUB_EVIDENCE="$(evidence verify:repeated-fail)" expect "in the merge queue, the repeated-fail cap warns and does not hold an owner pull request" 0 2 \
   "::warning::#7: pr-verify's repeated-fail cap stands at this head; owner-login PRs are not held on the cap (owner decision 2026-11-04)"
 for refusal in verify:fail verify:earlier-fail; do
-  STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal holds an owner pull request" 1 1 "::error title=pr-verify hold::#7: pr-verify's reader refuses this head ($refusal: why); push a new head"
+  STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal holds an owner pull request" 1 2 "::error title=pr-verify hold::#7: pr-verify's reader refuses this head ($refusal: why); push a new head"
 done
 for refusal in verify:missing verify:spec-changed verify:untrusted-spec verify:unreadable verify:too-old; do
-  STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports $refusal for $SHA."
+  STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal does not hold an owner pull request" 0 2 "$NOT_HELD, and the reader reports $refusal for $SHA."
 done
-STUB_ARTIFACTS='{}' expect "in the merge queue, an owner pull request with no pass is not held" 0 1 "$NOT_HELD"
-STUB_RECORD='.linked_issues[].number = 9' expect "in the merge queue, an owner pull request whose link changed is not held" 0 1 "$NOT_HELD"
-STUB_EVIDENCE="$(evidence verify:fail "$OLD")" expect "in the merge queue, a FAIL report for another head does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports none"
-STUB_EVIDENCE=' ' expect "in the merge queue, a reader that prints no report does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports none"
-STUB_READER_RC=1 expect "in the merge queue, a reader that fails does not hold an owner pull request" 0 1 "$NOT_HELD"
+STUB_ARTIFACTS='{}' expect "in the merge queue, an owner pull request with no pass is not held" 0 2 "$NOT_HELD"
+STUB_RECORD='.linked_issues[].number = 9' expect "in the merge queue, an owner pull request whose link changed is not held" 0 2 "$NOT_HELD"
+STUB_EVIDENCE="$(evidence verify:fail "$OLD")" expect "in the merge queue, a FAIL report for another head does not hold an owner pull request" 0 2 "$NOT_HELD, and the reader reports none"
+STUB_EVIDENCE=' ' expect "in the merge queue, a reader that prints no report does not hold an owner pull request" 0 2 "$NOT_HELD, and the reader reports none"
+STUB_READER_RC=1 expect "in the merge queue, a reader that fails does not hold an owner pull request" 0 2 "$NOT_HELD"
 STUB_EVIDENCE="$(evidence verify:fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
-  expect "in the merge queue, a trusted approval of the head lifts an owner pull request's FAIL hold" 0 1 "#7: no pr-verify FAIL hold: kyle-sexton approved this head, which lifts 'pr-verify's reader refuses this head (verify:fail: why)'."
+  expect "in the merge queue, a trusted approval of the head lifts an owner pull request's FAIL hold" 0 2 "#7: no pr-verify FAIL hold: kyle-sexton approved this head, which lifts 'pr-verify's reader refuses this head (verify:fail: why)'."
 STUB_EVIDENCE="$(evidence verify:earlier-fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$OLD")]" \
-  expect "in the merge queue, an approval of an earlier head lifts no owner FAIL hold" 1 1 "pr-verify's reader refuses this head (verify:earlier-fail: why)"
-printf '%s\n' 'export const switchHold = () => null;' "export { authorSkip } from \"$MODULE\";" >"$TMP_ROOT/no-evidence-hold.mjs"
+  expect "in the merge queue, an approval of an earlier head lifts no owner FAIL hold" 1 2 "pr-verify's reader refuses this head (verify:earlier-fail: why)"
+printf '%s\n' 'export const switchHold = () => null;' "export { authorSkip, fromRest, humansOf, pathLifters, pinHold, withPinEdit } from \"$MODULE\";" >"$TMP_ROOT/no-evidence-hold.mjs"
 STUB_EVIDENCE="$(evidence verify:fail)" STUB_MODULE="$TMP_ROOT/no-evidence-hold.mjs" \
-  expect "in the merge queue, a base module that cannot judge an owner FAIL fails closed" 1 1 "::error::merge-holds.mjs in the hold config could not judge the pr-verify FAIL (verify:fail) of #7"
+  expect "in the merge queue, a base module that cannot judge an owner FAIL fails closed" 1 2 "::error::merge-holds.mjs in the hold config could not judge the pr-verify FAIL (verify:fail) of #7"
 printf '%s\n' 'export const switchHold = () => null;' >"$TMP_ROOT/no-author-rule.mjs"
 STUB_MODULE="$TMP_ROOT/no-author-rule.mjs" \
   expect "in the merge queue, a base module without authorSkip fails an owner pull request closed" 1 0 "::error::cannot read whether pr-verify judges the author of #7"
-KILL=true expect "in the merge queue, the kill switch does not hold an owner pull request" 0 1 "$NOT_HELD"
+KILL=true expect "in the merge queue, the kill switch does not hold an owner pull request" 0 2 "$NOT_HELD"
 STUB_ISSUE="[$KYLE_VETO]" STUB_INLINE="[$KYLE_VETO]" STUB_REVIEWS="[$(review kyle MEMBER 2026-10-23T10:00:00Z 'Please do not merge this yet.')]" \
-  expect "in the merge queue, a member's veto does not hold an owner pull request" 0 1 "$NOT_HELD"
+  expect "in the merge queue, a member's veto does not hold an owner pull request" 0 2 "$NOT_HELD"
 STUB_FILES='[["docs/held/x.md"],[".github/standards/trusted-actors/trusted-actors.json"],["infra/main.tf"]]' \
-  expect "in the merge queue, a hold path does not hold an owner pull request" 0 1 "$NOT_HELD"
+  expect "in the merge queue, a hold path does not hold an owner pull request" 0 2 "$NOT_HELD"
 STUB_PULL="$(pull 'Closes #1' '{"id":337859524,"login":"melodic-release[bot]","type":"Bot"}')"
-STUB_EVIDENCE="$(evidence verify:fail)" expect "in the merge queue, a listed bot's pull request with a FAIL is held" 1 1 "pr-verify's reader refuses this head (verify:fail: why)"
-STUB_ARTIFACTS='{}' expect "in the merge queue, a listed bot's pull request with no pass is not held" 0 1 "$NOT_HELD"
+STUB_EVIDENCE="$(evidence verify:fail)" expect "in the merge queue, a listed bot's pull request with a FAIL is held" 1 2 "pr-verify's reader refuses this head (verify:fail: why)"
+STUB_ARTIFACTS='{}' expect "in the merge queue, a listed bot's pull request with no pass is not held" 0 2 "$NOT_HELD"
+pin() { jq -nc --arg sha "$1" --arg at "${2:-2026-10-23T09:00:00Z}" --arg id "IC_${1:0:6}" \
+  '{user: {login: "melodic-automation-lanes[bot]", type: "Bot"}, author_association: "NONE", created_at: $at, node_id: $id,
+    body: "<!-- babysit-merge-pin sha=\($sha) -->\nThe unattended merge path is about to arm native auto-merge at head `\($sha)`."}'; }
+STUB_PULL="$(pull 'Closes #1' "$KYLE")"
+export STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
+STUB_ISSUE="[$(pin "$SHA")]" expect "in the merge queue, a trusted pull request the lanes App armed at this head passes its pin" 0 2 "#7: no pin hold: the lanes App pinned no other head."
+STUB_ISSUE="[$(pin "$OLD")]" expect "in the merge queue, a trusted pull request armed at X and pushed to Y is refused at Y" 1 2 "::error::#7: its head is not $OLD, the head the lanes App pinned when it armed auto-merge"
+STUB_ISSUE="[$(pin "$OLD")]" STUB_EVIDENCE="$(evidence verify:fail)" expect "in the merge queue, the moved pin refuses before the verdict reader runs" 1 2 "its head is not $OLD"
+if [[ "$(readers)" -eq 0 ]]; then ok "a moved pin refuses with no verdict reader run"; else fail "a moved pin still ran the verdict reader"; fi
+STUB_ISSUE="[$(pin "$OLD" 2026-10-23T08:00:00Z),$(pin "$SHA" 2026-10-23T09:30:00Z)]" expect "in the merge queue, a newer pin at this head stands over an older one" 0 2 "#7: no pin hold: the lanes App pinned no other head."
+STUB_ISSUE="[$(pin "$SHA" 2026-10-23T08:00:00Z),$(pin "$OLD" 2026-10-23T09:30:00Z)]" expect "in the merge queue, the newest pin decides, not one at this head" 1 2 "its head is not $OLD"
+STUB_ISSUE="[$(pin "$SHA")]" STUB_EDITED='{"data":{}}' expect "in the merge queue, a pin whose edit time does not read refuses" 1 2 "newest pin comment was edited, or its edit time did not read"
+STUB_ISSUE="[$(pin "$SHA")]" STUB_EDITED='{"data":{"node":{"lastEditedAt":"2026-10-23T09:10:00Z"}}}' expect "in the merge queue, an edited pin refuses" 1 2 "newest pin comment was edited"
+STUB_ISSUE="[$(pin "$OLD")]" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
+  expect "in the merge queue, a trusted approval of the new head lifts the pin hold" 0 2 "#7: no pin hold: kyle-sexton approved this head, which lifts"
+STUB_ISSUE="[$(pin "$OLD")]" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$OLD")]" \
+  expect "in the merge queue, an approval of the pinned head lifts no pin hold at the new head" 1 2 "its head is not $OLD"
+STUB_ISSUE="[$(comment kyle-sexton User OWNER 2026-10-23T09:00:00Z "<!-- babysit-merge-pin sha=$OLD -->")]" \
+  expect "in the merge queue, a pin line a person wrote is no lanes App pin" 0 2 "#7: no pin hold: the lanes App pinned no other head."
+STUB_COMMENTS_FAIL=1 expect "in the merge queue, issue comments that do not read fail closed, after gh_read's three tries" 1 4 "could not read the issue comments of #7"
+STUB_ISSUE=''
 for user in '{"id":2,"login":"someone","type":"User"}' '{"id":49699333,"login":"dependabot[bot]","type":"Bot"}'; do
   STUB_PULL="$(pull 'Closes #1' "$user")"
   STUB_ARTIFACTS='{}' expect "in the merge queue, $(jq -r .login <<<"$user")'s pull request, which pr-verify does not judge, exits as before" 0 0 "#7 is not the lanes App's; pr-merge's gate or a person reads its holds."

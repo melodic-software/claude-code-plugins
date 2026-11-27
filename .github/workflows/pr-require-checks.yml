@@ -5456,10 +5456,41 @@ jobs:
             rows=$(jq -c "$rows_of" <<<"$raw") || { echo "::error::the $kind of #$pr do not parse."; exit 1; }
             [ -z "$rows" ] || printf '%s\n' "$rows" >>"$RUNNER_TEMP/discussion.jsonl"
           done
-          # Another judged author's pull request holds only on a FAIL class the
-          # verdict reader reports for its head; a reader that does not judge
-          # it, or any other refusal, leaves it to merge.
+          # Another judged author's pull request holds on a lanes App pin that
+          # names another head (enable-auto-merge's trusted-author arm posts
+          # it, and GitHub keeps an arm through a writer's push), and otherwise
+          # only on a FAIL class the verdict reader reports for its head; a
+          # reader that does not judge it, or any other refusal, leaves it to
+          # merge.
           if [ "$lanes" = false ]; then
+            raw=$(read_api "the issue comments of #$pr" "repos/$GITHUB_REPOSITORY/issues/$pr/comments?per_page=100" --paginate) || exit 1
+            jq -c '.[]' <<<"$raw" >"$RUNNER_TEMP/pin-comments.jsonl" || { echo "::error::the issue comments of #$pr do not parse."; exit 1; }
+            # shellcheck disable=SC2016 # JavaScript, not shell
+            out=$(node --input-type=module -e 'import { execFileSync } from "node:child_process";
+              import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const [, comments, discussion, actors, head, number, module] = process.argv;
+              const { fromRest, humansOf, pathLifters, pinHold, withPinEdit } = await import(pathToFileURL(module).href);
+              const rows = (file) => readFileSync(file, "utf8").split("\n").filter((line) => line.trim()).map((line) => fromRest(JSON.parse(line)));
+              const github = async (method, path, body) =>
+                JSON.parse(execFileSync("gh", ["api", "graphql", "-f", `query=${body.query}`, "-f", `id=${body.variables.id}`], { encoding: "utf8" }));
+              const held = pinHold(await withPinEdit(github, rows(comments)), head);
+              if (held !== null && (typeof held !== "string" || !held)) {
+                throw new Error("no pin verdict");
+              }
+              const approved = pathLifters(rows(discussion), humansOf(JSON.parse(readFileSync(actors, "utf8")).actors), head);
+              const text = String(held).replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
+              console.log(held === null
+                ? `#${number}: no pin hold: the lanes App pinned no other head.`
+                : approved.length
+                  ? `#${number}: no pin hold: ${approved.join(", ")} approved this head, which lifts '"'"'${text}'"'"'.`
+                  : `::error::#${number}: ${text}.`);' \
+              "$RUNNER_TEMP/pin-comments.jsonl" "$RUNNER_TEMP/discussion.jsonl" "$RUNNER_TEMP/trusted-actors.json" "$head" "$pr" "$RUNNER_TEMP/merge-holds.mjs") || {
+              echo "::error::merge-holds.mjs in the hold config could not judge the lanes App pin of #$pr; re-run this run."
+              exit 1
+            }
+            printf '%s\n' "$out"
+            grep -qE "^#$pr: no pin hold: " <<<"$out" || exit 1
             node "$PR_MERGE_SCRIPTS/head-ref-map.mjs" read || echo "::notice::no head-ref map from pr-merge's last run; the verdict reader reads each untied FAIL."
             rm -f "$BABYSIT_VERIFY_LISTING"
             if ! report=$(BABYSIT_READ_FLOOR_STOP=1 python3 "$VERIFY_EVIDENCE_SCRIPT" evidence --repo "$GITHUB_REPOSITORY" --base-sha "$BASE_SHA" "$pr" "$head"); then

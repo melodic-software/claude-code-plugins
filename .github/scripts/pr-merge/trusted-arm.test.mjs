@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-import { ARM_MUTATION, PULLS_QUERY, WAKE_OUTPUT, decideTrusted, main, pythonLaneSource, pythonVerify } from "./enable-auto-merge.mjs";
+import { ARM_MUTATION, DETAIL_QUERY, DISARM_MUTATION, PULLS_QUERY, WAKE_OUTPUT, decideTrusted, main, pinBody, pythonLaneSource, pythonVerify } from "./enable-auto-merge.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -56,12 +56,27 @@ async function run(pulls, { env = {}, verdicts = {} } = {}) {
   const calls = [];
   const verified = [];
   const github = async (method, path, body) => {
-    calls.push({ method, path, query: body?.query });
+    calls.push({ method, path, query: body?.query, variables: body?.variables, body: body?.body });
     if (method === "POST" && path === "/graphql" && body.query === PULLS_QUERY) {
       return { data: { repository: { pullRequests: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: pulls } } } };
     }
     if (method === "POST" && path === "/graphql" && body.query === ARM_MUTATION) {
       return { data: { enablePullRequestAutoMerge: { pullRequest: { autoMergeRequest: { enabledAt: "2026-11-27T15:00:00Z" } } } } };
+    }
+    if (method === "POST" && path === "/graphql" && body.query === DISARM_MUTATION) {
+      return { data: { disablePullRequestAutoMerge: { clientMutationId: null } } };
+    }
+    if (method === "POST" && path === "/graphql" && body.query === DETAIL_QUERY) {
+      const found = pulls.find((candidate) => candidate.number === body.variables.number);
+      if (found.commentsError) {
+        throw new Error("POST /graphql failed with status 502");
+      }
+      const none = { totalCount: 0, nodes: [] };
+      const comments = found.comments ?? [];
+      return { data: { repository: { pullRequest: { comments: { totalCount: comments.length, nodes: comments }, reviews: none, reviewThreads: none, timelineItems: { nodes: [] }, files: none } } } };
+    }
+    if (method === "POST" && /^\/repos\/melodic-software\/claude-code-plugins\/issues\/[0-9]+\/comments$/.test(path)) {
+      return {};
     }
     const files = /^\/repos\/melodic-software\/claude-code-plugins\/pulls\/([0-9]+)\/files\?per_page=100&page=([0-9]+)$/.exec(path);
     if (method === "GET" && files) {
@@ -114,32 +129,59 @@ test("a clean trusted-author pull request with a pr-verify PASS at its head is a
   assert.match(leftLine(result, 500), new RegExp(`armed at ${CLEAN_HEAD}`));
 });
 
-test("the arm sends the head pr-verify passed as expectedHeadOid", async () => {
-  const pull = clean();
-  const sent = [];
-  const github = async (method, path, body) => {
-    if (body?.query === ARM_MUTATION) {
-      sent.push(body.variables);
-      return { data: {} };
-    }
-    if (body?.query === PULLS_QUERY) {
-      return { data: { repository: { pullRequests: { pageInfo: { hasNextPage: false }, nodes: [pull] } } } };
-    }
-    if (method === "GET" && path.includes("/files?")) {
-      return pull.files.map((filename) => ({ filename }));
-    }
-    throw new Error(`unexpected call ${method} ${path}`);
-  };
-  const trustedVerify = async (read) => pass(read.headRefOid);
-  trustedVerify.costs = [];
-  const log = console.log;
-  console.log = () => {};
-  try {
-    await main({ env: { ...ENV }, github, trustedVerify, room: async () => null, whole: { recover: () => [] }, sleep: async () => {}, now: () => 0 });
-  } finally {
-    console.log = log;
+const OLD_HEAD = "a".repeat(40);
+const lanesComment = (body, at = "2026-11-27T14:00:00Z", lastEditedAt = null) => ({ author: { __typename: "Bot", login: "melodic-automation-lanes" }, body, createdAt: at, lastEditedAt });
+const pinPosts = (result) => result.calls.filter(({ method, path, body }) => method === "POST" && path.endsWith("/issues/500/comments") && String(body).startsWith("<!-- babysit-merge-pin "));
+const disarms = (result) => result.calls.filter(({ query }) => query === DISARM_MUTATION);
+
+test("the arm posts the lanes App pin at the head pr-verify passed, then sends that head as expectedHeadOid", async () => {
+  const result = await run([clean()]);
+  assert.deepEqual(
+    pinPosts(result).map(({ body }) => body.split("\n")[0]),
+    [`<!-- babysit-merge-pin sha=${CLEAN_HEAD} -->`],
+  );
+  assert.deepEqual(result.calls.filter(({ query }) => query === ARM_MUTATION).map(({ variables }) => variables), [{ id: "PR_500", head: CLEAN_HEAD }]);
+  const order = result.calls.map(({ path, query, body }) => (query === ARM_MUTATION ? "arm" : String(body).startsWith("<!-- babysit-merge-pin ") ? "pin" : path));
+  assert.ok(order.indexOf("pin") < order.indexOf("arm"), order.join(" "));
+});
+
+test("a pin already at the head is not posted again", async () => {
+  const result = await run([clean({ comments: [lanesComment(pinBody(CLEAN_HEAD))] })]);
+  assert.equal(pinPosts(result).length, 0);
+  assert.equal(armedHeads(result), 1);
+});
+
+test("comments that do not read leave a trusted pull request unarmed and unpinned", async () => {
+  const result = await run([clean({ commentsError: true })]);
+  assert.equal(pinPosts(result).length, 0);
+  assert.equal(armedHeads(result), 0);
+  assert.match(leftLine(result, 500), /left: its comments could not be read/);
+});
+
+test("a trusted pull request armed at X and pushed to Y is disarmed", async () => {
+  const armed = { enabledAt: "2026-11-27T14:00:00Z" };
+  const result = await run([clean({ autoMergeRequest: armed, comments: [lanesComment(pinBody(OLD_HEAD))] })]);
+  assert.deepEqual(disarms(result).map(({ variables }) => variables), [{ id: "PR_500" }]);
+  assert.equal(armedHeads(result), 0);
+  assert.match(leftLine(result, 500), new RegExp(`disarmed: its head moved from ${OLD_HEAD}, the head its arm judged, to ${CLEAN_HEAD}`));
+});
+
+test("an edited pin disarms; a pin at the head, or no lanes pin, leaves the arm on", async () => {
+  const armed = { enabledAt: "2026-11-27T14:00:00Z" };
+  const edited = await run([clean({ autoMergeRequest: armed, comments: [lanesComment(pinBody(CLEAN_HEAD), undefined, "2026-11-27T14:30:00Z")] })]);
+  assert.equal(disarms(edited).length, 1);
+  const current = await run([clean({ autoMergeRequest: armed, comments: [lanesComment(pinBody(CLEAN_HEAD))] })]);
+  const session = await run([clean({ autoMergeRequest: armed, comments: [] })]);
+  for (const result of [current, session]) {
+    assert.equal(disarms(result).length, 0);
+    assert.match(leftLine(result, 500), /left: already armed$/);
   }
-  assert.deepEqual(sent, [{ id: "PR_500", head: CLEAN_HEAD }]);
+});
+
+test("report-only names the disarm it would send and sends none", async () => {
+  const result = await run([clean({ autoMergeRequest: { enabledAt: "2026-11-27T14:00:00Z" }, comments: [lanesComment(pinBody(OLD_HEAD))] })], { env: { REPORT_ONLY: "true" } });
+  assert.equal(disarms(result).length, 0);
+  assert.match(leftLine(result, 500), /would disarm \(report-only\)/);
 });
 
 test("#19128's shape is not armed: it changes a .claude lane source and no reader settles pr-review-main's findings", async () => {
@@ -257,8 +299,12 @@ test("a lanes App pull request on the trusted list takes the lanes path, its dec
 });
 
 test("decideTrusted refuses a stacked pull request and arms only past every check", () => {
-  const facts = { files: { paths: CLEAN_FILES, capped: false }, laneSources: [], verify: pass(CLEAN_HEAD) };
-  assert.equal(decideTrusted(clean(), "needs-human", facts).action, "arm");
+  const facts = { files: { paths: CLEAN_FILES, capped: false }, laneSources: [], verify: pass(CLEAN_HEAD), comments: [] };
+  const bot = "melodic-automation-lanes";
+  assert.deepEqual(decideTrusted(clean(), "needs-human", facts, bot), { action: "arm", reason: "pr-verify passed its head and no hold stands", pin: true });
+  assert.equal(decideTrusted(clean(), "needs-human", { ...facts, comments: [lanesComment(pinBody(CLEAN_HEAD))] }, bot).pin, false);
+  assert.equal(decideTrusted(clean(), "needs-human", { ...facts, comments: [lanesComment(pinBody(OLD_HEAD))] }, bot).pin, true);
+  assert.equal(decideTrusted(clean(), "needs-human", { files: facts.files, laneSources: [], verify: facts.verify }, bot).action, "comments");
   assert.equal(decideTrusted(clean({ stack: { baseRefName: "main", entries: { totalCount: 0, nodes: [] } } }), "needs-human", facts).action, "none");
   assert.equal(decideTrusted(clean(), "needs-human", { ...facts, files: { paths: null, capped: true } }).action, "none");
   assert.equal(decideTrusted(clean(), "needs-human", { files: facts.files }).action, "lane-source");

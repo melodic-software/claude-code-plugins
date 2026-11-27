@@ -915,7 +915,7 @@ export function pythonLaneSource(env, spawn = spawnSync) {
   };
 }
 
-export const TRUSTED_READS = Object.freeze(["files", "lane-source", "verify"]);
+export const TRUSTED_READS = Object.freeze(["files", "lane-source", "verify", "comments"]);
 const PASSES = Object.freeze(["pass", "pass-notes"]);
 
 export function trustedHoldReason(pull, humanGated) {
@@ -939,10 +939,17 @@ export function trustedVerdictHold(evidence, head) {
 export const laneSourceReason = (paths) =>
   `it changes ${paths.slice(0, 3).join(", ")}${paths.length > 3 ? ` and ${paths.length - 3} more` : ""}, a lane source pr-review-main reviews, and no reader decides whether pr-review-main's findings at a head are settled, so a person merges it`;
 
-export function decideTrusted(pull, humanGated, facts = {}) {
+export function decideTrusted(pull, humanGated, facts = {}, bot = undefined) {
   const none = (reason) => ({ action: "none", reason });
   if (pull.autoMergeRequest != null) {
-    return none("already armed");
+    if (!("comments" in facts)) {
+      return { action: "comments", reason: "its comments are not read yet" };
+    }
+    if (!Array.isArray(facts.comments)) {
+      return none("already armed; its comments could not be read, so its pin is not checked");
+    }
+    const moved = pinMoved(facts.comments, bot, pull.headRefOid);
+    return moved === null ? none("already armed") : { action: "disarm", reason: moved };
   }
   if (pull.isInMergeQueue !== false) {
     return none(pull.isInMergeQueue === true ? "it is in the merge queue" : "its merge queue state did not read");
@@ -986,7 +993,16 @@ export function decideTrusted(pull, humanGated, facts = {}) {
     return { action: "verify", reason: "its verifier verdict is not read yet" };
   }
   const unverified = trustedVerdictHold(facts.verify, pull.headRefOid);
-  return unverified === null ? { action: "arm", reason: "pr-verify passed its head and no hold stands" } : none(unverified);
+  if (unverified !== null) {
+    return none(unverified);
+  }
+  if (!("comments" in facts)) {
+    return { action: "comments", reason: "its comments are not read yet" };
+  }
+  if (!Array.isArray(facts.comments)) {
+    return none("its comments could not be read, so its pin cannot be checked");
+  }
+  return { action: "arm", reason: "pr-verify passed its head and no hold stands", pin: !pinned(facts.comments, bot, pull.headRefOid) };
 }
 
 export function readRoom(answer) {
@@ -1677,7 +1693,7 @@ export async function main({ env = process.env, github, actions, laneReads, veri
     laneSource ??= pythonLaneSource(env);
     const armTrusted = async (pull) => {
       const facts = {};
-      let { action, reason } = decideTrusted(pull, humanGated, facts);
+      let { action, reason, pin } = decideTrusted(pull, humanGated, facts, slug);
       while (TRUSTED_READS.includes(action)) {
         if (!reads) {
           ({ action, reason } = { action: "none", reason: READER_RUNS_ARM });
@@ -1691,17 +1707,23 @@ export async function main({ env = process.env, github, actions, laneReads, veri
           ({ action, reason } = { action: "none", reason: NO_TIME_LEFT });
           break;
         }
-        const key = { files: "files", "lane-source": "laneSources", verify: "verify" }[action];
+        const key = { files: "files", "lane-source": "laneSources", verify: "verify", comments: "comments" }[action];
         try {
           facts[key] =
-            action === "files" ? await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number) : action === "lane-source" ? laneSource(facts.files.paths) : await trustedVerify(pull);
+            action === "files"
+              ? await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number)
+              : action === "lane-source"
+                ? laneSource(facts.files.paths)
+                : action === "verify"
+                  ? await trustedVerify(pull)
+                  : ((await discussionOf(pull.number))?.comments?.nodes ?? null);
         } catch (error) {
           facts[key] = null;
           if (!readerStopped(error)) {
             console.log(`enable-auto-merge: #${pull.number} trusted author: its ${action} read failed: ${describe(error)}`);
           }
         }
-        ({ action, reason } = decideTrusted(pull, humanGated, facts));
+        ({ action, reason, pin } = decideTrusted(pull, humanGated, facts, slug));
       }
       if (action === "none") {
         console.log(`enable-auto-merge: #${pull.number} trusted author: left: ${escapeCommand(reason)}`);
@@ -1709,9 +1731,36 @@ export async function main({ env = process.env, github, actions, laneReads, veri
         return;
       }
       if (!write) {
-        console.log(`enable-auto-merge: #${pull.number} trusted author: would arm (report-only) at ${pull.headRefOid}: ${escapeCommand(reason)}`);
-        leave(pull, `refused: report-only, would arm: ${reason}`);
+        console.log(`enable-auto-merge: #${pull.number} trusted author: would ${action} (report-only) at ${pull.headRefOid}: ${escapeCommand(reason)}`);
+        leave(pull, `refused: report-only, would ${action}: ${reason}`);
         return;
+      }
+      if (action === "disarm") {
+        leave(pull, `refused: ${reason}`);
+        if (disarmStop() !== null) {
+          failed += 1;
+          console.log(`::error title=enable-auto-merge::#${pull.number} trusted author: disarm not sent: GitHub's GraphQL rate limit is stopped until ${new Date(disarmStop() * 1000).toISOString()}, so it stays armed`);
+          return;
+        }
+        try {
+          await sendSettled("disarm", pull);
+          console.log(`enable-auto-merge: #${pull.number} trusted author: disarmed: ${escapeCommand(reason)}`);
+        } catch (error) {
+          failed += 1;
+          console.log(`::error title=enable-auto-merge::#${pull.number} trusted author: disarm: ${describe(error)}`);
+        }
+        return;
+      }
+      if (pin) {
+        try {
+          await github("POST", `/repos/${repo[0]}/issues/${pull.number}/comments`, { body: pinBody(pull.headRefOid) });
+          console.log(`enable-auto-merge: #${pull.number} trusted author: pinned at ${pull.headRefOid}`);
+        } catch (error) {
+          failed += 1;
+          console.log(`::error title=enable-auto-merge::#${pull.number} trusted author: pin, so not armed: ${describe(error)}`);
+          leave(pull, "refused: its pin comment did not post");
+          return;
+        }
       }
       leave(pull, "refused: its arm failed");
       try {
