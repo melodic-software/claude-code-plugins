@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for build-variants.py. Expected values come from the defect
-# catalog (D1-D9, C0, C1 and their injections), not from the builder's output.
 set -euo pipefail
 
 FIXTURE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../fixtures/ui-defects" && pwd)"

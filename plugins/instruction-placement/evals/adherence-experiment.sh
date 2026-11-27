@@ -1,43 +1,4 @@
 #!/usr/bin/env bash
-# adherence-experiment.sh — does path-scoping actually improve adherence?
-#
-# THE CLAIM UNDER TEST. This plugin's justification is not only token savings.
-# It also asserts that a convention delivered at the moment a matching file is
-# read is followed more reliably than the same convention buried in a large
-# always-loaded file. That is a claim about behavior, and it was asserted before
-# it was measured. This script measures it.
-#
-# It is designed to be able to FAIL. A null or negative result is a real
-# outcome, and the README's adherence claim has to change if it comes back that
-# way. Nothing here is tuned to make the treatment win.
-#
-# DESIGN
-#   Arm A (control)   the convention is one section of a ~250-line AGENTS.md
-#                     that loads in full at session start.
-#   Arm B (treatment) the identical convention text lives in a path-scoped rule
-#                     covering **/*.cs; AGENTS.md carries everything else.
-#
-#   Both arms get an identical task that EDITS AN EXISTING .cs FILE, so the
-#   file is read before it changes and the rule is in context for the edit on
-#   any Claude Code version (triggers by version: context/verified-mechanics.md).
-#   (A create-only task would test the write-trigger gap instead, whether a
-#   rule that fires on the write arrives in time, which is a different question
-#   and one the rubric already answers by refusing that destination.)
-#
-#   Compliance is defined BEFORE any run: the produced file declares the class
-#   `sealed`, and names the private field with a leading underscore. Both are
-#   stated only in the convention, and neither is the model's default.
-#
-# HONESTY BOUNDS
-#   * Small N. This detects a large effect and nothing subtler. Raw counts are
-#     reported; no p-value is computed, because one would imply power this does
-#     not have.
-#   * One model, one convention, one repository shape. Not a general result.
-#   * Order is interleaved so drift in service conditions hits both arms alike.
-#
-# Usage:
-#   adherence-experiment.sh [--trials N] [--filler N] [--claude <path>] [--keep]
-#
 # Exit: 0 the experiment ran; 2 usage error; 3 could not measure.
 
 set -uo pipefail
@@ -45,9 +6,6 @@ set -uo pipefail
 TRIALS=6
 CLAUDE_BIN=""
 KEEP=0
-# Filler sections per half of the control file. 24 gives a ~250-line AGENTS.md,
-# just past the 200-line guidance; raise it to test whether an adherence effect
-# appears only at much greater bloat.
 FILLER_SECTIONS=24
 
 usage() {

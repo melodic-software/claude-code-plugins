@@ -4,8 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# The signer decides which skills a session may invoke. resolve-issue runs
-# on issue text from anyone. The branch adds a skill that grants Bash.
 mkdir -p .github/actions/resolve-config
 for s in work-items/triage bugs/write; do
   mkdir -p "plugins/${s%/*}/skills/${s#*/}"

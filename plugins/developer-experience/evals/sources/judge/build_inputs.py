@@ -28,7 +28,6 @@ HERE = Path(__file__).resolve().parent
 EVALS = HERE.parent
 SCRATCH = Path(os.environ.get("DX_JUDGE_SCRATCH") or sys.exit("set DX_JUDGE_SCRATCH to a scratch directory")) / "sandboxes"
 
-# Arm markers: plugin and skill names, conventions file paths, the pointer line, the A1 section name.
 SCRUB = [
     (re.compile(re.escape(str(SCRATCH)) + r"/[^/\s]+/"), ""),
     (re.compile(r"/home/\S*?/lib/python3\.\d+/"), "<stdlib>/"),
@@ -180,7 +179,6 @@ def main(argv):
             out = (HERE / "inputs" / it["scenario"] / str(it["item"])
                    / f"{opts['--prefix']}{meta['arm']}-run{meta['run']}.md")
             out.parent.mkdir(parents=True, exist_ok=True)
-            # "raw" items are plugin-arm only (no arm to hide) and grade the paths the scrub removes.
             out.write_text((body if it.get("raw") else scrub(body)) + "\n", encoding="utf-8")
             count += 1
     print(f"wrote {count} judge inputs")

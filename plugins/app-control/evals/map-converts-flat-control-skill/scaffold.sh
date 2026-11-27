@@ -3,8 +3,6 @@
 # with a ## States section, so a refresh must convert both to folders in its upkeep pull request.
 set -euo pipefail
 
-# Init a repository here unless this directory already is one's top level, so the commit never lands
-# in an enclosing repository.
 if [[ "$(git rev-parse --show-toplevel 2>/dev/null || true)" != "$(pwd -P)" ]]; then
   git init -q -b main
 fi

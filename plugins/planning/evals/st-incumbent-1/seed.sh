@@ -283,7 +283,6 @@ reminders in under 15 seconds.
 - Load: the sandbox run in Phase 3 finishes inside the AC3 window.
 MD
 
-# Each phase heading takes its status tag here, outside the heredoc.
 plan=.work/review-target/PLAN.md
 text="$(cat "$plan")"
 printf '%s\n' "${text//'[STATUS]'/[TODO]}" >"$plan"

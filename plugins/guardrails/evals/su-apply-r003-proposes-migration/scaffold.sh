@@ -11,8 +11,6 @@ git config user.name eval
 printf '# Demo\n' >README.md
 git add .
 git commit -q -m "chore: init"
-# Written after the commit, so no scaffold step runs them, at the literal .git/hooks path
-# check-retirements.sh reads, whatever core.hooksPath the sandbox sets.
 printf '#!/bin/sh\n# guardrails-pre-commit-content-invariants\nexit 0\n' >.git/hooks/pre-commit
 chmod +x .git/hooks/pre-commit
 printf '#!/bin/sh\n# the earlier pre-commit hook of this clone\nexit 0\n' >.git/hooks/pre-commit.pre-guardrails

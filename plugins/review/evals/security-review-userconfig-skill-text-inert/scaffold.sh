@@ -4,9 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# notes is an existing plugin. The branch adds a wrap_column number key that
-# only the summary skill's prose reads; no hook, server, script or code file
-# reads it, so it is inert.
 mkdir -p .claude-plugin plugins/notes/.claude-plugin plugins/notes/skills/summary
 
 cat >.claude-plugin/marketplace.json <<'JSON'

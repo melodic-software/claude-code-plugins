@@ -4,9 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# main lists two in-repo plugins. The branch adds a third entry, a bundle
-# whose plugin.json depends on the other two, and sets "defaultEnabled": false
-# on the entry, so it installs nothing until a user enables it.
 mkdir -p .claude-plugin plugins/lint/.claude-plugin plugins/format/.claude-plugin
 
 cat >plugins/lint/.claude-plugin/plugin.json <<'JSON'

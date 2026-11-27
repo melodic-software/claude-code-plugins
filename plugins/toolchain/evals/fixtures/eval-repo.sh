@@ -30,9 +30,6 @@ eval_repo_init() {
   / | "${HOME:-/}" | "${real_home:-/}") echo "refusing to scaffold in ${here}" >&2 && exit 3 ;;
   *) ;;
   esac
-  # The eval workspace sits inside the run's temporary home, which is itself a repository, so a
-  # repository above the workspace is expected there. Allow only that one; refuse a workspace that
-  # is already a repository and any other enclosing repository.
   if top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
     tmp="$(cd "${TMPDIR:-/nonexistent}" 2>/dev/null && pwd -P || true)"
     if [[ "${top}" == "${here}" ]]; then
@@ -58,7 +55,6 @@ eval_repo_init() {
     echo "git did not create a repository here: ${here}" >&2
     exit 3
   fi
-  # The workspace holds harness dotfiles; hide untracked files so only the fixture's own changes show.
   g config status.showUntrackedFiles no
 }
 

@@ -12,9 +12,6 @@ execution:
 graders:
   - name: bug-stage-list
     type: regex
-    # Every Bug-row stage in order, at any distance. Before Implement, a PRD is
-    # allowed only on a line that also says it is skipped, which keeps the
-    # default-mode overview (PRD listed, not skipped) from passing on its own.
     pattern: '\bInterview\b(?:\bskip\w*[^\n]*?\bPRD\b|\bPRD\b(?=[^\n]*\bskip)|(?!\bPRD\b)[\s\S])*?\bExplore\b(?:\bskip\w*[^\n]*?\bPRD\b|\bPRD\b(?=[^\n]*\bskip)|(?!\bPRD\b)[\s\S])*?\bResearch\b(?:\bskip\w*[^\n]*?\bPRD\b|\bPRD\b(?=[^\n]*\bskip)|(?!\bPRD\b)[\s\S])*?\bDesign\b(?:\bskip\w*[^\n]*?\bPRD\b|\bPRD\b(?=[^\n]*\bskip)|(?!\bPRD\b)[\s\S])*?\bPlan\b(?:\bskip\w*[^\n]*?\bPRD\b|\bPRD\b(?=[^\n]*\bskip)|(?!\bPRD\b)[\s\S])*?\bDecompose\b(?:\bskip\w*[^\n]*?\bPRD\b|\bPRD\b(?=[^\n]*\bskip)|(?!\bPRD\b)[\s\S])*?\bImplement\w*[\s\S]*?\bTest\w*[\s\S]*?\bReview\w*[\s\S]*?\bVerif\w*[\s\S]*?\b(?:Ship|PR|pull request)\b'
     flags: 'i'
     arm: with-only

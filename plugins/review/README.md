@@ -146,9 +146,9 @@ None. The guardrails plugin's connected-page guard denies publishing a page buil
 The `evals/recall-*` cases measure whether `/review:code-review` finds bugs the review lanes
 missed in this repository. Each case's scaffold rebuilds a reverted or fixed pull request's
 affected files offline from `evals/fixtures/`, and its regex grader reports the bug found or
-missed at the file and line of the rebuilt files. Each `case.yaml` records the pull request, its
-base commit, the bug's `file:line`, the fix and who confirmed the location. The lane's other
-findings on that pull request stay in the run output and are not graded.
+missed at the file and line of the rebuilt files. Each case's `prompt.md` description names the
+pull request and the bug's location. The lane's other findings on that pull
+request stay in the run output and are not graded.
 
 A pull request that changes a review lane's prompt, model or effort cites the recall score before
 and after the change: the number of `recall-*` cases found, from the same command run on the base
@@ -179,11 +179,10 @@ cases and reports a run. Run `list` and `build` from a clone with full history:
    `evals/revert-<pr>-<slug>/` with a regex grader on those lines and `fixtures.tar.gz`: the
    files holding those lines at the base and the merge, and the original commit message as the
    pull request context. They are an archive because they are byte copies of history that
-   repository lints must not judge. Its `case.yaml` records the pull request, the revert and the lines, matched by
-   their text. A verifier agent then checks the lines against the revert and drops any that only
-   repeat a reverted line's text. `build` writes the lines to three places, and nothing rebuilds
-   one from another, so the verifier drops each line from all three: the `# lines:` comment in
-   `case.yaml`, `expected_outcome` in `prompt.md`, and the line alternation in
+   repository lints must not judge. A verifier agent then checks the lines, matched by their
+   text, against the revert and drops any that only repeat a reverted line's text. `build` writes
+   the lines to two places, and nothing rebuilds one from the other, so the verifier drops each
+   line from both: `expected_outcome` in `prompt.md`, and the line alternation in
    `graders/caught.md`, removing a file's whole alternative when none of its lines remain. A line
    left in the grader still counts a citation of it as caught. Last, the verifier names itself on
    the `confirmed-by:` line. Until then the case's scaffold refuses to run.

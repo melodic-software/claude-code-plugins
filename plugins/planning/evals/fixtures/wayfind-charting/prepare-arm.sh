@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Writes one arm of the wayfind-charting suite: a copy of the planning plugin at <ref>, outside any
-# repository, whose evals/ holds only this checkout's cases listed in cases.txt and this fixture
-# directory. `claude plugin eval` then runs it with --ablation none.
-#
-#   prepare-arm.sh <ref> <dest> <before|after>
-#
-# <ref> is a commit of this repository (the before arm pins the PR's merge base). The third
-# argument picks the settled-facts map export written the way that arm's skill text keeps facts.
-#
 # Exit: 0 written; 2 a usage error, or a dest that already exists.
 set -euo pipefail
 

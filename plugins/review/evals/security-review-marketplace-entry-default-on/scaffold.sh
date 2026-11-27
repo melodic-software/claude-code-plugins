@@ -4,8 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# main lists two in-repo plugins. The branch adds a bundle entry with no
-# defaultEnabled line; its plugin.json adds a SessionStart hook.
 mkdir -p .claude-plugin plugins/lint/.claude-plugin plugins/format/.claude-plugin
 
 cat >plugins/lint/.claude-plugin/plugin.json <<'JSON'

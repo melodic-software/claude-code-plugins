@@ -11,8 +11,6 @@ git config user.name eval
 printf '# Demo\n' >README.md
 git add .
 git commit -q -m "chore: init"
-# Written after the commit, so no scaffold step runs them, at the literal .git/hooks path
-# check-retirements.sh reads, whatever core.hooksPath the sandbox sets.
 mkdir -p .git/hooks/guardrails-content-lib
 printf '#!/bin/sh\n# retired pattern library\n' >.git/hooks/guardrails-content-lib/secret-patterns.sh
 chmod +x .git/hooks/guardrails-content-lib/secret-patterns.sh

@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Writes one arm of the plan-reviewer-cut suite: a copy of the planning plugin at <ref>, outside any
-# repository, holding this checkout's plan-reviewer-cut cases. `claude plugin eval` then runs it
-# with --ablation none.
-#
-#   prepare-arm.sh <ref> <dest>
-#
-# <ref> is a commit of this repository (the before arm pins the PR's merge base).
-#
 # Exit: 0 written; 2 a usage error, or a dest that already exists.
 set -euo pipefail
 

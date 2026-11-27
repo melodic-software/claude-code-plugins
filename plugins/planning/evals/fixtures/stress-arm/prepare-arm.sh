@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Copies the planning plugin to a new directory outside any repository, set up for one arm of the
-# st-* suite, which `claude plugin eval` then runs with --ablation none.
-#
-#   prepare-arm.sh <reviewer|devils-advocate|both|auto> <dest> [--degrade-devils-advocate]
-#
-# The first argument is the plan_stress_test value every mode gets in the copy. With
-# --degrade-devils-advocate, the copy's devils-advocate skill keeps its frontmatter and takes its
-# body from devils-advocate-degraded-body.md.txt: the suite's negative control.
-#
 # Exit: 0 written; 2 a usage error, or a dest that already exists.
 set -euo pipefail
 

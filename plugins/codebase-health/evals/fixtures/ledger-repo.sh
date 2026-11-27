@@ -36,7 +36,6 @@ case "${here}" in
 *) ;;
 esac
 
-# A file under $HOME is written only when $HOME is not the real home of the user running this.
 home_file() {
   local real
   real="$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f6 || true)"
@@ -49,10 +48,6 @@ home_file() {
 }
 
 if [[ "${repo}" == true ]]; then
-  # The eval workspace sits inside the run's temporary home, which is itself a repository, so a
-  # repository above the workspace is expected there. Allow only that one; refuse a workspace that
-  # is already a repository and any other enclosing repository. Then stop git from walking up past
-  # this directory, so every git call below lands in the nested repository created here.
   unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
   if top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
     tmp="$(cd "${TMPDIR:-/nonexistent}" 2>/dev/null && pwd -P || true)"

@@ -1,10 +1,4 @@
 #!/usr/bin/env node
-// usage: node measure-layers.mjs [--python PATH] [--playwright-core DIR] [--out FILE]
-// Rebuilds the variants with build-variants.py, loads each over file:// at widths 375 and 1280 with every
-// non-file: request aborted, and writes a defect-by-layer table (JSON) to --out (default results/measured.json).
-// No model calls. Exit 1 when a request left file: or a page failed to load, 2 when a prerequisite is missing.
-// playwright-core comes from --playwright-core DIR, else from the playwright-cli install on PATH, so the run
-// reuses that install's Chromium; @axe-core/playwright comes from this directory's node_modules (README.md).
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -17,8 +11,6 @@ const FIXTURE = join(HERE, '..', '..', 'fixtures', 'ui-defects');
 const WIDTHS = [375, 1280];
 const HEIGHT = 800;
 const SETTLE_MS = 1000;
-// WCAG 2.x A and AA rules only, the scope the Playwright accessibility-testing guide scans with; best-practice
-// rules such as `region` judge page structure, not a planted defect.
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 const LAYERS = ['axe', 'geometry', 'cls', 'pixel', 'console', 'dom', 'aria'];
 
@@ -56,9 +48,7 @@ function playwrightCore() {
       const require = t();
       const m = require('playwright-core');
       if (m?.chromium) return { chromium: m.chromium, version: require('playwright-core/package.json').version };
-    } catch {
-      /* next */
-    }
+    } catch {}
   }
   return missing('playwright-core not found (install @playwright/cli or pass --playwright-core DIR)');
 }
@@ -72,7 +62,6 @@ function axeBuilder() {
   }
 }
 
-// Minimal PNG reader for Chromium screenshots: 8-bit RGB or RGBA, not interlaced.
 function decodePng(buf) {
   let pos = 8;
   let width = 0;
@@ -127,7 +116,6 @@ function pixelDiff(a, b) {
   return { differing };
 }
 
-// Runs in the page. Generic checks over every visible element; none names a selector from the fixture.
 function snapshotBoxes() {
   const els = [...document.body.querySelectorAll('*')];
   window.__boxes = els.map((el) => [el, el.getBoundingClientRect().toJSON()]);
@@ -166,7 +154,6 @@ function geometry(tolerance) {
     document.documentElement.scrollWidth - window.innerWidth >= tolerance
       ? [`scrollWidth ${document.documentElement.scrollWidth} > innerWidth ${window.innerWidth}`]
       : [];
-  // Same-tag siblings side by side in one row should share a top edge.
   const topEdge = [];
   for (const parent of new Set(all.map((el) => el.parentElement))) {
     const kids = [...parent.children].filter(visible);
@@ -209,8 +196,6 @@ async function measureWidth(browser, url, width, AxeBuilder) {
       for (const e of list.getEntries()) if (!e.hadRecentInput) window.__cls += e.value;
     }).observe({ type: 'layout-shift', buffered: true });
   });
-  // install() alone lets time flow, so a 300 ms page timer can fire before the load snapshot; pausing first
-  // means page timers run only inside runFor.
   await page.clock.install({ time: 0 });
   await page.clock.pauseAt(1000);
   await page.goto(url, { waitUntil: 'load' });
@@ -255,7 +240,6 @@ const pw = playwrightCore();
 const { AxeBuilder, version: axeVersion } = axeBuilder();
 let browser;
 try {
-  // Without these, a frame redrawn after relayout varies by 1/255 at rounded-corner edges between runs.
   browser = await pw.chromium.launch({ args: ['--disable-partial-raster', '--disable-gpu-rasterization'] });
 } catch (e) {
   missing(`Chromium did not launch (${e.message.split('\n')[0]}); run playwright-cli install-browser`);

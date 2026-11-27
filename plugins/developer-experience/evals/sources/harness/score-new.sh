@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Score every finished run under results/ that has meta.json but no score.json.
-# Usage: score-new.sh   (prints FAIL lines for runs the scorer rejects)
 set -uo pipefail
 EVALS="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 shopt -s nullglob

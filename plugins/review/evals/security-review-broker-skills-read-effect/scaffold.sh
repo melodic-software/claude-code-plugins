@@ -4,12 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# The token broker's signer loads resolve.mjs and activity-rules.json to decide
-# what token an activity gets. The branch adds a `tidy` flag carried onto the
-# result and three skills to the issue lane's allowlist. Effect stays "read",
-# so the minted permissions are unchanged; skills still pass the name pattern
-# and must exist in the base checkout. Every named skill is already on main and
-# grants only read and edit tools over the lane's own working tree.
 mkdir -p .github/actions/resolve-config
 for s in work-items/triage bugs/write code-tidying/tidy-diff docs-hygiene/write-for-agents ai-slop/audit; do
   mkdir -p "plugins/${s%/*}/skills/${s#*/}"

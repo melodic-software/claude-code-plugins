@@ -4,8 +4,6 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Init a repository here unless this directory already is one's top level, so the commit never lands
-# in an enclosing repository.
 if [[ "$(git rev-parse --show-toplevel 2>/dev/null || true)" != "$(pwd -P)" ]]; then
   git init -q -b main
 fi

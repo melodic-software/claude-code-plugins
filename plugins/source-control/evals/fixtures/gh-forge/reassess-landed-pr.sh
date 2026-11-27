@@ -15,7 +15,6 @@ export GIT_AUTHOR_NAME=eval GIT_AUTHOR_EMAIL=eval@example.invalid
 export GIT_COMMITTER_NAME=eval GIT_COMMITTER_EMAIL=eval@example.invalid
 
 git init -q -b main
-# A signature or a global commit-msg hook would make the SHAs vary with the operator's git config.
 git config commit.gpgsign false
 git config core.hooksPath /dev/null
 mkdir -p src
