@@ -1489,7 +1489,10 @@ export async function main({ env = process.env, github, actions, laneReads, veri
       console.log(`enable-auto-merge: lane room: ${escapeCommand(JSON.stringify(lane))}`);
     }
     const deadline = now() + VERIFY_BUDGET_MS;
-    let inFlight = lane === null ? 0 : lane.count + listed.filter((pull) => (lanes(pull) || trustedAuthor(pull)) && pull.autoMergeRequest != null && !lane.queued.includes(pull.number)).length;
+    let inFlight =
+      lane === null
+        ? 0
+        : lane.count + listed.filter((pull) => (lanes(pull) || trustedAuthor(pull) || (trustedPersons === null && pull.author?.__typename === "User")) && pull.autoMergeRequest != null && !lane.queued.includes(pull.number)).length;
     let laneHeld =
       lane?.refusal != null ? `pr-merge's gate holds its lane off (${lane.refusal})` : lane?.unreadable != null ? `the lane's room could not be read (${lane.unreadable})` : null;
     const roomHold = (pull) => {

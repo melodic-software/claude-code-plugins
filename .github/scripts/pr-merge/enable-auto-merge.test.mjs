@@ -2780,6 +2780,16 @@ test("at merge.max-in-flight nothing more is armed, counting armed pull requests
   );
 });
 
+test("an unread trusted-actor list still counts an armed, unqueued person's pull request toward merge.max-in-flight", async () => {
+  const person = { __typename: "User", login: "kyle-sexton", databaseId: 153232337 };
+  const unread = { TRUSTED_ACTORS: "/nonexistent/actors.json" };
+  const result = await run([pull(1), pull(2, { author: person, autoMergeRequest: { enabledAt: "2026-10-23T10:00:00Z" } })], unread, {}, { ...ROOM, count: 4, cap: 5 });
+  assert.deepEqual(result.writes, [], "a lanes App pull request is armed past the cap");
+  assert.ok(result.lines.some((line) => /#1 left: merge\.max-in-flight is 5 and 5 merges are in flight/.test(line)), result.lines.join("\n"));
+  const roomy = await run([pull(1), pull(2, { author: person, autoMergeRequest: { enabledAt: "2026-10-23T10:00:00Z" } })], unread, {}, { ...ROOM, count: 3, cap: 5 });
+  assert.deepEqual(roomy.writes, [{ mutation: "arm", id: "PR_1", head: HEAD }], "a free slot arms the lanes App pull request");
+});
+
 test("a room that cannot be read arms nothing and disarms every armed lane pull request", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
   const pulls = [pull(1), pull(2, { autoMergeRequest: armed }), pull(3, { author: { __typename: "User", login: "kyle-sexton" }, autoMergeRequest: armed })];
