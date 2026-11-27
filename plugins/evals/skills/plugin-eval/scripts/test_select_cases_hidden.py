@@ -390,7 +390,8 @@ class SelectCasesHiddenTest(unittest.TestCase):
                 self.assert_runs(self._written_runner(run), "gen.sh moves to a name that runs")
 
     def test_written_file_only_committed_read_or_appended_is_no_run(self):
-        for run in ("git add gen.sh\n", "printf 'x\\n' >>gen.sh\n", "git -c user.name=x commit -qm x\n"):
+        for run in ("git add gen.sh\n", "printf 'x\\n' >>gen.sh\n", "git -c user.name=x commit -qm x\n",
+                    "git init -q --bare .git/origin.git\n"):
             with self.subTest(run=run):
                 self.assert_free(self._written_runner(run), "nothing runs gen.sh")
 

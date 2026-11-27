@@ -47,7 +47,7 @@ RUNNER_RE = re.compile(
     r"|ruby|perl|php|go|cargo|just|task|bats|find|xargs|run-parts|parallel|watch)\b"
 )
 INDIRECT_NAME_RE = re.compile(r"\$\{!|(?<![$\\:])[*?]|\$\w+[.-]|\$\{\w+\}[\w.-]|[\w.-]\$\{?\w")
-HOOKS_RE = re.compile(r"\.git\b|(?<![\w.-])hooks(?![\w.-])")
+HOOKS_RE = re.compile(r"(?<![\w.-])hooks(?![\w.-])")
 CAT_HEREDOC_RE = re.compile(
     r"""^\s*(?:cat|tee)(?:\s+(?:>>?\s*)?[^\s<>|;&]+)*\s*<<-?\s*([A-Za-z_]\w*)"""
     r"""\s*(?:>>?\s*[^\s<>|;&]+\s*)?$"""
