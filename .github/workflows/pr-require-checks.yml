@@ -5345,28 +5345,42 @@ jobs:
                 exit 1
               fi
             fi
-            if [ "$judged" != true ]; then
+            # In the queue the lanes App pin hold below runs whatever
+            # merge.verify-authors says: the trusted-author arm pins and arms
+            # with the lanes App token, so the setting cannot turn it off.
+            if [ "$GITHUB_EVENT_NAME" != merge_group ]; then
               echo "#$pr is not the lanes App's; pr-merge's gate or a person reads its holds."
               exit 0
             fi
-            echo "#$pr is not the lanes App's, but pr-verify judges its author (merge.verify-authors: $authors): a pr-verify FAIL at its head holds it; the kill switch, member veto and hold paths stay the lanes App's."
+            if [ "$judged" = true ]; then
+              echo "#$pr is not the lanes App's, but pr-verify judges its author (merge.verify-authors: $authors): the lanes App pin, the kill switch once the lanes App armed it, and a pr-verify FAIL at its head hold it; member veto and hold paths stay the lanes App's."
+            else
+              echo "#$pr is not the lanes App's, and pr-verify does not judge its author (merge.verify-authors: $authors): only the lanes App pin and, once the lanes App armed it, the kill switch hold it."
+            fi
+            raw=$(read_api "the issue comments of #$pr" "repos/$GITHUB_REPOSITORY/issues/$pr/comments?per_page=100" --paginate) || exit 1
+            jq -c '.[]' <<<"$raw" >"$RUNNER_TEMP/pin-comments.jsonl" || { echo "::error::the issue comments of #$pr do not parse."; exit 1; }
           fi
           # The kill switch, by the base checkout's merge-holds.mjs switchHold:
           # it answers JSON null or the hold's reason, and anything else fails
-          # closed.
+          # closed. Another author's pull request passes its issue comments, so
+          # an arm the lanes App pinned holds too.
           printf '%s\n' "$pull" >"$RUNNER_TEMP/lanes-pull.json"
+          comments_file=
+          [ "$lanes" = true ] || comments_file=$RUNNER_TEMP/pin-comments.jsonl
           # shellcheck disable=SC2016 # JavaScript, not shell
-          if [ "$lanes" = true ] && { [ ! -s "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs" ] ||
+          if [ ! -s "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs" ] ||
             ! switched=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
               import { pathToFileURL } from "node:url";
-              const { switchHold } = await import(pathToFileURL(process.argv[2]).href);
+              const [, pull, module, comments] = process.argv;
+              const { fromRest, switchHold } = await import(pathToFileURL(module).href);
               const { LANES_APP_ID: appId, LANES_DISABLED: disabled, LANES_REPO_DISABLED: repoDisabled } = process.env;
-              const reason = switchHold(JSON.parse(readFileSync(process.argv[1], "utf8")), { appId, disabled, repoDisabled });
+              const items = comments ? readFileSync(comments, "utf8").split("\n").filter((line) => line.trim()).map((line) => fromRest(JSON.parse(line))) : null;
+              const reason = switchHold(JSON.parse(readFileSync(pull, "utf8")), { appId, disabled, repoDisabled, items });
               if (reason !== null && (typeof reason !== "string" || !reason)) {
                 throw new Error("no verdict");
               }
-              console.log(JSON.stringify(reason));' "$RUNNER_TEMP/lanes-pull.json" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs") ||
-            [ -z "$switched" ] || ! reason=$(jq -er 'if . == null then "" else strings end' <<<"$switched"); }; then
+              console.log(JSON.stringify(reason));' "$RUNNER_TEMP/lanes-pull.json" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs" ${comments_file:+"$comments_file"}) ||
+            [ -z "$switched" ] || ! reason=$(jq -er 'if . == null then "" else strings end' <<<"$switched"); then
             echo "::error::merge-holds.mjs in the hold config (the default branch's tip at run time, or the base commit for another base) could not judge the lanes kill switch for #$pr; re-run this run."
             exit 1
           fi
@@ -5444,22 +5458,80 @@ jobs:
             echo "::error::the head of #$pr could not be read."
             exit 1
           fi
-          # Another judged author's pull request reads only its reviews, each
-          # body blanked: an approval of the head still lifts its FAIL hold,
-          # and no text vetoes it.
+          # Another author's pull request reads only its reviews, each body
+          # blanked: an approval of the head still lifts its pin or FAIL hold,
+          # and no text vetoes it. Reviews feed only that lift, so one whose
+          # author pr-verify does not judge reads them only under a pin hold.
           : >"$RUNNER_TEMP/discussion.jsonl"
-          kinds=("issues/$pr/comments" "pulls/$pr/reviews" "pulls/$pr/comments")
-          rows_of='.[]'
-          [ "$lanes" = true ] || { kinds=("pulls/$pr/reviews"); rows_of='.[] | .body = ""'; }
-          for kind in "${kinds[@]}"; do
-            raw=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate) || exit 1
-            rows=$(jq -c "$rows_of" <<<"$raw") || { echo "::error::the $kind of #$pr do not parse."; exit 1; }
-            [ -z "$rows" ] || printf '%s\n' "$rows" >>"$RUNNER_TEMP/discussion.jsonl"
-          done
-          # Another judged author's pull request holds only on a FAIL class the
-          # verdict reader reports for its head; a reader that does not judge
+          read_discussion() {
+            local kind raw rows
+            for kind in "$@"; do
+              raw=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate) || return 1
+              rows=$(jq -c "$rows_of" <<<"$raw") || { echo "::error::the $kind of #$pr do not parse."; return 1; }
+              [ -z "$rows" ] || printf '%s\n' "$rows" >>"$RUNNER_TEMP/discussion.jsonl"
+            done
+          }
+          if [ "$lanes" = true ]; then
+            rows_of='.[]'
+            read_discussion "issues/$pr/comments" "pulls/$pr/reviews" "pulls/$pr/comments" || exit 1
+          else
+            rows_of='.[] | .body = ""'
+            [ "$judged" != true ] || read_discussion "pulls/$pr/reviews" || exit 1
+          fi
+          # Any other author's queued pull request holds on a lanes App pin
+          # that names another head (enable-auto-merge's trusted-author arm
+          # posts it, and GitHub keeps an arm through a writer's push); one
+          # whose author pr-verify judges also holds on a FAIL class the
+          # verdict reader reports for its head. A reader that does not judge
           # it, or any other refusal, leaves it to merge.
           if [ "$lanes" = false ]; then
+            # shellcheck disable=SC2016 # JavaScript, not shell
+            held=$(node --input-type=module -e 'import { execFileSync } from "node:child_process";
+              import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const [, comments, head, module] = process.argv;
+              const { fromRest, pinHold, withPinEdit } = await import(pathToFileURL(module).href);
+              const rows = readFileSync(comments, "utf8").split("\n").filter((line) => line.trim()).map((line) => fromRest(JSON.parse(line)));
+              const github = async (method, path, body) =>
+                JSON.parse(execFileSync("gh", ["api", "graphql", "-f", `query=${body.query}`, "-f", `id=${body.variables.id}`], { encoding: "utf8" }));
+              const held = pinHold(await withPinEdit(github, rows, { unpins: true }), head, { unpins: true });
+              if (held !== null && (typeof held !== "string" || !held)) {
+                throw new Error("no pin verdict");
+              }
+              console.log(JSON.stringify(held));' \
+              "$RUNNER_TEMP/pin-comments.jsonl" "$head" "$RUNNER_TEMP/merge-holds.mjs") || {
+              echo "::error::merge-holds.mjs in the hold config could not judge the lanes App pin of #$pr; re-run this run."
+              exit 1
+            }
+            if [ "$held" != null ] && [ "$judged" != true ]; then
+              read_discussion "pulls/$pr/reviews" || exit 1
+            fi
+            # shellcheck disable=SC2016 # JavaScript, not shell
+            out=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const [, held, discussion, actors, head, number, module] = process.argv;
+              const { fromRest, humansOf, pathLifters } = await import(pathToFileURL(module).href);
+              const text = JSON.parse(held);
+              if (text === null) {
+                console.log(`#${number}: no pin hold: the lanes App pinned no other head.`);
+                process.exit(0);
+              }
+              const items = readFileSync(discussion, "utf8").split("\n").filter((line) => line.trim()).map((line) => fromRest(JSON.parse(line)));
+              const approved = pathLifters(items, humansOf(JSON.parse(readFileSync(actors, "utf8")).actors), head);
+              const escaped = text.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
+              console.log(approved.length
+                ? `#${number}: no pin hold: ${approved.join(", ")} approved this head, which lifts '"'"'${escaped}'"'"'.`
+                : `::error::#${number}: ${escaped}.`);' \
+              "$held" "$RUNNER_TEMP/discussion.jsonl" "$RUNNER_TEMP/trusted-actors.json" "$head" "$pr" "$RUNNER_TEMP/merge-holds.mjs") || {
+              echo "::error::merge-holds.mjs in the hold config could not judge the lanes App pin of #$pr; re-run this run."
+              exit 1
+            }
+            printf '%s\n' "$out"
+            grep -qE "^#$pr: no pin hold: " <<<"$out" || exit 1
+            if [ "$judged" != true ]; then
+              echo "#$pr: not held: pr-verify does not judge its author, so no verdict is read."
+              exit 0
+            fi
             node "$PR_MERGE_SCRIPTS/head-ref-map.mjs" read || echo "::notice::no head-ref map from pr-merge's last run; the verdict reader reads each untied FAIL."
             rm -f "$BABYSIT_VERIFY_LISTING"
             if ! report=$(BABYSIT_READ_FLOOR_STOP=1 python3 "$VERIFY_EVIDENCE_SCRIPT" evidence --repo "$GITHUB_REPOSITORY" --base-sha "$BASE_SHA" "$pr" "$head"); then
@@ -5738,7 +5810,7 @@ jobs:
           held_paths() {
             # The trust-gate paths, as bash patterns (`*` crosses `/`).
             # BEGIN hold-floor hold_patterns: generated by scripts/sync-hold-floor.py
-            hold_patterns=('CODEOWNERS' '*/CODEOWNERS' 'docs/conventions/pr-pipeline.yaml' '.gitmodules' '*/.gitmodules' 'plugins/source-control/skills/babysit-prs/scripts/diff_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_lane_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_settings.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_tracker_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' '.claude/*' '*/.claude/*' 'docs/conventions/source-control.yaml' '.claude-lane/*' '*/.claude-lane/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' '.github/actions/check-trusted-trigger/*' '.github/scripts/lib/github-client.mjs' '.github/scripts/lib/trusted-actors.mjs' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/source-control-settings.json' '.github/verify-legacy-fails.json' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/api-budget.bash' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/lib/lane-vocabulary.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/release-eval-hold.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/retry-call.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/lib/run-title.mjs' '.github/scripts/lib/lane-branch.mjs' '.github/scripts/lib/lane-registry.mjs' '.github/lane-registry.json' '.github/scripts/pr-merge/merge-risk-line.mjs' '.github/scripts/pr-merge-risk/input.mjs' '.github/scripts/pr-merge-risk/write-rating.mjs' '.github/actions/report-check-run/posting-run.mjs' '.github/scripts/pr-dispatch-feedback/rerun-ci-status.sh' '.github/scripts/post-merge-demotion-alert/file-demotion-issue.sh' 'scripts/sync-hold-floor.py' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/lib/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/lib/lane-hold-marker.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/resolve-threads.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-verify/resolve-pr.mjs' '.github/scripts/pr-verify/spec-source.mjs' '.github/scripts/pr-verify/write-verdict.mjs' '.github/scripts/intake-triage/admit.mjs' '.github/scripts/intake-triage/size-split.mjs' '.github/scripts/intake-triage/issue-spec.mjs' '.github/actions/select-trusted-text/select-trusted-text.mjs' 'lib/publish-gate.mjs' '.github/recurring-schedule.json' 'docs/upstream/*' 'scripts/upstream-drift-vendored-report.sh' '.github/scripts/recurring-schedule/file-due.mjs' '.github/scripts/maintenance-monitor-signals/issues.mjs' '.github/scripts/maintenance-scan-architecture/file-findings.mjs' '.github/scripts/maintenance-scan-architecture/model-tools.json' '.github/scripts/maintenance-scan-architecture/gate.mjs' '.github/scripts/maintenance-scan-architecture/lane.mjs' '.github/scripts/maintenance-scan-architecture/prepare-working-tree.sh' '.github/scripts/maintenance-scan-architecture/prompt.md' 'plugins/improvement/lib/state-key.sh' 'plugins/architecture/lib/resolve-convention-home.sh' 'plugins/architecture/lib/read-verification.sh' 'plugins/architecture/lib/default-branch-file.sh' 'plugins/architecture/lib/config-root.sh' 'plugins/architecture/lib/config-cascade.mjs' 'plugins/architecture/lib/yaml-subset.mjs' 'plugins/architecture/skills/improve/scripts/improve-settings.mjs' '.github/scripts/lib/github-rest.mjs' 'plugins/work-items/scripts/charge-words.json' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/apply-patch/cdn-paths.mjs' 'lib/cdn-pins/pins.json' 'lib/cdn-pins/sync.mjs' '.github/scripts/lib/run-main.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/earlier-fail-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/lib/lane-outcome.mjs' '.github/scripts/lib/lane-binding.mjs' '.github/scripts/pr-unblock/lane-record-cache.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/pr-unblock/verify-cap.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/work-resolve-issue/known-names.json' '.github/scripts/lib/stop-reason.mjs' '.github/scripts/lib/admission-comment.mjs' '.github/scripts/lib/admission-record.mjs' '.github/scripts/lib/done-evidence.mjs' '.github/scripts/pr-review-main/*' '.github/scripts/diff-chunking/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' 'docs/standards/*' 'docs/review/*' 'docs/conventions/work-items.md' '.github/scripts/intake-triage/refine-schema.json' '.github/scripts/plugin-eval/policy-probe-prompt.txt' '.github/scripts/pr-unblock/test-scope.mjs' '.github/scripts/pr-unblock/declare-test-scope.mjs' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-measure-skill-edit-pass.yml' '.github/workflows/maintenance-measure-skill-edit.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/maintenance-scan-architecture-find.yml' '.github/workflows/maintenance-scan-architecture.yml' '.github/workflows/maintenance-tidy-code-upkeep.yml' '.github/workflows/post-merge-file-demotion-issues.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-dispatch-feedback.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-rate-merge-risk.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-approved.yml' '.github/workflows/pr-review-comment-relay.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-run-plugin-evals.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-generate-dependabot-changelog-fragments.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/upstream-apply-changelog.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
+            hold_patterns=('CODEOWNERS' '*/CODEOWNERS' 'docs/conventions/pr-pipeline.yaml' '.gitmodules' '*/.gitmodules' 'plugins/source-control/skills/babysit-prs/scripts/diff_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_lane_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_settings.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_tracker_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' '.claude/*' '*/.claude/*' 'docs/conventions/source-control.yaml' '.claude-lane/*' '*/.claude-lane/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' '.github/actions/check-trusted-trigger/*' '.github/scripts/lib/github-client.mjs' '.github/scripts/lib/trusted-actors.mjs' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/source-control-settings.json' '.github/verify-legacy-fails.json' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/api-budget.bash' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/lib/lane-vocabulary.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/release-eval-hold.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/retry-call.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/lib/run-title.mjs' '.github/scripts/lib/lane-branch.mjs' '.github/scripts/lib/lane-registry.mjs' '.github/lane-registry.json' '.github/scripts/pr-merge/merge-risk-line.mjs' '.github/scripts/pr-merge-risk/input.mjs' '.github/scripts/pr-merge-risk/write-rating.mjs' '.github/actions/report-check-run/posting-run.mjs' '.github/scripts/pr-dispatch-feedback/rerun-ci-status.sh' '.github/scripts/post-merge-demotion-alert/file-demotion-issue.sh' 'scripts/sync-hold-floor.py' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/lib/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/lib/lane-hold-marker.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/resolve-threads.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-verify/resolve-pr.mjs' '.github/scripts/pr-verify/spec-source.mjs' '.github/scripts/pr-verify/write-verdict.mjs' '.github/scripts/intake-triage/admit.mjs' '.github/scripts/intake-triage/size-split.mjs' '.github/scripts/intake-triage/issue-spec.mjs' '.github/actions/select-trusted-text/select-trusted-text.mjs' 'lib/publish-gate.mjs' '.github/recurring-schedule.json' 'docs/upstream/*' 'scripts/upstream-drift-vendored-report.sh' '.github/scripts/recurring-schedule/file-due.mjs' '.github/scripts/maintenance-monitor-signals/issues.mjs' '.github/scripts/maintenance-scan-architecture/file-findings.mjs' '.github/scripts/maintenance-scan-architecture/model-tools.json' '.github/scripts/maintenance-scan-architecture/gate.mjs' '.github/scripts/maintenance-scan-architecture/lane.mjs' '.github/scripts/maintenance-scan-architecture/prepare-working-tree.sh' '.github/scripts/maintenance-scan-architecture/prompt.md' 'plugins/improvement/lib/state-key.sh' 'plugins/architecture/lib/resolve-convention-home.sh' 'plugins/architecture/lib/read-verification.sh' 'plugins/architecture/lib/default-branch-file.sh' 'plugins/architecture/lib/config-root.sh' 'plugins/architecture/lib/config-cascade.mjs' 'plugins/architecture/lib/yaml-subset.mjs' 'plugins/architecture/skills/improve/scripts/improve-settings.mjs' '.github/scripts/lib/github-rest.mjs' 'plugins/work-items/scripts/charge-words.json' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/apply-patch/cdn-paths.mjs' 'lib/cdn-pins/pins.json' 'lib/cdn-pins/sync.mjs' '.github/scripts/lib/run-main.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/earlier-fail-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/lib/lane-outcome.mjs' '.github/scripts/lib/lane-binding.mjs' '.github/scripts/pr-unblock/lane-record-cache.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/pr-unblock/verify-cap.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/work-resolve-issue/known-names.json' '.github/scripts/lib/stop-reason.mjs' '.github/scripts/lib/admission-comment.mjs' '.github/scripts/lib/admission-record.mjs' '.github/scripts/lib/done-evidence.mjs' '.github/scripts/pr-review-main/*' '.github/scripts/diff-chunking/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' 'docs/standards/*' 'docs/review/*' 'docs/conventions/work-items.md' '.github/scripts/intake-triage/refine-schema.json' '.github/scripts/plugin-eval/policy-probe-prompt.txt' '.github/scripts/pr-unblock/test-scope.mjs' '.github/scripts/pr-unblock/declare-test-scope.mjs' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-measure-skill-edit-pass.yml' '.github/workflows/maintenance-measure-skill-edit.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/maintenance-scan-architecture-find.yml' '.github/workflows/maintenance-scan-architecture.yml' '.github/workflows/maintenance-tidy-code-upkeep.yml' '.github/workflows/post-merge-file-demotion-issues.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-dispatch-feedback.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-rate-merge-risk.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-approved.yml' '.github/workflows/pr-review-comment-relay.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-run-plugin-evals.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-generate-dependabot-changelog-fragments.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/upstream-apply-changelog.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
             # merge.diff-check.path-holds is false: only Dependabot stays held.
             [ "$AUTHOR_ID" = 49699333 ] || hold_patterns=()
             # END hold-floor hold_patterns

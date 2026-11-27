@@ -173,32 +173,37 @@ export const fromRest = (row) => ({
 });
 
 export const PIN_RE = /^<!-- babysit-merge-pin sha=([0-9a-f]{40})(?: rung=(C2|C3))? -->$/;
+export const UNPIN_RE = /^<!-- babysit-merge-unpin sha=([0-9a-f]{40}) -->$/;
 
 const APPROVAL_LIFTS = "an approving review of this head by a person on the trusted-actor list lifts it";
 const APPROVAL_CARRIES = `${APPROVAL_LIFTS}, and the approval carries over later merges that bring only the base's changes; then re-run ci-status`;
 
-export function pinHold(items, head) {
-  const pin = newestPin(items);
+export function pinHold(items, head, { unpins = false } = {}) {
+  const pin = newestPin(items, unpins);
   if (pin === undefined) {
     return null;
   }
   const again = `enable-auto-merge judges and pins this head before it arms it again, or ${APPROVAL_LIFTS}, then re-queue`;
+  const unpin = UNPIN_RE.test(pinLine(pin));
   if (!unedited(pin)) {
-    return `the lanes App's newest pin comment was edited, or its edit time did not read, so the head its arm judged does not read; ${again}`;
+    return `the lanes App's newest ${unpin ? "unpin" : "pin"} comment was edited, or its edit time did not read, so the head its arm judged does not read; ${again}`;
+  }
+  if (unpin) {
+    return null;
   }
   const sha = PIN_RE.exec(pinLine(pin))[1];
   return sha === head ? null : `its head is not ${sha}, the head the lanes App pinned when it armed auto-merge, so the arm's checks never judged this head; ${again}`;
 }
 
 const pinLine = (item) => item.body.split("\n", 1)[0].replace(/\r$/, "");
-const newestPin = (items) =>
+const newestPin = (items, unpins) =>
   items
-    .filter((item) => item.login === LANES_APP_LOGIN && PIN_RE.test(pinLine(item)))
+    .filter((item) => item.login === LANES_APP_LOGIN && (PIN_RE.test(pinLine(item)) || (unpins && UNPIN_RE.test(pinLine(item)))))
     .sort((a, b) => a.at.localeCompare(b.at))
     .at(-1);
 
-export async function withPinEdit(github, items) {
-  const pin = newestPin(items);
+export async function withPinEdit(github, items, { unpins = false } = {}) {
+  const pin = newestPin(items, unpins);
   if (pin === undefined || typeof pin.nodeId !== "string" || !pin.nodeId) {
     return items;
   }
@@ -372,6 +377,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/plugin-eval/policy-probe-prompt.txt", "gate"],
   [".github/scripts/pr-unblock/test-scope.mjs", "gate"],
   [".github/scripts/pr-unblock/declare-test-scope.mjs", "gate"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "gate"],
   [".github/workflows/intake-reenter.yml", "gate"],
   [".github/workflows/intake-triage.yml", "gate"],
   [".github/workflows/maintenance-audit-lane-runs.yml", "gate"],
@@ -1289,15 +1295,23 @@ export function labelHolds(labels, tracker, number) {
   ].filter(Boolean);
 }
 
-export function switchHold(pull, { appId, disabled, repoDisabled } = {}) {
+export function switchHold(pull, { appId, disabled, repoDisabled, items = null } = {}) {
   const id = Number(appId);
-  if (!/^[1-9][0-9]*$/.test(String(appId)) || pull?.user?.type !== "Bot" || pull?.user?.id !== id) {
+  if (!/^[1-9][0-9]*$/.test(String(appId))) {
+    return null;
+  }
+  const app = pull?.user?.type === "Bot" && pull?.user?.id === id;
+  const pin = app || !Array.isArray(items) ? undefined : newestPin(items, true);
+  if (!app && (pin === undefined || !PIN_RE.test(pinLine(pin)))) {
     return null;
   }
   if (disabled === "false" && repoDisabled === "false") {
     return null;
   }
-  return `#${pull.number}: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure.`;
+  const switched = "the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false')";
+  return app
+    ? `#${pull.number}: ${switched}, so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure.`
+    : `#${pull.number}: ${switched}, and the lanes App armed this pull request (its newest pin record is a pin), so it does not merge; it leaves the merge queue, and enable-auto-merge arms it again once both read 'false' and pr-verify still passes its head.`;
 }
 
 export function queueHolds({ pull, tracker = null, lanes = {} } = {}) {

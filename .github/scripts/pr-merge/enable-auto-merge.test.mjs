@@ -650,13 +650,14 @@ test("a floor path no configured glob names is commented on and labeled human-ga
     ".github/scripts/pr-merge/gate-check.mjs",
     ".github/scripts/pr-merge/who.mjs",
     "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
     "docs/conventions/pr-pipeline.yaml",
     ".github/workflows/pr-merge.yml",
     ".github/workflows/pr-require-checks.yml",
   ];
   const { code, writes, notes } = await run([
     ...floor.map((filename, index) => pull(index + 1, { files: [{ filename }] })),
-    pull(98, { files: [{ filename: "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py" }] }),
+    pull(98, { files: [{ filename: "plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py" }] }),
     pull(99, { files: [{ filename: ".github/scripts/pr-unblock/other.mjs" }] }),
   ]);
   assert.equal(code, 0);
@@ -2777,6 +2778,16 @@ test("at merge.max-in-flight nothing more is armed, counting armed pull requests
     result.writes.map(({ id }) => id),
     ["PR_1", "PR_2"],
   );
+});
+
+test("an unread trusted-actor list still counts an armed, unqueued person's pull request toward merge.max-in-flight", async () => {
+  const person = { __typename: "User", login: "kyle-sexton", databaseId: 153232337 };
+  const unread = { TRUSTED_ACTORS: "/nonexistent/actors.json" };
+  const result = await run([pull(1), pull(2, { author: person, autoMergeRequest: { enabledAt: "2026-10-23T10:00:00Z" } })], unread, {}, { ...ROOM, count: 4, cap: 5 });
+  assert.deepEqual(result.writes, [], "a lanes App pull request is armed past the cap");
+  assert.ok(result.lines.some((line) => /#1 left: merge\.max-in-flight is 5 and 5 merges are in flight/.test(line)), result.lines.join("\n"));
+  const roomy = await run([pull(1), pull(2, { author: person, autoMergeRequest: { enabledAt: "2026-10-23T10:00:00Z" } })], unread, {}, { ...ROOM, count: 3, cap: 5 });
+  assert.deepEqual(roomy.writes, [{ mutation: "arm", id: "PR_1", head: HEAD }], "a free slot arms the lanes App pull request");
 });
 
 test("a room that cannot be read arms nothing and disarms every armed lane pull request", async () => {

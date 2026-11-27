@@ -1,0 +1,38 @@
+{
+  "recorded": "GET /repos/melodic-software/claude-code-plugins/pulls/<n> and, for 19128, /pulls/19128/files?per_page=100 page 1, trimmed to the fields enable-auto-merge reads; body lines quoted verbatim",
+  "19128": {
+    "number": 19128,
+    "state": "open",
+    "draft": false,
+    "user": { "login": "kyle-sexton", "id": 153232337, "type": "User" },
+    "head": { "sha": "eb83f2c83078549a4f73262dbcf0ccf3a26c4712", "repo": "melodic-software/claude-code-plugins" },
+    "base": "main",
+    "auto_merge": null,
+    "labels": ["do-not-merge"],
+    "mergeable_state": "blocked",
+    "body_first_lines": ["Closes #17773", "Closes #19320"],
+    "body_hold_lines": [],
+    "files_page_1": [
+      ".changes/docs-hygiene/fix-17773-ecosystem-cut-5d1c7a2e.md",
+      ".claude/skills/control-claude-code-plugins/features/docs-hygiene/README.md",
+      "docs/catalog.md",
+      "plugins/docs-hygiene/.claude-plugin/plugin.json",
+      "plugins/docs-hygiene/README.md",
+      "plugins/docs-hygiene/evals/compress-lint-baseline-preexisting-failure/case.yaml"
+    ]
+  },
+  "19361": {
+    "number": 19361,
+    "state": "open",
+    "draft": false,
+    "user": { "login": "kyle-sexton", "id": 153232337, "type": "User" },
+    "head": { "sha": "87be8165877a9fbde48ff23b9dceaed4be3b7f43", "repo": "melodic-software/claude-code-plugins" },
+    "base": "main",
+    "auto_merge": null,
+    "labels": [],
+    "mergeable_state": "clean",
+    "changed_files": 46,
+    "body_first_lines": ["Refs: #18862"],
+    "body_hold_lines": ["Hold: the host-run session reads pr-review-main and pr-verify at this head before merging."]
+  }
+}
