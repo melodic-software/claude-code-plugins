@@ -390,9 +390,7 @@ class SelectCasesHiddenTest(unittest.TestCase):
                 self.assert_runs(self._written_runner(run), "gen.sh moves to a name that runs")
 
     def test_written_file_only_committed_read_or_appended_is_no_run(self):
-        for run in (
-            "git add gen.sh\n", "printf 'x\\n' >>gen.sh\n", 'f=gen.sh\ntext="$(cat "$f")"\nprintf "%s" "$text" >"$f"\n',
-        ):
+        for run in ("git add gen.sh\n", "printf 'x\\n' >>gen.sh\n", "git -c user.name=x commit -qm x\n"):
             with self.subTest(run=run):
                 self.assert_free(self._written_runner(run), "nothing runs gen.sh")
 
@@ -401,6 +399,26 @@ class SelectCasesHiddenTest(unittest.TestCase):
         self.assert_free(free, "the unquoted heredoc only writes the text")
         runs = self._written_runner("cat >notes.txt <<EOF\n$(bash gen.sh)\nEOF\n")
         self.assert_runs(runs, "the command substitution runs gen.sh")
+        chained = self._written_runner("cat >run.sh <<EOF\nbash gen.sh\nEOF\nbash run.sh\n")
+        self.assert_runs(chained, "run.sh, which an unquoted heredoc writes, runs gen.sh")
+
+    def test_written_file_reached_by_a_built_name_or_odd_form_still_runs(self):
+        for run in (
+            'n=gen\nbash "$n.sh"\n', "bash ./g*.sh\n", 'for f in ./*.sh; do bash "$f"; done\n',
+            'v=f\nf=gen.sh\nbash "${!v}"\n', "bash <>gen.sh\n", 'bash <<<"$(cat gen.sh)"\n',
+            'echo "$(cat gen.sh)" >run.sh\nbash run.sh\n',
+            "git init -q\ngit add gen.sh\ngit -c 'diff.external=bash<gen.sh' diff\n",
+            'x="\ncat <<EOF\n"\nbash gen.sh\n', "cat >notes.txt <<EOF\n$\\\n(bash gen.sh)\nEOF\n",
+            '"make"\n', "${MAKE:-make}\n", "cmake -S . -B build\n",
+            "mkdir -p .git/hooks\ncp gen.sh .git/hooks/pre-commit\n", "cd .git/hooks\n",
+        ):
+            with self.subTest(run=run):
+                self.assert_runs(self._written_runner(run), "the scaffold may run gen.sh")
+
+    def test_written_file_named_by_a_non_shell_case_file_still_runs(self):
+        _write(self.repo, "plugins/alpha/evals/fixtures/helper.py", 'import subprocess\nsubprocess.run(["bash", "gen.sh"])\n')
+        block = self._written_runner('python3 "$(dirname "$0")/../fixtures/helper.py"\n')
+        self.assert_runs(block, "helper.py runs gen.sh")
 
     def test_shadowed_cat_or_path_change_still_runs(self):
         for prefix in ("cat() { bash -s; }\n", 'PATH="$PWD/bin:$PATH"\n', "alias cat=bash\n"):
@@ -502,7 +520,9 @@ class SelectCasesHiddenTest(unittest.TestCase):
     def test_positional_copy_with_rebound_arguments_still_runs(self):
         for extra in (
             'set -e -- "set""up.sh"\n', "set -u setup.sh\n", 'src+=".sh"\n', "src[0]=setup.sh\n",
-            'printf -v "src" setup.sh\n', 'copy() { src="$1"; }\n',
+            'printf -v "src" setup.sh\n', 'copy() { src="$1"; }\n', '\\set -- "set""up.sh" "$2"\n',
+            '"set" -- "set""up.sh" "$2"\n', 'fixtures="$(dirname "$fixtures")"\n',
+            '[ -n "${src:-}" ] || src="$1"\n',
         ):
             with self.subTest(extra=extra):
                 self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" a.txt out/a\n')
@@ -519,6 +539,15 @@ class SelectCasesHiddenTest(unittest.TestCase):
         self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" a.txt out/a\n')
         block = self._select(SETUP, "# Prints the fixture.\n", "")
         self.assert_runs(block, "a Python caller's arguments are not read")
+
+    def test_positional_copy_called_from_a_makefile_or_extensionless_script_still_runs(self):
+        for caller in ("plugins/alpha/evals/one-basic/Makefile", "plugins/alpha/evals/one-basic/more"):
+            with self.subTest(caller=caller):
+                _write(self.repo, caller, "\tbash ../fixtures/seed.sh setup.sh out/s\n")
+                self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" a.txt out/a\n')
+                block = self._select(SETUP, "# Prints the fixture.\n", "")
+                self.assert_runs(block, "the caller passes setup.sh")
+                (self.repo / caller).unlink()
 
     def test_positional_copy_called_from_another_plugin_still_runs(self):
         _write(

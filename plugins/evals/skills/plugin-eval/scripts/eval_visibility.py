@@ -42,15 +42,19 @@ POSITIONAL_COPY_RE = re.compile(
 )
 RUNNER_RE = re.compile(
     suite_refs.COMMAND_START
-    + r"(?:make|gmake|npm|npx|yarn|pnpm|bun|deno|node|python3?|pytest|tox|uv|ruby|perl|php|go"
-    r"|cargo|just|task|bats|find|xargs|run-parts|parallel|watch)\b"
+    + r"""["'\\]?(?:\$\{\w+:-)?(?:make|gmake|cmake|ninja|meson|scons|bazel|gradle|gradlew|mvn"""
+    r"|ant|rake|dotnet|pre-commit|direnv|npm|npx|yarn|pnpm|bun|deno|node|python3?|pytest|tox|uv"
+    r"|ruby|perl|php|go|cargo|just|task|bats|find|xargs|run-parts|parallel|watch)\b"
 )
+INDIRECT_NAME_RE = re.compile(r"\$\{!|(?<![$\\:])[*?]|\$\w+[.-]|\$\{\w+\}[\w.-]|[\w.-]\$\{?\w")
+HOOKS_RE = re.compile(r"\.git\b|(?<![\w.-])hooks(?![\w.-])")
 CAT_HEREDOC_RE = re.compile(
     r"""^\s*(?:cat|tee)(?:\s+(?:>>?\s*)?[^\s<>|;&]+)*\s*<<-?\s*([A-Za-z_]\w*)"""
     r"""\s*(?:>>?\s*[^\s<>|;&]+\s*)?$"""
 )
 GIT_RECORD_RE = re.compile(
-    r"^\s*git\s+(?:-c\s+\S+\s+)*(?:add|rm|commit|diff|status|ls-files)\b[^;&|`$()<>]*$"
+    r"^\s*git\s+(?:-c\s+(?:core\.hooksPath=/dev/null|user\.\w+=\S*)\s+)*"
+    r"(?:add|rm|commit|diff|status|ls-files)\b[^;&|`$()<>]*$"
 )
 UNSET_MESSAGE_RE = re.compile(r"\$\{(\w+):?\?[^}$`]*\}")
 TEXT_TOOL_RE = re.compile(r"\b(?:awk|gawk|mawk|sed|grep|jq)\b(?:[^;&|()`$]|\$(?!\())*$")
@@ -229,20 +233,27 @@ def _written_files_run(files):
     names = set()
     for lines in shell:
         found = suite_refs.literal_heredoc_targets(lines)
-        if found is None:
+        texts = _cat_heredoc_targets(lines)
+        if found is None or texts is None:
             return True
-        names |= found
+        names |= found | texts
     run, grew = set(), bool(names)
     written = re.compile(r"(?<![\w.-])(%s)(?![\w.-])" % "|".join(re.escape(n) for n in names))
+    every = frozenset(names)
+    for fpath, (text, _) in files.items():
+        ext = os.path.splitext(fpath)[1].lower()
+        if ext in select_mapping.SCRIPT_EXTENSIONS and ext not in select_mapping.HIDDEN_SCRIPT_EXTS:
+            if names and written.search(text or ""):
+                return True
     aliases = {}
     for lines in shell:
         for line in lines:
-            _names_run(line, written, aliases)
+            _names_run(line, written, aliases, every)
     while grew:
         grew = False
         for lines in shell:
             bodies = suite_refs.literal_heredoc_lines(lines, frozenset(run))
-            texts = _cat_heredoc_text_lines(lines)
+            texts = set() if run else _cat_heredoc_text_lines(lines)
             for number, line in enumerate(lines):
                 stripped = line.strip()
                 if number in bodies or number in texts or not stripped or stripped.startswith("#"):
@@ -250,13 +261,13 @@ def _written_files_run(files):
                 hooks_path = re.search(r"hooksPath[=\s]+(\S+)", line)
                 if hooks_path and hooks_path.group(1).strip("\"'") != "/dev/null":
                     return True
-                if RUNNER_RE.search(line) or "hooks" in line and "<<" in line:
+                if RUNNER_RE.search(line) or HOOKS_RE.search(line):
                     return True
                 if suite_refs.LITERAL_HEREDOC_RE.match(line):
                     continue
                 if suite_refs.SHADOWS_WRITER_RE.search(line):
                     return True
-                hit = _names_run(line, written, aliases)
+                hit = _names_run(line, written, aliases, every)
                 if hit - run:
                     run |= hit
                     grew = True
@@ -266,16 +277,27 @@ def _written_files_run(files):
 def _cat_heredoc_text_lines(lines):
     """0-based body lines of `cat` or `tee` heredocs with an unquoted delimiter that hold no `$(`
     or backtick: text written out, whose only expansions are variables, so nothing on them runs.
-    None count in a file that redefines `cat`, `tee` or `PATH` or sources a file."""
-    if suite_refs.shadows_writers(lines):
+    None count in a file that redefines `cat`, `tee` or `PATH` or sources a file, or whose
+    strings do not read cleanly; an opener inside a string opens none, and a line continued with a
+    backslash and the line after it count only when the joined text holds neither."""
+    inside = no_run_text._string_block_lines(".sh", "\n".join(lines))
+    if inside is None or suite_refs.shadows_writers(lines):
         return set()
-    found, closer = set(), None
+    found, closer, joined = set(), None, []
     for number, line in enumerate(lines):
         if closer is not None:
             if line.lstrip("\t") == closer:
-                closer = None
-            elif "$(" not in line and "`" not in line:
-                found.add(number)
+                closer, joined = None, []
+                continue
+            joined.append(number)
+            if line.endswith("\\"):
+                continue
+            text = "".join(lines[n][:-1] if n != number else lines[n] for n in joined)
+            if "$(" not in text and "`" not in text:
+                found.update(joined)
+            joined = []
+            continue
+        if number + 1 in inside:
             continue
         opener = CAT_HEREDOC_RE.match(line)
         if opener:
@@ -283,11 +305,26 @@ def _cat_heredoc_text_lines(lines):
     return found
 
 
-def _names_run(line, written, aliases):
+def _cat_heredoc_targets(lines):
+    """The file names each `cat` or `tee` heredoc with an unquoted delimiter writes to, or None
+    when one has a target whose name is not literal. One that only prints writes none."""
+    names = set()
+    for line in lines:
+        opener = CAT_HEREDOC_RE.match(line)
+        if opener and (">" in line or line.lstrip().startswith("tee")):
+            found = suite_refs._heredoc_names(line, opener.end(1))
+            if found is None:
+                return None
+            names |= found
+    return names
+
+
+def _names_run(line, written, aliases, every):
     """The written-file names `line` may run: every one it names, or names through a variable in
-    `aliases` (bound, by a line that does only that, to a written path, and recorded here), except
-    on a plain `git add`/`rm`/`commit` line, as a redirection target (`>file`, `>>"$f"`) or as the
-    one argument of a `cat` that only prints it."""
+    `aliases` (bound, by a line that does only that, to a written path, and recorded here), or all
+    of `every` when it builds a name (a glob, `${!name}`, or an expansion joined to text), except
+    on a plain `git add`/`rm`/`commit`/`diff`/`status`/`ls-files` line or as an output redirection
+    target (`>file`, `>>"$f"`)."""
     if GIT_RECORD_RE.match(line):
         return set()
     bound = suite_refs.SHELL_ASSIGN_RE.match(line)
@@ -296,8 +333,9 @@ def _names_run(line, written, aliases):
         if found:
             aliases[bound.group(1)] = found
             return set()
-    rest = re.sub(r"""[0-9&]?>>?\s*(?:"[^"]*"|'[^']*'|[^\s;&|]+)""", " ", line)
-    rest = re.sub(r"""\$\(\s*cat\s+(?:"[^"$`]*"|"\$\{?\w+\}?"|[^\s;&|()$`"]+)\s*\)""", " ", rest)
+    rest = re.sub(r"""[0-9&]?(?<!<)>>?\s*(?:"[^"]*"|'[^']*'|[^\s;&|]+)""", " ", line)
+    if INDIRECT_NAME_RE.search(_printed_text_cut(rest)):
+        return set(every)
     hit = set(written.findall(rest))
     for name, targets in aliases.items():
         if re.search(r"\$\{?%s(?![\w])" % re.escape(name), rest):
@@ -307,15 +345,16 @@ def _names_run(line, written, aliases):
 
 @functools.lru_cache(maxsize=None)
 def _scripts_under(root):
-    """((path, text, is_shell), ...) for every script under `root`."""
+    """((path, text, is_shell), ...) for every text file under `root`: a `Makefile`, an
+    extensionless script or a prompt may call a helper as well as a script can."""
     found = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in ("node_modules", "__pycache__", ".git")]
         for name in filenames:
-            ext = os.path.splitext(name)[1].lower()
-            if ext in select_mapping.SCRIPT_EXTENSIONS:
-                path = os.path.join(dirpath, name)
-                text = select_mapping._read_text_safe(path) or ""
+            path = os.path.join(dirpath, name)
+            text = select_mapping._read_text_safe(path)
+            if text is not None:
+                ext = os.path.splitext(name)[1].lower()
                 found.append((path, text, ext in select_mapping.HIDDEN_SCRIPT_EXTS))
     return tuple(found)
 
@@ -360,8 +399,11 @@ def _call_site_args(helper, eval_norm):
 
 def _sets_positional_args(code):
     """Some `set` command in `code` sets the positional arguments: a `--`, or a word that is not
-    an option or the name after `-o`/`+o`; unsure (a quote or expansion) counts as setting them."""
-    for match in re.finditer(suite_refs.COMMAND_START + r"set\b([^;&|\n]*)", code):
+    an option or the name after `-o`/`+o`; unsure (a quote or expansion, or a quoted or escaped
+    `set`) counts as setting them."""
+    if re.search(r"""[\\"']set\b|(?<![\w$.-])set["']""", code):
+        return True
+    for match in re.finditer(r"(?<![\w$./-])set\b(?!-)([^;&|\n]*)", code):
         words, index = match.group(1).split(), 0
         while index < len(words):
             word = words[index]
@@ -381,13 +423,24 @@ def _positional_copy_is_safe(fpath, text, line, target, eval_norm):
     lines = text.splitlines()
     var_dirs, _ = suite_refs._shell_var_dirs(lines, os.path.dirname(fpath))
     folder, var = var_dirs.get(copy.group("dir")), re.escape(copy.group("var"))
-    code = "\n".join(line for line in lines if not line.lstrip().startswith("#"))
+    code_lines = [line for line in lines if not line.lstrip().startswith("#")]
+    code = "\n".join(code_lines)
     sets = re.findall(r"(?<![\w$])%s(\[[^]]*\])?(\+?)=(\S*)" % var, code)
     if folder is None or not sets or suite_refs.runs_strings(lines, frozenset()):
         return False
     if any(
         index or append or not re.fullmatch(r"""("?)\$\{?[1-9]\}?\1""", value)
         for index, append, value in sets
+    ):
+        return False
+    dir_var = re.escape(copy.group("dir"))
+    dir_sets = [c for c in code_lines if re.search(r"(?<![\w$])%s(\[[^]]*\])?\+?=" % dir_var, c)]
+    if len(dir_sets) != 1 or not re.match(r"%s=" % dir_var, dir_sets[0]):
+        return False
+    plain = r"""(?:[A-Za-z_]\w*=("?)\$\{?[1-9]\}?\1\s*)+"""
+    var_lines = [n for n, c in enumerate(code_lines) if re.search(r"(?<![\w$])%s=" % var, c)]
+    if any(not re.fullmatch(plain, code_lines[n].strip()) for n in var_lines) or any(
+        re.search(r"\$\{?%s\b" % var, c) for c in code_lines[: var_lines[0]]
     ):
         return False
     if re.search(

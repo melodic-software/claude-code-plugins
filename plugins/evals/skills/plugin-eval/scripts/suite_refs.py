@@ -41,7 +41,7 @@ COMMAND_START = (
 RUNS_STRING_RE = re.compile(
     COMMAND_START + r"(?:eval|trap|alias)(?=\s|$)"
     r"|" + COMMAND_START + r"(?:source|\.)\s+(?:/dev/|<\(|-(?:\s|$)|[^\n]*<<)"
-    r"|\|\s*(?:ba|z)?sh\b|\b(?:ba|z)?sh\s+(?:-[A-Za-z]+\s+)*-[A-Za-z]*c\b"
+    r"|\|\s*(?:bash|zsh|sh)\b|\b(?:bash|zsh|sh)\s+(?:-[A-Za-z]+\s+)*-[A-Za-z]*c\b"
 )
 CD_WORD_RE = re.compile(COMMAND_START + r"(?:cd|pushd|popd)\b")
 SHADOWS_WRITER_RE = re.compile(
@@ -372,15 +372,16 @@ def literal_heredoc_lines(lines, run=frozenset()):
             continue
         opener = LITERAL_HEREDOC_RE.match(line)
         if opener:
-            names = _heredoc_names(line, opener)
+            names = _heredoc_names(line, opener.end(2) + 1)
             closer, body = opener.group(2), []
             counted = names is not None and not names & run
     return found
 
 
-def _heredoc_names(line, opener):
-    """The file names the heredoc `opener` on `line` writes to, or None when one is not literal."""
-    head = line[: line.index("<<")] + " " + line[opener.end(2) + 1 :]
+def _heredoc_names(line, tail):
+    """The file names the heredoc opener on `line`, whose delimiter ends before index `tail`,
+    writes to, or None when one is not literal."""
+    head = line[: line.index("<<")] + " " + line[tail:]
     if re.match(r"\s*tee\b", head):
         words = [w for w in head.split()[1:] if not w.startswith(("-", ">"))]
     else:
@@ -396,7 +397,7 @@ def literal_heredoc_targets(lines):
     for line in lines:
         opener = LITERAL_HEREDOC_RE.match(line)
         if opener:
-            found = _heredoc_names(line, opener)
+            found = _heredoc_names(line, opener.end(2) + 1)
             if found is None:
                 return None
             names |= found
