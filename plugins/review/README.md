@@ -317,6 +317,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `digest_risk_paths` | string | *(none)* | Path globs that fire the digest offer when a changed path matches, as a JSON list of at most 64 globs of at most 256 characters each, e.g. \["db/migrations/*"\]. Empty (default): unset. The docs/conventions/review-digest YAML files win over this option. |
 | `digest_opt_in_label` | string | *(none)* | The pull request label that fires the digest offer; shipped default explain-change. Empty (default): unset, so to turn the label trigger off, set opt_in_label: "" in a docs/conventions/review-digest YAML file. Those files win over this option. |
 | `medium` | string | `"auto"` | Where /review:explain-change sends a digest page. auto (default): the shipped artifact default, which the publish gate keeps local for a non-public repository or a credential-shaped diff; terminal: no page; file: a local file; artifact: publish anyway; hosted: the shared page host. |
+| `branding` | string | *(none)* | Palette, type and logo overrides for rendered HTML pages as one JSON object matching branding in docs/conventions/rendered-views.yaml. Empty (default): shipped look. Repository team and personal override files win; invalid values are reported and ignored. |
 
 ### How to set these
 

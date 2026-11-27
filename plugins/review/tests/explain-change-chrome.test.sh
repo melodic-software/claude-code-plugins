@@ -3,6 +3,7 @@ set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEMPLATE="$PLUGIN_DIR/skills/explain-change/templates/digest.html"
+TOKENS="$PLUGIN_DIR/reference/html-tokens.css"
 CHROME="$PLUGIN_DIR/../visualization/reference/html-chrome.html"
 
 if [[ ! -f "$CHROME" ]]; then
@@ -28,10 +29,10 @@ check() {
 }
 
 for t in ivory slate clay-deep gray-300 gray-500; do
-  check "--$t" "$(value "$t" "$CHROME")" "$(value "$t" "$TEMPLATE")"
+  check "--$t" "$(value "$t" "$CHROME")" "$(value "$t" "$TOKENS")"
 done
 
-check "dark --focus" "$(value clay-soft "$CHROME")" "$(value focus "$TEMPLATE" dark)"
+check "dark --focus" "$(value focus "$CHROME" dark)" "$(value focus "$TOKENS" dark)"
 
 rule() { tr '\n' ' ' <"$1" | grep -oE 'a:focus-visible[^}]*\}' | head -n1 | tr -s '[:space:]' ' ' | sed 's/ *}/ }/; s/; }/;}/'; }
 check "focus rule" "$(rule "$CHROME")" "$(rule "$TEMPLATE")"

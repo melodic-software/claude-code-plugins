@@ -8,32 +8,60 @@ import {
   stampPage,
   validateRenderedPage,
 } from "../../../lib/html-escape.mjs";
+import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall } from "../../../lib/plugin-options.mjs";
+import { findRoot, resolveBranding } from "../../../lib/view-settings.mjs";
 
-const CSS = `
-:root {
-  --ivory: #faf9f5;
-  --slate: #141413;
-  --clay-deep: #a0512e;
-  --gray-300: #d1cfc5;
-  --gray-500: #87867f;
-  --serif: ui-serif, Georgia, serif;
-  --sans: system-ui, sans-serif;
-  --mono: ui-monospace, monospace;
-  --bg: var(--ivory);
-  --fg: var(--slate);
-  --muted: var(--gray-500);
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: var(--slate);
-    --fg: var(--ivory);
-    --muted: var(--gray-300);
+const PLUGIN_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
+const TOKENS_URL = new URL("../../../reference/html-tokens.css", import.meta.url);
+const REPORT_BRAND_CSS = [
+  ".rv-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }",
+  ".rv-brand-mark { margin: 0; display: inline-block; width: 1.5rem; height: 1.5rem; background-size: contain; background-repeat: no-repeat; background-position: center; }",
+  ".rv-brand-label { margin: 0; font-family: var(--sans); font-weight: 600; font-size: 0.95rem; color: var(--fg); }",
+].join("\n");
+
+function readBrandingOption(explicitOption) {
+  if (typeof explicitOption === "string" && explicitOption !== "" && !/^\$\{user_config\./.test(explicitOption)) {
+    return explicitOption;
+  }
+  if (process.env.CLAUDE_PLUGIN_OPTION_BRANDING) {
+    return process.env.CLAUDE_PLUGIN_OPTION_BRANDING;
+  }
+  try {
+    return readOperatorOptions(resolveInstall(PLUGIN_ROOT), managedSettingsFiles(), ["branding"]).branding?.value ?? null;
+  } catch (err) {
+    if (err instanceof OptionsError) {
+      process.stderr.write(`notice: branding userConfig: ${err.message}\n`);
+      return null;
+    }
+    throw err;
   }
 }
+
+function reportBranding({ brandingOption = null } = {}) {
+  const tokens = readFileSync(TOKENS_URL, "utf8").replace(/\r\n?/g, "\n").replace(/^(?:\s*\/\*[\s\S]*?\*\/\s*)+/, "").trim();
+  const branding = resolveBranding({ userConfig: readBrandingOption(brandingOption), projectRoot: findRoot() });
+  for (const notice of branding.notices) {
+    process.stderr.write(`notice: ${notice.text}\n`);
+  }
+  const logo = branding?.logo;
+  const parts = [];
+  if (logo?.kind === "image") {
+    parts.push(`<p class="rv-brand-mark rv-logo" title="${escapeHtml(logo.label || "Brand logo")}"></p>`);
+  } else if (logo?.kind === "svg") {
+    process.stderr.write("notice: branding logo: static report pages embed PNG or JPEG logos only; SVG logo omitted\n");
+  }
+  if (logo?.label) {
+    parts.push(`<p class="rv-brand-label">${escapeHtml(logo.label)}</p>`);
+  }
+  const barHtml = parts.length ? `<section class="rv-bar">${parts.join("")}</section>\n` : "";
+  const extraCss = [barHtml ? REPORT_BRAND_CSS : "", branding?.css ?? ""].filter(Boolean).join("\n");
+  return { styleBlock: [tokens, CSS, extraCss].filter(Boolean).join("\n"), barHtml };
+}
+
+const CSS = `
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
-html { color-scheme: light dark; }
 body {
   margin: 0 auto;
   max-width: 960px;
@@ -48,6 +76,7 @@ table { border-collapse: collapse; width: 100%; }
 th, td { text-align: left; border-bottom: 1px solid var(--gray-300); padding: 0.45rem 0.5rem; vertical-align: top; }
 code { font-family: var(--mono); }
 .muted { color: var(--muted); }
+summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
 `.trim();
 
 function asText(value) {
@@ -87,9 +116,10 @@ function contextRows(rows) {
  * @param {Record<string, unknown>} model
  * @returns {string}
  */
-export function buildBoundedContextPage(model) {
+export function buildBoundedContextPage(model, { brandingOption = null } = {}) {
   const source = model && typeof model === "object" ? model : {};
   const title = asText(source.title) || "Bounded-context analysis";
+  const { styleBlock, barHtml } = reportBranding({ brandingOption });
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -97,11 +127,11 @@ export function buildBoundedContextPage(model) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${e(title)}</title>
 <style>
-${CSS}
+${styleBlock}
 </style>
 </head>
 <body>
-<p class="muted">Bounded-context analysis</p>
+${barHtml}<p class="muted">Bounded-context analysis</p>
 <h1>${e(title)}</h1>
 <p class="muted">${e(source.board)}</p>
 <section id="contexts">
@@ -143,7 +173,7 @@ function runCheck(path) {
   if (!verdict.ok) fail(verdict.failures.join(","), 1);
 }
 
-function runBuild() {
+function runBuild(brandingOption = null) {
   let model;
   try {
     model = JSON.parse(readFileSync(0, "utf8"));
@@ -151,7 +181,7 @@ function runBuild() {
     fail(`invalid JSON (${errorText(error)})`, 2);
   }
   if (!isRecord(model)) fail("JSON root must be an object", 2);
-  const page = buildBoundedContextPage(model);
+  const page = buildBoundedContextPage(model, { brandingOption });
   const verdict = validateRenderedPage(page);
   if (!verdict.ok) fail(`refused to emit (${verdict.failures.join(",")})`, 1);
   process.stdout.write(page);
@@ -164,8 +194,13 @@ function main() {
     runCheck(args[1]);
     return;
   }
-  if (args.length > 0) fail("usage: build-bc-view.mjs [< model.json] | --check <file>", 2);
-  runBuild();
+  let brandingOption = null;
+  if (args.length === 2 && args[0] === "--branding-option") {
+    brandingOption = args[1];
+  } else if (args.length > 0) {
+    fail("usage: build-bc-view.mjs [--branding-option <value>] [< model.json] | --check <file>", 2);
+  }
+  runBuild(brandingOption);
 }
 
 function invokedDirectly() {
