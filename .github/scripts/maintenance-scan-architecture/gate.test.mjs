@@ -12,7 +12,7 @@ import { STANDARDS_FIXTURE } from "../lib/trusted-actors.fixtures.mjs";
 import { runs } from "../lib/model-credential.mjs";
 import { workflowText } from "../lib/workflow-text.mjs";
 import { forge } from "./forge.fixtures.mjs";
-import { decide, gate, lastScan, mergesSince, modelTools, promptText, statusLine } from "./gate.mjs";
+import { decide, gate, gateSummary, lastScan, mergesSince, modelTools, promptText, statusLine } from "./gate.mjs";
 import { countOpen, openItemCap, SOURCE_LABEL } from "./lane.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
@@ -124,6 +124,19 @@ test("File Findings holds only issues write and contents read, files on the job'
   assert.equal(file.env.GITHUB_TOKEN, "${{ github.token }}");
   assert.ok(!job.steps.some((step) => /request-lane-token|revoke-lane-token/.test(`${step.uses ?? ""} ${step.run ?? ""}`)));
   assert.ok(!/request-lane-token/.test(WORKFLOW_TEXT));
+});
+
+test("the gate's step summary heads as lane / gate, says the verdict verb first, and names what was not read", () => {
+  const base = { cap: 5, capSource: "default", everyDays: 1, force: false };
+  const off = gateSummary({ ...base, run: false, reason: "lane-off", open: null, merges: null });
+  assert.match(off, /^### maintenance-scan-architecture \/ gate\n\nStopped \(lane-off\): the lane is off [^\n]+\.\n\n- /);
+  assert.match(off, /issues: not read of cap 5/);
+  assert.match(off, /merges since the last scan: not read/);
+  const due = gateSummary({ ...base, run: true, reason: "due", open: 2, merges: 3, force: true });
+  assert.match(due, /\n\nStarted a scan \(due\): /);
+  assert.match(due, /issues: 2 of cap 5 \(default layer\)/);
+  assert.match(due, /forced by the dispatch input/);
+  assert.ok(due.split("\n").filter((row) => row.startsWith("- ")).length <= 5, "at most five bullets");
 });
 
 test("every job that reads the improvement cascade installs resolve-config's packages first, since openItemCap loads yaml from them", () => {

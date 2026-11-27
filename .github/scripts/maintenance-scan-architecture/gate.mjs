@@ -113,6 +113,16 @@ export function statusLine(result) {
   return `${result.run ? "scan" : "stop"} ${result.reason}: ${explain(result.reason)} (open ${open} of cap ${result.cap} from the ${result.capSource} layer, every ${result.everyDays} day(s), merges since the last scan ${merges}${forced})`;
 }
 
+export function gateSummary(result) {
+  const verdict = result.run ? `Started a scan (${result.reason}): ${explain(result.reason)}.` : `Stopped (${result.reason}): ${explain(result.reason)}.`;
+  const bullets = [
+    `open \`${SOURCE_LABEL}\` issues: ${result.open ?? "not read"} of cap ${result.cap} (${result.capSource} layer)`,
+    `cadence: every ${result.everyDays} day(s); merges since the last scan: ${result.merges ?? "not read"}`,
+    ...(result.force ? ["forced by the dispatch input, which skips only the lane-off and not-due stops"] : []),
+  ];
+  return `### ${LANE} / gate\n\n${verdict}\n\n${bullets.map((bullet) => `- ${bullet}`).join("\n")}\n`;
+}
+
 async function main(argv, env) {
   const [command] = argv;
   if (command === "prompt") {
@@ -133,7 +143,7 @@ async function main(argv, env) {
   console.log(JSON.stringify(result, null, 2));
   console.log("::endgroup::");
   console.log(`::notice::${line}`);
-  if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `Architecture scan gate: ${line}\n`);
+  if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, gateSummary(result));
   if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `run=${result.run}\nreason=${result.reason}\nroom=${result.room}\ncap=${result.cap}\nenabled=${result.enabled}\n`);
   return 0;
 }
