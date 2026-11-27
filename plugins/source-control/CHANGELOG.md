@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.2.0] - 2026-11-27
+
+### Changed
+
+- `owner_decisions_record` is now optional: when unset, cost-hold decisions (`cost_decision`) and spec amendments clearing an earlier verify FAIL (`_spec_amended`) require only a `verbatim:` owner quote (plus the existing unedited trusted-actor checks) instead of refusing every decision when no record is configured.
+
+### Fixed
+
+- `babysit_postmerge.py` reads a pull request whose newest lanes App pin record is a `babysit-merge-unpin` comment as unpinned, matching the merge queue's pin hold, instead of falling back to the older pin.
+
 ## [15.1.0] - 2026-11-27
 
 ### Added

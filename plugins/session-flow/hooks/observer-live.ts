@@ -6,9 +6,9 @@ export const TYPED_PAST_FREE = 2
 export const SKIP_MAX = 16
 export const GUIDANCE_MAX = 2000
 
-export const CATEGORIES = ['process', 'decision', 'verification', 'instruction', 'request'] as const
+export const CATEGORIES = ['process', 'decision', 'verification', 'instruction', 'request', 'skill', 'improvement'] as const
 export type Category = (typeof CATEGORIES)[number] | 'harness'
-export type Fix = { route: 'here'; how: string } | { route: 'session'; how: string; command: string }
+export type Fix = { route: 'here'; how: string } | { route: 'session'; how: string; command: string } | { route: 'issue'; how: string }
 export type Finding = { finding: string; category: Category; rule: string; evidence: string; fix?: Fix }
 export type ParseFailure = { reason: string; lengths?: { finding: number; rule: number; evidence: number } }
 export type FinishDetail = ParseFailure | { held: boolean }
@@ -40,19 +40,26 @@ export const isResolved = (text: string) => /^\s*resolved\s*:\s*yes\b/im.test(te
 
 const UNCLEAR = '\nThe person could not understand an earlier finding: write the finding and the rule in plain words a newcomer can follow, with no term left unexplained.\n'
 
-const REQUEST = `\n- request: part of the person's latest request was skipped, left unanswered or answered with something else, or the work drifted from the goal the person stated for this session.`
+const KINDS = {
+  request: "part of the person's latest request was skipped, left unanswered or answered with something else, or the work drifted from the goal the person stated for this session.",
+  skill: "work was done by hand, or another way, where a listed skill's trigger or a written rule assigns it to a skill, or a skill run hit a case its steps do not handle, handled it inefficiently, or ended without offering its `## Next`.",
+  improvement: "a step ran far longer than it should have, a bug or failure was seen and not raised, or the work goes against a principle the repository's own loaded docs state.",
+} as const
+export type OptionalKind = keyof typeof KINDS
 
-const instructions = (request: boolean) => `Review this session's work so far for one process fault, judged only against rules and decisions written in this session's own instructions and conversation: instruction files (CLAUDE.md, AGENTS.md, rules files, skill text), handoffs, and decisions the owner stated or that a decision record shown here holds. ${request ? 'Five' : 'Four'} kinds count:
+const COUNT = ['Four', 'Five', 'Six', 'Seven']
+
+const instructions = (kinds: readonly OptionalKind[]) => `Review this session's work so far for one process fault, judged only against rules and decisions written in this session's own instructions and conversation: instruction files (CLAUDE.md, AGENTS.md, rules files, skill text), handoffs, and decisions the owner stated or that a decision record shown here holds. ${COUNT[kinds.length]} kinds count:
 - process: a step the instructions or a skill's procedure require was skipped or run out of order, or a forbidden action was taken.
 - decision: the work goes against a decision the owner made, or against the intent and vision they stated.
 - verification: something was called done, fixed, passing or merged without the check that proves it, or a check ran and its output went unread.
-- instruction: a written rule was broken, such as a command shape, a writing rule, where a file goes, a standard, a review criterion, the plugin philosophy or a code-quality rule.${request ? REQUEST : ''}
+- instruction: a written rule was broken, such as a command shape, a writing rule, where a file goes, a standard, a review criterion, the plugin philosophy or a code-quality rule.${kinds.map(k => `\n- ${k}: ${KINDS[k]}`).join('')}
 
 Report a fault only when every one of these holds: you can quote the rule or decision; you can name the act in this session that breaks it; the assistant has not already noticed or corrected it; it still matters now. Taste, unwritten preferences and guesses do not count. Most checks find nothing, and that is the expected answer.`
 
-export type PromptExtra = { autoSend?: boolean; request?: boolean; guidance?: string; guidanceMax?: number; override?: string; heldCommand?: string }
+export type PromptExtra = { autoSend?: boolean; kinds?: readonly OptionalKind[]; guidance?: string; repoGuidance?: string; guidanceMax?: number; override?: string; heldCommand?: string }
 
-const guidanceBlock = (text: string, max: number) => (text.trim() === '' ? '' : `\nThe person's guidance for these checks:\n${text.trim().slice(0, max)}\n`)
+const guidanceBlock = (whose: string, text: string, max: number) => (text.trim() === '' ? '' : `\n${whose} guidance for these checks:\n${text.trim().slice(0, max)}\n`)
 
 const heldBlock = (command: string | undefined) =>
   command === undefined ? '' : `\nThe assistant is about to run this command; report a fault only if running it now breaks a rule or decision:\n${command}\n`
@@ -61,8 +68,8 @@ export const buildPrompt = (seen: readonly string[], disputed: readonly string[]
 You are a separate reviewer beside this session, not the assistant doing its work. ${extra.autoSend ? 'Your finding is sent to the assistant as a note, so report only what is worth its attention.' : 'The assistant keeps working and never sees your reply unless the person sends it.'} You have no tools and get one reply. Never repeat a secret, token, credential or personal detail, even one that appears above.
 </system-reminder>
 
-${extra.override?.trim() || instructions(extra.request === true)}
-${guidanceBlock(extra.guidance ?? '', extra.guidanceMax ?? GUIDANCE_MAX)}${heldBlock(extra.heldCommand)}${listed('Already reported (do not report again in any wording):', seen)}${listed('Disputed by the person (never report again):', disputed)}${listed('Not relevant to the person (do not report these or faults like them):', notRelevant)}${unclear ? UNCLEAR : ''}${openBlock(open)}
+${extra.override?.trim() || instructions(extra.kinds ?? [])}
+${guidanceBlock("The repository's", extra.repoGuidance ?? '', extra.guidanceMax ?? GUIDANCE_MAX)}${guidanceBlock("The person's", extra.guidance ?? '', extra.guidanceMax ?? GUIDANCE_MAX)}${heldBlock(extra.heldCommand)}${listed('Already reported (do not report again in any wording):', seen)}${listed('Disputed by the person (never report again):', disputed)}${listed('Not relevant to the person (do not report these or faults like them):', notRelevant)}${unclear ? UNCLEAR : ''}${openBlock(open)}
 Answer with plain lines and nothing else, in one of two shapes. Either:
 
 finding: none
@@ -70,9 +77,11 @@ finding: none
 or:
 
 finding: <one sentence of at most 200 characters naming what went wrong>
-category: <process | decision | verification | instruction${extra.request ? ' | request' : ''}>
+category: <${['process', 'decision', 'verification', 'instruction', ...(extra.kinds ?? [])].join(' | ')}>
 rule: <the rule or decision, quoted where you can, and where it is written>
-evidence: <the act in this session that breaks it>`
+evidence: <the act in this session that breaks it>
+
+You may add a last line "fix: session" when the fix is larger than or unrelated to this session's work and belongs in a dedicated session, or "fix: issue" when it should be filed as an issue for later; leave it out when the fix belongs in this session.`
 
 const clean = (text: string) =>
   text.replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '')
@@ -99,10 +108,12 @@ export const parseReply = (text: string, fieldMax = FIELD_MAX): Parsed => {
   const tooLong = (Object.keys(lengths) as (keyof typeof lengths)[]).find(k => lengths[k] > fieldMax)
   const reason = rule === '' ? 'no_rule' : category === undefined ? 'bad_category' : tooLong ? `field_too_long:${tooLong}` : undefined
   if (reason) return { kind: 'unparsable', reason, lengths }
-  return { kind: 'finding', value: { finding: /[.!?]$/.test(finding) ? finding : `${finding}.`, category, rule, evidence } }
+  const route = (field(lines, 'fix') ?? '').toLowerCase()
+  const fix: Fix | undefined = route.startsWith('session') ? { route: 'session', how: 'take it to a dedicated session', command: '' } : route.startsWith('issue') ? { route: 'issue', how: "file it as an issue under the repository's filing rules" } : undefined
+  return { kind: 'finding', value: { finding: /[.!?]$/.test(finding) ? finding : `${finding}.`, category, rule, evidence, ...(fix ? { fix } : {}) } }
 }
 
-export const fixText = (fix: Fix) => (fix.route === 'here' ? `here: ${fix.how}` : `${fix.how}: ${fix.command}`)
+export const fixText = (fix: Fix) => (fix.route === 'session' ? `${fix.how}: ${fix.command}` : `${fix.route}: ${fix.how}`)
 
 export const ledgerHeader = (sessionId: string) =>
   `---\nsession_id: ${sessionId}\nobserver: live\n---\n\n# Running retro ledger — session\n`
