@@ -12,8 +12,8 @@ metadata:
 /go-with-recommendations except Q3: use the queue, /go-with-recommendations skip the rename
 
 Accepting is the person's decision; this skill makes sure what they accept still stands on current
-evidence before any of it runs. Running it is the person accepting every recommendation, the same
-as typing "go with recommendations"; a record that quotes the reply may quote either form.
+evidence before any of it runs. Running it is the same accept as typing "go with recommendations",
+with any exceptions typed after it; a record that quotes the reply may quote either form.
 
 ## 1. Collect the recommendations
 
