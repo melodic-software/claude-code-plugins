@@ -5,6 +5,17 @@ after an explicit per-plugin confirm. [sync-install-enable.md](sync-install-enab
 `project`-scope enable gap instead of filling it. It never runs implicitly from `sync`: that report
 only names the `converge` command, and the user runs it explicitly.
 
+## Contents
+
+- [Autonomous-session abort](#autonomous-session-abort-run-this-check-first-before-any-preview-work)
+- [V1 scope: version divergence only](#v1-scope-version-divergence-only)
+- [Step 1: Detect](#step-1-detect)
+- [Step 2: Preview per-plugin intent](#step-2-preview-per-plugin-intent)
+- [Step 3: Confirm, one batch per path](#step-3-confirm-one-batch-per-path)
+- [Step 4: Execute](#step-4-execute)
+- [Step 5: Surface the resulting diff](#step-5-surface-the-resulting-diff)
+- [Non-interactive execution](#non-interactive-execution)
+
 ## Autonomous-session abort (run this check first, before any preview work)
 
 `converge` is destructive-tier (it can uninstall a scoped plugin install and rewrite committed
