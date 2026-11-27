@@ -32,6 +32,12 @@ DIRNAME_INNER_RE = re.compile(
     r"""\$\(\s*dirname\s+["']?(?:\$\{?BASH_SOURCE(?:\[0\])?\}?|\$0)["']?\s*\)"""
 )
 PWD_TAIL_RE = re.compile(r"""["']?\s*&&\s*pwd(?:\s+-[PL])?\s*\)""")
+HIDDEN_SCRIPT_EXTS = frozenset([".sh", ".bash"])
+SCRIPT_RUN_RE = re.compile(
+    r"""^(?:(?:exec|command|then|do|else|!)\s+)*(?:(?:bash|sh|source|\.)\s+(?:-(?!c\b)[A-Za-z]+\s+)*)?"""
+    r"""(?P<path>"(?:\$\([^)]*\)|[^"])*"|'[^']*'|(?:\$\([^)]*\)|\$\{[^}]*\}|[^\s;&|<>"'(){}])+)"""
+    r"""(?P<rest>(?:\s.*)?)$"""
+)
 YAML_TOP_KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_.\-]*)[ \t]*:(?:[ \t]+(.*))?$")
 
 SCRIPT_EXTENSIONS = frozenset(
@@ -378,9 +384,10 @@ def swap_rename_pairs(repo_root, merge_base, deleted, added):
     return pairs
 
 
-def is_no_run_file_change(repo_root, merge_base, old_path, new_path):
+def is_no_run_file_change(repo_root, merge_base, old_path, new_path, hidden=False):
     """True when `old_path` at merge_base and `new_path` at HEAD differ only by decided-term swaps
-    (path and content) and whole-comment-line deletions."""
+    (path and content) and whole-comment-line deletions; under `evals/`, comment deletions count
+    only when `hidden`."""
     pairs = decided_term_pairs(repo_root, merge_base)
     if os.path.splitext(new_path)[1].lower() in SCRIPT_EXTENSIONS:
         pairs = ()
@@ -395,7 +402,9 @@ def is_no_run_file_change(repo_root, merge_base, old_path, new_path):
     if done.returncode != 0:
         return False
     hunks = no_run_text._raw_hunks(done.stdout)
-    style = no_run_text.comment_style(new_path, git_show(repo_root, merge_base, old_path) or "")
+    style = no_run_text.comment_style(
+        new_path, git_show(repo_root, merge_base, old_path) or "", hidden
+    )
     return bool(hunks) and all(
         no_run_text._hunk_is_no_run(old, new, pairs, style, start) for start, old, new in hunks
     )
@@ -505,6 +514,10 @@ def _parse_case_yaml_text(text):
     return validate_cases.parse_yaml(stripped)
 
 
+def _comment_lines(text):
+    return [line.strip() for line in text.splitlines() if line.strip().startswith("#")]
+
+
 def is_description_only_case_edit(repo_root, merge_base, rel_path, filename):
     """True when a modified case.yaml or prompt.md changes only its description."""
     base_text = git_show(repo_root, merge_base, rel_path)
@@ -519,7 +532,9 @@ def is_description_only_case_edit(repo_root, merge_base, rel_path, filename):
                 return False
             base_rest = {k: v for k, v in base_doc.items() if k != "description"}
             head_rest = {k: v for k, v in head_doc.items() if k != "description"}
-            return base_rest == head_rest
+            return base_rest == head_rest and _comment_lines(base_text) == _comment_lines(
+                head_text
+            )
         if filename == "prompt.md":
             base_fm_raw, base_body = validate_cases.split_markdown(base_text)
             head_fm_raw, head_body = validate_cases.split_markdown(head_text)
@@ -717,9 +732,11 @@ def skills_for_agent(repo_root, plugin, agent_name):
 
 
 def _suffix_after(text, start, end):
+    quote = text[start - 1] if start > 0 and text[start - 1] in ('"', "'") else None
+    if quote and text[end : end + 2] == quote + "/":
+        end, quote = end + 1, None
     if end >= len(text) or text[end] != "/":
         return ""
-    quote = text[start - 1] if start > 0 and text[start - 1] in ('"', "'") else None
     stop_chars = (quote, "\r", "\n") if quote else tuple(" \t\r\n\"'`)&|;<>#")
     pos = end
     while pos < len(text) and text[pos] not in stop_chars:
@@ -760,13 +777,9 @@ def _in_eval_suite(path, eval_norm):
     return path != eval_norm and path.startswith(eval_norm + os.sep)
 
 
-def _extract_suite_refs(fpath, text, eval_norm):
-    base_dir = os.path.dirname(fpath)
-    refs = set()
+def _shell_var_dirs(lines, base_dir):
     var_dirs = {}
     assign_lines = set()
-    lines = text.splitlines()
-
     for line_no, line in enumerate(lines):
         stripped = line.lstrip()
         if not stripped or stripped.startswith("#"):
@@ -795,34 +808,66 @@ def _extract_suite_refs(fpath, text, eval_norm):
                 var_dirs[var_name] = _resolve_shell_subpath(known_dir, suffix)
                 assign_lines.add(line_no)
                 break
+    return var_dirs, assign_lines
 
+
+def _holds_suite(path, eval_norm):
+    return path == eval_norm or eval_norm.startswith(path + os.sep)
+
+
+def _line_refs(line, base_dir, var_dirs, eval_norm, wide=None):
+    """The suite paths `line` names; one naming the suite folder or a folder above it goes into
+    `wide` when given."""
+    refs = set()
+
+    def keep(resolved):
+        if _in_eval_suite(resolved, eval_norm):
+            refs.add(resolved)
+        elif wide is not None and _holds_suite(resolved, eval_norm):
+            wide.add(resolved)
+
+    for dn_match in DIRNAME_INNER_RE.finditer(line):
+        keep(_dirname_resolved(line, dn_match, base_dir))
+    for token in _extract_relative_paths(line):
+        keep(os.path.normpath(os.path.join(base_dir, token)))
+    for var_name, var_dir in var_dirs.items():
+        var_re = re.compile(
+            r"\$\{" + re.escape(var_name) + r"\}|\$" + re.escape(var_name) + r"(?![A-Za-z0-9_])"
+        )
+        for match in var_re.finditer(line):
+            suffix = _suffix_after(line, match.start(), match.end())
+            keep(_resolve_shell_subpath(var_dir, suffix))
+    return refs
+
+
+def _suite_ref_sites(fpath, text, eval_norm):
+    """Each reference `fpath` makes into the suite: (line, refs, runs, rest, rest_refs, wide),
+    where `runs` is the one script a shell line or a `scaffold_script` value executes, `rest` the
+    line after that script's path, and `wide` whether it names the suite folder or one above."""
+    base_dir = os.path.dirname(fpath)
+    lines = text.splitlines()
+    var_dirs, assign_lines = _shell_var_dirs(lines, base_dir)
+    is_shell = os.path.splitext(fpath)[1].lower() in HIDDEN_SCRIPT_EXTS
+    sites = []
     for line_no, line in enumerate(lines):
         if line_no in assign_lines:
             continue
         stripped = line.lstrip()
         if not stripped or stripped.startswith("#"):
             continue
-        for dn_match in DIRNAME_INNER_RE.finditer(line):
-            resolved = _dirname_resolved(line, dn_match, base_dir)
-            if _in_eval_suite(resolved, eval_norm):
-                refs.add(resolved)
-        for token in _extract_relative_paths(line):
-            resolved = os.path.normpath(os.path.join(base_dir, token))
-            if _in_eval_suite(resolved, eval_norm):
-                refs.add(resolved)
-        for var_name, var_dir in var_dirs.items():
-            var_re = re.compile(
-                r"\$\{"
-                + re.escape(var_name)
-                + r"\}|\$"
-                + re.escape(var_name)
-                + r"(?![A-Za-z0-9_])"
-            )
-            for match in var_re.finditer(line):
-                suffix = _suffix_after(line, match.start(), match.end())
-                resolved = _resolve_shell_subpath(var_dir, suffix)
-                if _in_eval_suite(resolved, eval_norm):
-                    refs.add(resolved)
+        wide = set()
+        refs = _line_refs(line, base_dir, var_dirs, eval_norm, wide)
+        if not refs and not wide:
+            continue
+        runs, rest, rest_refs = None, line, refs
+        shape = SCRIPT_RUN_RE.match(stripped) if is_shell else None
+        if shape:
+            path_refs = _line_refs(shape.group("path"), base_dir, var_dirs, eval_norm)
+            if len(path_refs) == 1:
+                runs = next(iter(path_refs))
+                rest = shape.group("rest")
+                rest_refs = _line_refs(rest, base_dir, var_dirs, eval_norm)
+        sites.append((line, refs, runs, rest, rest_refs, bool(wide)))
 
     if os.path.basename(fpath) == "case.yaml":
         try:
@@ -838,12 +883,19 @@ def _extract_suite_refs(fpath, text, eval_norm):
                     if isinstance(entry, str) and entry:
                         resolved = os.path.normpath(os.path.join(base_dir, entry))
                         if _in_eval_suite(resolved, eval_norm):
-                            refs.add(resolved)
+                            runs = resolved if field == "scaffold_script" else None
+                            sites.append((None, {resolved}, runs, "", set(), False))
+                        elif _holds_suite(resolved, eval_norm):
+                            sites.append((None, set(), None, "", set(), True))
+    return sites
 
-    return refs
+
+def _extract_suite_refs(fpath, text, eval_norm):
+    return {ref for site in _suite_ref_sites(fpath, text, eval_norm) for ref in site[1]}
 
 
-def _case_suite_references(case, eval_norm):
+def _case_suite_files(case, eval_norm):
+    """{path: (text, sites)} for every file of `case` and every suite file they reach."""
     queue = collections.deque()
     for dirpath, dirnames, filenames in os.walk(case.abs_dir):
         dirnames[:] = sorted(
@@ -857,21 +909,28 @@ def _case_suite_references(case, eval_norm):
                 continue
             queue.append(os.path.normpath(os.path.join(dirpath, filename)))
 
-    visited = set()
-    referenced = set()
+    files = {}
     while queue:
         fpath = queue.popleft()
-        if fpath in visited:
+        if fpath in files:
             continue
-        visited.add(fpath)
         text = _read_text_safe(fpath)
-        if not text:
-            continue
-        for ref_path in _extract_suite_refs(fpath, text, eval_norm):
-            referenced.add(ref_path)
-            if os.path.isfile(ref_path) and ref_path not in visited:
-                queue.append(ref_path)
-    return referenced
+        sites = _suite_ref_sites(fpath, text, eval_norm) if text else []
+        files[fpath] = (text, sites)
+        for site in sites:
+            for ref_path in site[1]:
+                if os.path.isfile(ref_path) and ref_path not in files:
+                    queue.append(ref_path)
+    return files
+
+
+def _case_suite_references(case, eval_norm):
+    return {
+        ref
+        for _, sites in _case_suite_files(case, eval_norm).values()
+        for site in sites
+        for ref in site[1]
+    }
 
 
 def cases_citing_suite_file(eval_abs, target_abs, suite_cases, ref_cache=None):

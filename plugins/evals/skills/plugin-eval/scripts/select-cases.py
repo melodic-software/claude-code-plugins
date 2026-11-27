@@ -48,6 +48,7 @@ VALIDATE_CASES_PY = os.path.normpath(
     os.path.join(HERE, os.pardir, os.pardir, "validate", "scripts", "validate-cases.py")
 )
 SELECT_MAPPING_PY = os.path.join(HERE, "select_mapping.py")
+EVAL_VISIBILITY_PY = os.path.join(HERE, "eval_visibility.py")
 SELECT_PLUGINS_MJS = (".github", "scripts", "plugin-eval", "select-plugins.mjs")
 SELECT_PLUGINS_HEADER = "a selected plugin changes more than"
 REFUSED_PLUGIN_RE = re.compile(r'^"?plugins/([^/:"\\]+)[/:]')
@@ -74,6 +75,7 @@ def _load_module(name, path):
 case_skills = _load_module("evals_case_skills", CASE_SKILLS_PY)
 validate_cases = _load_module("evals_validate_cases", VALIDATE_CASES_PY)
 select_mapping = _load_module("evals_select_mapping", SELECT_MAPPING_PY)
+eval_visibility = _load_module("evals_eval_visibility", EVAL_VISIBILITY_PY)
 
 CaseInfo = collections.namedtuple(
     "CaseInfo",
@@ -477,12 +479,23 @@ def select_cases(repo_root, diff_base, merge_base):
 
     no_run_paths = set()
 
-    def no_run_edit(code, rel_path):
-        return rel_path in no_run_paths or (
-            code == "M"
-            and select_mapping.is_no_run_file_change(
-                repo_root, merge_base, rel_path, rel_path
-            )
+    def no_run_edit(code, rel_path, eval_abs=None, cases=(), owning_case=None):
+        if rel_path in no_run_paths:
+            return True
+        if code != "M":
+            return False
+        deleted = ()
+        if owning_case is not None and rel_path.endswith("/case.yaml"):
+            deleted = eval_visibility.deleted_lines(repo_root, merge_base, rel_path)
+        hidden = bool(cases) and eval_visibility.hidden_from_agent(
+            eval_abs,
+            os.path.join(repo_root, rel_path),
+            cases,
+            owning_case,
+            deleted,
+        )
+        return select_mapping.is_no_run_file_change(
+            repo_root, merge_base, rel_path, rel_path, hidden
         )
 
     expanded = []
@@ -625,9 +638,18 @@ def select_cases(repo_root, diff_base, merge_base):
                 if rel_path.startswith(case.rel_dir + "/"):
                     owning_case = case
                     break
+            eval_abs = os.path.join(repo_root, "plugins", plugin, ed_name)
             if owning_case is not None:
                 inner = rel_path[len(owning_case.rel_dir) + 1 :]
-                if inner.startswith("samples/") or no_run_edit(code, rel_path):
+                sharing = [owning_case] + select_mapping.cases_citing_suite_file(
+                    eval_abs,
+                    os.path.join(repo_root, *parts),
+                    suite_cases,
+                    ref_cache=fixture_ref_cache,
+                )
+                if inner.startswith("samples/") or no_run_edit(
+                    code, rel_path, eval_abs, sharing, owning_case
+                ):
                     no_run_cases[plugin].add(owning_case)
                 elif (
                     inner in ("case.yaml", "prompt.md")
@@ -637,26 +659,18 @@ def select_cases(repo_root, diff_base, merge_base):
                 ):
                     no_run_cases[plugin].add(owning_case)
                 else:
-                    run_cases[plugin].add(owning_case)
-                    run_cases[plugin].update(
-                        select_mapping.cases_citing_suite_file(
-                            os.path.join(repo_root, "plugins", plugin, ed_name),
-                            os.path.join(repo_root, *parts),
-                            suite_cases,
-                            ref_cache=fixture_ref_cache,
-                        )
-                    )
+                    run_cases[plugin].update(sharing)
                 unread_graders[plugin].update(owning_case.unread_graders)
             else:
                 if parts[3] == "results" or select_mapping._is_test_script(parts[-1]):
                     continue
-                eval_abs = os.path.join(repo_root, "plugins", plugin, ed_name)
                 target_abs = os.path.join(repo_root, *parts)
                 cited_cases = select_mapping.cases_citing_suite_file(
                     eval_abs, target_abs, suite_cases, ref_cache=fixture_ref_cache
                 )
                 if cited_cases:
-                    target = no_run_cases if no_run_edit(code, rel_path) else run_cases
+                    no_run = no_run_edit(code, rel_path, eval_abs, cited_cases)
+                    target = no_run_cases if no_run else run_cases
                     for case in cited_cases:
                         target[plugin].add(case)
                 elif os.path.exists(target_abs):
