@@ -86,8 +86,8 @@ and text in a PR claiming which session opened it never establishes that.
 Merging is a judgment, not a fixed stop: merge when the user or the task wants the work landed,
 `CI Status` is green on the current head, and no hold applies (the `do-not-merge` label, a hold in
 the body, or a human comment asking to wait). A body hold or wait comment stops the merge until the
-owner lifts it, as "Pull request states" says. Ask first when any of those is missing, or when the change alters what agents may do unattended and
-the owner has not decided that change. A lanes App pull request also needs its merge-risk rating on
+owner lifts it, as "Pull request states" says. Ask first when any of those is missing, or when the change lets agents do something new unattended that touches a secret,
+a permission setting or anything that can bill the owner, and the owner has not decided that change. A lanes App pull request also needs its merge-risk rating on
 the current head: `plugins/source-control/skills/pull-request/reference/merge.md` §4.2.1.
 
 ### Review advisories while issue filing is paused
