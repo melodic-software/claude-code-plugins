@@ -44,6 +44,9 @@ structured output.
        and that neither the issue nor the checkout defines, is a design choice the owner has not
        made, the label test's part 4: ask it as a new open question with its `RECOMMENDED:`
        answer. Never pick the set yourself as if decided.
+     - Both come after what the decision settles: quote the decision in the comment as the
+       repository's rules say, state a reserved step after the quote and outside `Open questions:`,
+       and never ask a point the decision answers again, even as a `RECOMMENDED:` question.
    - `security`: the work would carry a HIGH or CRITICAL security risk: expose a secret, bypass a
      trust boundary, or open an external attack surface.
    - `cost`: the work would add or raise a charge no diff shows, with no recorded decision
