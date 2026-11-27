@@ -5658,6 +5658,7 @@ jobs:
           yield-wait-seconds: ${{ github.event.pull_request.draft && '0' || '600' }}
           rerun-contract-only-siblings: ${{ github.event.pull_request.draft && 'false' || 'true' }}
           step-name: Aggregate lane results
+          alias-jobs: Prove Formatting
       - name: Fail on the contract or draft policy
         if: ${{ !cancelled() && (steps.report.outputs.contract != 'success' || steps.report.outputs.draft != 'success') }}
         run: |
