@@ -2244,6 +2244,7 @@ test("every job that reads a Claude secret is a catalog lane, and every catalog 
 const FALLBACK_SECRET = "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN";
 const FALLBACK_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/(?:intake-triage|pr-review-cli)\.yml@main$/;
 const EVAL_PASS_REUSABLE = "./.github/workflows/maintenance-measure-skill-edit-pass.yml";
+const LEG_REUSABLES = new Set([EVAL_PASS_REUSABLE, "./.github/workflows/maintenance-scan-architecture-find.yml"]);
 const FALLBACK_VALUE = `\${{ secrets.${FALLBACK_SECRET} }}`;
 const EVAL_RUN = /^\s*claude plugin eval /m;
 const isEvalLegStep = (step, job) =>
@@ -2255,7 +2256,7 @@ const evalLegReadsFallback = (job) => {
 };
 const readsFallback = (job) =>
   (FALLBACK_REUSABLE.test(String(job.uses ?? "")) && job.secrets?.[FALLBACK_SECRET] === FALLBACK_VALUE) ||
-  (job.uses === EVAL_PASS_REUSABLE && job.secrets?.[FALLBACK_SECRET] === FALLBACK_VALUE) ||
+  (LEG_REUSABLES.has(job.uses) && job.secrets?.[FALLBACK_SECRET] === FALLBACK_VALUE) ||
   (job.steps ?? []).some((step) => isLauncherStep(step, "run-claude-cli") && step.with?.["fallback-token"] === FALLBACK_VALUE) ||
   evalLegReadsFallback(job) ||
   (job.uses === READ_RUNNER && job.with?.fallback === "fallback" && job.secrets?.["fallback-claude-code-oauth-token"] === FALLBACK_VALUE) ||
@@ -9914,7 +9915,7 @@ function creditWindowProblems(files, load, readText, rawText = readText) {
   return problems;
 }
 function keyLegGate(doc, id, job) {
-  if (GATED_REUSABLE.test(String(job.uses ?? "")) || job.uses === EVAL_PASS_REUSABLE) return "reusable";
+  if (GATED_REUSABLE.test(String(job.uses ?? "")) || LEG_REUSABLES.has(job.uses)) return "reusable";
   if (job.uses === READ_RUNNER) return job.with?.["key-credit-job"] === id ? "read-runner" : null;
   if ((job.steps ?? []).some(isCreditGate)) return "in-job";
   const text = JSON.stringify(job);

@@ -280,7 +280,7 @@ class HighReasonTests(unittest.TestCase):
     def test_floor_paths_are_high_whatever_the_switch(self):
         self.assertEqual(
             Counter(c for _, c in FLOOR.classes),
-            {"trust": 26, "gate": 74, "enforcement": 84},
+            {"trust": 26, "gate": 75, "enforcement": 84},
         )
         self.assertEqual(
             FLOOR.high,

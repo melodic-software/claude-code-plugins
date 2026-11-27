@@ -493,7 +493,7 @@
         ".github/workflows/maintenance-tidy-code-upkeep.yml start call (ci-workflows select-model-credential with role, check-key-credit gate.cjs) reads the newest marker of this exact name inside its window: KEY_CREDIT_WINDOW_HOURS (1 hour unset), doubled after each further credit stop up to 24 hours, which this retention covers",
         ".github/workflows/post-merge-test-mutation.yml start call (ci-workflows select-model-credential with role, check-key-credit gate.cjs) reads the newest marker of this exact name inside its window: KEY_CREDIT_WINDOW_HOURS (1 hour unset), doubled after each further credit stop up to 24 hours, which this retention covers"
       ],
-      "reason": "The marker only says AUTOMATIONS_CLAUDE_API_KEY hit a credit stop, in any job of this repository that runs it (written by .github/workflows/maintenance-audit-lane-runs.yml, .github/workflows/maintenance-tidy-code-upkeep.yml, .github/workflows/post-merge-test-mutation.yml); the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key.",
+      "reason": "The marker only says AUTOMATIONS_CLAUDE_API_KEY hit a credit stop, in any job of this repository that runs it (written by .github/workflows/maintenance-audit-lane-runs.yml, .github/workflows/maintenance-scan-architecture-find.yml, .github/workflows/maintenance-tidy-code-upkeep.yml, .github/workflows/post-merge-test-mutation.yml); the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key.",
       "scan": "upload"
     },
     "selection-audit-*": {

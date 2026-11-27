@@ -134,7 +134,7 @@ rows and the as-of date in the same pull request.
 | Report changed areas for tidying | step in `maintenance-tidy-code-upkeep.yml` | observability | no | push to main | the pushed range | job summary |
 | Tidy code by area | step in `maintenance-tidy-code-upkeep.yml` | git host | yes | schedule, daily; `workflow_dispatch` | settings; open tidy PRs; sweep records | one tidy branch and PR per area |
 | Gate the architecture scan | step in `maintenance-scan-architecture.yml` | orchestrator | no | schedule, daily; `workflow_dispatch` | `lanes` block in `pr-pipeline.yaml`; `find_open_item_cap`; open `source: architecture-improve` issues; earlier runs; main history | run or a named stop reason |
-| Scan the architecture | step in `maintenance-scan-architecture.yml` | tracker | yes | the gate says run | the repository at main; the room under the cap | issues labeled `source: architecture-improve`, which admission holds for a person |
+| Scan the architecture | step in `maintenance-scan-architecture-find.yml`, called by `maintenance-scan-architecture.yml` | tracker | yes | the gate says run | the repository at main; the room under the cap | issues labeled `source: architecture-improve`, which admission holds for a person |
 | Measure a skill edit (`maintenance-measure-skill-edit.yml`) | own run | git host | yes | `workflow_dispatch` by a listed human | plugin and skill names; the skill's eval suite | draft PR when the edit scores better than the merged skill |
 
 ## Plugins

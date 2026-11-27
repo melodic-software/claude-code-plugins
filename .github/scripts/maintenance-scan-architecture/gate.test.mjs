@@ -1,4 +1,4 @@
-// test-scope: plugins/architecture/** plugins/improvement/** .github/actions/resolve-config/package.json .github/workflows/maintenance-scan-architecture.yml docs/conventions/pr-pipeline.yaml docs/conventions/pr-pipeline/pr-pipeline.schema.json .github/scripts/maintenance-scan-architecture/model-tools.json
+// test-scope: plugins/architecture/** plugins/improvement/** .github/actions/resolve-config/package.json .github/workflows/maintenance-scan-architecture.yml .github/workflows/maintenance-scan-architecture-find.yml docs/conventions/pr-pipeline.yaml docs/conventions/pr-pipeline/pr-pipeline.schema.json .github/scripts/maintenance-scan-architecture/model-tools.json
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -21,6 +21,8 @@ process.env.GIT_CONFIG_NOSYSTEM = "1";
 const { parse } = createRequire(new URL("../../actions/resolve-config/package.json", import.meta.url))("yaml");
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const WORKFLOW_TEXT = readFileSync(join(REPO_ROOT, ".github/workflows/maintenance-scan-architecture.yml"), "utf8");
+const FIND_TEXT = readFileSync(join(REPO_ROOT, ".github/workflows/maintenance-scan-architecture-find.yml"), "utf8");
+const FIND_USES = "./.github/workflows/maintenance-scan-architecture-find.yml";
 const CONFIG = readFileSync(join(REPO_ROOT, "docs/conventions/pr-pipeline.yaml"), "utf8");
 const LANE_BLOCK = "  maintenance-scan-architecture:\n    stage: maintenance\n    enabled: false\n    every-days: 1\n";
 const NOW = Date.parse("2026-11-26T07:41:00Z");
@@ -55,33 +57,45 @@ test("force skips only the lane-off and not-due stops; the cap and no-merges sto
   assert.equal(decide({ ...on, merges: 0, force: true, lastScan: scanned(2) }).reason, "no-merges");
 });
 
-test("the workflow's model legs are skipped whenever the gate says run=false, and the key leg starts on run=true", () => {
+const LEGS = ["find-candidates", "find-candidates-subscription", "find-candidates-fallback"];
+
+test("the model legs run only through the find call, which is skipped whenever the gate says run=false", () => {
   const wf = workflowText(WORKFLOW_TEXT);
-  const base = { "github.run_attempt": "1", "needs.gate.outputs.next-leg": "" };
   for (const reason of ["lane-off", "at-cap", "not-due", "no-merges"]) {
-    const ctx = { ...base, "needs.gate.outputs.run": "false", "needs.gate.outputs.reason": reason, "needs.gate.outputs.next-leg": "subscription" };
-    for (const job of ["find-candidates", "find-candidates-subscription", "find-candidates-fallback"]) {
-      assert.equal(runs(wf.jobIf(job), { ...ctx, "needs.find-candidates-subscription.outputs.credential-present": "false" }), false, `${job} on ${reason}`);
-    }
+    assert.equal(runs(wf.jobIf("find"), { "github.run_attempt": "1", "needs.gate.outputs.run": "false", "needs.gate.outputs.reason": reason }), false, reason);
   }
-  assert.equal(runs(wf.jobIf("find-candidates"), { ...base, "needs.gate.outputs.run": "true" }), true);
-  assert.equal(runs(wf.jobIf("find-candidates-subscription"), { ...base, "needs.gate.outputs.run": "true", "needs.find-candidates.outputs.next-leg": "subscription" }), true);
+  assert.equal(runs(wf.jobIf("find"), { "github.run_attempt": "1", "needs.gate.outputs.run": "true" }), true);
+  assert.equal(runs(wf.jobIf("find"), { "github.run_attempt": "2", "needs.gate.outputs.run": "true" }), false, "a re-run attempt starts no leg");
+  assert.deepEqual(Object.keys(parse(FIND_TEXT).on), ["workflow_call"], "the leg workflow starts only from a caller");
+  const callers = Object.entries(parse(WORKFLOW_TEXT).jobs).filter(([, job]) => job.uses === FIND_USES);
+  assert.deepEqual(callers.map(([id]) => id), ["find"], "one job calls the legs");
 });
 
-test("the gate is the first job, runs a script and no model, and every model leg needs it", () => {
+test("inside the find call the key leg runs unless the credit history holds it off, and the subscription leg takes a key stop", () => {
+  const wf = workflowText(FIND_TEXT);
+  assert.equal(runs(wf.jobIf("find-candidates"), { "needs.check-key-credit.outputs.next-leg": "" }), true, "an unread history runs the key");
+  assert.equal(runs(wf.jobIf("find-candidates"), { "needs.check-key-credit.outputs.next-leg": "subscription" }), false);
+  const sub = (key, credit) => runs(wf.jobIf("find-candidates-subscription"), { "needs.find-candidates.outputs.next-leg": key, "needs.check-key-credit.outputs.next-leg": credit });
+  assert.equal(sub("subscription", ""), true, "a key handoff");
+  assert.equal(sub("", "subscription"), true, "a key held off by its credit history");
+  assert.equal(sub("", ""), false, "a key that finished");
+  const fallback = (next, present) => runs(wf.jobIf("find-candidates-fallback"), { "needs.find-candidates-subscription.outputs.next-leg": next, "needs.find-candidates-subscription.outputs.credential-present": present });
+  assert.equal(fallback("fallback", "true"), true);
+  assert.equal(fallback("", "false"), true, "no subscription token");
+  assert.equal(fallback("", "true"), false);
+});
+
+test("the gate is the first job, runs a script and no model, and the find call needs it", () => {
   const workflow = parse(WORKFLOW_TEXT);
   const [first] = Object.keys(workflow.jobs);
   assert.equal(first, "gate");
   const gateSteps = workflow.jobs.gate.steps;
   assert.ok(gateSteps.some((step) => /gate\.mjs gate$/.test(step.run ?? "")), "the gate step runs gate.mjs");
   assert.ok(!gateSteps.some((step) => /run-claude-cli|claude-code-action/.test(step.uses ?? "") || /\bclaude\s+-p\b/.test(step.run ?? "")));
-  for (const leg of ["find-candidates", "find-candidates-subscription", "find-candidates-fallback"]) {
-    assert.ok([workflow.jobs[leg].needs].flat().includes("gate"), leg);
-    assert.match(workflow.jobs[leg].if, /needs\.gate\.outputs\.run == 'true'/, leg);
-  }
+  assert.ok([workflow.jobs.find.needs].flat().includes("gate"));
+  assert.match(workflow.jobs.find.if, /needs\.gate\.outputs\.run == 'true'/);
+  for (const leg of LEGS) assert.equal(workflow.jobs[leg], undefined, `${leg} lives only in the find workflow`);
 });
-
-const LEGS = ["find-candidates", "find-candidates-subscription", "find-candidates-fallback"];
 const NETWORK = /^(curl|wget|nc|ncat|socat|ssh|scp|telnet|ftp|python\S*|perl|ruby|php|awk|gawk|mawk|sed|env|printenv|npm|npx|pip\S*|gh|git (push|fetch|clone|pull|remote|ls-remote|submodule))\b/;
 const matches = (rule, command) => {
   const body = /^Bash\((.*)\)$/.exec(rule)?.[1];
@@ -161,7 +175,7 @@ test("the model legs' Bash rules admit none of the escape routes and still allow
 });
 
 test("every model leg runs sandboxed, and its Bash rules allow no network-capable or interpreter command", () => {
-  const workflow = parse(WORKFLOW_TEXT);
+  const workflow = parse(FIND_TEXT);
   const { allowed, disallowed } = modelTools("/runner/work/r/r");
   for (const leg of LEGS) {
     const steps = workflow.jobs[leg].steps;
@@ -229,7 +243,7 @@ test("the gate's step summary heads as lane / gate, says the verdict verb first,
 });
 
 test("every workflow step that writes the step summary heads it as maintenance-scan-architecture / <job> with a verb-first verdict", () => {
-  const writers = Object.values(parse(WORKFLOW_TEXT).jobs).flatMap((job) => (job.steps ?? []).filter((step) => /GITHUB_STEP_SUMMARY/.test(step.run ?? "")));
+  const writers = [WORKFLOW_TEXT, FIND_TEXT].flatMap((text) => Object.values(parse(text).jobs)).flatMap((job) => (job.steps ?? []).filter((step) => /GITHUB_STEP_SUMMARY/.test(step.run ?? "")));
   assert.ok(writers.length >= 2, "the key and subscription handoffs write a summary");
   for (const step of writers) {
     assert.match(step.run, /printf '### maintenance-scan-architecture \/ %s\\n\\n(Handed off|Failed): %s\.\\n' "\$GITHUB_JOB" "\$line" >>"\$GITHUB_STEP_SUMMARY"/, step.name);
@@ -263,8 +277,8 @@ test("the Scan job goes red when the findings fail the credential scan, so that 
 });
 
 test("a model leg goes red when its scan failed without a handoff or finished with no findings file; a handoff or a limit stop stays green", () => {
-  const wf = workflowText(WORKFLOW_TEXT);
-  const jobs = parse(WORKFLOW_TEXT).jobs;
+  const wf = workflowText(FIND_TEXT);
+  const jobs = parse(FIND_TEXT).jobs;
   const dir = tempDir("scan-architecture-fail-leg-");
   for (const leg of LEGS) {
     const { if: condition } = wf.stepNamed(leg, FAIL_STEP);
@@ -299,7 +313,7 @@ test("a model leg goes red when its scan failed without a handoff or finished wi
 });
 
 test("every job that reads the improvement cascade installs resolve-config's packages first, since openItemCap loads yaml from them", () => {
-  for (const [name, job] of Object.entries(parse(WORKFLOW_TEXT).jobs)) {
+  for (const [name, job] of [WORKFLOW_TEXT, FIND_TEXT].flatMap((text) => Object.entries(parse(text).jobs))) {
     const reads = job.steps?.findIndex((step) => /(gate|file-findings)\.mjs (gate|file)$/.test(step.run ?? "")) ?? -1;
     if (reads === -1) continue;
     const install = job.steps.findIndex((step) => /npm ci .*--prefix \.base\/\.github\/actions\/resolve-config$/.test(step.run ?? ""));
@@ -438,7 +452,7 @@ test("the stage refuses any plugin part, manifest key or skill frontmatter key o
   assert.deepEqual(stage((p) => writeFileSync(join(p, ".claude-plugin/marketplace.json"), "{}")), ["plugins/architecture/.claude-plugin/marketplace.json"]);
   assert.deepEqual(stage((p) => writeFileSync(join(p, "skills/find/SKILL.md"), "---\nname: find\nhooks:\n  PreToolUse: []\n---\n")), ["plugins/architecture/skills/find/SKILL.md hooks"]);
   assert.deepEqual(stage((p) => writeFileSync(join(p, "skills/find/SKILL.md"), "---\nname: find\ndescription: d\nmetadata:\n  hooks: x\nshell: bash\n---\nbody\n")), [], "nested keys and the allowed keys pass");
-  const stageStep = parse(WORKFLOW_TEXT).jobs["find-candidates"].steps.find((step) => step.id === "stage");
+  const stageStep = parse(FIND_TEXT).jobs["find-candidates"].steps.find((step) => step.id === "stage");
   assert.match(stageStep.run, /gate\.mjs prompt/);
   assert.equal(stageStep.env.STAGE, "${{ runner.temp }}/scan-stage");
 });
@@ -493,12 +507,18 @@ function configRoot({ enabled = true, everyDays = 1, cap } = {}) {
 const runGate = async (root, { open = 2, scanAt = NOW - 2 * DAY, before = [], env = {}, fake = forge({ open, runs: [...before, { at: scanAt, sha: root.sha }] }) } = {}) =>
   gate({ root: root.dir, call: fake.call, now: NOW, env: { REPOSITORY: "o/r", STANDARDS_DIR: STANDARDS_FIXTURE, EVENT_NAME: "schedule", READS_CONFINED: "true", ...env } });
 
-test("until the legs can block reads outside the checkout, no scheduled or forced run starts a leg, and nothing is read from the API", async () => {
-  const gateStep = parse(WORKFLOW_TEXT).jobs.gate.steps.find((step) => /gate\.mjs gate$/.test(step.run ?? ""));
-  assert.notEqual(gateStep.env.READS_CONFINED, "true", "the shipped workflow does not claim confined reads");
+test("the gate claims confined reads only while every leg blocks reads outside the checkout; unconfined, no run starts a leg or reads the API", async () => {
+  const workflow = parse(WORKFLOW_TEXT);
+  const gateStep = workflow.jobs.gate.steps.find((step) => /gate\.mjs gate$/.test(step.run ?? ""));
+  assert.equal(gateStep.env.READS_CONFINED, "true");
+  const legs = parse(FIND_TEXT).jobs;
+  for (const leg of LEGS) {
+    const launch = legs[leg].steps.find((step) => /run-claude-cli@/.test(step.uses ?? ""));
+    assert.equal(launch.with["block-outside-reads"], "true", `${leg} blocks reads outside its working directories`);
+  }
   for (const env of [{}, { EVENT_NAME: "workflow_dispatch", FORCE: "true" }]) {
     const fake = forge();
-    const result = await runGate(configRoot({ enabled: true }), { fake, env: { ...env, READS_CONFINED: gateStep.env.READS_CONFINED } });
+    const result = await runGate(configRoot({ enabled: true }), { fake, env: { ...env, READS_CONFINED: undefined } });
     assert.deepEqual([result.run, result.reason, fake.calls], [false, "reads-unconfined", []], JSON.stringify(env));
   }
   const forced = await runGate(configRoot({ enabled: false }), { env: { EVENT_NAME: "workflow_dispatch", FORCE: "true", READS_CONFINED: "false" } });

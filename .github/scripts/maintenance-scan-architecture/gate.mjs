@@ -67,7 +67,7 @@ export function mergesSince(root, scan) {
 
 const REASONS = {
   "lane-off": `the lane is off (lanes.${LANE}.enabled in docs/conventions/pr-pipeline.yaml)`,
-  "reads-unconfined": "the model legs cannot yet block reads outside the checkout (READS_CONFINED, melodic-software/ci-workflows#1241), so no leg starts",
+  "reads-unconfined": "READS_CONFINED is not true, which the gate step sets only while every model leg blocks reads outside the checkout (run-claude-cli block-outside-reads), so no leg starts",
   "at-cap": `the open \`${SOURCE_LABEL}\` issues are at or above find_open_item_cap`,
   "not-due": `fewer days than lanes.${LANE}.every-days passed since the last scan`,
   "no-merges": "nothing merged to main since the last scan",
