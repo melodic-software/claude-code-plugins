@@ -134,6 +134,11 @@
       { "name": "reconcile-lost-runs", "status": "in-use" },
       { "name": "reconcile-pr-creation-policy", "status": "in-use" },
       { "name": "repin-account-rotation", "status": "in-use" },
+      {
+        "name": "scan-architecture",
+        "status": "reserved",
+        "purpose": "Run the architecture deepening scan on a cadence and file its verified candidates for a person to decide."
+      },
       { "name": "scan-secrets", "status": "in-use" },
       { "name": "sweep-closed-pr-branches", "status": "in-use" },
       { "name": "sync-standards", "status": "in-use" },

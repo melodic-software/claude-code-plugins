@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["items"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title", "body"],
+        "properties": {
+          "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "body": { "type": "string", "minLength": 1, "maxLength": 6000 }
+        }
+      }
+    }
+  }
+}

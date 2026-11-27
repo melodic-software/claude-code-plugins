@@ -1,0 +1,12 @@
+{
+  "html_url": "https://github.com/melodic-software/claude-code-plugins/issues/18862",
+  "id": 6588590452,
+  "labels": [{ "name": "host-run" }, { "name": "session-owned" }],
+  "node_id": "I_kwDOTCGFQM8AAAABiLXpdA",
+  "number": 18862,
+  "state": "open",
+  "title": "feat(lanes): a daily architecture scan with a scripted stop and an owner hold",
+  "type": { "name": "Feature" },
+  "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/issues/18862",
+  "user": { "type": "User" }
+}

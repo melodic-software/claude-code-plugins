@@ -1,0 +1,7 @@
+{
+  "name": "maintenance-scan-architecture",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

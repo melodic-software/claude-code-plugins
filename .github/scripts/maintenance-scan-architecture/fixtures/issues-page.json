@@ -1,0 +1,22 @@
+[
+  {
+    "labels": [],
+    "number": 19365,
+    "pull_request": { "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/pulls/19365" },
+    "state": "open",
+    "title": "chore(release): release 1 plugins"
+  },
+  {
+    "labels": [],
+    "number": 19364,
+    "pull_request": { "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/pulls/19364" },
+    "state": "open",
+    "title": "perf(guardrails): read the merge-readiness inputs in parallel"
+  },
+  {
+    "labels": [{ "name": "session-owned" }],
+    "number": 19363,
+    "state": "open",
+    "title": "test(docs-naming): calibrate the judged graders of audit-plans-renames-tiers-frozen"
+  }
+]
