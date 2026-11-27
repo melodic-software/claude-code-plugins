@@ -95,4 +95,10 @@ awk -v tok="$token" -v jf="$tmp/json" '
   printf 'render.sh: template must hold exactly one %s: %s\n' "$token" "$template" >&2
   exit 1
 }
-cat "$tmp/page"
+if grep -q '<style>' "$tmp/page" && command -v node >/dev/null 2>&1; then
+  brand_args=()
+  [[ -n ${CLAUDE_PLUGIN_OPTION_BRANDING-} ]] && brand_args=(--option "$CLAUDE_PLUGIN_OPTION_BRANDING")
+  node "$dir/apply-branding.mjs" ${brand_args[@]+"${brand_args[@]}"} <"$tmp/page"
+else
+  cat "$tmp/page"
+fi
