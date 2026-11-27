@@ -201,7 +201,7 @@ owner doc.
 
 A surface qualifies for this class only when all three hold:
 
-1. Its team layer is a genuine **policy floor**, a shared standard whose whole purpose is that a
+1. Its team layer is a **policy floor**, a shared standard whose whole purpose is that a
    personal layer cannot loosen it; personal weakening of a team-agreed rule is the failure mode worth
    structurally preventing.
 2. Personal layers (`userConfig` and the personal override) remain **add/tighten-only**: they may never supply a
