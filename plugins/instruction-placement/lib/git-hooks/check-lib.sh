@@ -285,6 +285,10 @@ checks_file_text() {
 }
 
 checks_changed_names() {
+  if [[ "${1:-}" == --include-exact-renames ]]; then
+    checks_diff --name-only --diff-filter=ACMR -z
+    return
+  fi
   local raw rc meta f
   local -a m
   raw="$(mktemp "$CHECKS_TMP/names.XXXXXX")" || return 1
@@ -302,9 +306,10 @@ checks_changed_names() {
   return "$rc"
 }
 
+# shellcheck disable=SC2120 # the guardrails content scan passes --include-exact-renames
 checks_files() {
-  checks_merge_own_files && return 0
-  checks_changed_names
+  checks_merge_own_files "$@" && return 0
+  checks_changed_names "$@"
   if [[ "$CHECKS_MODE" == worktree ]]; then
     git ls-files --others --exclude-standard -z
   fi
@@ -378,7 +383,7 @@ checks_merge_own_files() {
   [[ "$CHECKS_MODE" == pre-commit && -n "${CHECKS_MERGE_HEADS:-}" ]] || return 1
   [[ ! -e "$CHECKS_TMP/merge-fallback" ]] || return 1
   local all="$CHECKS_TMP/merge-paths" want=1 h step=""
-  if checks_changed_names >"$all" 2>/dev/null; then
+  if checks_changed_names "$@" >"$all" 2>/dev/null; then
     while IFS= read -r h; do
       [[ -n "$h" ]] || continue
       git -c core.quotePath=false diff --cached --no-color --no-ext-diff --name-only --no-renames -z "$h" -- >>"$all" 2>/dev/null || {

@@ -76,6 +76,11 @@ git -C "$V" add --chmod=+x dir-chmod.sh
 git -C "$V" add dir-edited.md
 expect "pre-commit files: an exact rename is left out; an edited or mode-changed rename stays" \
   $'dir-chmod.sh\ndir-edited.md' "$(in_repo "$V" pre-commit 'checks_files' | nul_list | sort)"
+expect "pre-commit files --include-exact-renames: the same bytes as git's --name-only list" \
+  "$(git -C "$V" -c core.quotePath=false diff --cached --no-color --no-ext-diff --name-only --diff-filter=ACMR -z -- | od -c)" \
+  "$(in_repo "$V" pre-commit 'checks_files --include-exact-renames' | od -c)"
+expect "worktree files --include-exact-renames: the exact rename is listed" $'dir-chmod.sh\ndir-edited.md\ndir-moved.md' \
+  "$(in_repo "$V" pre-commit 'checks_files --include-exact-renames' --worktree | nul_list | sort)"
 expect "pre-commit ranges: an edited rename counts only its edited line" $'dir-edited.md\t6\t6' \
   "$(in_repo "$V" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"')"
 expect "worktree files: an exact rename is left out" $'dir-chmod.sh\ndir-edited.md' \
@@ -325,6 +330,8 @@ expect "pre-commit files in a merge: the same list from a subdirectory" 's.txt' 
   "$(in_repo "$G/sub" pre-commit 'checks_files' | nul_list)"
 expect "worktree files in a merge: every path changed against HEAD" "$MERGE_ALL" \
   "$(in_repo "$G" pre-commit 'checks_files' --worktree | nul_list | sort)"
+expect "a failing git in a merge with --include-exact-renames lists the exact rename too" $'i.txt\nm.sh\nrr.txt\ns.txt' \
+  "$(in_repo "$G" pre-commit 'git() { case " $* " in *" --no-renames "*) return 2 ;; esac; command git "$@"; }; checks_files --include-exact-renames' 2>/dev/null | nul_list | sort)"
 git -C "$G" commit -q --no-edit
 expect "pre-commit files after the merge commits: nothing on stderr" "" \
   "$(in_repo "$G" pre-commit 'checks_files' 2>&1 >/dev/null)"
