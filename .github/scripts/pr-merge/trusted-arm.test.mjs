@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-import { ARM_MUTATION, DETAIL_QUERY, DISARM_MUTATION, PULLS_QUERY, WAKE_OUTPUT, decideTrusted, main, pinBody, pythonLaneSource, pythonVerify } from "./enable-auto-merge.mjs";
+import { ARM_MUTATION, AUTO_MERGE_STATE_QUERY, DETAIL_QUERY, DISARM_MUTATION, PULLS_QUERY, WAKE_OUTPUT, decideTrusted, main, pinBody, pythonLaneSource, pythonVerify } from "./enable-auto-merge.mjs";
 import { COMMENT_EDITED_QUERY, LANES_APP_LOGIN, PULL_OPENED_QUERY, pinHold } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -92,6 +92,7 @@ const refused = (head, refusal) => ({ ...pass(head), refusal, atHead: refusal ==
 async function run(pulls, { env = {}, verdicts = {}, laneSource, fail = {} } = {}) {
   const calls = [];
   const verified = [];
+  const disarmed = new Set();
   const github = async (method, path, body) => {
     calls.push({ method, path, query: body?.query, variables: body?.variables, body: body?.body });
     if (method === "POST" && path === "/graphql" && body.query === PULLS_QUERY) {
@@ -104,7 +105,16 @@ async function run(pulls, { env = {}, verdicts = {}, laneSource, fail = {} } = {
       return { data: { enablePullRequestAutoMerge: { pullRequest: { autoMergeRequest: { enabledAt: "2026-11-27T15:00:00Z" } } } } };
     }
     if (method === "POST" && path === "/graphql" && body.query === DISARM_MUTATION) {
+      disarmed.add(body.variables.id);
       return { data: { disablePullRequestAutoMerge: { clientMutationId: null } } };
+    }
+    if (method === "POST" && path === "/graphql" && body.query === AUTO_MERGE_STATE_QUERY) {
+      const found = pulls.find((candidate) => candidate.id === body.variables.id);
+      if (found.reread === "error") {
+        throw new Error("POST /graphql failed with status 502");
+      }
+      const live = { state: "OPEN", headRefOid: found.headRefOid, isInMergeQueue: found.isInMergeQueue, autoMergeRequest: disarmed.has(found.id) ? null : found.autoMergeRequest };
+      return { data: { node: { ...live, ...found.reread } } };
     }
     if (method === "POST" && path === "/graphql" && body.query === DETAIL_QUERY) {
       const found = pulls.find((candidate) => candidate.number === body.variables.number);
@@ -469,13 +479,75 @@ test("a verdict read at another head, or one that does not read, refuses", async
   }
 });
 
-test("an armed or queued trusted pull request is left as it is", async () => {
-  const armed = await run([clean({ autoMergeRequest: { enabledAt: "2026-11-27T14:00:00Z" } })]);
-  assert.equal(armedHeads(armed), 0);
-  assert.match(leftLine(armed, 500), /left: already armed/);
+test("an armed or queued trusted pull request with no hold standing is left as it is", async () => {
+  const armedAt = { enabledAt: "2026-11-27T14:00:00Z" };
+  for (const comments of [[], [lanesComment(pinBody(CLEAN_HEAD))]]) {
+    const armed = await run([clean({ autoMergeRequest: armedAt, comments })]);
+    assert.equal(armedHeads(armed), 0);
+    assert.equal(disarms(armed).length, 0, `${comments.length} pins: no disarm`);
+    assert.equal(unpinPosts(armed).length, 0, `${comments.length} pins: no unpin`);
+    assert.match(leftLine(armed, 500), /left: already armed$/);
+  }
   const queued = await run([clean({ isInMergeQueue: true })]);
   assert.equal(armedHeads(queued), 0);
   assert.match(leftLine(queued, 500), /left: it is in the merge queue/);
+});
+
+const VETO = { author: { __typename: "User", login: "kyle-sexton" }, authorAssociation: "MEMBER", body: "Please do not merge this yet.", createdAt: "2026-11-27T14:30:00Z", lastEditedAt: null };
+const lanesArmed = (overrides = {}) => clean({ autoMergeRequest: { enabledAt: "2026-11-27T14:00:00Z" }, comments: [lanesComment(pinBody(CLEAN_HEAD))], ...overrides });
+const disarmedAndUnpinned = (result, why) => {
+  assert.deepEqual(disarms(result).map(({ variables }) => variables), [{ id: "PR_500" }], result.lines.join("\n"));
+  assert.deepEqual(
+    unpinPosts(result).map(({ body }) => body.split("\n")[0]),
+    [`<!-- babysit-merge-unpin sha=${CLEAN_HEAD} -->`],
+  );
+  assert.match(leftLine(result, 500), new RegExp(`disarmed: ${why}; unpinned at ${CLEAN_HEAD}`));
+};
+
+test("a lanes App arm at the head is disarmed and unpinned once a member vetoes it", async () => {
+  disarmedAndUnpinned(await run([lanesArmed({ comments: [lanesComment(pinBody(CLEAN_HEAD)), VETO] })]), "kyle-sexton asked not to merge it");
+});
+
+test("a lanes App arm at the head is disarmed and unpinned once a hold label goes on", async () => {
+  const tracker = join(HERE, "fixtures/enable-auto-merge-tracker.json");
+  for (const name of ["do-not-merge", "needs-human", "security: outside-actor", "human-gated"]) {
+    disarmedAndUnpinned(await run([lanesArmed({ labels: { totalCount: 1, nodes: [{ name }] } })], { env: { TRACKER_CONFIG: tracker } }), `it carries ${name}`);
+  }
+});
+
+test("a lanes App arm at the head is disarmed and unpinned once its body gains a Hold: line", async () => {
+  disarmedAndUnpinned(await run([lanesArmed({ body: "Closes #499\n\nHold: the owner reads this first." })]), "its body holds it");
+});
+
+test("a lanes App arm at the head is disarmed and unpinned once pr-verify no longer passes it", async () => {
+  disarmedAndUnpinned(await run([lanesArmed()], { verdicts: { 500: { ...pass(CLEAN_HEAD), atHead: [] } } }), "pr-verify has no PASS or PASS-NOTES at its head");
+  disarmedAndUnpinned(await run([lanesArmed()], { verdicts: { 500: refused(CLEAN_HEAD, "verify:fail") } }), ".*\\(verify:fail\\)");
+});
+
+test("a session's arm with no lanes App pin is left armed under a hold label, and its verdict is not read", async () => {
+  const result = await run([clean({ autoMergeRequest: { enabledAt: "2026-11-27T14:00:00Z" }, labels: { totalCount: 1, nodes: [{ name: "needs-human" }] } })]);
+  assert.equal(disarms(result).length, 0);
+  assert.deepEqual(result.verified, []);
+  assert.match(leftLine(result, 500), /left: already armed$/);
+});
+
+test("an unpin is not posted when the pull request read again just before it is queued, armed or at another head", async () => {
+  const pinA = lanesComment(pinBody(OLD_HEAD));
+  for (const [label, reread] of [
+    ["queued", { isInMergeQueue: true }],
+    ["armed", { autoMergeRequest: { enabledAt: "2026-11-27T14:50:00Z" } }],
+    ["another head", { headRefOid: "e".repeat(40) }],
+    ["unread", "error"],
+  ]) {
+    const unarmed = await run([clean({ comments: [pinA], reread })], { verdicts: UNVERIFIED });
+    assert.equal(unpinPosts(unarmed).length, 0, `unarmed, re-read ${label}: no unpin`);
+    assert.equal(unarmed.calls.filter(({ query }) => query === AUTO_MERGE_STATE_QUERY).length, 1, `unarmed, re-read ${label}: one re-read`);
+    assert.match(leftLine(unarmed, 500), /unpin not posted: /, `unarmed, re-read ${label}`);
+    const disarmed = await run([clean({ autoMergeRequest: { enabledAt: "2026-11-27T14:00:00Z" }, comments: [pinA], reread })]);
+    assert.equal(disarms(disarmed).length, 1, `disarm, re-read ${label}: the disarm is sent`);
+    assert.equal(unpinPosts(disarmed).length, 0, `disarm, re-read ${label}: no unpin`);
+    assert.match(leftLine(disarmed, 500), /unpin not posted: /, `disarm, re-read ${label}`);
+  }
 });
 
 test("an author outside the trusted list, and Dependabot on it, keep the lanes' skip", async () => {

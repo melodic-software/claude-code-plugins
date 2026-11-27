@@ -115,7 +115,7 @@ export const DISARM_MUTATION = `mutation($id: ID!) {
   disablePullRequestAutoMerge(input: { pullRequestId: $id }) { clientMutationId }
 }`;
 export const AUTO_MERGE_STATE_QUERY = `query($id: ID!) {
-  node(id: $id) { ... on PullRequest { state headRefOid autoMergeRequest { enabledAt } } }
+  node(id: $id) { ... on PullRequest { state headRefOid isInMergeQueue autoMergeRequest { enabledAt } } }
 }`;
 
 export const STACK_BOTTOM = "bottom";
@@ -625,7 +625,7 @@ export const unpinBody = (sha, disarmed = true) =>
     `<!-- babysit-merge-unpin sha=${sha} -->`,
     "### pr-merge / enable-auto-merge",
     disarmed
-      ? `Disarmed and unpinned: native auto-merge is off at head \`${sha}\`, a head its arm never judged.`
+      ? `Disarmed and unpinned: native auto-merge is off at head \`${sha}\`, a head its arm never judged or one a hold now stands on.`
       : `Unpinned: head \`${sha}\` is unarmed, out of the merge queue and not the head the earlier pin names.`,
     "- The merge queue now reads this pull request as one the lanes App never pinned, until the path pins a head again.",
   ].join("\n");
@@ -965,7 +965,21 @@ export function decideTrusted(pull, humanGated, facts = {}, bot = undefined) {
       return none("already armed; its comments could not be read, so its pin is not checked");
     }
     const moved = pinMoved(facts.comments, bot, pull.headRefOid);
-    return moved === null ? none("already armed") : { action: "disarm", reason: moved };
+    if (moved !== null) {
+      return { action: "disarm", reason: moved };
+    }
+    if (!pinned(facts.comments, bot, pull.headRefOid)) {
+      return none("already armed");
+    }
+    const held = trustedHoldReason(pull, humanGated) ?? discussionHold(facts.discussion);
+    if (held !== null) {
+      return { action: "disarm", reason: held };
+    }
+    if (!("verify" in facts)) {
+      return { action: "verify", reason: "its verifier verdict is not read yet" };
+    }
+    const unverified = trustedVerdictHold(facts.verify, pull.headRefOid);
+    return unverified === null ? none("already armed") : { action: "disarm", reason: unverified };
   }
   if (pull.isInMergeQueue !== false) {
     return none(queue);
@@ -1733,6 +1747,25 @@ export async function main({ env = process.env, github, actions, laneReads, veri
     };
     trustedVerify ??= pythonVerify(env, { lane: false });
     laneSource ??= pythonLaneSource(env);
+    const unpinRefused = async (pull) => {
+      let live;
+      try {
+        live = (await github("POST", "/graphql", { query: AUTO_MERGE_STATE_QUERY, variables: { id: pull.id } }))?.data?.node;
+      } catch (error) {
+        failed += 1;
+        console.log(`::error title=enable-auto-merge::#${pull.number} trusted author: its queue state did not read again before the unpin, so its pin stands until the next sweep: ${describe(error)}`);
+        return "its queue state did not read again";
+      }
+      return live?.state !== "OPEN"
+        ? "it is no longer open"
+        : live.headRefOid !== pull.headRefOid
+          ? `its head moved to ${live.headRefOid}`
+          : live.isInMergeQueue !== false
+            ? "it is in the merge queue, or its queue state did not read"
+            : live.autoMergeRequest !== null
+              ? "it is armed"
+              : null;
+    };
     const armTrusted = async (pull) => {
       const facts = {};
       let { action, reason, pin } = decideTrusted(pull, humanGated, facts, slug);
@@ -1784,6 +1817,11 @@ export async function main({ env = process.env, github, actions, laneReads, veri
       }
       if (action === "unpin") {
         leave(pull, `refused: ${reason}`);
+        const kept = await unpinRefused(pull);
+        if (kept !== null) {
+          console.log(`enable-auto-merge: #${pull.number} trusted author: left: ${escapeCommand(reason)}; unpin not posted: ${escapeCommand(kept)}`);
+          return;
+        }
         try {
           await github("POST", `/repos/${repo[0]}/issues/${pull.number}/comments`, { body: unpinBody(pull.headRefOid, false) });
           console.log(`enable-auto-merge: #${pull.number} trusted author: left: ${escapeCommand(reason)}; unpinned at ${pull.headRefOid}`);
@@ -1805,6 +1843,11 @@ export async function main({ env = process.env, github, actions, laneReads, veri
         } catch (error) {
           failed += 1;
           console.log(`::error title=enable-auto-merge::#${pull.number} trusted author: disarm: ${describe(error)}`);
+          return;
+        }
+        const kept = await unpinRefused(pull);
+        if (kept !== null) {
+          console.log(`enable-auto-merge: #${pull.number} trusted author: disarmed: ${escapeCommand(reason)}; unpin not posted: ${escapeCommand(kept)}`);
           return;
         }
         try {

@@ -2371,7 +2371,14 @@ lanes App pin names another head, or was edited, or whose edit time does not rea
 trusted person's approval of the live head lifts it, as for a lanes App pull request. The next
 scheduled run also disarms an armed trusted person's pull request out of the merge queue whose
 newest lanes App pin record names another head or was edited (`pinMoved`), and right after the
-disarm posts the lanes App's `<!-- babysit-merge-unpin sha=<head> -->` record. A run that refuses an
+disarm posts the lanes App's `<!-- babysit-merge-unpin sha=<head> -->` record. It disarms and
+unpins the same way an arm whose newest lanes App pin names the live head once a hold that refuses
+the arm stands: a hold label, `needs-human` or the human-gated label, a `BODY_HOLD` body line, a
+member veto (`discussionHold`), or a verdict that no longer counts a PASS or PASS-NOTES at the head
+or does not read (`trustedVerdictHold`); a run out of time or stopped by a rate limit leaves it
+armed. Just before either unpin it reads the pull request's state again (`AUTO_MERGE_STATE_QUERY`,
+one GraphQL call per unpin) and posts only when it is still open, out of the merge queue and
+unarmed at the head it judged; otherwise it logs why and posts nothing. A run that refuses an
 unarmed trusted person's pull request out of the queue past its draft, label and body holds (a lane
 source or no PASS, as after a queue ejection) posts the same unpin when its newest pin record names
 another head or was edited, and posts nothing once the newest record is an unpin. An unpin is never posted while the pull request
