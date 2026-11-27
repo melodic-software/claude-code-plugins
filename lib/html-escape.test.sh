@@ -198,11 +198,13 @@ const png = "url(data:image/png;base64,iVBORw0KGgo=)";
 const jpeg = "url(data:image/jpeg;base64,/9j/4AAQ+A==)";
 const woff2 = "url(data:font/woff2;base64,d09GMgABAAA=)";
 const admittedCss = {
+  "quoted font stacks, attribute selectors and child combinators":
+    ":root { --mono: ui-monospace, 'SF Mono', Menlo, monospace; } :root[data-theme=\"dark\"] { color-scheme: dark; } section > p { margin: 0; }",
   "a PNG in the logo slot": `.rv-logo { background-image: ${png}; }`,
   "a JPEG in the logo slot after another rule": `body{margin:0}.rv-logo{background-image:${jpeg}}`,
   "the logo slot inside a media block": `@media (prefers-color-scheme: dark) { .rv-logo { background-image: ${png} } }`,
   "the logo slot after a comment": `/* brand */ .rv-logo{background-image:${png}}`,
-  "a WOFF2 font in @font-face": `@font-face { font-family: Brand; src: ${woff2}; }`,
+  "a WOFF2 font in @font-face": `@font-face { font-family: 'Brand Serif'; src: ${woff2}; }`,
   "WOFF, TTF and OTF fonts in @font-face":
     "p{margin:0}@font-face{font-family:Brand;src:url(data:font/woff;base64,d09GRg==),url(data:font/ttf;base64,AAEAAA==),url(data:font/otf;base64,T1RUTw==)}",
 };
@@ -235,6 +237,7 @@ const refusedCss = {
   "a remote URL beside a font data URL in @font-face": `@font-face{src:${woff2},url(//evil.example/f.woff2)}`,
   "an uppercase URL in @font-face": "@font-face{src:URL(data:font/woff2;base64,AA==)}",
   "an @import beside @font-face": `@import x;@font-face{src:${woff2}}`,
+  "a raw < inside a style body": "/* <img src=x> */ body{margin:0}",
 };
 for (const [name, css] of Object.entries(refusedCss)) {
   check(`the validator refuses ${name}`, styledHand(css).failures.includes("style"), styledHand(css).failures.join(","));
@@ -252,6 +255,14 @@ check(
   "editing a stamped page to add a script is flagged",
   validateRenderedPage(tampered).failures.includes("tag:script"),
   validateRenderedPage(tampered).failures.join(","),
+);
+const smuggled = stampPage(
+  '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>t</title></head><body><!-- <style> -->unescaped "payload" & \'quotes\'</style> --></body></html>',
+);
+check(
+  "a comment-smuggled <style> cannot hide unescaped body text",
+  validateRenderedPage(smuggled).failures.includes("unescaped"),
+  validateRenderedPage(smuggled).failures.join(","),
 );
 
 const emptyVerdict = validateRenderedPage(buildPage({}));

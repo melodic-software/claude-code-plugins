@@ -258,12 +258,22 @@ for (const [name, bad] of Object.entries(rejects)) {
 }
 const branded = swap(
   "* { box-sizing",
-  ".rv-logo { background-image: url(data:image/png;base64,iVBORw0KGgo=) } @font-face { font-family: Brand; src: url(data:font/woff2;base64,d09GMgABAAA=) } * { box-sizing",
+  ":root { --mono: ui-monospace, 'SF Mono', Menlo, monospace; } :root[data-theme=\"dark\"] { color-scheme: dark; } main > header { margin: 0; } .rv-logo { background-image: url(data:image/png;base64,iVBORw0KGgo=) } @font-face { font-family: 'Brand Serif'; src: url(data:font/woff2;base64,d09GMgABAAA=) } * { box-sizing",
 );
 check(
-  "accepts a data URL in the logo slot and in @font-face",
+  "accepts a data URL in the logo slot, quoted fonts, attribute selectors and child combinators in style",
   failuresOf(() => buildView({ profile: "interactive", template: branded, data: sample })) === null,
   failuresOf(() => buildView({ profile: "interactive", template: branded, data: sample })),
+);
+check(
+  "rejects raw < inside a style body",
+  (failuresOf(() => buildView({ profile: "interactive", template: swap("* { box-sizing", "/* <img src=x> */ * { box-sizing"), data: sample })) ?? []).includes("style"),
+);
+const smuggledStyleTemplate =
+  '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>t</title><!-- <style> -->unescaped "payload" & \'quotes\'</style> --></head><body><p data-rv-text="title">x</p></body></html>';
+check(
+  "rejects a comment-smuggled <style> hiding unescaped text",
+  (failuresOf(() => buildView({ profile: "interactive", template: smuggledStyleTemplate, data: sample })) ?? []).includes("unescaped"),
 );
 check(
   "accepts an in-page link as a fragment reference",
