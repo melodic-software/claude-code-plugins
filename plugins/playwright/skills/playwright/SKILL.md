@@ -31,7 +31,7 @@ When that line names a newer release or a missing CLI, tell the user once. Add t
 ## Quick start (90% of use)
 
 ```bash
-playwright-cli -s=<flow> open <url>                  # named session
+playwright-cli -s=<flow> open <url>                  # named session, headless by default
 playwright-cli -s=<flow> snapshot                    # writes YAML with element refs (e1, e2, ...)
 playwright-cli -s=<flow> click e42                   # interact by ref
 playwright-cli -s=<flow> fill e37 "input" --submit   # fill + press Enter
