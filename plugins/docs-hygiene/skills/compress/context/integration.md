@@ -35,14 +35,14 @@ Never cite this skill's `context/` files, its scripts, or any heading anchor ins
 | Don't | Do |
 |---|---|
 | `/docs-hygiene:compress` to compress code files | Out of scope per SKILL.md "When NOT to use"; code-comment compression is out of scope |
-| Chain `/docs-hygiene:compress` + a separate markdown lint pass over targets it reported `lint=PASS` or `lint=FAIL` | Those targets were linted internally per Hard rules, so another pass adds no signal; a target reported `lint=unresolved` was not, and still needs the consumer's lint pass |
+| Chain `/docs-hygiene:compress` + a separate markdown lint pass over targets it reported `lint=PASS` or `lint=FAIL` | Those targets were linted internally per Hard rules, so another pass adds no signal on what the edit changed; `lint=PASS` means no new failure, so a target compress says already failed before the edit, or one reported `lint=unresolved`, still needs the consumer's lint pass |
 | Pipe `/docs-hygiene:compress` output into an orchestrator expecting structured data | `/docs-hygiene:compress` summary is human-readable, not structured. No `--json` |
 | `/docs-hygiene:compress` to summarize a conversation | That's the built-in `/compact`, different semantic (conversation summarization, not markdown content) |
 | Bypass the semantic-diff dispatch with a `--no-verify`-style flag | No such flag exists. SKILL.md "Hard rules" makes dispatch mandatory for default action; `audit` is the read-only escape if dispatch cost is the concern |
 
 ## Composition with build/test front-ends
 
-`/docs-hygiene:compress` does not compose with build or test workflows: markdown has no build or test gate beyond markdown lint, which it runs itself on targets it reports `lint=PASS` or `lint=FAIL`; run the consumer's lint on any target it reports `lint=unresolved`. In the consuming repository's pre-PR sequence it is opportunistic before staging when uncommitted markdown exists, not a mandatory step.
+`/docs-hygiene:compress` does not compose with build or test workflows: markdown has no build or test gate beyond markdown lint, which it runs itself on targets it reports `lint=PASS` or `lint=FAIL`; run the consumer's lint on any target it reports `lint=unresolved` or says already failed before the edit. In the consuming repository's pre-PR sequence it is opportunistic before staging when uncommitted markdown exists, not a mandatory step.
 
 ## Cross-references
 

@@ -161,7 +161,7 @@ Non-interactive contexts skip the offer and take the no-op branch. The fallback 
 <basename>: <action_taken> (compression_pct=N.N%, semantic_loss=K, ambiguity=M, false_positive=P, lint=PASS|FAIL|unresolved)
 ```
 
-`action_taken` ∈ {`compressed`, `reverted`, `skipped`}. Aggregate at end of batch.
+`action_taken` ∈ {`compressed`, `reverted`, `skipped`}. `lint=PASS` means the edit added no new failure, not that the file passes: when the target already failed before the edit, say so after its line. Aggregate at end of batch.
 
 Audit action output: table with `target`, `expected_yield_pct`, `classify` (SKIP/COMPRESS/UNCERTAIN), `reason`.
 
