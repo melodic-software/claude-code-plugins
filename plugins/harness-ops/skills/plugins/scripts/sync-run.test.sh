@@ -3309,7 +3309,7 @@ reuse_run() {
     SYNC_FLEET_STATE_STORE_MARGIN_S=0 "$@")
   out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
   run_dir=$(jq -r '.run_dir' <<<"$out")
-  reads=$(grep -vc -- '--from' "$case_dir/fs.log")
+  reads=$(grep -vcE -- '--from|--fingerprint' "$case_dir/fs.log")
 }
 pre_stored() { grep '^# fleet-state read pre: ' "$run_dir/journal.log" | sed 's/.*, exit [0-9]*, //'; }
 
@@ -3372,7 +3372,7 @@ assert_eq "reuse: the ask pass stopped before install" "true" \
 out=$(run_sync "$case_dir" --only-install "" --run-dir "$run_dir")
 assert_exit "reuse: the --only-install re-entry exits 0" 0 $?
 assert_eq "reuse: an --only-install re-entry that installs nothing runs no fleet-state.sh read" "0" \
-  "$(grep -vc -- '--from' "$case_dir/fs.log")"
+  "$(grep -vcE -- '--from|--fingerprint' "$case_dir/fs.log")"
 assert_contains "reuse: the re-entry journals its gate read as a reuse of the first pass's pre read" \
   "$(tail -n +$((journal_lines + 1)) "$run_dir/journal.log")" \
   "# fleet-state reuse pre-install: inputs unchanged since the pre read"
@@ -3383,7 +3383,7 @@ write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": false
 out=$(run_sync "$case_dir" --only-install "" --run-dir "$run_dir")
 assert_exit "reuse: the re-entry after an input changed exits 0" 0 $?
 assert_eq "reuse: a re-entry after an input changed runs one fleet-state.sh read" "1" \
-  "$(grep -vc -- '--from' "$case_dir/fs.log")"
+  "$(grep -vcE -- '--from|--fingerprint' "$case_dir/fs.log")"
 assert_eq "reuse: and its pre-install snapshot sees the change" "false" \
   "$(jq -r '.enabled["alpha@market1"]' "$run_dir/pre-install.market1.json")"
 
@@ -3392,7 +3392,7 @@ mutate_stub() {
 printf '%s\n' \"\$*\" >>\"$case_dir/fs.log\"
 bash \"$SCRIPT_DIR/fleet-state.sh\" \"\$@\"
 rc=\$?
-if [[ \"\$*\" != *--from* && \"\$(grep -vc -- '--from' \"$case_dir/fs.log\")\" == 2 ]]; then
+if [[ \"\$*\" != *--from* && \"\$(grep -vcE -- '--from|--fingerprint' \"$case_dir/fs.log\")\" == 2 ]]; then
   $1
 fi
 exit \$rc

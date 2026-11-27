@@ -168,11 +168,12 @@ path makes the read run again. A report is stored only from a read with an earli
 compare against, whose list and fingerprint match before and after it, and whose present inputs
 all have an mtime and ctime more than 2 s before it started (`SYNC_FLEET_STATE_STORE_MARGIN_S` overrides the 2 s with a whole
 number of seconds, up to 6 digits), so the first read in a run directory is never stored. The reuse holds within one invocation and into an `--only-install` re-entry run
-from the same directory and environment. `journal.log` records each read as
+from the same directory and environment: `fleet-state.sh --fingerprint` names the environment
+inputs, including the project root `git rev-parse` resolves when `CLAUDE_PROJECT_DIR` is unset,
+and a changed one runs the read again. `journal.log` records each read as
 `# fleet-state read <step>: elapsed <seconds>s, exit <rc>, ...` and each reuse as
 `# fleet-state reuse <step>: inputs unchanged since the <step> read`. The fingerprint does not
-cover the project root `git rev-parse` resolves when `CLAUDE_PROJECT_DIR` is unset, or the
-`realpath` check that a catalog manifest sits inside its checkout.
+cover the `realpath` check that a catalog manifest sits inside its checkout.
 
 **The CLI's text cannot tell that race from a true no-op, but the run's snapshots can.** An id the
 CLI reports "already at the latest version (X)" is consistent with both a plugin that was current and

@@ -22,6 +22,23 @@ if builtin pushd "$script_src_dir/../../.." >/dev/null 2>&1; then
   builtin popd >/dev/null 2>&1 || true
 fi
 
+INSTALLED_JSON="${FLEET_STATE_INSTALLED_JSON:-$HOME/.claude/plugins/installed_plugins.json}"
+MARKETPLACES_JSON="${FLEET_STATE_MARKETPLACES_JSON:-$HOME/.claude/plugins/known_marketplaces.json}"
+USER_SETTINGS="${FLEET_STATE_USER_SETTINGS:-$HOME/.claude/settings.json}"
+
+if [[ $# -eq 1 && "$1" == --fingerprint ]]; then
+  fp_root="${CLAUDE_PROJECT_DIR:-}"
+  if [[ -z "$fp_root" ]]; then
+    fp_root=$(git rev-parse --show-toplevel 2>/dev/null) || fp_root=""
+    fp_root="git:${fp_root//$'\r'/}"
+  fi
+  printf '%s=%q\n' PWD "$PWD" HOME "${HOME:-}" OSTYPE "${OSTYPE:-}" \
+    project_root "$fp_root" plugin_root "${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT_DEFAULT}" \
+    installed "$INSTALLED_JSON" marketplaces "$MARKETPLACES_JSON" user_settings "$USER_SETTINGS" \
+    catalog_dir "${FLEET_STATE_CATALOG_DIR:-}"
+  exit 0
+fi
+
 HOOK_UTILS="$PLUGIN_ROOT_DEFAULT/hooks/hook-utils.sh"
 if [[ -f "$HOOK_UTILS" ]]; then
   # shellcheck source=/dev/null
@@ -39,10 +56,6 @@ else
   echo "ERROR: jq-capture.sh not found at $JQ_CAPTURE" >&2
   exit 2
 fi
-
-INSTALLED_JSON="${FLEET_STATE_INSTALLED_JSON:-$HOME/.claude/plugins/installed_plugins.json}"
-MARKETPLACES_JSON="${FLEET_STATE_MARKETPLACES_JSON:-$HOME/.claude/plugins/known_marketplaces.json}"
-USER_SETTINGS="${FLEET_STATE_USER_SETTINGS:-$HOME/.claude/settings.json}"
 
 case_insensitive_os="false"
 case "${OSTYPE:-}" in
@@ -129,12 +142,17 @@ Usage:
   fleet-state.sh [--marketplace <name>] --ids <selector>
   fleet-state.sh --ids <selector> --from <report.json> [--marketplace <name>]
   fleet-state.sh --marketplaces
+  fleet-state.sh --fingerprint
 
 With neither --marketplace nor --all, the target is the marketplace this plugin
 was installed from. --ids prints one TAB-separated record per line instead of
 JSON; the first field is the <name>@<marketplace> id. --from projects --ids from
 a saved single-marketplace report instead of reading the fleet. --marketplaces
-prints every marketplace name, one per line.
+prints every marketplace name, one per line. --fingerprint prints, one
+name=value line each, the environment inputs a report depends on (the working
+directory, HOME, OSTYPE, the project root or git's top level, the plugin root
+and the FLEET_STATE_* paths) without reading any file; with the file list
+FLEET_STATE_READ_LIST=<file> collects during a report, it is every input.
 
 Exit: 0 ran to completion; 1 a single marketplace could not be resolved;
 2 usage error, jq missing, or a state file that does not match its expected shape.
@@ -189,6 +207,10 @@ while [[ $# -gt 0 ]]; do
     -h | --help)
       usage
       exit 0
+      ;;
+    --fingerprint)
+      echo "ERROR: --fingerprint takes no other argument" >&2
+      exit 2
       ;;
     *)
       echo "ERROR: unknown argument: $1 (see --help)" >&2

@@ -32,6 +32,10 @@ The third form projects that same id list from a report already on disk rather t
 fleet, and is the form `sync`'s steps use: each step re-reads the full report anyway, and every
 selector is derivable from it. Same script, same projection, so the `\r` protection is unchanged.
 
+`fleet-state.sh --fingerprint` prints the environment inputs a report depends on, one
+`name=value` line each, and reads no file; `sync-run.sh` keys its snapshot reuse on it beside the
+paths `FLEET_STATE_READ_LIST` collects.
+
 `sync-run.sh` is what calls these scripts during `sync` and `audit`; the contracts here are what it
 and any other caller are bound to.
 

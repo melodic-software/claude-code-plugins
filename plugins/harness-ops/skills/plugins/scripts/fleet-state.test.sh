@@ -2116,6 +2116,45 @@ for sel in $(help_selectors); do
 done
 assert_eq "selector table: the rejection lists every selector with its columns" "" "$missing_names"
 
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+mkdir -p "$case_dir/repo/sub" "$case_dir/elsewhere"
+git -C "$case_dir/repo" init -q -b main
+fp_env=(HOME="$case_dir/home" CLAUDE_PROJECT_DIR="$case_dir/repo" CLAUDE_PLUGIN_ROOT="$case_dir/root"
+  FLEET_STATE_INSTALLED_JSON="$case_dir/i.json" FLEET_STATE_MARKETPLACES_JSON="$case_dir/m.json"
+  FLEET_STATE_USER_SETTINGS="$case_dir/u.json" FLEET_STATE_CATALOG_DIR="$case_dir/catalog")
+fingerprint() { env -C "${FP_CWD:-$case_dir/repo}" "${fp_env[@]}" "$@" bash "$SCRIPT" --fingerprint; }
+base_fp=$(fingerprint)
+assert_eq "fingerprint: unchanged inputs give the same fingerprint" "$base_fp" "$(fingerprint)"
+for change in HOME="$case_dir/home2" CLAUDE_PROJECT_DIR="$case_dir/elsewhere" CLAUDE_PLUGIN_ROOT="$case_dir/root2" \
+  FLEET_STATE_INSTALLED_JSON="$case_dir/i2.json" FLEET_STATE_MARKETPLACES_JSON="$case_dir/m2.json" \
+  FLEET_STATE_USER_SETTINGS="$case_dir/u2.json" FLEET_STATE_CATALOG_DIR="$case_dir/catalog2"; do
+  if [[ "$(fingerprint "$change")" == "$base_fp" ]]; then
+    fail "fingerprint: changing ${change%%=*} changes it" "unchanged: $base_fp"
+  else
+    pass "fingerprint: changing ${change%%=*} changes it"
+  fi
+done
+if [[ "$(FP_CWD="$case_dir/elsewhere" fingerprint)" == "$base_fp" ]]; then
+  fail "fingerprint: changing the working directory changes it" "unchanged: $base_fp"
+else
+  pass "fingerprint: changing the working directory changes it"
+fi
+fp_env=("${fp_env[@]/#CLAUDE_PROJECT_DIR=*/CLAUDE_PROJECT_DIR=}")
+FP_CWD="$case_dir/repo/sub"
+in_repo_fp=$(fingerprint)
+assert_contains "fingerprint: with no CLAUDE_PROJECT_DIR it names git's top level" "$in_repo_fp" "project_root=git:$case_dir/repo"
+mv "$case_dir/repo/.git" "$case_dir/repo/.git-away"
+if [[ "$(fingerprint)" == "$in_repo_fp" ]]; then
+  fail "fingerprint: the same working directory no longer in a git work tree changes it" "unchanged: $in_repo_fp"
+else
+  pass "fingerprint: the same working directory no longer in a git work tree changes it"
+fi
+FP_CWD=""
+ARGS=(--fingerprint --marketplace market1)
+out=$(run_state "$case_dir")
+assert_exit "fingerprint: combined with another argument is a usage error" 2 "$?"
+
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]] && exit 0
 exit 1

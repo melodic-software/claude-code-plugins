@@ -1315,14 +1315,19 @@ inputs_older_than() {
   done <<<"$1"
 }
 
-SNAPSHOT_KEY="$PWD|${HOME:-}|${CLAUDE_PROJECT_DIR:-}|$CLAUDE_PLUGIN_ROOT|${FLEET_STATE_INSTALLED_JSON:-}"
-SNAPSHOT_KEY+="|${FLEET_STATE_MARKETPLACES_JSON:-}|${FLEET_STATE_USER_SETTINGS:-}|${FLEET_STATE_CATALOG_DIR:-}"
+SNAPSHOT_KEY=""
+snapshot_key() {
+  [[ -z "$SNAPSHOT_KEY" ]] || return 0
+  SNAPSHOT_KEY=$("$FLEET_STATE" --fingerprint 2>/dev/null) && [[ -n "$SNAPSHOT_KEY" ]] ||
+    SNAPSHOT_KEY="unread fingerprint $$ $EPOCHREALTIME"
+}
 STORE_MARGIN_S=2
 [[ ! "${SYNC_FLEET_STATE_STORE_MARGIN_S:-}" =~ ^[0-9]{1,6}$ ]] || STORE_MARGIN_S=$((10#$SYNC_FLEET_STATE_STORE_MARGIN_S))
 fleet_snapshot() {
   local mp="$1" out="$2" label="$3"
   local c="$RUN_DIR/fs-cache.$mp"
   local rc text list_pre="" list_post fp_pre="" fp_post stored t_s t_e
+  snapshot_key
   local key="$SNAPSHOT_KEY"
   slurp_to text "$c.key"
   if [[ "$text" == "$key" && -f "$c.list" ]]; then
