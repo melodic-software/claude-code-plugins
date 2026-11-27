@@ -700,10 +700,10 @@ BRANCH=$(git -C "$WT" branch --show-current)
 
 - `--draft '<reason>'` is §2.4.3's request level, the same flag the normal `create` path takes,
   for example `Draft: merge hold unread`.
-- `--hold` takes no value: §2.4.3's create adds the `do-not-merge` label, so the PR opens held
-  and `ready --unattended` leaves it a draft. Where the label cannot be set at create, the provider
-  reference labels the PR right after; when that fails, report it, leave the PR a draft and skip
-  Phase 2.5 ([GitHub](../../../reference/providers/github/pull-request/create.md#label-a-held-pr-over-rest)).
+- `--hold` takes no value: §2.4.3's create adds the `do-not-merge` label, so the PR opens with its
+  merge held; the label never holds the ready flip. Where the label cannot be set at create, the
+  provider reference labels the PR right after; when that fails, report it, leave the PR a draft
+  and skip Phase 2.5 ([GitHub](../../../reference/providers/github/pull-request/create.md#label-a-held-pr-over-rest)).
 
 **Sub-steps relative to the normal `create` path:**
 

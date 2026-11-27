@@ -291,6 +291,24 @@ test("a recorded discussion whose comment count runs past the nodes it returned,
   assert.match(leftLine(result, 500), /trusted author: left: its comments could not be read/);
 });
 
+test("decideTrusted refuses a cut issue-comments connection: unarmed it is left, armed and pinned it is disarmed", () => {
+  const bot = "melodic-automation-lanes";
+  const pin = lanesComment(pinBody(CLEAN_HEAD));
+  const read = (comments) => ({ comments: comments.nodes, discussion: { comments, reviews: { totalCount: 0, nodes: [] } } });
+  const unarmed = { files: { paths: CLEAN_FILES }, laneSources: [], verify: pass(CLEAN_HEAD) };
+  const armed = clean({ autoMergeRequest: { enabledAt: "2026-11-27T14:00:00Z" } });
+  assert.equal(decideTrusted(clean(), "needs-human", { ...unarmed, ...read({ totalCount: 0, nodes: [] }) }, bot).action, "arm", "unarmed, the same comments read whole arm");
+  assert.equal(decideTrusted(armed, "needs-human", { ...read({ totalCount: 1, nodes: [pin] }), verify: pass(CLEAN_HEAD) }, bot).reason, "already armed", "armed, the same comments read whole keep the arm");
+  for (const [label, pull, facts, action] of [
+    ["unarmed", clean(), { ...unarmed, ...read({ totalCount: 101, nodes: [] }) }, "none"],
+    ["armed", armed, read({ totalCount: 101, nodes: [pin] }), "disarm"],
+  ]) {
+    const verdict = decideTrusted(pull, "needs-human", facts, bot);
+    assert.equal(verdict.action, action, label);
+    assert.match(verdict.reason, /could not all be read/, label);
+  }
+});
+
 test("a pin already at the head is not posted again", async () => {
   const result = await run([clean({ comments: [lanesComment(pinBody(CLEAN_HEAD))] })]);
   assert.equal(pinPosts(result).length, 0);
@@ -442,9 +460,12 @@ test("#19128's shape is not armed: it changes a .claude lane source and no reade
   assert.match(leftLine(result, 19128), /left: .*\.claude\/skills\/control-claude-code-plugins\/features\/docs-hygiene\/README\.md.*lane source/);
 });
 
-test("#19361's shape is not held by the Hold: line in its body", async () => {
-  const result = await run([recorded("19361")]);
-  assert.doesNotMatch(leftLine(result, 19361), /its body holds it/);
+test("#19361's shape, a Hold: line in its body and no label, is armed at its recorded head", async () => {
+  const pull = recorded("19361");
+  assert.match(pull.body, /^Hold: /m, "the fixture still carries its body hold line");
+  const result = await run([pull]);
+  assert.equal(armedHeads(result), 1, result.lines.join("\n"));
+  assert.match(leftLine(result, 19361), /armed at 87be8165877a9fbde48ff23b9dceaed4be3b7f43/);
 });
 
 test("only a User whose id is kind human is a trusted person: a trusted bot, a bot id typed User and a person id typed Bot keep the lanes' skip", async () => {

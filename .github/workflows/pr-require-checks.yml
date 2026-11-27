@@ -5456,6 +5456,8 @@ jobs:
             echo "::error::the head of #$pr could not be read."
             exit 1
           fi
+          # The lanes App's pull request reads its issue comments, which carry
+          # the pin records, and its reviews, whose approvals lift a hold.
           # Another author's pull request reads only its reviews, each body
           # blanked: an approval of the head still lifts its pin or FAIL hold.
           # Reviews feed only that lift, so one whose
@@ -5471,7 +5473,7 @@ jobs:
           }
           if [ "$lanes" = true ]; then
             rows_of='.[]'
-            read_discussion "issues/$pr/comments" "pulls/$pr/reviews" "pulls/$pr/comments" || exit 1
+            read_discussion "issues/$pr/comments" "pulls/$pr/reviews" || exit 1
           else
             rows_of='.[] | .body = ""'
             [ "$judged" != true ] || read_discussion "pulls/$pr/reviews" || exit 1

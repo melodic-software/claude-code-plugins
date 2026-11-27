@@ -17,7 +17,6 @@ import {
   rotated,
   oldestFirst,
   PULLS_QUERY,
-  THREAD_PAGE_QUERY,
   UNLABELED_QUERY,
   decide,
   describe,
@@ -102,11 +101,10 @@ const AUTO_MERGE_TYPES = DETAIL_QUERY.match(/timelineItems\(itemTypes: \[([^\]]*
   .split(", ")
   .map((type) => type.toLowerCase().replaceAll(/(?:^|_)([a-z])/g, (_, letter) => letter.toUpperCase()));
 const autoMergeEvent = (__typename, login, actorType = "User") => ({ __typename, actor: { __typename: actorType, login } });
-function detail({ comments = [], reviews = [], inline = [], disabledBy = null, autoMerge = disabledBy ? [{ __typename: "AutoMergeDisabledEvent", actor: disabledBy }] : [] } = {}) {
+function detail({ comments = [], reviews = [], disabledBy = null, autoMerge = disabledBy ? [{ __typename: "AutoMergeDisabledEvent", actor: disabledBy }] : [] } = {}) {
   return {
     comments: page(comments),
     reviews: page(reviews),
-    reviewThreads: page(inline.length ? [{ comments: page(inline) }] : []),
     timelineItems: { nodes: autoMerge.filter(({ __typename }) => AUTO_MERGE_TYPES.includes(__typename)).slice(-1) },
     unblockStops: [],
   };
@@ -295,12 +293,6 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
       const nodes = all.slice(start, start + 2);
       return { data: { repository: { pullRequest: { comments: { totalCount: all.length, pageInfo: { hasNextPage: start + 2 < all.length, endCursor: String(start + 2) }, nodes } } } } };
     }
-    if (body.query === THREAD_PAGE_QUERY) {
-      const all = pulls.flatMap((candidate) => Object.entries(candidate.threads ?? {})).find(([id]) => id === body.variables.id)?.[1] ?? [];
-      const start = body.variables.after === null ? 0 : Number(body.variables.after);
-      const nodes = all.slice(start, start + 2);
-      return { data: { node: { comments: { totalCount: all.length, pageInfo: { hasNextPage: start + 2 < all.length, endCursor: String(start + 2) }, nodes } } } };
-    }
     if (body.query === QUEUE_ENTRY_QUERY) {
       const found = pulls.find((candidate) => candidate.number === body.variables.pr);
       return { data: { repository: { pullRequest: { id: found?.id, mergeQueueEntry: found?.queued ? { id: `MQE_${found.number}` } : null } } } };
@@ -346,7 +338,7 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
   };
   const writes = () =>
     calls
-      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, UNLABELED_QUERY, DISCUSSION_PAGE_QUERIES.comments, THREAD_PAGE_QUERY, AUTO_MERGE_STATE_QUERY, QUEUE_ENTRY_QUERY, MERGE_QUEUE_QUERY].includes(body.query) && !String(body.query).startsWith(SKIP_STATE_PREFIX))
+      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, UNLABELED_QUERY, DISCUSSION_PAGE_QUERIES.comments, AUTO_MERGE_STATE_QUERY, QUEUE_ENTRY_QUERY, MERGE_QUEUE_QUERY].includes(body.query) && !String(body.query).startsWith(SKIP_STATE_PREFIX))
       .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : body.query === DEQUEUE_MUTATION ? "dequeue" : "?", ...body.variables }));
   return { github, writes, verify, verified, calls, notes, pins, merges };
 }
@@ -1773,10 +1765,21 @@ test("a pull request whose discussion cannot all be read is not armed", async ()
   const held = (pr) => decide(pull(1), options, { ...detail(), files: ["docs/a.md"], ...pr });
   assert.equal(held({ comments: cut }).action, "none");
   assert.equal(held({ reviews: cut }).action, "none");
-  assert.equal(held({ reviewThreads: cut }).action, "none");
-  assert.equal(held({ reviewThreads: page([{ comments: cut }]) }).action, "none");
   assert.equal(decide(pull(1), options, null).action, "none");
   assert.equal(decide(pull(1, { autoMergeRequest: {} }), options, null).action, "none");
+});
+
+test("decide refuses a cut issue-comments connection: unarmed it is left, armed it is disarmed, and review threads are not read", () => {
+  const cut = { totalCount: 101, nodes: [] };
+  const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
+  const whole = { ...detail(), files: ["docs/a.md"], verify: PASSED };
+  assert.equal(decide(pull(1), options, whole).action, "arm", "the same discussion read whole arms");
+  for (const [armed, action] of [[null, "none"], [{}, "disarm"]]) {
+    const verdict = decide(pull(1, { autoMergeRequest: armed }), options, { ...whole, comments: cut });
+    assert.equal(verdict.action, action, `armed ${armed !== null}`);
+    assert.match(verdict.reason, /could not all be read/, `armed ${armed !== null}`);
+  }
+  assert.equal(decide(pull(1), options, { ...whole, reviewThreads: cut }).action, "arm", "a cut review-thread list holds nothing, since nothing in it is read");
 });
 
 test("auto-merge a person turned off stays off; one the lanes App turned off is armed again", async () => {
@@ -2021,16 +2024,11 @@ test("a comment list the detail cut is read whole", async () => {
   assert.ok(calls.some(({ body }) => body?.query === DISCUSSION_PAGE_QUERIES.comments && body.variables?.number === 1), "the cut comment list is paged");
 });
 
-test("a review thread's comment list the detail cut is read whole, page by page", async () => {
-  const chatter = Array.from({ length: 3 }, (_, index) => said("kyle-sexton", `note ${index}`, `2026-10-23T0${index}:00:00Z`));
-  const cut = (id, comments) => ({ ...detail(), reviewThreads: page([{ id, comments: { totalCount: comments.length, nodes: comments.slice(-1) } }]) });
-  const { writes, calls } = await run([pull(1, { cutDiscussion: cut("T1", chatter), threads: { T1: chatter } })]);
+test("the detail read asks for no review threads, so a sweep reads no thread page", async () => {
+  assert.doesNotMatch(DETAIL_QUERY, /reviewThreads/);
+  const { writes, calls } = await run([pull(1)]);
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
-  const pages = calls.filter(({ body }) => body?.query === THREAD_PAGE_QUERY).map(({ body }) => body.variables);
-  assert.deepEqual(pages, [
-    { id: "T1", after: null },
-    { id: "T1", after: "2" },
-  ]);
+  assert.equal(calls.filter(({ body }) => /reviewThreads|PullRequestReviewThread/.test(String(body?.query))).length, 0);
 });
 
 test("a discussion or label list past its page cap arms nothing", async () => {

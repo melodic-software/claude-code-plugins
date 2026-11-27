@@ -70,14 +70,11 @@ export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: Strin
 }`;
 const COMMENT_FIELDS = "databaseId author { __typename login } editor { __typename login } body createdAt updatedAt lastEditedAt authorAssociation";
 const REVIEW_FIELDS = "author { __typename login ... on User { databaseId } } state commit { oid } body submittedAt authorAssociation";
-const THREAD_COMMENT_FIELDS = "author { __typename login } body createdAt authorAssociation";
-const THREAD_FIELDS = `id comments(last: 100) { totalCount nodes { ${THREAD_COMMENT_FIELDS} } }`;
 export const DETAIL_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
       comments(last: 100) { totalCount nodes { ${COMMENT_FIELDS} } }
       reviews(last: 100) { totalCount nodes { ${REVIEW_FIELDS} } }
-      reviewThreads(last: 100) { totalCount nodes { ${THREAD_FIELDS} } }
       timelineItems(itemTypes: [AUTO_MERGE_DISABLED_EVENT, AUTO_MERGE_ENABLED_EVENT, ADDED_TO_MERGE_QUEUE_EVENT], last: 1) { nodes { __typename ... on AutoMergeDisabledEvent { createdAt actor { __typename login } } ... on AutoMergeEnabledEvent { createdAt actor { __typename login } } ... on AddedToMergeQueueEvent { createdAt actor { __typename login } } } }
       files(first: 100) { totalCount nodes { path changeType } }
     }
@@ -91,11 +88,7 @@ const pageOf = (field, fields) => `query($owner: String!, $name: String!, $numbe
 export const DISCUSSION_PAGE_QUERIES = Object.freeze({
   comments: pageOf("comments", COMMENT_FIELDS),
   reviews: pageOf("reviews", REVIEW_FIELDS),
-  reviewThreads: pageOf("reviewThreads", THREAD_FIELDS),
 });
-export const THREAD_PAGE_QUERY = `query($id: ID!, $after: String) {
-  node(id: $id) { ... on PullRequestReviewThread { comments(first: 100, after: $after) { totalCount pageInfo { hasNextPage endCursor } nodes { ${THREAD_COMMENT_FIELDS} } } } }
-}`;
 const MAX_DISCUSSION_PAGES = 30;
 export const ARM_MUTATION = `mutation($id: ID!, $head: GitObjectID!) {
   enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: SQUASH, expectedHeadOid: $head }) {
@@ -262,11 +255,7 @@ export async function wholeDiscussion(github, variables, detail) {
       read[key] = await every(github, query, variables, (data) => data?.repository?.pullRequest?.[key]);
     }
   }
-  const threads = [];
-  for (const thread of read.reviewThreads.nodes) {
-    threads.push(whole(thread?.comments) ? thread : { ...thread, comments: await every(github, THREAD_PAGE_QUERY, { id: String(thread?.id) }, (data) => data?.node?.comments) });
-  }
-  return { ...read, reviewThreads: { ...read.reviewThreads, nodes: threads } };
+  return read;
 }
 
 const itemOf = (item) => ({
@@ -283,8 +272,7 @@ const itemOf = (item) => ({
 const headLifters = (detail, humans, head) => pathLifters((detail?.reviews?.nodes ?? []).map(itemOf), humans, head);
 
 export function discussionUnread(detail) {
-  const threads = detail?.reviewThreads;
-  return [detail?.comments, detail?.reviews, threads].every(whole) && threads.nodes.every((thread) => whole(thread?.comments)) ? null : "its comments could not all be read";
+  return [detail?.comments, detail?.reviews].every(whole) ? null : "its comments could not all be read";
 }
 
 const carries = (pull, label) => (pull.labels?.nodes ?? []).some((node) => String(node?.name).toLowerCase() === String(label).toLowerCase());

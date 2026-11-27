@@ -140,11 +140,16 @@ PR_NUMBER=$(basename "$PR_URL")
 ```
 
 A held create (§2.7's `--hold`) adds `--label do-not-merge` to the `gh pr create` call, so the PR
-opens with the hold.
+opens with the hold. `gh pr create --help` says only `-l, --label name  Add labels by name`, not
+what happens when the repository has no such label. When the labeled call fails and its error
+names the label, read the branch's PR (`gh pr view "$BRANCH" -R "$REPO" --json url -q .url`); if
+there is none, run the same `gh pr create` without `--label do-not-merge`. Then run
+[Label a held PR over REST](#label-a-held-pr-over-rest) on the PR.
 
 ## Label a held PR over REST
 
-The REST create below takes no labels, so a held REST create follows it with:
+The REST create below takes no labels, and a `gh pr create` that could not set the label
+(above) opened the PR without it, so either follows it with:
 
 ```bash
 gh api --method POST "repos/$REPO/issues/$PR_NUMBER/labels" -f 'labels[]=do-not-merge'
