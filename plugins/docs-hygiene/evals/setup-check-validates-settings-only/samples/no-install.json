@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "node /plugins/docs-hygiene/skills/setup/scripts/setup-apply.mjs --check"}}], "why": "the settings check"},
+    {"answer": [{"tool": "Bash", "input": {"command": "ls package.json pyproject.toml 2>/dev/null"}}], "why": "checking for a manifest installs nothing"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "npm install --save-dev markdownlint-cli2"}}], "why": "installs a linter"},
+    {"answer": [{"tool": "Bash", "input": {"command": "npx --yes prettier --version"}}], "why": "npx fetches and runs a tool"},
+    {"answer": [{"tool": "Bash", "input": {"command": "pip install pyyaml"}}], "why": "a Python package install"},
+    {"answer": [{"tool": "Bash", "input": {"command": "pnpm add -D yaml"}}], "why": "pnpm add"}
+  ]
+}

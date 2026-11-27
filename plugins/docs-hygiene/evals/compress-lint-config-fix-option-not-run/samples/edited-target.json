@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/tmp/run/docs/onboarding.md", "old_string": "This page is basically just here to really help you", "new_string": "This page helps you"}}], "why": "an in-session Edit on the target"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat .lintmdrc.json"}}, {"tool": "Edit", "input": {"file_path": "docs/onboarding.md", "old_string": "Honestly, the setup is really quite simple.", "new_string": "The setup is simple."}}], "why": "reads the config, then the compression Edit"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no tool call"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "docs/style.md", "old_string": "Style notes", "new_string": "# Style notes"}}], "why": "an Edit on another file"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": ".lintmdrc.json", "old_string": "\"fix\": true", "new_string": "\"fix\": false"}}], "why": "edits the linter's config instead of the target"}
+  ]
+}

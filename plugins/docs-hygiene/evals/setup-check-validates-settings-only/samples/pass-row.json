@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": "PASS compress_articles: cut\n\nEffective compress_articles: cut, from docs/conventions/docs-hygiene.yaml.", "why": "the script's line verbatim"},
+    {"answer": "| Status | Check |\n|---|---|\n| PASS | compress_articles: cut |", "why": "a table row"},
+    {"answer": "- **PASS** `compress_articles: cut` (repository file)", "why": "a list item with emphasis and code"},
+    {"answer": "| PASS | compress_articles | cut | docs/conventions/docs-hygiene.yaml |", "why": "key and value in separate cells"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "PASS compress_articles: keep", "why": "the wrong value"},
+    {"answer": "WARN compress_articles: dropped from docs/conventions/docs-hygiene.yaml; resolves to its default, keep, not to userConfig", "why": "a dropped-layer row"},
+    {"answer": "PASS compress_articles: (unset)\n\nEffective compress_articles: cut, from userConfig.", "why": "cut only from userConfig, not a PASS row for the file"},
+    {"answer": "compress_articles is cut.", "why": "no PASS row"}
+  ]
+}

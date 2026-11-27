@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/tmp/run/docs/onboarding.md", "old_string": "This page is basically just here to really help you", "new_string": "This page helps you"}}], "why": "an in-session Edit on the target"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "docs/onboarding.md", "old_string": "Honestly, the setup is really quite simple.", "new_string": "The setup is simple."}}, {"tool": "Edit", "input": {"file_path": "docs/onboarding.md", "old_string": "The setup is simple.", "new_string": "Honestly, the setup is really quite simple."}}], "why": "the compression Edit, then the revert Edit"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no tool call"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "docs/style.md", "old_string": "Use sentence case", "new_string": "Use sentence-case"}}], "why": "an Edit on another file"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "docs/refs.lock", "old_string": "docs/style.md", "new_string": "docs/other.md"}}], "why": "edits the lock instead of the target"}
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash scripts/check-md.sh docs/onboarding.md"}}], "why": "the record's lint-cmd"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat package.json"}}], "why": "reading the manifest"},
+    {"answer": [{"tool": "Bash", "input": {"command": "grep -n 'lint:md' package.json"}}], "why": "the script name as a search argument"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "npm run lint:md"}}], "why": "the manifest script through npm"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash scripts/lint-md.sh docs/onboarding.md"}}], "why": "the manifest script run directly"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git status --porcelain && pnpm lint:md"}}], "why": "pnpm shorthand after another command"}
+  ]
+}

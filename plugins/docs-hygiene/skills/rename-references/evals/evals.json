@@ -365,11 +365,11 @@
       "id": 30,
       "name": "toml-manifest-name-declaration-is-matched",
       "prompt": "Rename the Python package `docs-hygiene` to `doc-care`. Its pyproject.toml declares `name = \"docs-hygiene\"` under [project]. Audit for stale references.",
-      "expected_output": "Form 14's TOML declaration alternative matches it. TOML delimits with `=` rather than `:`, so both the YAML and the JSON alternatives miss it -- and because the mode ladder names pyproject.toml as manifest evidence for selecting CONTAINER mode, missing it routes the package into the mode that suppresses bare-token residue while leaving the one declaration that mode makes load-bearing unmatched: apply mode reports zero actionable stragglers with the package metadata still carrying the old name. The alternative accepts an optionally-quoted key and a basic or literal string value, and rejects `name = \"docs-hygiene-extra\"` and `description = \"docs-hygiene\"`. Because pyproject.toml is a manifest, the declaration is exempt from the title scope rule and the common-word demotion; the same `name=\"...\"` shape in a shell script is NOT, since the exemption is conditioned on the file being a manifest or catalog.",
+      "expected_output": "Form 14's TOML declaration alternative matches it. TOML delimits with `=` rather than `:`, so both the YAML and the JSON alternatives miss it -- and because the mode ladder counts a package manifest such as this pyproject.toml as evidence for selecting CONTAINER mode, missing it routes the package into the mode that suppresses bare-token residue while leaving the one declaration that mode makes load-bearing unmatched: apply mode reports zero actionable stragglers with the package metadata still carrying the old name. The alternative accepts an optionally-quoted key and a basic or literal string value, and rejects `name = \"docs-hygiene-extra\"` and `description = \"docs-hygiene\"`. Because pyproject.toml is a manifest, the declaration is exempt from the title scope rule and the common-word demotion; the same `name=\"...\"` shape in a shell script is NOT, since the exemption is conditioned on the file being a manifest or catalog.",
       "files": [],
       "expectations": [
         "The `=`-delimited TOML declaration is matched, not only the `:`-delimited YAML and JSON shapes",
-        "The contradiction named is that the mode ladder already treats pyproject.toml as container evidence",
+        "The contradiction named is that the mode ladder already treats a package manifest such as this pyproject.toml as container evidence",
         "The manifest/catalog condition on the exemption is preserved, so shell assignment syntax is not swept in as Certain"
       ]
     },

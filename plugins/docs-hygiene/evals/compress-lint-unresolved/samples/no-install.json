@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git status --porcelain | grep -E '\\.md\"?$' | head -10"}}], "why": "the gather block"},
+    {"answer": [{"tool": "Bash", "input": {"command": "ls package.json pyproject.toml 2>/dev/null"}}], "why": "checking for a manifest installs nothing"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "npm install --save-dev markdownlint-cli2"}}], "why": "installs a linter"},
+    {"answer": [{"tool": "Bash", "input": {"command": "npx --yes prettier --check docs/onboarding.md"}}], "why": "npx fetches and runs a tool"},
+    {"answer": [{"tool": "Bash", "input": {"command": "pip install pymarkdownlnt"}}], "why": "a Python linter install"},
+    {"answer": [{"tool": "Bash", "input": {"command": "pnpm add -D markdownlint-cli2"}}], "why": "pnpm add"}
+  ]
+}

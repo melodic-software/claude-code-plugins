@@ -365,10 +365,9 @@ See `triage.md` "Verb-sense collision the blocklist cannot serve".
   residue. Verified on this repository: renaming `docs-hygiene` matches exactly
   the `name` declarations in `.claude-plugin/marketplace.json` and `plugins/docs-hygiene/.claude-plugin/plugin.json`,
   two real hits, none elsewhere.
-- **TOML declarations too, where the delimiter is `=`, not `:`.** `pyproject.toml` and
-  `Cargo.toml` declare `name = "<old>"`, which the colon-based alternatives miss. The mode ladder
-  names `pyproject.toml` as container evidence, so without this alternative a Python or Rust
-  package enters the mode that suppresses bare-token residue while its one declaration goes
+- **TOML declarations too, where the delimiter is `=`, not `:`.** A TOML manifest declares
+  `name = "<old>"`, which the colon-based alternatives miss. The mode ladder counts a manifest as
+  container evidence, so without this alternative a package with a TOML manifest enters the mode that suppresses bare-token residue while its one declaration goes
   unmatched, and apply mode reports zero actionable stragglers. The key may be quoted or not and
   the value is a basic or literal string (`"…"` or `'…'`). Verified: `name = "<old>"`,
   `name="<old>"`, `"name" = "<old>"`, `name = '<old>'`, and `title = "<old>"` match;
@@ -431,8 +430,7 @@ See `triage.md` "Verb-sense collision the blocklist cannot serve".
   **Ambiguous**, whatever the token looks like. When the token is a common English word, demote
   every title match to Ambiguous regardless of path.
 - **Manifest and catalog declarations are exempt from the scope rule, and from the common-word
-  demotion.** A heading is weak evidence of naming; a `name` field in a container manifest
-  (`plugin.json`, `package.json`, `pyproject.toml`, …) or a marketplace/registry catalog is the
+  demotion.** A heading is weak evidence of naming; a `name` field in a container manifest or a marketplace/registry catalog is the
   registration, the key being the proof as Form 13's management verb is. Two consequences, both
   required:
   1. **Path is irrelevant.** A catalog lives at the repository root, not under the container's
@@ -556,8 +554,8 @@ conflict rule below the list; stopping at the first that fires is the failure th
 
 1. **Explicit override.** The invocation says which (`--container` / `--identifier`). Honor it.
 2. **Filesystem evidence: a directory named `<old>` whose parent is a container root.** A
-   `plugins/<old>/`, `packages/<old>/`, or the repo's own equivalent, containing a manifest
-   (`plugin.json`, `package.json`, `pyproject.toml`, …) → **container**. If the move already
+   `plugins/<old>/`, `packages/<old>/`, or the repo's own equivalent, containing a package or
+   plugin manifest → **container**. If the move already
    happened, check the state before it: look for `<new>` in the same position, or read the
    pair out of `git log --diff-filter=R` / `git status`.
 3. **Manifest evidence.** `<old>` appears as the `name`/`id` field of such a manifest, or as a

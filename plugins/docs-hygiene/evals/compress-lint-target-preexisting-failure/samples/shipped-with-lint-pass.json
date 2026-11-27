@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=PASS)\nThe target already failed lint before the edit (owner-marker); the edit added no failure.", "why": "the schema's summary line"},
+    {"answer": "| File | Action | Lint |\n|---|---|---|\n| onboarding.md | compressed | lint: PASS |", "why": "a table row"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "onboarding.md: reverted (compression_pct=21.4%, lint=FAIL)", "why": "reverts on a failure that was there before the edit"},
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, lint=unresolved)", "why": "a resolvable, scoped command reported unresolved"},
+    {"answer": "onboarding.md: compressed\n\nlint=PASS", "why": "the action and the lint result on separate lines"}
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": "onboarding.md: reverted (compression_pct=21.4%, verification: skipped (light), lint=FAIL)\n\nLint command: npm run lint:md, inferred from package.json. lint-md: docs/onboarding.md: content differs from its locked checksum in docs/lint-lock.txt", "why": "the schema's summary line"},
+    {"answer": "| File | Action | Lint |\n|---|---|---|\n| onboarding.md | reverted | lint: FAIL |", "why": "a table row"},
+    {"answer": "- `onboarding.md`: reverted, `lint=FAIL` (`bash scripts/lint-md.sh docs/onboarding.md`)", "why": "code-formatted fields"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=PASS)", "why": "ships over the failure"},
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, lint=FAIL)", "why": "a lint failure that did not block ship"},
+    {"answer": "onboarding.md: reverted (compression_pct=1.2%, lint=PASS)", "why": "a below-threshold revert, not a lint one"},
+    {"answer": "onboarding.md: reverted\n\nlint=FAIL", "why": "the action and the lint result on separate lines"},
+    {"answer": "The lint failed, so I reverted the file.", "why": "prose without the lint field"}
+  ]
+}
