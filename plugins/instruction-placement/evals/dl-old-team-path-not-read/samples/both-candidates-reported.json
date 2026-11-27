@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "No docs/conventions/instruction-placement.yaml or .local.yaml exists, so no suppressions apply (.claude/instruction-placement.md is not read). Movement reported: Deploy conventions (demote) and Lint rules (demote).",
+      "why": "reports both candidates unsuppressed"
+    },
+    {
+      "answer": "Delta report: 2 new findings (Deploy conventions and Lint rules); 0 suppressed because no canonical suppression file exists.",
+      "why": "paraphrase naming both candidates"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Suppressed: 9c1e0b7a44d2f310. Movement reported: Lint rules.",
+      "why": "omits Deploy conventions"
+    },
+    {
+      "answer": "Movement reported: Deploy conventions only.",
+      "why": "omits Lint rules"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

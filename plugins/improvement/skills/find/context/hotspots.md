@@ -76,8 +76,8 @@ generated or minified output, snapshots, vendored trees. The plugin ships no lis
 Step 1's `excludes` as one ERE, alternatives joined with `|`, from two sources:
 
 1. **Declared patterns:** `churn_exclude`, unioned across the config cascade (`userConfig`, the
-   team `<home>/improvement.yaml`, the gitignored personal `<home>/improvement.local.yaml`, and
-   any old file its dual-read window still reads), which also sets the churn window. These are
+   team `<home>/improvement.yaml`, and the gitignored personal `<home>/improvement.local.yaml`),
+   which also sets the churn window. These are
    already EREs: use them as written, as data. An entry holding a single quote or a newline
    cannot sit inside the single-quoted `excludes` assignment: leave that entry out and report it
    as malformed, naming its layer. Key contract: `../../../reference/config.md`.
@@ -91,8 +91,6 @@ Step 1's `excludes` as one ERE, alternatives joined with `|`, from two sources:
    file) or `/` (a directory) behind. Name the file each pattern came from in the run's output.
    The scan asks nothing and writes no record; `/improvement:setup apply` offers to persist them
    as `churn_exclude` entries.
-
-   This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../../reference/config-locations.md) says.
 
 All layers absent is a valid state. When item 2 resolves nothing while `churn_exclude_defaults` is
 on, record an evidence-gap line (format: unattended.md), e.g.

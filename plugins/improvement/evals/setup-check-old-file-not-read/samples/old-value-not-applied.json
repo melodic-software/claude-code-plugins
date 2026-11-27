@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "Effective churn_window: 90 days ago (default). Retired conventions (report-only, INFO): improvement-r001 (.claude/improvement.md) and improvement-r002 (.claude/improvement.local.md) are no longer read.",
+      "why": "reports 90 days default and report-only INFO"
+    },
+    {
+      "answer": "INFO: no canonical layers present; churn_window resolves to 90 days ago. improvement-r001 and improvement-r002 reported as report-only history.",
+      "why": "paraphrase with 90 days and report-only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "WARN: .claude/improvement.md is still read and sets churn_window to 30 days ago.",
+      "why": "applies the old 30-day value"
+    },
+    {
+      "answer": "churn_window is 90 days ago (default).",
+      "why": "omits INFO/report-only status"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}
