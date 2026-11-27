@@ -89,7 +89,7 @@ const matches = (rule, command) => {
 };
 const permitted = ({ allowed, disallowed }, command) => allowed.some((rule) => matches(rule, command)) && !disallowed.some((rule) => matches(rule, command));
 
-test("the model legs' Bash rules refuse each route to arbitrary code or the environment, and still allow the scan's own commands", () => {
+test("the model legs' Bash rules refuse each route to arbitrary code, the environment or a write outside .work, and still allow the scan's own commands", () => {
   const ws = "/runner/work/r/r";
   const tools = modelTools(ws);
   for (const command of [
@@ -101,6 +101,12 @@ test("the model legs' Bash rules refuse each route to arbitrary code or the envi
     `head -c 4000 /proc/self/environ`,
     `grep -a KEY /proc/1/environ`,
     `head ../../../home/runner/.claude/.credentials.json`,
+    "git log -1 --format=%H --output=src/example.mjs",
+    "git log -1 --outp=src/example.mjs",
+    "sort -o src/example.mjs notes.txt",
+    "sort -uo src/example.mjs notes.txt",
+    "sort --output=src/example.mjs notes.txt",
+    "uniq notes.txt src/example.mjs",
   ]) {
     assert.equal(permitted(tools, command), false, command);
   }
@@ -108,6 +114,9 @@ test("the model legs' Bash rules refuse each route to arbitrary code or the envi
     "git log --oneline HEAD~20..HEAD",
     "git rev-list --count main...HEAD",
     "sort -u",
+    "sort -rn",
+    "uniq -c",
+    "git log --name-only --format=%H HEAD~50..HEAD",
     "grep -rn deepening plugins/architecture",
     `bash ${ws}/.lane/plugins/architecture/lib/read-verification.sh --plugin architecture --skill improve`,
     `node ${ws}/.lane/plugins/architecture/skills/improve/scripts/improve-settings.mjs --home .work`,
