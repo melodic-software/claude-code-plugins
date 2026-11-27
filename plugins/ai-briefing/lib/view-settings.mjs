@@ -659,8 +659,9 @@ function validateBrandingLayer({ layerName, label, values, assetCtx, notices }) 
           notices.push({ kind: "invalid", text: `${label}: "${at}.family" must match the closed font-family character set; ignored` });
           return;
         }
+        const weightOk = entry.weight === undefined || typeof entry.weight === "string" || Number.isInteger(entry.weight);
         const weight = entry.weight === undefined ? "400" : String(entry.weight).trim();
-        if (!FONT_WEIGHT.test(weight)) {
+        if (!weightOk || !FONT_WEIGHT.test(weight)) {
           notices.push({ kind: "invalid", text: `${label}: "${at}.weight" is not a valid CSS font-weight; ignored` });
           return;
         }
@@ -688,8 +689,8 @@ function validateBrandingLayer({ layerName, label, values, assetCtx, notices }) 
           dataUrl: `data:${font.mediaType};base64,${read.bytes.toString("base64")}`,
         });
       });
+      if (rawFonts.length === 0 || validFonts.length > 0) accepted.fonts = validFonts;
     }
-    if (validFonts.length) accepted.fonts = validFonts;
   }
   const hasSvg = Object.hasOwn(values, "branding.logo.svg");
   const hasFile = Object.hasOwn(values, "branding.logo.file");
@@ -749,13 +750,19 @@ export function resolveBranding({ userConfig = null, projectRoot = null, teamRef
   const localLayer = layers.find((l) => l.name === "local");
   const teamLayer = layers.find((l) => l.name === "team");
   const checkout = localLayer?.path ? resolve(localLayer.path, ...PERSONAL_FILE.split("/").map(() => "..")) : root;
-  const personalTrusted = Boolean(localLayer?.path && localLayer.state === "loaded" && personalOverrideApplies(checkout, localLayer.path, [], { requireIgnored: true }));
+  const personalWarnings = [];
+  const personalPresent = Boolean(localLayer?.path && localLayer.state === "loaded");
+  const personalApplies = personalPresent && personalOverrideApplies(checkout, localLayer.path, personalWarnings, { requireIgnored: false });
+  if (personalPresent && !personalApplies) {
+    for (const w of personalWarnings) notices.push({ kind: "ignored", text: w });
+  }
+  const personalTrusted = personalApplies && personalOverrideApplies(checkout, localLayer.path, [], { requireIgnored: true });
   const assetCtx = { root, checkout, personalTrusted, teamSha: team ? team.sha : undefined, userHome };
 
   const ordered = [
     { layerName: "userConfig", sourceName: "userConfig", label: "userConfig", values: userValues },
     ...(teamLayer ? [{ layerName: "team", sourceName: "team", label: `team ${shown(teamLayer.path)}`, values: teamLayer.values }] : []),
-    ...(localLayer ? [{ layerName: "local", sourceName: "personal override", label: `personal override ${shown(localLayer.path)}`, values: localLayer.values }] : []),
+    ...(personalApplies ? [{ layerName: "local", sourceName: "personal override", label: `personal override ${shown(localLayer.path)}`, values: localLayer.values }] : []),
   ];
 
   const palette = {
