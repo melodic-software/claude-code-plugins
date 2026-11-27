@@ -168,6 +168,53 @@ assert_eq "no entry in the report keeps the uninstall default" "uninstall" "$(en
 assert_eq "an unreadable settings file counts as a committed enable" "update" "$(entry_plan '"unreadable"')"
 assert_eq "a report without the field counts as a committed enable" "update" "$(entry_plan '"missing"')"
 
+FLEET="$TEST_TMPDIR/fleet"
+F_REPO="$FLEET/repo"
+F_WT="$FLEET/wt"
+F_HOME="$FLEET/home"
+F_GONE="$FLEET/gone"
+tracked_repo "$F_REPO" '{"beta@mk":false}'
+git -C "$F_REPO" worktree add -q "$F_WT" -b wt
+mkdir -p "$F_HOME"
+for spec in alpha=1.2.0 beta=1.2.0 gamma=1.2.0 delta=1.2.0 epsilon=1.2.0 zeta=1.0.5; do
+  mkdir -p "$FLEET/catalog/mk/${spec%=*}/.claude-plugin"
+  printf '{"version":"%s"}\n' "${spec#*=}" >"$FLEET/catalog/mk/${spec%=*}/.claude-plugin/plugin.json"
+done
+jq -cn '{plugins: [("alpha", "beta", "gamma", "delta", "epsilon", "zeta") | {name: ., source: ("./" + .)}]}' \
+  >"$FLEET/catalog/mk.json"
+jq -cn '{mk: {source: {source: "github", repo: "e/mk"}, installLocation: "unused", lastUpdated: "2026-01-01T00:00:00Z"}}' \
+  >"$FLEET/known_marketplaces.json"
+printf '{"enabledPlugins":{}}\n' >"$FLEET/user_settings.json"
+jq -n --arg repo "$F_REPO" --arg wt "$F_WT" --arg home "$F_HOME" --arg gone "$F_GONE" '
+  def u($v): {scope: "user", installPath: "u", version: $v};
+  def p($path; $v): {scope: "project", projectPath: $path, installPath: "p", version: $v};
+  {version: 1, plugins: {
+    "alpha@mk": [u("1.2.0"), p($repo; "1.0.0")],
+    "beta@mk": [u("1.2.0"), p($repo; "1.0.0")],
+    "gamma@mk": [u("1.2.0"), p($gone; "1.0.0")],
+    "delta@mk": [u("1.2.0"), p($home; "1.0.0")],
+    "epsilon@mk": [u("1.2.0"), p($wt; "1.0.0")],
+    "zeta@mk": [u("1.0.0"), p($repo; "1.1.0")]}}' >"$FLEET/installed_plugins.json"
+fleet_env=(HOME="$F_HOME" CLAUDE_PROJECT_DIR="$FLEET"
+  FLEET_STATE_INSTALLED_JSON="$FLEET/installed_plugins.json"
+  FLEET_STATE_MARKETPLACES_JSON="$FLEET/known_marketplaces.json"
+  FLEET_STATE_USER_SETTINGS="$FLEET/user_settings.json"
+  FLEET_STATE_CATALOG_DIR="$FLEET/catalog")
+env "${fleet_env[@]}" bash "$SCRIPT_DIR/fleet-state.sh" --marketplace mk >"$FLEET/report.json"
+assert_eq "fleet seam: fleet-state reads the fixture fleet" "0" "$?"
+FLEET_PLAN="$("$SCRIPT" --from "$FLEET/report.json")"
+counts() { jq -r '.counts | "\(.actionable) \(.worktree) \(.["blocked-absent"]) \(.["blocked-home"]) \(.["blocked-catalog"]) \(.rows)"' <<<"$1"; }
+assert_eq "fleet seam: actionable, worktree, blocked-absent, blocked-home, blocked-catalog, rows" \
+  "2 1 1 1 1 6" "$(counts "$FLEET_PLAN")"
+fleet_row() { jq -r --arg id "$1" ".groups[].rows[] | select(.id == \$id) | $2" <<<"$FLEET_PLAN"; }
+assert_eq "fleet seam: each pin's class comes from the real report" \
+  "actionable actionable blocked-absent blocked-home worktree blocked-catalog" \
+  "$(fleet_row alpha@mk .class) $(fleet_row beta@mk .class) $(fleet_row gamma@mk .class) $(fleet_row delta@mk .class) $(fleet_row epsilon@mk .class) $(fleet_row zeta@mk .class)"
+assert_eq "fleet seam: the committed false entry fleet-state read defaults beta to update, alpha to uninstall" \
+  "update uninstall" "$(fleet_row beta@mk .strategy) $(fleet_row alpha@mk .strategy)"
+assert_eq "fleet seam: running fleet-state itself plans the same fleet" "$FLEET_PLAN" \
+  "$(env "${fleet_env[@]}" "$SCRIPT" --marketplace mk)"
+
 "$SCRIPT" --from "$TEST_TMPDIR/missing.json" >/dev/null 2>&1
 assert_eq "missing --from file exits 2" "2" "$?"
 printf '{"marketplaces":{}}' >"$TEST_TMPDIR/envelope.json"
