@@ -27,13 +27,15 @@ session: a trigger while one is in flight starts none, except a gate check, whic
 
 **What.** A check is a `$.model.fork` with a prompt only: it reuses the main thread's cached
 request, has no tools and writes nothing to the transcript. The prompt asks for at most one fault in
-four categories (`process`, `decision`, `verification`, `instruction`), each tied to a rule or owner
+four categories (`process`, `decision`, `verification`, `instruction`), plus `request` (a skipped or
+unanswered part of the person's latest request, or drift from the session's stated goal) with
+`observer_request_check` on (off by default), each tied to a rule or owner
 decision the session's own instructions or conversation state, and defaults to `finding: none`. The
 reply is labeled lines, parsed leniently; a reply with no rule, an unknown category or a field over
 `observer_field_max` (240) characters counts as `parse_failed`.
 
 **Stale and repeated replies.** A reply that arrives after the next turn started, or after the
-session ended, is dropped as `stale`. Findings already reported (the last `observer_list_max`, default 50, across sessions) and
+session ended, is dropped as `stale`; its row's `held` says whether it carried a finding. Findings already reported (the last `observer_list_max`, default 50, across sessions) and
 findings the person disputed are listed in the prompt and dropped again in code (`deduped`), matched
 case-insensitively without a trailing period.
 
@@ -89,7 +91,7 @@ unchanged. No finding, a fork error or `observer_gate_timeout_seconds` (default 
 run: an observer fault never blocks work.
 
 **Harness checks.** With `observer_harness_check` on (off by default), the pure module
-`hooks/observer-harness.ts` (event in, findings out) runs five scripted checks on the main thread
+`hooks/observer-harness.ts` (event in, findings out) runs six scripted checks on the main thread
 that call no model, so they cost no tokens:
 
 - *Hook latency*: at each turn's end, reads `<observer_hook_log_dir>/sessions/<session>.jsonl`,
@@ -102,6 +104,9 @@ that call no model, so they cost no tokens:
   counts, and each cause is shown once a session.
 - *Slow tool*: `tool.run` times each call; a tool (a Bash command by its first two words) that runs
   past `observer_tool_slow_seconds` `observer_tool_repeat` times is reported once.
+- *Loop*: a tool (keyed the same way) whose call fails `observer_loop_repeat` times in a row with
+  the same error (its first line, digits masked) is reported once per tool and error; a success
+  resets the count. `0` turns it off.
 - *Context*: each upward crossing of an `observer_context_percents` value.
 - *Rate limit*: a window at or past `observer_rate_limit_percent`, once per reset.
 
@@ -124,7 +129,8 @@ append), `auto_send_failed` rows with the error, and one row per observer turn w
 gate rows carry trigger `gate`, outcome `refused`, `none`, `timeout`, `error` or
 `allowed_after_refusals`, and `repeat`. A `parse_failed` row, check or gate, adds `reason`
 (`no_finding`, `no_rule`, `bad_category` or `field_too_long:<field>`) and, when the reply had a
-finding, the `lengths` of its finding, rule and evidence; never the reply text. That file is
+finding, the `lengths` of its finding, rule and evidence; never the reply text. A `shown` check row
+and a `refused` gate row carry the finding's `category`. That file is
 how a day's cost is read, and its presence tells the catch-up this session had live checks.
 
 **Storage and retention.** One usage file per session and per machine, each with one writer, so no
@@ -296,6 +302,7 @@ Declared in the plugin manifest; the module and the SessionStart hook read the s
 | `observer_gate_pattern` | `git push`, `gh pr create\|merge\|comment\|review`, `gh issue create\|comment`, `gh api` with a writing method | Regular expression for the held commands. |
 | `observer_gate_timeout_seconds` | `30` | Longest hold; the command then runs. |
 | `observer_gate_refusals` | `1` | Times the same command is refused before it runs. |
+| `observer_request_check` | `false` | Add the `request` category to the live checks. |
 | `observer_harness_check` | `false` | Run the scripted harness checks (see "Harness checks"); they call no model. |
 | `observer_hook_log_dir` | `.observability/claude` | Folder of session-telemetry's per-session hook log, absolute or relative to the project. |
 | `observer_hook_p95_ms` | `1000` | Hook p95 latency budget in milliseconds. |
@@ -303,6 +310,7 @@ Declared in the plugin manifest; the module and the SessionStart hook read the s
 | `observer_cache_miss_tokens` | `50000` | Rewritten cache tokens in one turn that count as a miss. |
 | `observer_tool_slow_seconds` | `60` | Seconds after which a tool call counts as slow. |
 | `observer_tool_repeat` | `3` | Slow calls of one tool before it is reported. |
+| `observer_loop_repeat` | `3` | Failures in a row with the same error before a tool is reported as a loop; `0` is off. |
 | `observer_context_percents` | `50,75` | Context-window percentages whose upward crossing is reported. |
 | `observer_rate_limit_percent` | `80` | Rate-limit window percent used that is reported, once per reset. |
 | `observer_clear_after_prompts` | `2` | Prompts a shown finding survives unanswered. |

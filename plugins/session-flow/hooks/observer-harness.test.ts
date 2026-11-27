@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { commandKey, harness, harnessInitial, type HarnessEvent, type HarnessState, hookRunsFrom, p95, sessionCommand, type Where } from './observer-harness.ts'
+import { commandKey, errorKey, harness, harnessInitial, type HarnessEvent, type HarnessState, hookRunsFrom, p95, sessionCommand, type Where } from './observer-harness.ts'
 import { fixText, ledgerSection, noteFor, summarize } from './observer-live.ts'
 import { initial, readOptions, step } from './observer-machine.ts'
 import HOOK_LOG from './observer-harness.hook-log.ts'
@@ -127,6 +127,23 @@ test('a model switch names both models and routes the fix here, once per cause',
   expect(r.findings).toHaveLength(1)
   expect(r.findings[0]!.finding.finding).toContain('from m1 to m2')
   expect(r.findings[0]!.finding.fix?.route).toBe('here')
+})
+
+test('a tool failing the same way observer_loop_repeat times in a row is reported once as a loop', () => {
+  const key = commandKey('Bash', 'npm test')
+  const fail = (error: string): HarnessEvent => ({ kind: 'tool-ran', key, ms: 100, error })
+  const ok: HarnessEvent = { kind: 'tool-ran', key, ms: 100 }
+  const r = run([fail('E1'), fail('E1'), ok, fail('E1'), fail('E2'), fail('E2'), fail('E2'), fail('E2')])
+  expect(r.findings).toHaveLength(1)
+  expect(r.findings[0]!.check).toBe('loop')
+  expect(r.findings[0]!.finding.finding).toBe('Bash: npm test failed 3 times in a row with the same error.')
+  expect(r.findings[0]!.finding.fix?.route).toBe('here')
+  expect(r.rows).toEqual([{ harness: 'loop', subject: 'Bash: npm test' }])
+  expect(run([fail('E1'), fail('E1'), fail('E1')], { observer_loop_repeat: 0 }).findings).toEqual([])
+})
+
+test('errorKey keeps the first non-empty line with digits masked', () => {
+  expect(errorKey('\nExit code 2\nmore')).toBe('Exit code #')
 })
 
 test('a Bash command is reported after observer_tool_repeat slow runs, keyed by its first two words', () => {
