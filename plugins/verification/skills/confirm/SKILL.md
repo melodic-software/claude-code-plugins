@@ -1,5 +1,5 @@
 ---
-description: "Prove a change achieved its intended outcome: a mechanical build+test+lint prerequisite (delegated to /toolchain:check and /toolchain:lint, STOPs if broken), then outcome verification. Does the change match the plan/intent and function correctly, with the criterion auto-detected by change-type (feature, fix, refactor). Use when: 'verify changes', 'prove this works', 'did we build the right thing', 'is this done', 'check my work', 'did the fix actually work'; for quick mechanical-only checks use /toolchain:check, for measurable-improvement claims use /verification:measure."
+description: "Run build, test, and lint checks (stopping if broken), then confirm a feature, fix, or refactor matches its plan/intent and delivers the intended outcome. Use when 'verify changes', 'prove this works', 'is this done'. Not for mechanical-only checks: /toolchain:check; or measurable-improvement claims: /verification:measure."
 user-invocable: true
 argument-hint: "[outcome|fix|refactor] [--unattended] [ecosystem|all]"
 disable-model-invocation: false
