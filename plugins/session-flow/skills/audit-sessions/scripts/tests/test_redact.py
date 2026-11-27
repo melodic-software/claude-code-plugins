@@ -41,6 +41,14 @@ def test_documented_example_token_is_replaced_with_its_rule_id() -> None:
     )
 
 
+def test_a_match_ending_a_line_keeps_the_line_break_and_what_follows() -> None:
+    matched = "".join(("ke", "y path: message.usage.cache_creation.ephemeral_5m_input_tokens"))
+    text = f"drift {matched}\nnext line\n"
+    redacted = redact.load_redactor().redact(text)
+    assert redacted == "drift <redacted:generic-api-key>\nnext line\n"
+    assert redacted.count("\n") == text.count("\n"), "a redaction never joins two lines"
+
+
 def test_mid_pattern_case_flag_survives_vendoring() -> None:
     token = "".join(("lin_", "api_", "Ab3" * 13, "Z"))
     assert (

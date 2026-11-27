@@ -49,7 +49,7 @@ import json
 import re
 import socket
 import warnings
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Protocol
@@ -143,7 +143,7 @@ class Redactor:
         lowered = text.lower()
         for rule in self.rules:
             if not rule.keywords or any(k in lowered for k in rule.keywords):
-                text = rule.pattern.sub(f"<redacted:{rule.id}>", text)
+                text = rule.pattern.sub(_placeholder(f"<redacted:{rule.id}>"), text)
         for pattern, replacement in _PASSES:
             text = pattern.sub(replacement, text)
         for index, (_, label) in enumerate(_PRE_PASSES):
@@ -155,6 +155,20 @@ class Redactor:
         if self.fail_closed:
             return None
         return self.redact(text)[:limit]
+
+
+def _placeholder(label: str) -> Callable[[re.Match[str]], str]:
+    """Replace a rule match up to the end of its last capture group, keeping the terminator gitleaks
+    rules match after the secret and each line break the match held before it."""
+
+    def swap(match: re.Match[str]) -> str:
+        groups = [i for i in range(1, (match.re.groups or 0) + 1) if match.start(i) >= 0]
+        first = min((match.start(i) for i in groups), default=match.start())
+        cut = max((match.end(i) for i in groups), default=match.end())
+        lead = match.string[match.start():first]
+        return label + "\n" * lead.count("\n") + match.string[cut:match.end()]
+
+    return swap
 
 
 def _compile(regex: str) -> re.Pattern[str]:
