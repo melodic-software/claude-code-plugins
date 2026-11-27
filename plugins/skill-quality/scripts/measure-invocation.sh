@@ -197,7 +197,7 @@ cmd_validate() {
   fi
   local root
   root="$(repo_root)"
-  local f nfiles=0 unresolved=0 cross=0 cross_files=0
+  local f nfiles=0 unresolved=0 cross=0 cross_files=0 dmi_comps=0 dmi_files=0
   local -a files
   mapfile -t files < <(probe_files "$dir")
   if [[ ${#files[@]} -eq 0 ]]; then
@@ -287,7 +287,7 @@ cmd_validate() {
     else
       warn "$f ($skill): no skill_dir; score cannot load a listing"
     fi
-    local vcomp vcomp_dir vcmd
+    local vcomp vcomp_dir vcmd dmi_in_file=0
     while IFS= read -r vcomp; do
       [[ -z "$vcomp" ]] && continue
       vcomp_dir="$(jq -r --arg c "$vcomp" '.competitor_dirs[$c] // empty' "$f")"
@@ -295,14 +295,25 @@ cmd_validate() {
         vcomp_dir="$(derived_competitor_dir "$vcomp" || true)"
       fi
       if [[ -n "$vcomp_dir" ]] && vcmd="$(resolve_skill_md "$root" "$vcomp_dir")" && is_dmi_true "$vcmd"; then
-        warn "$f ($skill): competitor '$vcomp' sets disable-model-invocation: true and never competes in model auto-invocation"
+        if ((verbose)); then
+          warn "$f ($skill): competitor '$vcomp' sets disable-model-invocation: true and never competes in model auto-invocation"
+        else
+          dmi_in_file=$((dmi_in_file + 1))
+        fi
       fi
     done < <(jq -r '.competitors[]?' "$f")
+    if ((dmi_in_file > 0)); then
+      dmi_comps=$((dmi_comps + dmi_in_file))
+      dmi_files=$((dmi_files + 1))
+    fi
     ((verbose)) && note "$skill: $n queries (pos=$pos neg=$neg train=$train validation=$val)"
   done
   note "validated $nfiles probe file(s)"
   if ((cross > 0)); then
     note "$cross competitor(s) in $cross_files probe file(s) are not from the file's plugin; a rewrite in that plugin moves the probe's listing-overlap score (fine for a live emit-plugin-eval set, which loads it as a rival); --verbose prints one WARN per competitor and each skill's listing and query split"
+  fi
+  if ((dmi_comps > 0)); then
+    warn "$dmi_comps competitor(s) in $dmi_files probe file(s) set disable-model-invocation: true and never compete in model auto-invocation (pass --verbose to list each)"
   fi
   if ((unresolved > 0)); then
     note "$unresolved of $nfiles probe file(s) have a skill_dir that does not resolve under $root; score cannot load those listings (see reference/invocation-probes.md, Outside the marketplace checkout)"

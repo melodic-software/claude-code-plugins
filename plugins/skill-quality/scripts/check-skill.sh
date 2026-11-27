@@ -324,7 +324,7 @@ phrase_lexically_covered() {
       gsub(/\047/, "", p)
 
       text = tolower(ENVIRON["LISTING"])
-      sub(/(^|[.!?][[:space:]]+)(not for|skip when)([^a-z0-9]|$).*$/, "", text)
+      sub(/(^|[.!?;][[:space:]]+)(not for|skip when)([^a-z0-9]|$).*$/, "", text)
       gsub(/\047/, "", text)
       gsub(/[^a-z0-9-]+/, " ", text)
       n = split(text, tw, " ")

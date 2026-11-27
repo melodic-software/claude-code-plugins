@@ -5840,6 +5840,50 @@ else
   fail "check 3 should not count Not for words as coverage (rc=$rc): $out"
 fi
 
+make_skill neg-clause-drop '---
+name: neg-clause-drop
+description: "Review docs. Use when: '\''check prose'\''; not for audit markdown."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Moves dropped trigger words into a semicolon-delimited not for clause.
+
+## Gotchas
+
+None known.
+'
+out="$(run neg-clause-drop 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: dropped trigger keyword.*audit markdown" <<<"$out"; then
+  pass "check 3 does not treat words inside a semicolon-delimited not for clause as lexical coverage"
+else
+  fail "check 3 should not count semicolon not for words as coverage (rc=$rc): $out"
+fi
+
+make_skill neg-clause-drop '---
+name: neg-clause-drop
+description: "Review docs. Use when: '\''check prose'\''; skip when audit markdown is requested."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Moves dropped trigger words into a semicolon-delimited skip when clause.
+
+## Gotchas
+
+None known.
+'
+out="$(run neg-clause-drop 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: dropped trigger keyword.*audit markdown" <<<"$out"; then
+  pass "check 3 does not treat words inside a semicolon-delimited skip when clause as lexical coverage"
+else
+  fail "check 3 should not count semicolon skip when words as coverage (rc=$rc): $out"
+fi
+
 make_skill dmi-because-when '---
 name: dmi-because-when
 description: "Verify prerequisites because when paths drift setup fails cleanly. Read-only check."

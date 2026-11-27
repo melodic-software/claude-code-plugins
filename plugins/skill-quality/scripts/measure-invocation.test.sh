@@ -578,10 +578,19 @@ jq '.competitors += ["fixture:dmi-rival"] | .competitor_dirs["fixture:dmi-rival"
   "$TMP/probes/target.json" >"$TMP/dmi/probes/target.json"
 out="$(run validate "$TMP/dmi/probes" 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q "WARN:.*fixture:dmi-rival.*disable-model-invocation: true" <<<"$out"; then
-  pass "validate warns when a competitor sets disable-model-invocation: true"
+if [[ $rc -eq 0 ]] &&
+  grep -q "WARN: 1 competitor(s) in 1 probe file(s) set disable-model-invocation: true" <<<"$out" &&
+  ! grep -q "fixture:dmi-rival" <<<"$out"; then
+  pass "validate collapses disable-model-invocation: true competitor warnings into one summary line by default"
 else
-  fail "validate should warn on a dmi:true competitor (rc=$rc): $out"
+  fail "validate should collapse dmi:true competitor warnings by default (rc=$rc): $out"
+fi
+out_v="$(run validate --verbose "$TMP/dmi/probes" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN:.*fixture:dmi-rival.*disable-model-invocation: true" <<<"$out_v"; then
+  pass "validate --verbose names each disable-model-invocation: true competitor"
+else
+  fail "validate --verbose should name each dmi:true competitor (rc=$rc): $out_v"
 fi
 dmi_score="$(run score "$TMP/dmi/probes" 2>"$TMP/dmi-score.err")"
 rc=$?
