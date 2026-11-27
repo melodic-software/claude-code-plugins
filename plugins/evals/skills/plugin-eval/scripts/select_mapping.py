@@ -807,32 +807,39 @@ def _shell_var_dirs(lines, base_dir):
     return var_dirs, assign_lines
 
 
-def _line_refs(line, base_dir, var_dirs, eval_norm):
+def _holds_suite(path, eval_norm):
+    return path == eval_norm or eval_norm.startswith(path + os.sep)
+
+
+def _line_refs(line, base_dir, var_dirs, eval_norm, wide=None):
+    """The suite paths `line` names; one naming the suite folder or a folder above it goes into
+    `wide` when given."""
     refs = set()
+
+    def keep(resolved):
+        if _in_eval_suite(resolved, eval_norm):
+            refs.add(resolved)
+        elif wide is not None and _holds_suite(resolved, eval_norm):
+            wide.add(resolved)
+
     for dn_match in DIRNAME_INNER_RE.finditer(line):
-        resolved = _dirname_resolved(line, dn_match, base_dir)
-        if _in_eval_suite(resolved, eval_norm):
-            refs.add(resolved)
+        keep(_dirname_resolved(line, dn_match, base_dir))
     for token in _extract_relative_paths(line):
-        resolved = os.path.normpath(os.path.join(base_dir, token))
-        if _in_eval_suite(resolved, eval_norm):
-            refs.add(resolved)
+        keep(os.path.normpath(os.path.join(base_dir, token)))
     for var_name, var_dir in var_dirs.items():
         var_re = re.compile(
             r"\$\{" + re.escape(var_name) + r"\}|\$" + re.escape(var_name) + r"(?![A-Za-z0-9_])"
         )
         for match in var_re.finditer(line):
             suffix = _suffix_after(line, match.start(), match.end())
-            resolved = _resolve_shell_subpath(var_dir, suffix)
-            if _in_eval_suite(resolved, eval_norm):
-                refs.add(resolved)
+            keep(_resolve_shell_subpath(var_dir, suffix))
     return refs
 
 
 def _suite_ref_sites(fpath, text, eval_norm):
-    """Each reference `fpath` makes into the suite: (line, refs, runs, rest, rest_refs), where
-    `runs` is the one script a shell line or a `scaffold_script` value executes and `rest` the
-    line after that script's path."""
+    """Each reference `fpath` makes into the suite: (line, refs, runs, rest, rest_refs, wide),
+    where `runs` is the one script a shell line or a `scaffold_script` value executes, `rest` the
+    line after that script's path, and `wide` whether it names the suite folder or one above."""
     base_dir = os.path.dirname(fpath)
     lines = text.splitlines()
     var_dirs, assign_lines = _shell_var_dirs(lines, base_dir)
@@ -844,8 +851,9 @@ def _suite_ref_sites(fpath, text, eval_norm):
         stripped = line.lstrip()
         if not stripped or stripped.startswith("#"):
             continue
-        refs = _line_refs(line, base_dir, var_dirs, eval_norm)
-        if not refs:
+        wide = set()
+        refs = _line_refs(line, base_dir, var_dirs, eval_norm, wide)
+        if not refs and not wide:
             continue
         runs, rest, rest_refs = None, line, refs
         shape = SCRIPT_RUN_RE.match(stripped) if is_shell else None
@@ -855,7 +863,7 @@ def _suite_ref_sites(fpath, text, eval_norm):
                 runs = next(iter(path_refs))
                 rest = shape.group("rest")
                 rest_refs = _line_refs(rest, base_dir, var_dirs, eval_norm)
-        sites.append((line, refs, runs, rest, rest_refs))
+        sites.append((line, refs, runs, rest, rest_refs, bool(wide)))
 
     if os.path.basename(fpath) == "case.yaml":
         try:
@@ -872,7 +880,9 @@ def _suite_ref_sites(fpath, text, eval_norm):
                         resolved = os.path.normpath(os.path.join(base_dir, entry))
                         if _in_eval_suite(resolved, eval_norm):
                             runs = resolved if field == "scaffold_script" else None
-                            sites.append((None, {resolved}, runs, "", set()))
+                            sites.append((None, {resolved}, runs, "", set(), False))
+                        elif _holds_suite(resolved, eval_norm):
+                            sites.append((None, set(), None, "", set(), True))
     return sites
 
 
@@ -949,7 +959,7 @@ def _covers(ref, target):
 def hidden_from_agent(eval_abs, target_abs, cases, owning_case=None):
     """Whether the agent under test can never see `target_abs`: the owning case's `case.yaml`,
     or a shell script some case's scaffold runs that no case's files copy, print, read, pass on
-    or name in any other form, and that never reads its own source. Unsure is visible."""
+    or name, or name a folder holding it, in any other form, and that never reads its own source. Unsure is visible."""
     target = os.path.normpath(target_abs)
     if owning_case is not None and target == os.path.normpath(
         os.path.join(owning_case.abs_dir, "case.yaml")
@@ -966,7 +976,9 @@ def hidden_from_agent(eval_abs, target_abs, cases, owning_case=None):
     for case in cases:
         for fpath, (text, sites) in _case_suite_files(case, eval_norm).items():
             run_lines = set()
-            for line, refs, runs, rest, rest_refs in sites:
+            for line, refs, runs, rest, rest_refs, wide in sites:
+                if wide:
+                    return False
                 if not any(_covers(ref, target) for ref in refs):
                     continue
                 if runs != target or any(_covers(ref, target) for ref in rest_refs):

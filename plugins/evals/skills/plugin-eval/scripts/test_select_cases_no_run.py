@@ -509,6 +509,31 @@ class SelectCasesNoRunTest(unittest.TestCase):
         block = self._edit_and_select(setup, "# Prints the fixture.\n", "")
         self.assertEqual("one-basic", block.get("cases"), "the glob copy can reach the helper")
 
+    def test_helper_under_a_copied_evals_folder_still_runs(self):
+        self._base_with_eval_files('cp -r "$(dirname "$0")/.." ws/\n')
+        setup = self.repo / "plugins/alpha/evals/fixtures/setup.sh"
+        block = self._edit_and_select(setup, "# Prints the fixture.\n", "")
+        self.assertEqual("one-basic", block.get("cases"), "the whole evals folder is copied")
+
+    def test_helper_under_a_copied_plugin_root_still_runs(self):
+        self._base_with_eval_files('cp -r "$(dirname "$0")/../.." ws/\n')
+        setup = self.repo / "plugins/alpha/evals/fixtures/setup.sh"
+        block = self._edit_and_select(setup, "# Prints the fixture.\n", "")
+        self.assertEqual("one-basic", block.get("cases"), "the whole plugin root is copied")
+
+    def test_case_yaml_block_scalar_line_still_runs(self):
+        self._base_with_eval_files()
+        case = self.repo / "plugins/alpha/evals/one-basic/case.yaml"
+        case.write_text(
+            case.read_text(encoding="utf-8")
+            + "expected_outcome: |\n  # Heading the run checks\n  body\n",
+            encoding="utf-8",
+        )
+        _commit_all(self.repo, "add a block scalar")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        block = self._edit_and_select(case, "  # Heading the run checks\n", "")
+        self.assertEqual("one-basic", block.get("cases"), "a block scalar line is content")
+
     def test_grader_comment_deletion_still_runs(self):
         self._base_with_eval_files()
         grader = self.repo / "plugins/alpha/evals/one-basic/graders/check.md"

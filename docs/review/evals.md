@@ -72,8 +72,8 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   (a judge model reads them), samples, and anything a scaffold copies, cats, installs or writes
   into the workspace keep running their case. `select` decides it statically and keeps running
   the case when unsure: a script counts as hidden only when a case's scaffold runs it, no file of
-  a case that reaches it names it, its folder, or a glob or unresolved path that could match it in
-  any other form, and it never reads its own source (owner, 2026-11-27, narrowing Q2218: "The eval
+  a case that reaches it names it, any folder holding it (the evals folder and those above
+  included), or a glob or unresolved path that could match it in any other form, and it never reads its own source (owner, 2026-11-27, narrowing Q2218: "The eval
   dir itself is hidden from the agent",
   [case-authoring.md:56-57](../../plugins/evals/skills/plugin-eval/reference/case-authoring.md), and a
   probe of 150 scaffolds found none of their non-heredoc comments in any workspace file or git

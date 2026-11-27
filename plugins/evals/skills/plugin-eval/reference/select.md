@@ -29,7 +29,7 @@ plugin-wide file is always listed. A comment deletion under `evals/` runs its ca
 model running the case may read it, unless the agent under test cannot see the file: the case's
 `case.yaml`, or a `.sh` or `.bash` script a case's scaffold runs (`bash`, `sh`, `source` or `.`
 with the script's path, or its `context.scaffold_script`) that no file of a case reaching it names,
-or names its folder or a glob or unresolved path that could match it, in any other form, and that never reads its own source (`$0`, `BASH_SOURCE`
+or names any folder holding it (the evals folder and those above included) or a glob or unresolved path that could match it, in any other form, and that never reads its own source (`$0`, `BASH_SOURCE`
 outside `$(dirname ...)`, or its own name). A heredoc or quoted-string line stays content. A swap under `evals/`
 stays exempt. A hunk with any other change keeps the rules above.
 
