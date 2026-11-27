@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""prune-run-roots - remove plugin-eval run roots under $HOME/.ev that no run still uses.
+"""prune-run-roots - remove plugin-eval run roots that no run still uses.
 
     prune-run-roots.py [<run-root>...]
 
-With no argument every direct child of $HOME/.ev is a candidate; a missing
-$HOME/.ev has none. A candidate is removed only when all of these hold:
+With no argument the candidates are every direct child of $HOME/.ev (a missing
+$HOME/.ev has none) except the docker-links state files, and every legacy run
+root: a direct child of $HOME whose name starts with .ev, other than $HOME/.ev
+itself. A candidate is removed only when all of these hold:
 
 - it is a directory, not a symlink, and its realpath is a direct child of the
-  realpath of $HOME/.ev;
+  realpath of $HOME/.ev, or a legacy run root: a direct child of the realpath
+  of $HOME named .ev*, and not the realpath of $HOME/.ev;
 - it holds at least one claude-eval-* directory;
 - nothing in it changed for 3 days: the root and every entry under it, read
   without following symlinks, has an mtime older than 3 days (a directory it
@@ -20,11 +23,13 @@ claude-eval-* directory, chmod 700 on its sealed/, chmod u+rwx on every
 directory below the root, then the root is removed. A symlink is never opened.
 
 One line per candidate: `removed: <path>`, `kept (<reason>): <path>`,
-`refused (<reason>): <path>`, or `left behind (<error>): <path>`.
+`refused (<reason>): <path>`, or `left behind (<error>): <path>`. A legacy
+.ev* entry that is a symlink or holds no sandbox is left, and its line says
+what removing it by hand takes.
 
 Exit: 0 every candidate was removed, kept or refused; 1 a removal failed and
-left a path; 2 nothing was checked: $HOME is unset, $HOME/.ev resolves to the
-root or a shared temp directory, or /proc cannot be read.
+left a path; 2 nothing was checked: $HOME is unset, $HOME or $HOME/.ev resolves
+to the root or a shared temp directory, or /proc cannot be read.
 """
 
 import argparse
@@ -38,6 +43,8 @@ import time
 MIN_PYTHON = (3, 8)
 MAX_IDLE_SECONDS = 3 * 24 * 60 * 60
 SANDBOX_PREFIX = "claude-eval-"
+LEGACY_PREFIX = ".ev"
+STATE_PREFIX = ".docker-link-swap"
 
 
 def shared_dirs():
@@ -115,17 +122,45 @@ def remove(root):
     shutil.rmtree(root)
 
 
-def classify(path, ev_root, now):
+def is_legacy(path, home_root):
+    name = os.path.basename(path)
+    return (
+        os.path.dirname(path) == home_root
+        and name.startswith(LEGACY_PREFIX)
+        and name != ".ev"
+    )
+
+
+def classify(path, ev_root, home_root, now):
     path = path.rstrip(os.sep) or os.sep
     real = os.path.realpath(path)
+    parent, name = os.path.split(os.path.abspath(path))
+    legacy = is_legacy(os.path.join(os.path.realpath(parent), name), home_root)
     if os.path.islink(path):
+        if legacy:
+            return "refused", (
+                "a symlink, not followed; rm on the link alone removes it, once "
+                "nothing uses its target"
+            )
         return "refused", "a symlink, not followed"
     if not os.path.isdir(path):
         return "refused", "not a directory"
-    if os.path.dirname(real) != ev_root:
-        return "refused", "not directly under %s" % ev_root
+    if real == ev_root:
+        return "refused", "%s itself, which holds every run's root" % ev_root
+    legacy = is_legacy(real, home_root)
+    if os.path.dirname(real) != ev_root and not legacy:
+        return "refused", "not directly under %s and not a legacy %s/%s* root" % (
+            ev_root,
+            home_root,
+            LEGACY_PREFIX,
+        )
     try:
         if not has_sandbox(real):
+            if legacy:
+                return "kept", (
+                    "holds no %s* sandbox, so not a run root; remove it by hand "
+                    "only after checking its contents" % SANDBOX_PREFIX
+                )
             return "kept", "holds no %s* sandbox" % SANDBOX_PREFIX
     except OSError as err:
         return "kept", "cannot open it: %s" % err.strerror
@@ -150,6 +185,12 @@ def main(argv=None):
     if not home:
         sys.stderr.write("error: HOME is unset\n")
         return 2
+    home_root = os.path.realpath(home)
+    if home_root in shared_dirs():
+        sys.stderr.write(
+            "error: %s resolves to %s, a shared directory\n" % (home, home_root)
+        )
+        return 2
     ev = os.path.join(home, ".ev")
     ev_root = os.path.realpath(ev)
     if ev_root in shared_dirs():
@@ -161,15 +202,24 @@ def main(argv=None):
 
     if args.paths:
         paths = args.paths
-    elif os.path.isdir(ev_root):
-        paths = sorted(os.path.join(ev, name) for name in os.listdir(ev_root))
     else:
         paths = []
+        if os.path.isdir(ev_root):
+            paths += sorted(
+                os.path.join(ev, name)
+                for name in os.listdir(ev_root)
+                if not name.startswith(STATE_PREFIX)
+            )
+        paths += sorted(
+            os.path.join(home, name)
+            for name in os.listdir(home_root)
+            if name.startswith(LEGACY_PREFIX) and name != ".ev"
+        )
 
     now = time.time()
     candidates = {}
     for path in paths:
-        verdict, detail = classify(path, ev_root, now)
+        verdict, detail = classify(path, ev_root, home_root, now)
         if verdict == "candidate":
             candidates[detail] = path
         else:

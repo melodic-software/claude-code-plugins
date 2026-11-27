@@ -1,0 +1,16 @@
+[
+  {
+    "number": 7,
+    "title": "Same repo related item",
+    "state": "open",
+    "html_url": "https://github.com/o/r/issues/7",
+    "repository_url": "https://api.github.com/repos/o/r"
+  },
+  {
+    "number": 9,
+    "title": "Cross repo related item",
+    "state": "closed",
+    "html_url": "https://github.com/other/x/issues/9",
+    "repository_url": "https://api.github.com/repos/other/x"
+  }
+]

@@ -1,0 +1,32 @@
+{
+  "body": "# v2 body\n",
+  "bodyHtml": "<h1>v2 body</h1>",
+  "createdAt": "2026-09-21T23:00:00Z",
+  "creator": { "id": 2, "login": "hubot" },
+  "description": "Register the callback URL.",
+  "id": 6626,
+  "name": "plan.md",
+  "number": 1,
+  "type": "generic",
+  "updatedAt": "2026-09-24T21:00:00Z",
+  "updatedByActor": { "id": 1, "login": "monalisa" },
+  "url": "https://github.com/o/r/issues/42/artifacts/1",
+  "versions": [
+    {
+      "version": 2,
+      "name": "plan.md",
+      "body": "# v2 body\n",
+      "bodyHtml": "<h1>v2 body</h1>",
+      "createdAt": "2026-09-24T21:00:00Z",
+      "actor": { "id": 1, "login": "monalisa" }
+    },
+    {
+      "version": 1,
+      "name": "plan.md",
+      "body": "# v1 body\nline 2\n",
+      "bodyHtml": "<h1>v1 body</h1>",
+      "createdAt": "2026-09-21T23:00:00Z",
+      "actor": { "id": 2, "login": "hubot" }
+    }
+  ]
+}

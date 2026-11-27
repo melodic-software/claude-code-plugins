@@ -17,7 +17,6 @@ PENDING=(
   display-redaction
   explainer-video
   fleet
-  playwright
   plugin-profiles
   speech
   themes

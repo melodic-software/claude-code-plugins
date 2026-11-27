@@ -464,7 +464,7 @@ lanes:
         needs: [apply-skill-edit-branch]
   maintenance-scan-architecture:
     stage: maintenance
-    enabled: false
+    enabled: true
     every-days: 1
 
 models:

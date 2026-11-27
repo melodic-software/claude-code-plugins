@@ -568,6 +568,7 @@ lib/hook-utils.sh plugins/repo-hygiene/skills/clean/scripts/hook-utils.sh
 lib/hook-utils.sh plugins/source-control/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/speech/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/playwright/hooks/hook-utils.sh
+lib/hook-enabled.sh plugins/playwright/hooks/hook-enabled.sh
 lib/hook-utils.sh plugins/spelling/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/testing/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/session-telemetry/hooks/hook-utils.sh
