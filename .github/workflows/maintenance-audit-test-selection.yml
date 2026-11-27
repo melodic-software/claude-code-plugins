@@ -136,13 +136,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.event.workflow_run.id }}
-        run: scripts/selection-audit.sh red-replay --run-id "$RUN_ID" --out "$RUNNER_TEMP/red-replay"
+        run: |
+          rc=0
+          scripts/selection-audit.sh red-replay --run-id "$RUN_ID" --out "$RUNNER_TEMP/red-replay" || rc=$?
+          if [ -f "$RUNNER_TEMP/red-replay/report.md" ]; then
+            cp "$RUNNER_TEMP/red-replay/report.md" "$RUNNER_TEMP/red-replay/selection-red-replay-${RUN_ID}.md"
+          fi
+          exit "$rc"
       - name: Upload the replay report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
-          name: selection-red-replay-${{ github.event.workflow_run.id }}
-          path: ${{ runner.temp }}/red-replay/report.md
+          name: selection-red-replay-${{ github.event.workflow_run.id }}.md
+          path: ${{ runner.temp }}/red-replay/selection-red-replay-${{ github.event.workflow_run.id }}.md
           retention-days: 7
           archive: false
 
