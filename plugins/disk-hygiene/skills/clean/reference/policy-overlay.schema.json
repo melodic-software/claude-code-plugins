@@ -32,6 +32,11 @@
           "description": "Globs whose matches are protected from deletion.",
           "type": "array",
           "items": { "$ref": "#/$defs/protectionGlob" }
+        },
+        "additional_inventory_bounded_stores": {
+          "description": "Known-large stores the inventory sums under an entry budget instead of listing entry by entry, appended to the baseline list. A relative glob is read against the home directory, an absolute one against the whole path; '*' matches one path segment. Each match is one bounded row reported as not fully inventoried.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/protectionGlob" }
         }
       }
     },
@@ -45,6 +50,9 @@
         "additional_hints": { "$ref": "#/$defs/overlayV1/properties/additional_hints" },
         "additional_protected_path_globs": {
           "$ref": "#/$defs/overlayV1/properties/additional_protected_path_globs"
+        },
+        "additional_inventory_bounded_stores": {
+          "$ref": "#/$defs/overlayV1/properties/additional_inventory_bounded_stores"
         },
         "rules": {
           "description": "Rules that decide what a hinted entry is preselected for. Rules match on hint id or on hint class. Later layers append; when two rules match the same entry, the rule from the later layer wins.",
