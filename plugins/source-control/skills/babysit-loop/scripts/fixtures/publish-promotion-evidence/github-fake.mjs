@@ -4,11 +4,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ghFailure } from "../../publish-promotion-evidence.mjs";
 
-// Real `gh api` responses, recorded 2026-10-12 and 2026-10-13 and trimmed to the fields the
-// publisher reads: from this repository (PRs #7352 and #7063, a merge commit, a check run, a
-// status, an issue event, a review, a comment page, workflow runs, a compare, NOT_FOUND and 422
-// answers). The comment page's body is trimmed to its first line. Each case copies a record and
-// varies number, labels, merger, timestamps and the rung its pin names.
 export const REC = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "recorded.json"), "utf8"));
 export const REPO = "melodic-software/claude-code-plugins";
 export const LANE = "lane-bot[bot]";
@@ -183,10 +178,8 @@ export function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}
       return { total_count: runs.length, workflow_runs: page(runs, rest) };
     }
     if ((m = /^actions\/workflows\/([\w.-]+)\/runs\?created=([^&]+)&per_page=(\d+)&page=(\d+)$/.exec(rest))) {
-      // Every event and branch, newest first, but runs created in one second oldest first (measured
-      // 2026-10-15: runs 3100 and 3101, created in one second, listed 3100 then 3101). With `created`,
-      // GitHub returns at most 1,000 results (REST "List workflow runs for a workflow"); past them, and
-      // measured 2026-10-15, a page is empty with total_count 0, and total_count stops at 2,500.
+      // With `created`, GitHub returns at most 1,000 results per search:
+      // https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow
       const [lo, hi] = decodeURIComponent(m[2]).split("..").map(Date.parse);
       const [size, n] = [Number(m[3]), Number(m[4])];
       if (size * n > 1000) return { total_count: 0, workflow_runs: [] };

@@ -982,3 +982,7 @@ hooks/session-attended.mjs
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/session-attended.mjs -> plugins/*/hooks/session-attended.mjs
+
+# No dedicated check: accepted. Each is the wrapper through which run-plugin-tests.sh finds a node suite.
+# Canonical copy: plugins/user-interface/tests/.
+tests/routing.test.sh

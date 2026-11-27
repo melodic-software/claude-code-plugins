@@ -9,12 +9,17 @@ comment_lint: block
 comment_lint_allow:
   - '^#[[:space:]]*test-scope:'
   - '^//[[:space:]]*test-scope:'
-  - '^#[[:space:]]*fixture-isolation-scope:[[:space:]]*[^[:space:]]'
+  - '^(#|//)[[:space:]]*fixture-isolation-scope:[[:space:]]*[^[:space:]]'
   - '^#[[:space:]]*discriminating-skip-required:[[:space:]]*[^[:space:]]'
   - '^#[[:space:]]*discriminating-skip-ok:[[:space:]]*[^[:space:]]'
   - '^#[[:space:]]*slow-shape-ok:[[:space:]]*[^[:space:]]'
   - '^(#|//)[[:space:]]*cant-fail-ok:[[:space:]]*[^[:space:]]'
   - '^(#|//)[[:space:]]*(BEGIN|END) hold-floor[[:space:]]'
+  - '^(#|//)[[:space:]]*(BEGIN|END) api-budget[[:space:]]'
+  - '^(#|//)[[:space:]]*(BEGIN|END) GENERATED:'
+  - '^(#|//)[[:space:]]*prereq-ok:[[:space:]]*[^[:space:]]'
+  - '^/\*[[:space:]]*rv-chrome:(begin|end)[[:space:]]*\*/$'
+  - '^/\*(EMBED|WAV):[^*]+\*/$'
 comment_lint_exclude:
   # Unedited vendored Apache-2.0 copy of https://github.com/GoogleChrome/web-vitals (web-vitals.LICENSE beside it); see #18772.
   - plugins/planning/shared/web/web-vitals.attribution.iife.js
@@ -29,3 +34,7 @@ comment_lint_exclude:
   - plugins/code-metrics/scripts/fixtures/sources/cm-sample.sh
   - plugins/code-metrics/scripts/fixtures/sources/cm-sample.ts
   - plugins/code-metrics/scripts/fixtures/sources/cm_sample.py
+  - plugins/code-metrics/scripts/fixtures/sources/cm-sample.go
+  - plugins/user-interface/tests/fixtures/review/all-rules.css
+  # Unedited vendored copy from Claude Code's built-in plugin-authoring skill: https://github.com/melodic-software/claude-code-plugins/issues/18772
+  - plugins/themes/hooks/make-colors.js
