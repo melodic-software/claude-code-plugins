@@ -218,6 +218,7 @@ const syncSession = async ($: EngineInterface) => {
   if (sid === st.sid) return
   st.sid = sid
   st.liveFile = `${st.dataDir}/live-${sid}.jsonl`
+  st.otherRules = undefined
   hs = harnessInitial()
   await run($, { kind: 'session-changed' })
   st.rows = parseRows(await readOr($, st.liveFile))

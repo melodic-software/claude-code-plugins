@@ -1003,3 +1003,19 @@ test('a rule found across sessions past the threshold suggests one codify sessio
   await steps($, 't1', 12)
   expect((w.files[ledger]?.match(/A rule was broken/g) ?? []).length).toBe(1)
 })
+
+test('after /clear the codify count reads the ended session as another session', { options: { observer_harness_check: true } }, async ($, on) => {
+  const w = world(on)
+  const rule = 'R6 merge only after the verdict (handoff Current rules)'
+  w.files[`${DATA}/session-flow-observer/live-a.jsonl`] = `${JSON.stringify({ outcome: 'shown', rule })}\n`
+  await start($)
+  await turn($, 't1')
+  w.replies.push(answer(FINDING))
+  await steps($, 't1', 6)
+  w.sid = 'sess-2'
+  await turn($, 't2')
+  w.replies.push(answer(FINDING.replace('Merged without reading', 'Merged again without reading')))
+  await steps($, 't2', 6)
+  const ledgers = ledgerFiles(w).map(f => w.files[f] ?? '').join('\n')
+  expect(ledgers).toContain('A rule was broken in 3 observer findings across 3 sessions')
+})
