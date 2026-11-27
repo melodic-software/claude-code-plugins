@@ -1055,12 +1055,6 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh line-citations {0}
         run: python3 scripts/check-line-citations.py
 
-      - name: Check every restatement carries the canonical clause's qualifiers
-        id: contract_clause_coverage
-        continue-on-error: true
-        shell: bash scripts/run-hygiene-gate.sh contract-clause-coverage {0}
-        run: python3 scripts/check-contract-clause-coverage.py
-
       - name: Warn when behind base on overlapping paths
         id: stale_base
         continue-on-error: true
@@ -1135,32 +1129,6 @@ jobs:
         continue-on-error: true
         shell: bash scripts/run-hygiene-gate.sh lane-coverage {0}
         run: scripts/check-lane-coverage.sh --check
-
-      - name: Check the whole-tree test plan covers the live corpus
-        id: test_plan_corpus
-        continue-on-error: true
-        shell: bash scripts/run-hygiene-gate.sh test-plan-corpus {0}
-        run: |
-          rc=0
-          plan="$(bash scripts/plan-test-lanes.sh 2>/dev/null)" || { echo "::error::the whole-tree plan failed"; exit 1; }
-          legs() { sed -n "s/^$1_plan=//p" <<<"$plan"; }
-          diff <(legs bash | jq -r '.[][]' | LC_ALL=C sort) <(bash scripts/run-plugin-tests.sh --list | LC_ALL=C sort) ||
-            { echo "::error::the whole-tree bash plan is not the bash runner's corpus, each suite once"; rc=1; }
-          diff <(legs python | jq -r '.[][]' | LC_ALL=C sort) <(git ls-files --cached --others --exclude-standard |
-            awk '{ b = $0; sub(/.*\//, "", b) } b ~ /^test_.*\.py$/ && !/\/evals\/fixtures\//' | LC_ALL=C sort) ||
-            { echo "::error::the whole-tree Python plan is not every test module but the eval fixtures"; rc=1; }
-          [[ "$(legs bash | jq '[.[] | length > 0] | all')" == true && "$(legs python | jq '[.[] | length > 0] | all')" == true ]] ||
-            { echo "::error::a leg of the whole-tree plan is empty"; rc=1; }
-          mapfile -t node_suites < <(git ls-files | grep -E '\.test\.(js|mjs|cjs)$')
-          bash scripts/plan-test-lanes.sh -- "${node_suites[@]}" >/dev/null ||
-            { echo "::error::a Node suite runs through neither a wrapper nor a Node package"; rc=1; }
-          exit "$rc"
-
-      - name: Check the test selector against the live tree
-        id: selector_live
-        continue-on-error: true
-        shell: bash scripts/run-hygiene-gate.sh selector-live {0}
-        run: bash scripts/affected-tests-live.sh
 
       - name: Select the changed markdown
         id: changed_md
@@ -1324,23 +1292,11 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh hook-wiring-liveness {0}
         run: scripts/check-hook-wiring-liveness.sh
 
-      - name: Check purged surfaces stayed free of em dashes
-        id: purged_em_dashes
-        continue-on-error: true
-        shell: bash scripts/run-hygiene-gate.sh purged-em-dashes {0}
-        run: scripts/check-purged-em-dashes.sh
-
       - name: Check the planning chain's `Next` graph against the workflow ladder
         id: next_graph
         continue-on-error: true
         shell: bash scripts/run-hygiene-gate.sh next-graph {0}
         run: python3 scripts/check-next-graph.py
-
-      - name: Check the repository for retired vocabulary senses
-        id: vocabulary
-        continue-on-error: true
-        shell: bash scripts/run-hygiene-gate.sh vocabulary {0}
-        run: python3 -I scripts/check-vocabulary.py
 
       - name: Check every skill-count claim against the tree
         id: skill_count_claims
@@ -1477,14 +1433,11 @@ jobs:
             code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}
             code-metrics-skill-prose=${{ steps.code_metrics_skill_prose.outcome }}
             line-citations=${{ steps.line_citations.outcome }}
-            contract-clause-coverage=${{ steps.contract_clause_coverage.outcome }}
             stale-base-overlap=${{ steps.stale_base.outcome }}
             comment-lint=${{ steps.comment_lint.outcome }}
             size-check=${{ steps.size_check.outcome }}
             docs-only-contract=${{ steps.docs_only_contract.outcome }}
             lane-coverage=${{ steps.lane_coverage.outcome }}
-            test-plan-corpus=${{ steps.test_plan_corpus.outcome }}
-            selector-live=${{ steps.selector_live.outcome }}
             markdown=${{ steps.markdown.outcome }}
             typos=${{ steps.typos.outcome }}
             gitleaks=${{ steps.gitleaks.outcome }}
@@ -1501,11 +1454,87 @@ jobs:
             eol-renormalize=${{ steps.eol.outcome }}
             comment-hygiene=${{ steps.comment_hygiene.outcome }}
             hook-wiring-liveness=${{ steps.hook_wiring.outcome }}
-            purged-em-dashes=${{ steps.purged_em_dashes.outcome }}
             next-graph=${{ steps.next_graph.outcome }}
-            vocabulary=${{ steps.vocabulary.outcome }}
             skill-count-claims=${{ steps.skill_count_claims.outcome }}
             runner-policy=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.runner_policy.outcome }}
+        run: scripts/aggregate-hygiene-results.sh
+
+      - name: Log the API budget at the end
+        if: always()
+        timeout-minutes: 1
+        uses: $/.github/actions/log-api-budget
+        with:
+          tokens: github-token
+
+  lint-repo-tree:
+    name: Lint Repo Tree
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 13
+    permissions:
+      contents: read
+      checks: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Check every restatement carries the canonical clause's qualifiers
+        id: contract_clause_coverage
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh contract-clause-coverage {0}
+        run: python3 scripts/check-contract-clause-coverage.py
+
+      - name: Check the whole-tree test plan covers the live corpus
+        id: test_plan_corpus
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh test-plan-corpus {0}
+        run: |
+          rc=0
+          plan="$(bash scripts/plan-test-lanes.sh 2>/dev/null)" || { echo "::error::the whole-tree plan failed"; exit 1; }
+          legs() { sed -n "s/^$1_plan=//p" <<<"$plan"; }
+          diff <(legs bash | jq -r '.[][]' | LC_ALL=C sort) <(bash scripts/run-plugin-tests.sh --list | LC_ALL=C sort) ||
+            { echo "::error::the whole-tree bash plan is not the bash runner's corpus, each suite once"; rc=1; }
+          diff <(legs python | jq -r '.[][]' | LC_ALL=C sort) <(git ls-files --cached --others --exclude-standard |
+            awk '{ b = $0; sub(/.*\//, "", b) } b ~ /^test_.*\.py$/ && !/\/evals\/fixtures\//' | LC_ALL=C sort) ||
+            { echo "::error::the whole-tree Python plan is not every test module but the eval fixtures"; rc=1; }
+          [[ "$(legs bash | jq '[.[] | length > 0] | all')" == true && "$(legs python | jq '[.[] | length > 0] | all')" == true ]] ||
+            { echo "::error::a leg of the whole-tree plan is empty"; rc=1; }
+          mapfile -t node_suites < <(git ls-files | grep -E '\.test\.(js|mjs|cjs)$')
+          bash scripts/plan-test-lanes.sh -- "${node_suites[@]}" >/dev/null ||
+            { echo "::error::a Node suite runs through neither a wrapper nor a Node package"; rc=1; }
+          exit "$rc"
+
+      - name: Check the test selector against the live tree
+        id: selector_live
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh selector-live {0}
+        run: bash scripts/affected-tests-live.sh
+
+      - name: Check purged surfaces stayed free of em dashes
+        id: purged_em_dashes
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh purged-em-dashes {0}
+        run: scripts/check-purged-em-dashes.sh
+
+      - name: Check the repository for retired vocabulary senses
+        id: vocabulary
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh vocabulary {0}
+        run: python3 -I scripts/check-vocabulary.py
+
+      - name: Aggregate hygiene results
+        if: always()
+        env:
+          CHECK_RUN_ID: ${{ job.check_run_id }}
+          GH_TOKEN: ${{ github.token }}
+          CHECK_RESULTS: |
+            contract-clause-coverage=${{ steps.contract_clause_coverage.outcome }}
+            test-plan-corpus=${{ steps.test_plan_corpus.outcome }}
+            selector-live=${{ steps.selector_live.outcome }}
+            purged-em-dashes=${{ steps.purged_em_dashes.outcome }}
+            vocabulary=${{ steps.vocabulary.outcome }}
         run: scripts/aggregate-hygiene-results.sh
 
       - name: Log the API budget at the end
@@ -3285,6 +3314,7 @@ jobs:
       - mark-lanes
       - select-tests
       - lint-repo
+      - lint-repo-tree
       - lint-shell
       - check-plugins
       - check-catalog

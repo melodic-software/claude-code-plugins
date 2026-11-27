@@ -28,6 +28,7 @@ export const RENAMED_JOBS = Object.freeze({
   "mark-lanes": "Mark Lanes",
   "select-tests": "Select Tests",
   "lint-repo": "Lint Repo",
+  "lint-repo-tree": "Lint Repo Tree",
   "lint-shell": "Lint Shell",
   "check-plugins": "Check Plugins",
   "check-catalog": "Check Catalog",

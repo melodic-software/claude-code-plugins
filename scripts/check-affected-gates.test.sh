@@ -12,7 +12,7 @@ GATES="$SELF_DIR/check-affected-gates.txt"
 RUNNER="$SELF_DIR/check-affected.sh"
 
 workflow_gates() {
-  awk -v jobs='lint-repo lint-shell check-plugins check-skills' '
+  awk -v jobs='lint-repo lint-repo-tree lint-shell check-plugins check-skills' '
     BEGIN { n = split(jobs, a, " "); for (i = 1; i <= n; i++) want[a[i]] = 1 }
     /^[^ #]/ { injobs = ($0 ~ /^jobs:/); next }
     injobs && /^  [A-Za-z0-9_-]+:[ \t]*$/ { name = $1; sub(/:$/, "", name); on = (name in want); next }
