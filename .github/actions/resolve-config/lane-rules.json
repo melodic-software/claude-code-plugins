@@ -112,5 +112,10 @@
     "stage": "maintenance",
     "forbidden-effects": ["mutate-branch", "merge"],
     "never": "Writes to a branch, or labels an issue agent-ready"
+  },
+  "maintenance-scan-architecture": {
+    "stage": "maintenance",
+    "forbidden-effects": ["mutate-branch", "publish-artifact", "merge"],
+    "never": "Writes to a branch or a pull request, labels an issue agent-ready, or files an issue without exactly one source: architecture-improve label"
   }
 }

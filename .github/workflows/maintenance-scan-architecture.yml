@@ -1,0 +1,1099 @@
+name: Maintenance Scan Architecture
+
+on:
+  schedule:
+    - cron: "41 7 * * *"
+  # GitHub lets only an account with write access dispatch a run: "Write access to the repository
+  # is required to perform these steps." (https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Scan while the lane is off or not yet due; the cap and no-merges stops still apply
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: maintenance-scan-architecture
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  gate:
+    name: Gate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      issues: read
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+      reason: ${{ steps.gate.outputs.reason }}
+      room: ${{ steps.gate.outputs.room }}
+      base-sha: ${{ github.sha }}
+      next-leg: ${{ steps.credit.outputs.next-leg }}
+      next-reason: ${{ steps.credit.outputs.next-reason }}
+      credit-marker: ${{ steps.credit.outputs.marker }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
+    env:
+      API_BUDGET_TOKEN: github-token
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: .base
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
+      - name: Set up Node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          budget: "true"
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
+          WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
+        run: echo "::notice::${WHY} this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing read or filed"
+
+      - name: Check who started the run
+        id: who
+        if: steps.kill.outputs.proceed == 'true' && (github.event_name == 'workflow_dispatch' || github.run_attempt != '1')
+        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
+        with:
+          denied-actor-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          require-pr: "false"
+          require-kind: human
+          standards-path: ${{ steps.standards.outputs.path }}
+
+      - name: Install resolve-config's packages
+        id: install
+        if: >-
+          steps.kill.outputs.proceed == 'true'
+          && (steps.who.outcome == 'skipped' || steps.who.outputs.proceed == 'true')
+        timeout-minutes: 5
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
+
+      - name: Decide whether to scan
+        id: gate
+        if: steps.install.outcome == 'success'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          BASE_DIR: ${{ github.workspace }}/.base
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
+          EVENT_NAME: ${{ github.event_name }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force && 'true' || 'false' }}
+        run: node .base/.github/scripts/maintenance-scan-architecture/gate.mjs gate
+
+      - name: Read the key's credit history
+        id: credit
+        if: steps.gate.outputs.run == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
+        with:
+          leg: start
+          role: automations
+          key-job: scan
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
+          reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
+          probe-minutes: "0"
+
+      - name: Report the skipped key leg
+        if: steps.credit.outputs.next-leg == 'subscription'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@main
+        with:
+          outcome: skipped
+          lane: maintenance-scan-architecture
+          lane-id: maintenance-scan-architecture
+          credential: AUTOMATIONS_CLAUDE_API_KEY
+          known-failure-class: credit-stop
+          handoff: "true"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  scan:
+    name: Scan
+    needs: gate
+    if: needs.gate.outputs.run == 'true' && needs.gate.outputs.next-leg != 'subscription' && github.run_attempt == '1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    cache-mode: read
+    permissions:
+      contents: read
+    env:
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: "1"
+    outputs:
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
+      sealed-length: ${{ steps.seal.outputs.sealed-length }}
+      sealed-1: ${{ steps.seal.outputs.sealed-1 }}
+      sealed-2: ${{ steps.seal.outputs.sealed-2 }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          path: .base
+          persist-credentials: false
+          set-safe-directory: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.gate.outputs.standards-sha }}
+
+      - name: Set up Node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Resolve the model
+        id: models
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          model-route: resolve-issue
+          base-path: .base
+          output-path: ${{ runner.temp }}/scan-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
+
+      - name: Check the credential
+        id: credential
+        if: steps.models.outcome == 'success'
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
+        with:
+          leg: key
+          role: automations
+          credential-set: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY != '' }}
+          key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
+
+      - name: Stage the plugins and the prompt
+        if: steps.models.outcome == 'success'
+        env:
+          STAGE: ${{ runner.temp }}/scan-stage
+          ROOM: ${{ needs.gate.outputs.room }}
+          PROMPT_FILE: ${{ runner.temp }}/scan-prompt.md
+          SCHEMA_FILE: ${{ runner.temp }}/scan-schema.json
+        run: |
+          mkdir -p "$STAGE/plugins"
+          for plugin in improvement architecture; do
+            cp -R ".base/plugins/$plugin" "$STAGE/plugins/"
+            printf '{"mcpServers":{}}\n' >"$STAGE/plugins/$plugin/.mcp.json"
+          done
+          [ -z "$(find "$STAGE" -type l -print -quit)" ] || { echo "::error::a staged plugin holds a symbolic link"; exit 1; }
+          node .base/.github/scripts/maintenance-scan-architecture/gate.mjs prompt
+          jq -c . .base/.github/scripts/maintenance-scan-architecture/findings.schema.json >"$SCHEMA_FILE"
+
+      - name: Apply the Claude managed settings
+        if: steps.models.outcome == 'success'
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
+
+      - name: Isolate the runner
+        if: steps.models.outcome == 'success'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: "true"
+
+      - name: Check out main with history
+        if: steps.models.outcome == 'success'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          set-safe-directory: false
+
+      - name: Prepare the working tree
+        id: prepare
+        if: steps.models.outcome == 'success'
+        env:
+          STAGE: ${{ runner.temp }}/scan-stage
+          MODEL: ${{ steps.models.outputs.model }}
+        run: bash .github/scripts/maintenance-scan-architecture/prepare-working-tree.sh
+
+      - name: Scan the architecture
+        id: run
+        if: steps.prepare.outcome == 'success' && steps.credential.outputs.present == 'true'
+        continue-on-error: true
+        timeout-minutes: 75
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: maintenance-scan-architecture
+          role: automations
+          prompt-file: ${{ runner.temp }}/scan-prompt.md
+          preamble: You run unattended as the architecture-scan CI lane, and no one can answer a question.
+          api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          sandbox: "false"
+          tools: |
+            Read
+            Grep
+            Glob
+            Skill
+            Write
+            Bash
+            Agent
+          allowed-tools: |
+            Skill
+            Write
+            Bash
+            Agent
+          disallowed-tools: |
+            Bash(git push *)
+            Bash(gh *)
+            Edit
+            Write(./.lane/plugins/**)
+            Read(//proc/**)
+            WebFetch
+            WebSearch
+            mcp__*
+          plugin-dirs: |
+            .lane/plugins/improvement
+            .lane/plugins/architecture
+          json-schema-file: ${{ runner.temp }}/scan-schema.json
+          leg-timeout-minutes: "70"
+
+      - name: Clear the trusted checkout path
+        if: always() && steps.run.outcome != 'skipped'
+        run: rm -rf "${GITHUB_WORKSPACE:?}/.lane-trusted"
+
+      - name: Check out the base for the sealer
+        if: always() && steps.run.outcome != 'skipped'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          path: .lane-trusted
+          persist-credentials: false
+          set-safe-directory: false
+
+      - name: Upload the sealed transcript
+        if: always() && steps.run.outputs.execution-file != ''
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@main
+        with:
+          gate-path: .lane-trusted/lib/publish-gate.mjs
+          hide-trace-ids: "true"
+          execution-file: ${{ steps.run.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}
+
+      - name: Write the key's credit-stop marker
+        id: credit-marker
+        if: always() && needs.gate.outputs.credit-marker == 'key-credit-stop-AUTOMATIONS_CLAUDE_API_KEY' && steps.run.outputs.handoff-reason == 'credit-stop'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          mkdir -p "$RUNNER_TEMP/key-credit-stop"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
+
+      - name: Scan the key's credit-stop marker for credentials
+        id: credit-marker-scan
+        if: always() && steps.credit-marker.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
+        with:
+          gate-path: .lane-trusted/lib/publish-gate.mjs
+          path: ${{ runner.temp }}/key-credit-stop/run-id
+
+      - name: Upload the key's credit-stop marker
+        id: credit-marker-upload
+        if: (always() && steps.credit-marker.outcome == 'success') && steps.credit-marker-scan.outputs.clean == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@v7
+        with:
+          name: key-credit-stop-AUTOMATIONS_CLAUDE_API_KEY
+          overwrite: true
+          path: ${{ runner.temp }}/key-credit-stop/run-id
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Report the key's handoff
+        if: always() && steps.run.outputs.handoff == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          LANE_CLASS: ${{ steps.run.outputs.lane-class }}
+        run: |
+          case "$LANE_CLASS" in
+            auth) line="the API refused AUTOMATIONS_CLAUDE_API_KEY (class auth); the owner must replace the secret, and scan-subscription scans on the subscription token" ;;
+            *) line="AUTOMATIONS_CLAUDE_API_KEY hit a credit stop (class credit-stop); scan-subscription scans on the subscription token" ;;
+          esac
+          echo "::warning::$line"
+          echo "$line" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Record the leg
+        if: always() && steps.run.outcome != 'skipped'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@main
+        with:
+          outcome: ${{ steps.run.outcome }}
+          execution-file: ${{ steps.run.outputs.execution-file }}
+          log-file: ${{ steps.run.outputs.log-file }}
+          lane: maintenance-scan-architecture
+          lane-id: maintenance-scan-architecture
+          credential: ${{ steps.run.outputs.credential }}
+          handoff: ${{ steps.run.outputs.handoff }}
+          known-failure-class: ${{ steps.run.outputs.lane-class }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          fallback-reason: ""
+
+      - name: Seal the findings
+        id: seal
+        if: always() && steps.run.outcome == 'success' && steps.run.outputs.structured-output-file != ''
+        env:
+          TRUSTED: ${{ github.workspace }}/.lane-trusted
+          FINDINGS: ${{ steps.run.outputs.structured-output-file }}
+          JOB_ID: scan
+          MAX_CHUNKS: "2"
+        run: |
+          PUBLIC_KEY_FILE="$TRUSTED/.github/lane-keys/scan-carrier.pub"
+          PAYLOADS="findings.json=$FINDINGS"
+          export PUBLIC_KEY_FILE PAYLOADS
+          node "$TRUSTED/.github/actions/seal-lane-output/seal.mjs"
+
+      - name: Pick the next leg
+        id: next
+        if: ${{ always() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.run.outputs.handoff }}
+          handoff-reason: ${{ steps.run.outputs.handoff-reason }}
+
+      - name: Log the API budget at the end
+        if: always() && steps.run.outcome != 'skipped'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.lane-trusted/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  scan-subscription:
+    name: Scan Subscription
+    needs: [gate, scan]
+    if: >-
+      ${{ !cancelled() && needs.gate.outputs.run == 'true' && github.run_attempt == '1'
+      && (needs.scan.outputs.next-leg == 'subscription' || needs.gate.outputs.next-leg == 'subscription') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    cache-mode: read
+    permissions:
+      contents: read
+    env:
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: "1"
+    outputs:
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
+      credential-present: ${{ steps.credential.outputs.present }}
+      sealed-length: ${{ steps.seal.outputs.sealed-length }}
+      sealed-1: ${{ steps.seal.outputs.sealed-1 }}
+      sealed-2: ${{ steps.seal.outputs.sealed-2 }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          path: .base
+          persist-credentials: false
+          set-safe-directory: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.gate.outputs.standards-sha }}
+
+      - name: Set up Node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Resolve the model
+        id: models
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          model-route: resolve-issue
+          base-path: .base
+          output-path: ${{ runner.temp }}/scan-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
+
+      - name: Check the credential
+        id: credential
+        if: steps.models.outcome == 'success'
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
+        with:
+          leg: subscription
+          role: automations
+          credential-set: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ needs.scan.outputs.next-reason || needs.gate.outputs.next-reason }}
+
+      - name: Stage the plugins and the prompt
+        if: steps.models.outcome == 'success'
+        env:
+          STAGE: ${{ runner.temp }}/scan-stage
+          ROOM: ${{ needs.gate.outputs.room }}
+          PROMPT_FILE: ${{ runner.temp }}/scan-prompt.md
+          SCHEMA_FILE: ${{ runner.temp }}/scan-schema.json
+        run: |
+          mkdir -p "$STAGE/plugins"
+          for plugin in improvement architecture; do
+            cp -R ".base/plugins/$plugin" "$STAGE/plugins/"
+            printf '{"mcpServers":{}}\n' >"$STAGE/plugins/$plugin/.mcp.json"
+          done
+          [ -z "$(find "$STAGE" -type l -print -quit)" ] || { echo "::error::a staged plugin holds a symbolic link"; exit 1; }
+          node .base/.github/scripts/maintenance-scan-architecture/gate.mjs prompt
+          jq -c . .base/.github/scripts/maintenance-scan-architecture/findings.schema.json >"$SCHEMA_FILE"
+
+      - name: Apply the Claude managed settings
+        if: steps.models.outcome == 'success'
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
+
+      - name: Isolate the runner
+        if: steps.models.outcome == 'success'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: "true"
+
+      - name: Check out main with history
+        if: steps.models.outcome == 'success'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          set-safe-directory: false
+
+      - name: Prepare the working tree
+        id: prepare
+        if: steps.models.outcome == 'success'
+        env:
+          STAGE: ${{ runner.temp }}/scan-stage
+          MODEL: ${{ steps.models.outputs.model }}
+        run: bash .github/scripts/maintenance-scan-architecture/prepare-working-tree.sh
+
+      - name: Scan the architecture
+        id: run
+        if: steps.prepare.outcome == 'success' && steps.credential.outputs.present == 'true'
+        continue-on-error: true
+        timeout-minutes: 75
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: maintenance-scan-architecture
+          role: automations
+          prompt-file: ${{ runner.temp }}/scan-prompt.md
+          preamble: You run unattended as the architecture-scan CI lane, and no one can answer a question.
+          subscription-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          sandbox: "false"
+          tools: |
+            Read
+            Grep
+            Glob
+            Skill
+            Write
+            Bash
+            Agent
+          allowed-tools: |
+            Skill
+            Write
+            Bash
+            Agent
+          disallowed-tools: |
+            Bash(git push *)
+            Bash(gh *)
+            Edit
+            Write(./.lane/plugins/**)
+            Read(//proc/**)
+            WebFetch
+            WebSearch
+            mcp__*
+          plugin-dirs: |
+            .lane/plugins/improvement
+            .lane/plugins/architecture
+          json-schema-file: ${{ runner.temp }}/scan-schema.json
+          leg-timeout-minutes: "70"
+
+      - name: Clear the trusted checkout path
+        if: always() && steps.run.outcome != 'skipped'
+        run: rm -rf "${GITHUB_WORKSPACE:?}/.lane-trusted"
+
+      - name: Check out the base for the sealer
+        if: always() && steps.run.outcome != 'skipped'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          path: .lane-trusted
+          persist-credentials: false
+          set-safe-directory: false
+
+      - name: Upload the sealed transcript
+        if: always() && steps.run.outputs.execution-file != ''
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@main
+        with:
+          gate-path: .lane-trusted/lib/publish-gate.mjs
+          hide-trace-ids: "true"
+          execution-file: ${{ steps.run.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}
+
+      - name: Report the subscription's handoff
+        if: always() && steps.run.outputs.handoff == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          HANDOFF_REASON: ${{ steps.run.outputs.handoff-reason }}
+        run: |
+          line="AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN handed off (${HANDOFF_REASON:-unknown}); scan-fallback scans on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
+          echo "::notice::$line"
+          echo "$line" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Record the leg
+        if: always() && steps.run.outcome != 'skipped'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@main
+        with:
+          outcome: ${{ steps.run.outcome }}
+          execution-file: ${{ steps.run.outputs.execution-file }}
+          log-file: ${{ steps.run.outputs.log-file }}
+          lane: maintenance-scan-architecture
+          lane-id: maintenance-scan-architecture
+          credential: ${{ steps.run.outputs.credential }}
+          handoff: ${{ steps.run.outputs.handoff }}
+          known-failure-class: ${{ steps.run.outputs.lane-class }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
+
+      - name: Seal the findings
+        id: seal
+        if: always() && steps.run.outcome == 'success' && steps.run.outputs.structured-output-file != ''
+        env:
+          TRUSTED: ${{ github.workspace }}/.lane-trusted
+          FINDINGS: ${{ steps.run.outputs.structured-output-file }}
+          JOB_ID: scan-subscription
+          MAX_CHUNKS: "2"
+        run: |
+          PUBLIC_KEY_FILE="$TRUSTED/.github/lane-keys/scan-carrier.pub"
+          PAYLOADS="findings.json=$FINDINGS"
+          export PUBLIC_KEY_FILE PAYLOADS
+          node "$TRUSTED/.github/actions/seal-lane-output/seal.mjs"
+
+      - name: Pick the next leg
+        id: next
+        if: ${{ always() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.run.outputs.handoff }}
+          handoff-reason: ${{ steps.run.outputs.handoff-reason }}
+
+      - name: Log the API budget at the end
+        if: always() && steps.run.outcome != 'skipped'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.lane-trusted/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  scan-fallback:
+    name: Scan Fallback
+    needs: [gate, scan-subscription]
+    if: >-
+      ${{ !cancelled() && needs.gate.outputs.run == 'true' && github.run_attempt == '1'
+      && (needs.scan-subscription.outputs.next-leg == 'fallback' || needs.scan-subscription.outputs.credential-present == 'false') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    cache-mode: read
+    permissions:
+      contents: read
+    env:
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: "1"
+    outputs:
+      sealed-length: ${{ steps.seal.outputs.sealed-length }}
+      sealed-1: ${{ steps.seal.outputs.sealed-1 }}
+      sealed-2: ${{ steps.seal.outputs.sealed-2 }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          path: .base
+          persist-credentials: false
+          set-safe-directory: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.gate.outputs.standards-sha }}
+
+      - name: Set up Node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Resolve the model
+        id: models
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          model-route: resolve-issue
+          base-path: .base
+          output-path: ${{ runner.temp }}/scan-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
+
+      - name: Check the credential
+        id: credential
+        if: steps.models.outcome == 'success'
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
+        with:
+          leg: fallback
+          role: automations
+          credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ needs.scan-subscription.outputs.next-reason }}
+
+      - name: Stage the plugins and the prompt
+        if: steps.models.outcome == 'success'
+        env:
+          STAGE: ${{ runner.temp }}/scan-stage
+          ROOM: ${{ needs.gate.outputs.room }}
+          PROMPT_FILE: ${{ runner.temp }}/scan-prompt.md
+          SCHEMA_FILE: ${{ runner.temp }}/scan-schema.json
+        run: |
+          mkdir -p "$STAGE/plugins"
+          for plugin in improvement architecture; do
+            cp -R ".base/plugins/$plugin" "$STAGE/plugins/"
+            printf '{"mcpServers":{}}\n' >"$STAGE/plugins/$plugin/.mcp.json"
+          done
+          [ -z "$(find "$STAGE" -type l -print -quit)" ] || { echo "::error::a staged plugin holds a symbolic link"; exit 1; }
+          node .base/.github/scripts/maintenance-scan-architecture/gate.mjs prompt
+          jq -c . .base/.github/scripts/maintenance-scan-architecture/findings.schema.json >"$SCHEMA_FILE"
+
+      - name: Apply the Claude managed settings
+        if: steps.models.outcome == 'success'
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
+
+      - name: Isolate the runner
+        if: steps.models.outcome == 'success'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: "true"
+
+      - name: Check out main with history
+        if: steps.models.outcome == 'success'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          set-safe-directory: false
+
+      - name: Prepare the working tree
+        id: prepare
+        if: steps.models.outcome == 'success'
+        env:
+          STAGE: ${{ runner.temp }}/scan-stage
+          MODEL: ${{ steps.models.outputs.model }}
+        run: bash .github/scripts/maintenance-scan-architecture/prepare-working-tree.sh
+
+      - name: Scan the architecture
+        id: run
+        if: steps.prepare.outcome == 'success' && steps.credential.outputs.present == 'true'
+        continue-on-error: true
+        timeout-minutes: 75
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: maintenance-scan-architecture
+          role: automations
+          prompt-file: ${{ runner.temp }}/scan-prompt.md
+          preamble: You run unattended as the architecture-scan CI lane, and no one can answer a question.
+          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          sandbox: "false"
+          tools: |
+            Read
+            Grep
+            Glob
+            Skill
+            Write
+            Bash
+            Agent
+          allowed-tools: |
+            Skill
+            Write
+            Bash
+            Agent
+          disallowed-tools: |
+            Bash(git push *)
+            Bash(gh *)
+            Edit
+            Write(./.lane/plugins/**)
+            Read(//proc/**)
+            WebFetch
+            WebSearch
+            mcp__*
+          plugin-dirs: |
+            .lane/plugins/improvement
+            .lane/plugins/architecture
+          json-schema-file: ${{ runner.temp }}/scan-schema.json
+          leg-timeout-minutes: "70"
+
+      - name: Clear the trusted checkout path
+        if: always() && steps.run.outcome != 'skipped'
+        run: rm -rf "${GITHUB_WORKSPACE:?}/.lane-trusted"
+
+      - name: Check out the base for the sealer
+        if: always() && steps.run.outcome != 'skipped'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          path: .lane-trusted
+          persist-credentials: false
+          set-safe-directory: false
+
+      - name: Upload the sealed transcript
+        if: always() && steps.run.outputs.execution-file != ''
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@main
+        with:
+          gate-path: .lane-trusted/lib/publish-gate.mjs
+          hide-trace-ids: "true"
+          execution-file: ${{ steps.run.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}
+
+      - name: Record the leg
+        if: always() && steps.run.outcome != 'skipped'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@main
+        with:
+          outcome: ${{ steps.run.outcome }}
+          execution-file: ${{ steps.run.outputs.execution-file }}
+          log-file: ${{ steps.run.outputs.log-file }}
+          lane: maintenance-scan-architecture
+          lane-id: maintenance-scan-architecture
+          credential: ${{ steps.run.outputs.credential }}
+          handoff: ${{ steps.run.outputs.handoff }}
+          known-failure-class: ${{ steps.run.outputs.lane-class }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
+
+      - name: Seal the findings
+        id: seal
+        if: always() && steps.run.outcome == 'success' && steps.run.outputs.structured-output-file != ''
+        env:
+          TRUSTED: ${{ github.workspace }}/.lane-trusted
+          FINDINGS: ${{ steps.run.outputs.structured-output-file }}
+          JOB_ID: scan-fallback
+          MAX_CHUNKS: "2"
+        run: |
+          PUBLIC_KEY_FILE="$TRUSTED/.github/lane-keys/scan-carrier.pub"
+          PAYLOADS="findings.json=$FINDINGS"
+          export PUBLIC_KEY_FILE PAYLOADS
+          node "$TRUSTED/.github/actions/seal-lane-output/seal.mjs"
+
+      - name: Log the API budget at the end
+        if: always() && steps.run.outcome != 'skipped'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.lane-trusted/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  check-findings:
+    name: Check Findings
+    needs: [gate, scan, scan-subscription, scan-fallback]
+    if: ${{ !cancelled() && (needs.scan-fallback.result != 'skipped' && needs.scan-fallback.outputs.sealed-length || needs.scan-fallback.result == 'skipped' && needs.scan-subscription.result != 'skipped' && needs.scan-subscription.outputs.sealed-length || needs.scan-fallback.result == 'skipped' && needs.scan-subscription.result == 'skipped' && needs.scan.outputs.sealed-length || '') != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    cache-mode: read
+    environment:
+      name: pr-pipeline-scan-carrier
+      deployment: false
+    permissions:
+      contents: read
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      findings-sha256: ${{ steps.hash.outputs.findings }}
+    env:
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: "1"
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          path: .base
+          persist-credentials: false
+          set-safe-directory: false
+
+      - name: Set up Node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Read the scan-carrier key id
+        id: key
+        run: |
+          read -r _ id _ <.base/.github/lane-keys/scan-carrier.pub || true
+          echo "id=$id" >>"$GITHUB_OUTPUT"
+
+      - name: Open the scan job's sealed findings
+        id: open
+        uses: ./.base/.github/actions/open-lane-output # zizmor: ignore[self-repository]
+        with:
+          private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+          expected-key-ids: ${{ steps.key.outputs.id }}
+          job-id: ${{ needs.scan-fallback.result != 'skipped' && 'scan-fallback' || needs.scan-subscription.result != 'skipped' && 'scan-subscription' || 'scan' }}
+          max-bytes: |
+            findings.json=131072
+          directory: ${{ runner.temp }}/scan-in
+          sealed-length: ${{ needs.scan-fallback.result != 'skipped' && needs.scan-fallback.outputs.sealed-length || needs.scan-fallback.result == 'skipped' && needs.scan-subscription.result != 'skipped' && needs.scan-subscription.outputs.sealed-length || needs.scan-fallback.result == 'skipped' && needs.scan-subscription.result == 'skipped' && needs.scan.outputs.sealed-length || '' }}
+          sealed-1: ${{ needs.scan-fallback.result != 'skipped' && needs.scan-fallback.outputs.sealed-1 || needs.scan-fallback.result == 'skipped' && needs.scan-subscription.result != 'skipped' && needs.scan-subscription.outputs.sealed-1 || needs.scan-fallback.result == 'skipped' && needs.scan-subscription.result == 'skipped' && needs.scan.outputs.sealed-1 || '' }}
+          sealed-2: ${{ needs.scan-fallback.result != 'skipped' && needs.scan-fallback.outputs.sealed-2 || needs.scan-fallback.result == 'skipped' && needs.scan-subscription.result != 'skipped' && needs.scan-subscription.outputs.sealed-2 || needs.scan-fallback.result == 'skipped' && needs.scan-subscription.result == 'skipped' && needs.scan.outputs.sealed-2 || '' }}
+
+      - name: Check the findings' shape
+        env:
+          FINDINGS_FILE: ${{ runner.temp }}/scan-in/findings.json
+        run: node .base/.github/scripts/maintenance-scan-architecture/file-findings.mjs check
+
+      - name: Scan the findings for credentials
+        id: scan-findings
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
+        with:
+          gate-path: .base/lib/publish-gate.mjs
+          path: ${{ runner.temp }}/scan-in/findings.json
+
+      - name: Hash the findings
+        id: hash
+        if: steps.scan-findings.outputs.clean == 'true'
+        env:
+          FILE: ${{ runner.temp }}/scan-in/findings.json
+        run: |
+          sum=$(sha256sum <"$FILE")
+          echo "findings=${sum%% *}" >>"$GITHUB_OUTPUT"
+
+      - name: Upload the findings
+        id: upload
+        if: steps.hash.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: maintenance-scan-architecture-findings-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/scan-in/findings.json
+          retention-days: 1
+          if-no-files-found: error
+
+  file-findings:
+    name: File Findings
+    needs: [gate, check-findings]
+    if: ${{ !cancelled() && needs.check-findings.result == 'success' && needs.check-findings.outputs.artifact-id != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    cache-mode: read
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: "1"
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          path: .base
+          persist-credentials: false
+          set-safe-directory: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.gate.outputs.standards-sha }}
+
+      - name: Set up Node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Resolve the config
+        id: config
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: maintenance-scan-architecture
+          activity: file-architecture-findings
+          base-path: .base
+          output-path: ${{ runner.temp }}/resolved-config.json
+          standards-path: ${{ steps.standards.outputs.path }}
+
+      - name: Report a lane that is off
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies != 'true'
+        run: echo "::notice::the lane or its file-architecture-findings slot is off in docs/conventions/pr-pipeline.yaml, so this run files nothing; its findings stay in the run's artifact for a day"
+
+      - name: Download the findings
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.check-findings.outputs.artifact-id }}
+          path: ${{ runner.temp }}/findings
+
+      - name: Check the findings
+        id: verify
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        env:
+          FILE: ${{ runner.temp }}/findings/findings.json
+          WANT: ${{ needs.check-findings.outputs.findings-sha256 }}
+        run: |
+          if [ -L "$FILE" ] || [ ! -f "$FILE" ] || [ "$(stat -c %s "$FILE")" -gt 131072 ]; then
+            echo "::error::the findings artifact holds no findings.json of at most 128 KiB"
+            exit 1
+          fi
+          sum=$(sha256sum <"$FILE")
+          if ! [[ $WANT =~ ^[0-9a-f]{64}$ ]] || [ "${sum%% *}" != "$WANT" ]; then
+            echo "::error::findings.json does not match the SHA-256 the check job recorded"
+            exit 1
+          fi
+
+      - name: Request the lane token
+        id: lane-token
+        if: steps.verify.outcome == 'success'
+        uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
+        with:
+          broker-url: ${{ vars.LANES_BROKER_URL }}
+          audience: ${{ vars.LANES_BROKER_AUDIENCE }}
+          lane: maintenance-scan-architecture
+          activity: file-architecture-findings
+          effect: ${{ steps.config.outputs.effect }}
+          contents: ${{ steps.config.outputs.contents }}
+          pull-requests: ${{ steps.config.outputs.pull-requests }}
+          issues: ${{ steps.config.outputs.issues }}
+          kill-switch-ok: true
+
+      - name: File the findings
+        if: steps.lane-token.outputs.token != ''
+        env:
+          GITHUB_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
+          REPOSITORY: ${{ github.repository }}
+          BASE_DIR: ${{ github.workspace }}/.base
+          FINDINGS_FILE: ${{ runner.temp }}/findings/findings.json
+        run: node .base/.github/scripts/maintenance-scan-architecture/file-findings.mjs file
+
+      - name: Revoke the lane token
+        if: always() && steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+        run: bash .base/.github/scripts/lib/revoke-lane-token.sh
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: lanes-app github-token
