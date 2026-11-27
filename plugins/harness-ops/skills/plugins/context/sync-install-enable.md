@@ -240,7 +240,7 @@ reports.** SKILL.md's scope section makes `converge` the one action that may tou
 `.claude/settings.json`, and only behind its confirm gate. `enable <id> -s project` writes exactly
 that file (verified on Claude Code 2.1.228, re-verified unchanged on 2.1.261, see [scope-semantics.md](scope-semantics.md)), so this
 step must not issue it. Confirming instead of skipping is not an option: `converge` can afford a
-confirm because it *aborts* in an autonomous session, while `sync` is the on-demand and headless
+confirm because it *aborts* on a session that fails the autonomy test (SKILL.md), while `sync` is the on-demand and headless
 maintenance action with no such abort, so there may be no human to answer.
 
 - **`user` and `local`: enable automatically.** Neither is team-shared state: `user` writes

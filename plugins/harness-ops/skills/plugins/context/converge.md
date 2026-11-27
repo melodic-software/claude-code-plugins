@@ -9,10 +9,8 @@ only names the `converge` command, and the user runs it explicitly.
 
 `converge` is destructive-tier (it can uninstall a scoped plugin install and rewrite committed
 settings). Per this repo's existing convention (`repo-hygiene`'s `clean` skill, preflight §1.5):
-**abort immediately** when the session is autonomous, meaning `CLAUDE_CODE_REMOTE` set, or the invocation
-arrived via `/loop` or `/schedule`, since no human is present to receive an `AskUserQuestion`
-confirm. Fail closed when the context is genuinely ambiguous (uncertain whether a human is present):
-treat it as autonomous and abort. Report why, and that `converge` can be re-run interactively.
+**abort immediately** on a session that fails the autonomy test (SKILL.md, "The autonomy test"),
+and report why and that `converge` can be re-run interactively.
 
 ## V1 scope: version divergence only
 

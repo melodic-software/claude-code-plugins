@@ -589,11 +589,8 @@ only after the user said yes to the offer.
 - **After a pull.** The refresh runs against the fast-forwarded checkout, so Steps 2 through 5b see
   the newer catalog, and the `source:` row names the commits it moved from and to. Its time is in
   the block's `marketplace_update` timing.
-- **Never in an autonomous or ambiguous session.** No human can answer the offer there, so a
-  session with `CLAUDE_CODE_REMOTE` set, or one invoked via `/loop` or `/schedule`, or one where it
-  is unclear a human is present, never asks and never pulls: the model passes `--source-pull
-  never`, and the script treats a set `CLAUDE_CODE_REMOTE` as `never` on its own. This is the test
-  `converge` applies before touching anything ([converge.md](converge.md)).
+- **Never on a session that fails the autonomy test** (SKILL.md, "The autonomy test"): the model
+  passes `--source-pull never`, so nothing is asked or pulled.
 - **`audit`** offers nothing and refuses `--pull-source` as a usage error: it changes nothing.
 
 ## Step 2: In-repo update (the primary value path)

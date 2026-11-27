@@ -55,12 +55,15 @@ the model presents it and runs only what the user confirms.
 **The skill never branches on the host to change its algorithm or its report.** There is no
 cloud-versus-local branch, and no detection of or coordination with a repository's bootstrap hook:
 the same steps run and the same report renders wherever the skill is invoked. Three things this
-invariant does not cover, because they are not algorithm or report branches: the destructive-tier
-autonomy abort `converge` performs before touching anything (`CLAUDE_CODE_REMOTE`, `/loop`,
-`/schedule`; see [context/converge.md](context/converge.md)), the same autonomy test `sync`
-applies before it offers or runs a `directory`-source pull (it then behaves as `never`), and the platform-portability
-detection in `fleet-state.sh` (`$OSTYPE` for MSYS and Cygwin path forms), which changes how a path
-is spelled and never what is computed.
+invariant does not cover, because they are not algorithm or report branches: the two uses of the
+autonomy test below, and the platform-portability detection in `fleet-state.sh` (`$OSTYPE` for
+MSYS and Cygwin path forms), which changes how a path is spelled and never what is computed.
+
+**The autonomy test.** A session fails it, meaning no human is there to answer a question, when
+`CLAUDE_CODE_REMOTE` is set, when the invocation arrived via `/loop` or `/schedule`, or when it is
+unclear a human is present. `sync-run.sh` checks the `CLAUDE_CODE_REMOTE` half itself; the model
+checks the rest. On a session that fails it, `converge` aborts before touching anything, and `sync`
+neither offers nor runs a `directory`-source pull.
 
 ## Action Router
 
@@ -118,8 +121,8 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
 
    Run the three option values as they appear here: each holds the configured value, or the
    unset placeholder token, which the single quotes keep from the shell and the script reads as
-   that option's default. Pass `--source-pull never` instead when the session is autonomous or
-   you cannot tell a human is present. A
+   that option's default. Pass `--source-pull never` instead on a session that fails the autonomy
+   test. A
    policy or pull value the script does not know runs as `ask` and is named back in the
    digest's `install_new_invalid` or `source_pull_invalid` for the report, on the first pass and
    on an `--only-install` re-entry alike.
@@ -131,9 +134,8 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
 
 3. **Resolve a pull offer.** When a block's `source_pull.status` is `offered`, ask the user once
    per such marketplace whether to fast-forward its checkout (one `AskUserQuestion` question per
-   marketplace, Pull or Skip). Never ask in an autonomous session (`CLAUDE_CODE_REMOTE` set, or the
-   run arrived via `/loop` or `/schedule`) or when it is unclear a human is present; the first run
-   then had `--source-pull never` and offers nothing. On a yes, run the step 1 command again with
+   marketplace, Pull or Skip). A session that fails the autonomy test never gets here: its first
+   run had `--source-pull never` and offers nothing. On a yes, run the step 1 command again with
    `--pull-source "<the names the user agreed to, comma-separated>"` added: the script checks each
    checkout again, fast-forwards it with `git pull --ff-only` before that marketplace's refresh, or
    refuses with the reason and touches nothing, and the sync then runs against the refreshed
@@ -344,9 +346,8 @@ values below, default `"ask"`, read and rendered the same way as `install_new` a
   local work.
 - `never`. Nothing is offered or pulled, and the report keeps its pull-and-rerun bullet.
 
-An autonomous or ambiguous session behaves as `never` whatever the value: no human can answer the
-offer there. The script applies the same rule on its own when `CLAUDE_CODE_REMOTE` is set. A word
-other than these two runs as `ask` and is named in the report.
+A session that fails the autonomy test runs as `never` whatever the value. A word other than these
+two runs as `ask` and is named in the report.
 
 ## userConfig: `update_other_paths`
 
