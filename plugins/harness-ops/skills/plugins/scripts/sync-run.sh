@@ -673,28 +673,6 @@ catalog_regression_rows() {
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
 ACTIONABLE_DEF='def actionable: select(.versionsMatch == false)
     | select(([.scopes[]? | select(.projectPathIsHome != true) | .version] | unique | length) > 1);'
-linked_worktree_paths() {
-  local __var="$1" post="$2" paths="" p fs line
-  local found=()
-  jq_to paths -r "$ACTIONABLE_DEF"'[.divergences[]? | actionable | .scopes[]?
-    | select(.projectPathIsHome != true and .projectPathPresent == true) | .projectPath]
-    | unique | .[]' "$post" || paths=""
-  while IFS= read -r p; do
-    p="${p//$'\r'/}"
-    [[ -n "$p" ]] || continue
-    fs="${p//\\//}"
-    [[ -f "$fs/.git" ]] || continue
-    line=""
-    IFS= read -r line <"$fs/.git" || true
-    line="${line//$'\r'/}"
-    case "$line" in
-      "gitdir:"*".git/worktrees/"*) found+=("$p") ;;
-      *) ;;
-    esac
-  done <<<"$paths"
-  json_strings_of "$__var" ${found[@]+"${found[@]}"}
-}
-
 would_pins() {
   local __var="$1"
   local ir_w
@@ -710,7 +688,7 @@ would_pins() {
 }
 
 divergence_block() {
-  local __var="$1" mp="$2" linked="[]"
+  local __var="$1" mp="$2"
   local pre="$RUN_DIR/pre.$mp.json" mid="$RUN_DIR/mid.$mp.json" post="$RUN_DIR/post.$mp.json"
   if [[ ! -f "$pre" || ! -f "$mid" || ! -f "$post" ]]; then
     jq_to "$__var" -c -n '{pre: null, mid: null, post: null, new_total: null,
@@ -718,18 +696,16 @@ divergence_block() {
       note: "a snapshot was missing, so the split could not be computed"}'
     return 0
   fi
-  linked_worktree_paths linked "$post"
-  [[ -n "$linked" ]] || linked="[]"
   local moved_rows
   local would
   would_pins would "$mp"
   json_array_of moved_rows ${MOVED_DURING[@]+"${MOVED_DURING[@]}"}
-  json_object_file "$RUN_DIR/.divergence-args.$mp.json" moved "$moved_rows" wt "$linked" would "$would"
+  json_object_file "$RUN_DIR/.divergence-args.$mp.json" moved "$moved_rows" would "$would"
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to "$__var" -c \
     --slurpfile p "$pre" --slurpfile m "$mid" --slurpfile q "$post" \
     --argjson cap "$DIVERGENCE_PATH_IDS" "$ACTIONABLE_DEF$TRIPLE_DEF"'
-    . as {$moved, $wt, $would}
+    . as {$moved, $would}
     # Under --audit nothing moved, so a pin sync would forward-update (Step 2 or
     # Step 3a) is read at the catalog version: it is not work for converge. So is a
     # pin Step 3a skipped, which `--update-other-paths` moves. A linked worktree
@@ -743,7 +719,6 @@ divergence_block() {
         | .divergences |= map(.id as $id | .scopes |= map(
             . as $s
             | if $s.linkedWorktree != true and $s.projectPathIsHome != true
-                 and ($s.projectPath as $pp | $wt | index($pp)) == null
                  and any($wp[]; .id == $id and .scope == $s.scope and .path == $s.projectPath)
                  and ($cv[$id] | triple) != null and ($s.version | triple) != null
                  and ($s.version | triple) < ($cv[$id] | triple)
@@ -756,7 +731,7 @@ divergence_block() {
     def pin_class:
       if .projectPathPresent == false then "blocked"
       elif .projectPathPresent == true and (.projectPath as $pp | $curp | index($pp)) == null
-           and (.projectPath as $pp | $wt | index($pp)) != null then "worktree"
+           and .linkedWorktree == true then "worktree"
       else "actionable" end;
     # Only a pin that differs from the row'"'"'s highest version is the skew converge or
     # a worktree removal would settle; a pin already at it is not what makes the

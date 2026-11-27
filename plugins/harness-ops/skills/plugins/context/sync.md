@@ -1003,11 +1003,9 @@ catalog version) is read at the catalog version first: work `sync` does is not w
 stays counted. A scope whose `projectPathIsHome` is
 true is not a project ([scope-semantics.md](scope-semantics.md)), so it is dropped before any of this:
 it never makes a row skewed or actionable, and a divergence that exists only because of such a record
-is in no class and not in `post`. A linked worktree is a present path
-whose `.git` is a file whose `gitdir:` line names a `<repo>.git/worktrees/<name>` entry of another
-repository: a repository's own `.git` is a directory, a submodule's names `/modules/`, and a
-`--separate-git-dir` checkout names a git directory that is not under a `.git/worktrees/`, so none
-of them matches.
+is in no class and not in `post`. A linked worktree is a scope the post report flags
+`linkedWorktree` (`fleet-state.sh`'s rule, bare `.bare/worktrees/` layouts included, the one
+`converge` reads too).
 
 The render heads the section `Divergences: <post> in all` and gives each non-zero class its own
 line with its `remedy:` lines under it. The actionable line counts here and elsewhere together,

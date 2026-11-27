@@ -1736,6 +1736,8 @@ CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 mkdir -p "$case_dir/plain/.git" "$case_dir/wt" "$case_dir/sub" "$case_dir/sep" "$case_dir/current"
 printf 'gitdir: %s/main/.git/worktrees/wt\n' "$case_dir" >"$case_dir/wt/.git"
+mkdir -p "$case_dir/main/.git/worktrees/wt"
+printf '../..\n' >"$case_dir/main/.git/worktrees/wt/commondir"
 printf 'gitdir: ../.git/modules/sub\n' >"$case_dir/sub/.git"
 printf 'gitdir: %s/worktrees/sep.git\n' "$case_dir" >"$case_dir/sep/.git"
 p_plain=$(norm_path "$case_dir/plain")
@@ -1820,8 +1822,11 @@ CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 for name in alpha beta; do catalog_plugin "$case_dir" market1 "$name" 0.2.0; done
 mkdir -p "$case_dir/wt" "$case_dir/wt2"
-printf 'gitdir: %s/main/.git/worktrees/wt\n' "$case_dir" >"$case_dir/wt/.git"
-printf 'gitdir: %s/main/.git/worktrees/wt2\n' "$case_dir" >"$case_dir/wt2/.git"
+for name in wt wt2; do
+  printf 'gitdir: %s/main/.git/worktrees/%s\n' "$case_dir" "$name" >"$case_dir/$name/.git"
+  mkdir -p "$case_dir/main/.git/worktrees/$name"
+  printf '../..\n' >"$case_dir/main/.git/worktrees/$name/commondir"
+done
 p_wt=$(norm_path "$case_dir/wt")
 p_wt2=$(norm_path "$case_dir/wt2")
 write "$case_dir/installed_plugins.json" "{
@@ -1844,6 +1849,32 @@ report_of "$case_dir" --marketplace market1 --audit --install-new none
 assert_exit "divergences current worktree: exit 0" 0 "$REPORT_RC"
 assert_eq "divergences current worktree: its own pin is actionable here, the sibling's stays a worktree" \
   '{"post":2,"actionable_here":1,"actionable_elsewhere":0,"in_worktrees":1,"blocked":0}' \
+  "$(jq -c '.marketplaces[0].divergences | {post, actionable_here, actionable_elsewhere, in_worktrees, blocked}' <<<"$REPORT_DIGEST")"
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.2.0
+mkdir -p "$case_dir/bwt" "$case_dir/repo/.bare/worktrees/bwt" "$case_dir/elsewhere"
+printf 'gitdir: %s/repo/.bare/worktrees/bwt\n' "$case_dir" >"$case_dir/bwt/.git"
+printf '../..\n' >"$case_dir/repo/.bare/worktrees/bwt/commondir"
+p_bwt=$(norm_path "$case_dir/bwt")
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"a\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_bwt\", \"installPath\": \"a\", \"version\": \"0.1.0\"}]
+  }
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir/elsewhere" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --audit --install-new none
+assert_exit "divergences bare worktree: exit 0" 0 "$REPORT_RC"
+assert_eq "divergences bare worktree: a .bare/worktrees pin counts under in_worktrees, not actionable" \
+  '{"post":1,"actionable_here":0,"actionable_elsewhere":0,"in_worktrees":1,"blocked":0}' \
   "$(jq -c '.marketplaces[0].divergences | {post, actionable_here, actionable_elsewhere, in_worktrees, blocked}' <<<"$REPORT_DIGEST")"
 
 CASE_NUM=$((CASE_NUM + 1))
