@@ -90,7 +90,7 @@ const matches = (rule, command) => {
 const HELPERS = ["improvement/lib/state-key.sh", "architecture/lib/resolve-convention-home.sh", "architecture/lib/read-verification.sh", "architecture/skills/improve/scripts/improve-settings.mjs"];
 const permitted = ({ allowed, disallowed }, command) => allowed.some((rule) => matches(rule, command)) && !disallowed.some((rule) => matches(rule, command));
 
-test("the model legs' Bash rules refuse each route to arbitrary code, the environment or a write outside .work, and still allow the scan's own commands", () => {
+test("the model legs' Bash rules refuse each route to arbitrary code, /proc, ../ or a write outside .work, and still allow the scan's own commands (reads elsewhere wait on the sandbox read block, ci-workflows#1241)", () => {
   const ws = "/runner/work/r/r";
   const tools = modelTools(ws);
   for (const command of [
@@ -110,15 +110,6 @@ test("the model legs' Bash rules refuse each route to arbitrary code, the enviro
     "uniq notes.txt src/example.mjs",
     `node ${ws}/.lane/plugins/architecture/lib/prerequisites.mjs check .work/p`,
     `bash ${ws}/.lane/plugins/architecture/skills/map-containers/scripts/collect-containers.sh --out src/example.mjs`,
-    "head /home/runner/.claude/.credentials.json",
-    "grep -r KEY /home/runner",
-    "head ~/.claude/.credentials.json",
-    `head "$HOME/.claude/.credentials.json"`,
-    `cut -d= -f2 "/home/runner/work/_temp/settings.json"`,
-    "wc -c < /etc/passwd",
-    "sort /etc/passwd",
-    "head -50 src/a.mjs",
-    "grep -rn KEY .",
     "git log -p",
     "git log --since='90 days ago' --pretty=format: --name-only --output=src/a.mjs",
     `node ${ws}/.lane/plugins/architecture/skills/improve/scripts/improve-settings.mjs --home /home/runner`,
@@ -236,6 +227,30 @@ test("every workflow step that writes the step summary heads it as maintenance-s
 });
 
 const FAIL_STEP = "Fail the leg unless it handed off or a limit stopped it";
+
+test("the Scan job goes red when the findings fail the credential scan, so that run is never counted as a scan", () => {
+  const steps = parse(WORKFLOW_TEXT).jobs.scan.steps;
+  const hash = steps.find((step) => step.name === "Hash the findings");
+  assert.equal(hash.if, undefined, "the hash step runs whatever the credential scan said");
+  assert.equal(hash.env.CLEAN, "${{ steps.scan-findings.outputs.clean }}");
+  const dir = tempDir("scan-architecture-hash-");
+  const file = join(dir, "findings.json");
+  writeFileSync(file, '{"items":[]}\n');
+  const exitOf = (CLEAN) => {
+    const GITHUB_OUTPUT = join(dir, `out-${CLEAN || "unset"}`);
+    writeFileSync(GITHUB_OUTPUT, "");
+    try {
+      execFileSync("bash", ["-c", hash.run], { env: { PATH: process.env.PATH, FILE: file, CLEAN, GITHUB_OUTPUT }, stdio: "pipe" });
+      return 0;
+    } catch (error) {
+      return error.status;
+    }
+  };
+  assert.equal(exitOf("false"), 1, "a dirty scan fails the Scan job");
+  assert.equal(exitOf(""), 1, "an unread scan result fails it too");
+  assert.equal(exitOf("true"), 0);
+  assert.equal(steps.find((step) => step.name === "Upload the findings").if, "steps.hash.outcome == 'success'");
+});
 
 test("a model leg goes red when its scan failed without a handoff or finished with no findings file; a handoff or a limit stop stays green", () => {
   const wf = workflowText(WORKFLOW_TEXT);

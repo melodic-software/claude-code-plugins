@@ -984,10 +984,11 @@ jobs:
 
       - name: Hash the findings
         id: hash
-        if: steps.scan-findings.outputs.clean == 'true'
         env:
           FILE: ${{ runner.temp }}/scan-in/findings.json
+          CLEAN: ${{ steps.scan-findings.outputs.clean }}
         run: |
+          [ "$CLEAN" = true ] || { echo "::error::the findings hold a credential-shaped value, so nothing is uploaded or filed and this run is no scan"; exit 1; }
           sum=$(sha256sum <"$FILE")
           echo "findings=${sum%% *}" >>"$GITHUB_OUTPUT"
 

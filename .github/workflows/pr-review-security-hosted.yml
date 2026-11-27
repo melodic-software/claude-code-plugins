@@ -228,6 +228,14 @@ jobs:
         .github/scripts/maintenance-scan-architecture/lane.mjs
         .github/scripts/maintenance-scan-architecture/prepare-working-tree.sh
         .github/scripts/maintenance-scan-architecture/prompt.md
+        plugins/improvement/lib/state-key.sh
+        plugins/architecture/lib/resolve-convention-home.sh
+        plugins/architecture/lib/read-verification.sh
+        plugins/architecture/lib/default-branch-file.sh
+        plugins/architecture/lib/config-root.sh
+        plugins/architecture/lib/config-cascade.mjs
+        plugins/architecture/lib/yaml-subset.mjs
+        plugins/architecture/skills/improve/scripts/improve-settings.mjs
         .github/scripts/lib/github-rest.mjs
         plugins/work-items/scripts/charge-words.json
         .github/scripts/pr-unblock/dependency-classify.mjs
