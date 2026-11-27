@@ -1,76 +1,13 @@
 {
   "pass": [
-    {
-      "answer": [],
-      "why": "no tool call"
-    },
-    {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "ls docs/conventions/ecosystems 2>/dev/null; ls -a"
-          }
-        }
-      ],
-      "why": "looking for a record runs no linter"
-    },
-    {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "git status --porcelain"
-          }
-        }
-      ],
-      "why": "an unrelated command"
-    },
-    {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "ls -a .markdownlint* 2>/dev/null"
-          }
-        }
-      ],
-      "why": "a config-file probe, no linter run"
-    }
+    {"answer": [{"tool": "Bash", "input": {"command": "ls -a .markdownlint* 2>/dev/null"}}], "why": "a config-file probe, no linter run"},
+    {"answer": [], "why": "no tool call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "ls docs/conventions/ecosystems 2>/dev/null; ls -a"}}], "why": "looking for a record runs no linter"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git status --porcelain"}}], "why": "an unrelated command"}
   ],
   "fail": [
-    {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "command -v markdownlint-cli2"
-          }
-        }
-      ],
-      "why": "a PATH probe for a linter the skill picked"
-    },
-    {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "npx markdownlint-cli2 docs/onboarding.md"
-          }
-        }
-      ],
-      "why": "runs a linter the repository never named"
-    },
-    {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "markdownlint docs/onboarding.md || true"
-          }
-        }
-      ],
-      "why": "the older markdownlint CLI"
-    }
+    {"answer": [{"tool": "Bash", "input": {"command": "command -v markdownlint-cli2"}}], "why": "a PATH probe for a linter the skill picked"},
+    {"answer": [{"tool": "Bash", "input": {"command": "npx markdownlint-cli2 docs/onboarding.md"}}], "why": "runs a linter the repository never named"},
+    {"answer": [{"tool": "Bash", "input": {"command": "markdownlint docs/onboarding.md || true"}}], "why": "the older markdownlint CLI"}
   ]
 }
