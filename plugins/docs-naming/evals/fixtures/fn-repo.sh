@@ -19,9 +19,6 @@ case "${here}" in
 / | "${HOME:-/}") echo "refusing to scaffold in ${here}" >&2 && exit 3 ;;
 *) ;;
 esac
-# The eval workspace sits inside the run's temporary home, which is itself a repository, so a
-# repository above the workspace is expected there. Allow only that one; refuse a workspace that
-# is already a repository and any other enclosing repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 if top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
   tmp="$(cd "${TMPDIR:-/nonexistent}" 2>/dev/null && pwd -P || true)"
@@ -119,7 +116,6 @@ six_review_tree() {
   } >tools/rebuild.sh
 }
 
-# The CATALOG record: its two review sites, or (six) the six review sites of six_review_tree.
 catalog_record() {
   if [[ "${1}" == six ]]; then
     cat <<'PLAN'
@@ -168,7 +164,6 @@ PLAN
 PLAN
 }
 
-# The audit's plan for audit_tree, every finding pending; plan six swaps in the six-review CATALOG record.
 plan() {
   local scanned=7
   [[ "${1:-two}" == six ]] && scanned=9
