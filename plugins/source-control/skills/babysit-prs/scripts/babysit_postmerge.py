@@ -3425,6 +3425,9 @@ PIN_RUNGS = ("C2", "C3")
 PIN_RE = re.compile(
     r"^<!-- babysit-merge-pin sha=([0-9a-f]{40})(?: rung=(C2|C3))? -->$"
 )
+PIN_RECORD_RE = re.compile(
+    rf"{PIN_RE.pattern}|^<!-- babysit-merge-unpin sha=([0-9a-f]{{40}}) -->$"
+)
 PIN_QUERY = (
     "query PostMergePin($o:String!,$r:String!,$n:Int!,$c:String){repository(owner:$o,name:$r){"
     "pullRequest(number:$n){reviews(last:1){nodes{author{__typename login} submittedAt}} "
@@ -3586,7 +3589,7 @@ def _pin_sha(
     alone: bool = False,
 ) -> str | None:
     key = _login_key(identity)
-    pins = _identity_marks(comments, identity, PIN_RE)
+    pins = _identity_marks(comments, identity, PIN_RECORD_RE)
     if not pins or _edited(comments[pins[-1]]):
         return None
     newest = comments[pins[-1]]

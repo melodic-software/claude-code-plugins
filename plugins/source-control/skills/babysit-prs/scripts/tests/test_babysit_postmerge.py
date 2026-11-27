@@ -4657,6 +4657,24 @@ class PinnedHead(CheckCase):
         ]
         self.assertIsNone(pm.read_pin(REPO, 7001, IDENTITY))
 
+    def test_a_newest_unpin_is_no_pin_and_a_newer_pin_stands_again(self) -> None:
+        unpin = {
+            "author": APP_ACTOR,
+            "body": f"<!-- babysit-merge-unpin sha={HEAD_SHA} -->\nretired",
+            "createdAt": PINNED_AT,
+            "lastEditedAt": None,
+        }
+        cases = (
+            ("unpin newest", [pin(OTHER_SHA), unpin], None),
+            ("pin after unpin", [pin(OTHER_SHA), unpin, pin(HEAD_SHA)], HEAD_SHA),
+            ("a person's unpin", [pin(OTHER_SHA), {**unpin, "author": HUMAN}], OTHER_SHA),
+        )
+        for label, comments, want in cases:
+            with self.subTest(label):
+                self.assertEqual(pm._pin_sha(7001, IDENTITY, comments, []), want)
+                self.gh.pin_comments = comments
+                self.assertEqual(pm.read_pin(REPO, 7001, IDENTITY), want)
+
     def test_alone_keeps_a_pin_only_the_identity_followed(self) -> None:
         self.gh.pin_comments = [
             said(HUMAN, "2026-10-12T09:00:00Z"),

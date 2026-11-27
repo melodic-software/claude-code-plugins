@@ -620,8 +620,10 @@ export const pinBody = (sha, rung, stacked = false) =>
       : `The unattended merge path is about to arm native auto-merge at head \`${sha}\`, the head its arming checks judged. The arm fails if the head moves first.`
   }`;
 
-export const unpinBody = (sha) =>
-  `<!-- babysit-merge-unpin sha=${sha} -->\nThe unattended merge path disarmed native auto-merge at head \`${sha}\`, which its arm never judged, and retires its earlier pin: the merge queue reads this pull request as one the lanes App never pinned until the path pins a head again.`;
+export const unpinBody = (sha, disarmed = true) =>
+  `<!-- babysit-merge-unpin sha=${sha} -->\nThe unattended merge path ${
+    disarmed ? `disarmed native auto-merge at head \`${sha}\`, which its arm never judged,` : `found head \`${sha}\` unarmed, out of the merge queue and not the head its earlier pin names,`
+  } and retires that pin: the merge queue reads this pull request as one the lanes App never pinned until the path pins a head again.`;
 
 const newestPin = (comments, bot) => newestAppComment(comments, bot, (c) => PIN_RE.test(firstLine(c.body)) || UNPIN_RE.test(firstLine(c.body)));
 
@@ -946,7 +948,11 @@ export const laneSourceReason = (paths) =>
 
 export function decideTrusted(pull, humanGated, facts = {}, bot = undefined) {
   const none = (reason) => ({ action: "none", reason });
+  const queue = pull.isInMergeQueue === true ? "it is in the merge queue" : "its merge queue state did not read";
   if (pull.autoMergeRequest != null) {
+    if (pull.isInMergeQueue !== false) {
+      return none(`already armed; ${queue}, so its pin stands`);
+    }
     if (!("comments" in facts)) {
       return { action: "comments", reason: "its comments are not read yet" };
     }
@@ -957,7 +963,7 @@ export function decideTrusted(pull, humanGated, facts = {}, bot = undefined) {
     return moved === null ? none("already armed") : { action: "disarm", reason: moved };
   }
   if (pull.isInMergeQueue !== false) {
-    return none(pull.isInMergeQueue === true ? "it is in the merge queue" : "its merge queue state did not read");
+    return none(queue);
   }
   if (pull.stack != null) {
     return none("it is a layer of a stack, and only the lanes App's stack path merges a stack");
@@ -973,6 +979,19 @@ export function decideTrusted(pull, humanGated, facts = {}, bot = undefined) {
   if (held !== null) {
     return none(held);
   }
+  const judged = judgeUnheld(pull, facts, bot);
+  if (judged.action !== "none") {
+    return judged;
+  }
+  if (!("comments" in facts)) {
+    return { action: "comments", reason: `${judged.reason}; its comments are not read yet, so a stale pin is not checked` };
+  }
+  const moved = Array.isArray(facts.comments) ? pinMoved(facts.comments, bot, pull.headRefOid) : null;
+  return moved === null ? judged : { action: "unpin", reason: `${judged.reason}; ${moved}` };
+}
+
+function judgeUnheld(pull, facts, bot) {
+  const none = (reason) => ({ action: "none", reason });
   if (!("files" in facts)) {
     return { action: "files", reason: "its changed files are not read yet" };
   }
@@ -1738,6 +1757,17 @@ export async function main({ env = process.env, github, actions, laneReads, veri
       if (!write) {
         console.log(`enable-auto-merge: #${pull.number} trusted author: would ${action} (report-only) at ${pull.headRefOid}: ${escapeCommand(reason)}`);
         leave(pull, `refused: report-only, would ${action}: ${reason}`);
+        return;
+      }
+      if (action === "unpin") {
+        leave(pull, `refused: ${reason}`);
+        try {
+          await github("POST", `/repos/${repo[0]}/issues/${pull.number}/comments`, { body: unpinBody(pull.headRefOid, false) });
+          console.log(`enable-auto-merge: #${pull.number} trusted author: left: ${escapeCommand(reason)}; unpinned at ${pull.headRefOid}`);
+        } catch (error) {
+          failed += 1;
+          console.log(`::error title=enable-auto-merge::#${pull.number} trusted author: unpin, so its stale pin stands until the next sweep: ${describe(error)}`);
+        }
         return;
       }
       if (action === "disarm") {

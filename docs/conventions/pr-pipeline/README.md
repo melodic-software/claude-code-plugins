@@ -2365,12 +2365,18 @@ someone with write access, so the merge queue's `ci-status` holds any pull reque
 lanes App pin names another head, or was edited, or whose edit time does not read, whoever opened it
 (`merge-holds.mjs` `pinHold`, run on every queued pull request that is not the lanes App's); a
 trusted person's approval of the live head lifts it, as for a lanes App pull request. The next
-scheduled run also disarms an armed trusted person's pull request whose newest lanes App pin record
-names another head or was edited (`pinMoved`), and right after the disarm posts the lanes App's
-`<!-- babysit-merge-unpin sha=<head> -->` record. As the newest record, an unpin reads as no pin to
-`pinMoved`, `pinned` and `pinHold`, so the sweep judges the new head as unpinned and pins it before
-any arm. When the sweep refuses that head (a lane source, no PASS), a person's later arm is left
-armed by the sweep and not held by `pinHold`; the queue's other holds still apply. An unpin counts only from the lanes App, unedited: one
+scheduled run also disarms an armed trusted person's pull request out of the merge queue whose
+newest lanes App pin record names another head or was edited (`pinMoved`), and right after the
+disarm posts the lanes App's `<!-- babysit-merge-unpin sha=<head> -->` record. A run that refuses an
+unarmed trusted person's pull request out of the queue past its draft, label and body holds (a lane
+source or no PASS, as after a queue ejection) posts the same unpin when its newest pin record names
+another head or was edited, and posts nothing once the newest record is an unpin. An unpin is never posted while the pull request
+is in the merge queue, or its queue state does not read: an armed one there stays armed with its
+pin, so the queue's `pinHold` ejects the moved head. As the newest record, an unpin reads as no pin
+to `pinMoved`, `pinned`, `pinHold` and `babysit_postmerge.py`'s pin read, so the sweep judges the
+new head as unpinned and pins it before any arm. A session arm after an unpin is gated in the queue
+only by a recorded pr-verify FAIL at its head, the gate of a pull request the lanes App never
+pinned; the queue's other holds still apply. An unpin counts only from the lanes App, unedited: one
 a person wrote is ignored, and an edited one, or one whose edit time does not read, holds and
 disarms as an edited pin does. A pin posted after an unpin holds again. One a session armed, with
 no lanes App pin, is left armed.
@@ -2551,7 +2557,8 @@ queued pull request that is not the lanes App's holds on the lanes App's pin, wh
 newest pin record that names another head, was edited, or whose edit time does not read holds it,
 so a trusted person's pull request `enable-auto-merge` armed at a passing head does not merge a
 later push (`pinHold`). With no lanes App pin, or a newest unpin record (below), nothing holds here.
-It reads the reviews, bodies blanked, and the issue comments for the pin, and no file list, so the
+It reads the issue comments for the pin and the reviews, bodies blanked, for the approval lift, and
+no file list; an author pr-verify does not judge reads its reviews only under a pin hold, so the
 kill switch, member veto, hold paths and cost paths stay the lanes App's.
 A trusted approval of the head lifts the FAIL hold, but
 [a pull request's author cannot approve it](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/approving-a-pull-request-with-required-reviews),

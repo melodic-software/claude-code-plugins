@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 import { ARM_MUTATION, DETAIL_QUERY, DISARM_MUTATION, PULLS_QUERY, WAKE_OUTPUT, decideTrusted, main, pinBody, pythonLaneSource, pythonVerify } from "./enable-auto-merge.mjs";
+import { LANES_APP_LOGIN, pinHold } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -225,6 +226,58 @@ test("an unpin that does not post after the disarm fails the run, and the disarm
   assert.equal(disarms(result).length, 1);
   assert.notEqual(result.code, 0);
   assert.ok(result.lines.some((line) => line.startsWith("::error title=enable-auto-merge::#500 trusted author: unpin")), result.lines.join("\n"));
+});
+
+test("an armed trusted pull request in the merge queue, or of unread queue state, keeps its moved pin: no disarm, no unpin, and the queue's pin hold refuses the moved head", async () => {
+  const armed = { enabledAt: "2026-11-27T14:00:00Z" };
+  const pinA = lanesComment(pinBody(OLD_HEAD));
+  for (const isInMergeQueue of [true, undefined]) {
+    const result = await run([clean({ autoMergeRequest: armed, isInMergeQueue, comments: [pinA] })]);
+    assert.equal(disarms(result).length, 0, `isInMergeQueue ${isInMergeQueue}: no disarm`);
+    assert.equal(unpinPosts(result).length, 0, `isInMergeQueue ${isInMergeQueue}: no unpin`);
+    assert.match(leftLine(result, 500), /left: already armed; .*its pin stands/);
+  }
+  const kept = { login: LANES_APP_LOGIN, at: pinA.createdAt, body: pinA.body, lastEditedAt: null };
+  assert.match(pinHold([kept], CLEAN_HEAD) ?? "", new RegExp(`its head is not ${OLD_HEAD}`), "the kept pin still holds the moved head in the merge group");
+});
+
+const UNVERIFIED = { 500: { ...pass(CLEAN_HEAD), atHead: [] } };
+
+test("unarmed and unqueued, its newest lanes pin at A and its head at B: the sweep posts one unpin at B, and a second sweep posts nothing more", async () => {
+  const pinA = lanesComment(pinBody(OLD_HEAD));
+  const first = await run([clean({ comments: [pinA] })], { verdicts: UNVERIFIED });
+  assert.deepEqual(
+    unpinPosts(first).map(({ body }) => body.split("\n")[0]),
+    [`<!-- babysit-merge-unpin sha=${CLEAN_HEAD} -->`],
+  );
+  assert.equal(armedHeads(first), 0);
+  assert.equal(disarms(first).length, 0);
+  assert.match(leftLine(first, 500), new RegExp(`unpinned at ${CLEAN_HEAD}`));
+  const posted = lanesComment(unpinPosts(first)[0].body, "2026-11-27T14:30:00Z");
+  const second = await run([clean({ comments: [pinA, posted] })], { verdicts: UNVERIFIED });
+  assert.equal(unpinPosts(second).length, 0, "the newest record is already an unpin");
+  assert.match(leftLine(second, 500), /left: pr-verify has no PASS or PASS-NOTES at its head$/);
+});
+
+test("an unarmed stale pin stays while queued or of unread queue state, or when a person wrote it; an arm at the new head pins it instead of unpinning", async () => {
+  const pinA = lanesComment(pinBody(OLD_HEAD));
+  const forged = { ...pinA, author: { __typename: "User", login: "melodic-automation-lanes" } };
+  for (const [label, pull] of [
+    ["queued", clean({ isInMergeQueue: true, comments: [pinA] })],
+    ["unread queue state", clean({ isInMergeQueue: undefined, comments: [pinA] })],
+    ["a person's pin", clean({ comments: [forged] })],
+  ]) {
+    const result = await run([pull], { verdicts: UNVERIFIED });
+    assert.equal(unpinPosts(result).length, 0, `${label}: no unpin`);
+    assert.equal(armedHeads(result), 0, `${label}: no arm`);
+  }
+  const armedNow = await run([clean({ comments: [pinA] })]);
+  assert.equal(unpinPosts(armedNow).length, 0);
+  assert.deepEqual(
+    pinPosts(armedNow).map(({ body }) => body.split("\n")[0]),
+    [`<!-- babysit-merge-pin sha=${CLEAN_HEAD} -->`],
+  );
+  assert.equal(armedHeads(armedNow), 1);
 });
 
 test("report-only names the disarm it would send and sends none", async () => {

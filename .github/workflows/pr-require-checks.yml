@@ -5451,18 +5451,26 @@ jobs:
             echo "::error::the head of #$pr could not be read."
             exit 1
           fi
-          # Another judged author's pull request reads only its reviews, each
-          # body blanked: an approval of the head still lifts its FAIL hold,
-          # and no text vetoes it.
+          # Another author's pull request reads only its reviews, each body
+          # blanked: an approval of the head still lifts its pin or FAIL hold,
+          # and no text vetoes it. Reviews feed only that lift, so one whose
+          # author pr-verify does not judge reads them only under a pin hold.
           : >"$RUNNER_TEMP/discussion.jsonl"
-          kinds=("issues/$pr/comments" "pulls/$pr/reviews" "pulls/$pr/comments")
-          rows_of='.[]'
-          [ "$lanes" = true ] || { kinds=("pulls/$pr/reviews"); rows_of='.[] | .body = ""'; }
-          for kind in "${kinds[@]}"; do
-            raw=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate) || exit 1
-            rows=$(jq -c "$rows_of" <<<"$raw") || { echo "::error::the $kind of #$pr do not parse."; exit 1; }
-            [ -z "$rows" ] || printf '%s\n' "$rows" >>"$RUNNER_TEMP/discussion.jsonl"
-          done
+          read_discussion() {
+            local kind raw rows
+            for kind in "$@"; do
+              raw=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate) || return 1
+              rows=$(jq -c "$rows_of" <<<"$raw") || { echo "::error::the $kind of #$pr do not parse."; return 1; }
+              [ -z "$rows" ] || printf '%s\n' "$rows" >>"$RUNNER_TEMP/discussion.jsonl"
+            done
+          }
+          if [ "$lanes" = true ]; then
+            rows_of='.[]'
+            read_discussion "issues/$pr/comments" "pulls/$pr/reviews" "pulls/$pr/comments" || exit 1
+          else
+            rows_of='.[] | .body = ""'
+            [ "$judged" != true ] || read_discussion "pulls/$pr/reviews" || exit 1
+          fi
           # Any other author's queued pull request holds on a lanes App pin
           # that names another head (enable-auto-merge's trusted-author arm
           # posts it, and GitHub keeps an arm through a writer's push); one
@@ -5473,26 +5481,43 @@ jobs:
             raw=$(read_api "the issue comments of #$pr" "repos/$GITHUB_REPOSITORY/issues/$pr/comments?per_page=100" --paginate) || exit 1
             jq -c '.[]' <<<"$raw" >"$RUNNER_TEMP/pin-comments.jsonl" || { echo "::error::the issue comments of #$pr do not parse."; exit 1; }
             # shellcheck disable=SC2016 # JavaScript, not shell
-            out=$(node --input-type=module -e 'import { execFileSync } from "node:child_process";
+            held=$(node --input-type=module -e 'import { execFileSync } from "node:child_process";
               import { readFileSync } from "node:fs";
               import { pathToFileURL } from "node:url";
-              const [, comments, discussion, actors, head, number, module] = process.argv;
-              const { fromRest, humansOf, pathLifters, pinHold, withPinEdit } = await import(pathToFileURL(module).href);
-              const rows = (file) => readFileSync(file, "utf8").split("\n").filter((line) => line.trim()).map((line) => fromRest(JSON.parse(line)));
+              const [, comments, head, module] = process.argv;
+              const { fromRest, pinHold, withPinEdit } = await import(pathToFileURL(module).href);
+              const rows = readFileSync(comments, "utf8").split("\n").filter((line) => line.trim()).map((line) => fromRest(JSON.parse(line)));
               const github = async (method, path, body) =>
                 JSON.parse(execFileSync("gh", ["api", "graphql", "-f", `query=${body.query}`, "-f", `id=${body.variables.id}`], { encoding: "utf8" }));
-              const held = pinHold(await withPinEdit(github, rows(comments)), head);
+              const held = pinHold(await withPinEdit(github, rows), head);
               if (held !== null && (typeof held !== "string" || !held)) {
                 throw new Error("no pin verdict");
               }
-              const approved = pathLifters(rows(discussion), humansOf(JSON.parse(readFileSync(actors, "utf8")).actors), head);
-              const text = String(held).replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
-              console.log(held === null
-                ? `#${number}: no pin hold: the lanes App pinned no other head.`
-                : approved.length
-                  ? `#${number}: no pin hold: ${approved.join(", ")} approved this head, which lifts '"'"'${text}'"'"'.`
-                  : `::error::#${number}: ${text}.`);' \
-              "$RUNNER_TEMP/pin-comments.jsonl" "$RUNNER_TEMP/discussion.jsonl" "$RUNNER_TEMP/trusted-actors.json" "$head" "$pr" "$RUNNER_TEMP/merge-holds.mjs") || {
+              console.log(JSON.stringify(held));' \
+              "$RUNNER_TEMP/pin-comments.jsonl" "$head" "$RUNNER_TEMP/merge-holds.mjs") || {
+              echo "::error::merge-holds.mjs in the hold config could not judge the lanes App pin of #$pr; re-run this run."
+              exit 1
+            }
+            if [ "$held" != null ] && [ "$judged" != true ]; then
+              read_discussion "pulls/$pr/reviews" || exit 1
+            fi
+            # shellcheck disable=SC2016 # JavaScript, not shell
+            out=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const [, held, discussion, actors, head, number, module] = process.argv;
+              const { fromRest, humansOf, pathLifters } = await import(pathToFileURL(module).href);
+              const text = JSON.parse(held);
+              if (text === null) {
+                console.log(`#${number}: no pin hold: the lanes App pinned no other head.`);
+                process.exit(0);
+              }
+              const items = readFileSync(discussion, "utf8").split("\n").filter((line) => line.trim()).map((line) => fromRest(JSON.parse(line)));
+              const approved = pathLifters(items, humansOf(JSON.parse(readFileSync(actors, "utf8")).actors), head);
+              const escaped = text.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
+              console.log(approved.length
+                ? `#${number}: no pin hold: ${approved.join(", ")} approved this head, which lifts '"'"'${escaped}'"'"'.`
+                : `::error::#${number}: ${escaped}.`);' \
+              "$held" "$RUNNER_TEMP/discussion.jsonl" "$RUNNER_TEMP/trusted-actors.json" "$head" "$pr" "$RUNNER_TEMP/merge-holds.mjs") || {
               echo "::error::merge-holds.mjs in the hold config could not judge the lanes App pin of #$pr; re-run this run."
               exit 1
             }

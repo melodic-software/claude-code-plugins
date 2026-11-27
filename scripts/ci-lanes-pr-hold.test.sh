@@ -122,7 +122,7 @@ STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"Use
 STUB_AUTHOR_ID='' STUB_PULL='{}' expect "an unreadable author with no payload author fails closed" 1 0 "the author of #7 could not be read"
 NOT_JUDGED="#7: not held: pr-verify does not judge its author, so no verdict is read."
 EVENT=merge_group REF="refs/heads/gh-readonly-queue/main/pr-7-$SHA" PR_NUMBER='' GROUP_BASE_SHA=$BASE \
-  expect "in the merge queue a non-App pull request is read, as no payload names its author, and its pin is checked" 0 2 "$NOT_JUDGED"
+  expect "in the merge queue a non-App pull request is read, as no payload names its author, and its pin is checked, with no review read under no pin hold" 0 1 "$NOT_JUDGED"
 expect_pull_reads "in the merge queue the pull is read" 1
 
 for kill in "KILL=true" "KILL=" "REPO_KILL=true" "REPO_KILL=1"; do
@@ -335,7 +335,7 @@ STUB_APP_ID='' author_run "an unset lanes App id leaves the carry steps running"
 author_run "the author step reads the queued pull" false false
 if [[ "$(pull_reads)" -eq 1 ]]; then ok "the author step reads the pull once"; else fail "the author step read the pull $(pull_reads) time(s)"; fi
 EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA=$BASE STUB_KEEP_READS=1 \
-  expect "after the author step, the queued step answers from its read" 0 2 "$NOT_JUDGED"
+  expect "after the author step, the queued step answers from its read" 0 1 "$NOT_JUDGED"
 expect_pull_reads "the queued step makes no pull read of its own after the author step" 0
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
 for gated in "$restore" "$carry"; do
@@ -706,7 +706,7 @@ STUB_REVIEWS=''
 STUB_ARTIFACTS="{\"pr-verify-7-$OLD-pass\":[11]}"
 expect "in the merge queue, a push after a pass fails the group on the new head" 1 3 "pr-verify has not passed this head"
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
-expect "in the merge queue, a person's pull request pr-verify does not judge reads no verdict" 0 2 "$NOT_JUDGED"
+expect "in the merge queue, a person's pull request pr-verify does not judge reads no verdict" 0 1 "$NOT_JUDGED"
 if [[ "$(lookups)" -eq 0 && "$(readers)" -eq 0 && "$(maps)" -eq 0 ]]; then
   ok "a person's pull request makes no verdict lookup, reader run or head-ref map read"
 else
@@ -786,12 +786,16 @@ STUB_ISSUE="[$(pin "$OLD"),$(unpin "$SHA")]" STUB_EDITED='{"data":{"node":{"last
 STUB_ISSUE=''
 for user in '{"id":2,"login":"someone","type":"User"}' '{"id":49699333,"login":"dependabot[bot]","type":"Bot"}'; do
   STUB_PULL="$(pull 'Closes #1' "$user")"
-  STUB_ARTIFACTS='{}' expect "in the merge queue, $(jq -r .login <<<"$user")'s pull request, which pr-verify does not judge, passes its pin check and reads no verdict" 0 2 "$NOT_JUDGED"
-  if [[ "$(readers)" -eq 0 ]]; then ok "$(jq -r .login <<<"$user")'s queued pull request runs no verdict reader"; else fail "$(jq -r .login <<<"$user")'s queued pull request ran the reader"; fi
+  STUB_ARTIFACTS='{}' expect "in the merge queue, $(jq -r .login <<<"$user")'s pull request, which pr-verify does not judge, passes its pin check and reads no verdict" 0 1 "$NOT_JUDGED"
+  if [[ "$(readers)" -eq 0 ]] && ! grep -q 'pulls/7/reviews?' "$TMP_ROOT/log"; then
+    ok "$(jq -r .login <<<"$user")'s queued pull request runs no verdict reader and, with no pin hold, reads no reviews"
+  else
+    fail "$(jq -r .login <<<"$user")'s queued pull request ran the reader or read its reviews: '$(sort -u "$TMP_ROOT/log")'"
+  fi
 done
 STUB_PULL="$(pull 'Closes #1' "$KYLE")"
-STUB_CONFIG=$'merge:\n  verify-authors: everyone' expect "in the merge queue, an unknown verify-authors value judges no owner pull request" 0 2 "$NOT_JUDGED"
-STUB_CONFIG=$'merge:\n  verify-authors: [lane]' expect "in the merge queue, a verify-authors value that is not one word judges no owner pull request" 0 2 "$NOT_JUDGED"
+STUB_CONFIG=$'merge:\n  verify-authors: everyone' expect "in the merge queue, an unknown verify-authors value judges no owner pull request" 0 1 "$NOT_JUDGED"
+STUB_CONFIG=$'merge:\n  verify-authors: [lane]' expect "in the merge queue, a verify-authors value that is not one word judges no owner pull request" 0 1 "$NOT_JUDGED"
 for config in $'merge:\n  verify-authors: lane' $'merge:\n  verify-authors: everyone'; do
   STUB_CONFIG=$config STUB_ISSUE="[$(pin "$OLD")]" \
     expect "in the merge queue, a moved lanes App pin holds a pull request pr-verify does not judge ($(tr '\n' ' ' <<<"$config"))" 1 2 "::error::#7: its head is not $OLD, the head the lanes App pinned"
@@ -800,6 +804,8 @@ done
 STUB_PULL="$(pull 'Closes #1' '{"id":2,"login":"someone","type":"User"}')"
 STUB_CONFIG=$'merge:\n  verify-authors: lane' STUB_ISSUE="[$(pin "$OLD")]" \
   expect "in the merge queue, a moved lanes App pin holds even an unlisted author's pull request" 1 2 "its head is not $OLD"
+STUB_CONFIG=$'merge:\n  verify-authors: lane' STUB_ISSUE="[$(pin "$OLD")]" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
+  expect "in the merge queue, under a pin hold a pull request pr-verify does not judge reads its reviews, and a trusted approval of the head lifts the hold" 0 2 "#7: no pin hold: kyle-sexton approved this head, which lifts"
 STUB_ISSUE=''
 STUB_PULL="$(pull 'Closes #1' "$KYLE")"
 EVENT=pull_request REF=refs/pull/7/merge PR_NUMBER=7 STUB_ARTIFACTS='{}' \
