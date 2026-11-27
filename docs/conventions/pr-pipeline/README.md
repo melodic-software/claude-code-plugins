@@ -2408,8 +2408,10 @@ The pr-verify wake (`wake-pr-merge`), and the eval-release wake kept in step wit
 for a lanes App pull request and for a trusted person's at its pass, the two the token broker mints
 that wake for, unless it is armed or labeled `do-not-merge`, or is a person's draft or carries a
 person's body `Hold:` line. The wake downloads the trusted-actor list only for a `User`'s pull
-request, and dispatches anyway when its read or that list fails. The scheduled sweep is the
-fallback for every pull request the wake leaves.
+request, and fails closed (warning and dispatching nothing) when `AUTOMATION_LANES_APP_SENDER_ID`
+is unset or invalid, the pull request read fails, or the trusted-actor list cannot be read, so an
+unverified author never starts a run the broker refuses as `untrusted-author`. The scheduled sweep
+is the fallback for every pull request the wake leaves.
 
 Each verifier read is a full read. The arm step's skip records (`merge.skip-unchanged`) cross runs
 only as the `pr-merge-verify-answers` artifact of a scheduled or hand-started run on main
