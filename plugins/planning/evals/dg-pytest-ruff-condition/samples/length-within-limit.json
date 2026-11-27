@@ -89,6 +89,10 @@
     {
       "answer": "chars=4210 limit=4000 status=over against the cap\n",
       "why": "status=over, not ok"
+    },
+    {
+      "answer": "The counter reports 4210 characters against a 4000 limit. I tried several rewrites of the constraints and the stall clause, and it is still over.\n",
+      "why": "over verdict more than a sentence after the against form"
     }
   ]
 }
