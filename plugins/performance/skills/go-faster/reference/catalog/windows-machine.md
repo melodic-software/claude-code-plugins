@@ -1,4 +1,4 @@
-<!-- portability-scope: R3 declared-ecosystem surface - Windows host performance catalog -->
+<!-- portability-scope: ecosystem=windows - R3 declared-ecosystem surface (Windows host performance catalog) -->
 
 # Windows machine and shell catalog: bash-windows, machine
 

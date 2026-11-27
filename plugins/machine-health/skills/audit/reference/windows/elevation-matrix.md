@@ -1,4 +1,4 @@
-<!-- portability-scope: R3 declared-ecosystem surface - Windows elevation and ACL reference -->
+<!-- portability-scope: ecosystem=windows - R3 declared-ecosystem surface (Windows elevation and ACL reference) -->
 
 # Elevation matrix for Windows
 

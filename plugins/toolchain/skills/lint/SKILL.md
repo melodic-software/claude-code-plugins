@@ -206,8 +206,7 @@ In check mode, settle the Overall line and record it (section 5) before writing 
 
 | Ecosystem  | Lint     | Format   | Status |
 |------------|----------|----------|--------|
-# portability-ok: R6 toolchain ecosystem id argument and report format
-| dotnet     | pass     | pass     | PASS   |
+| go         | pass     | pass     | PASS   |
 | python     | FAIL     | pass     | FAIL   |
 | bash       | pass     | pass     | PASS   |
 | markdown   | pass     | —        | PASS   |

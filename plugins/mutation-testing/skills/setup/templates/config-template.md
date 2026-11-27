@@ -1,3 +1,5 @@
+<!-- portability-scope: ecosystem=dotnet - R6 kept-adapter runner examples in YAML template -->
+
 # Mutation testing configuration
 
 `/mutation-testing:setup apply` writes the YAML block below, without the Markdown around it, as
@@ -27,7 +29,6 @@ accepted finding.
 tool: <tool-id>
 
 # How to invoke it. Left explicit rather than derived, because every project wraps
-# portability-ok: R6 kept-adapter runner form - dotnet-test-selection.sh
 # its tooling differently (npm script, dotnet tool, gradle task, make target).
 command: <exact command, e.g. "npx stryker run">
 
@@ -69,7 +70,6 @@ max-mutants: <n>
 # files, used by `audit --exercised` under the manual protocol. `{tests}` must
 # be a standalone, unquoted word; it is replaced with the test paths, each
 # single-quoted as its own argument, so the runner must take file paths.
-# portability-ok: R6 kept-adapter runner form - dotnet-test-selection.sh
 # `dotnet test {tests}` is the one name-filter form: the audit runs it once per
 # test project, with `{tests}` replaced by that project and a class filter.
 # Other runners that only filter by name cannot use it.

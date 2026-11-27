@@ -143,8 +143,7 @@ Settle the Overall line, record it (section 4) and draft any records (section 5)
 
 | Ecosystem  | Build | Test | Lint | Status |
 |------------|-------|------|------|--------|
-# portability-ok: R2/R6 vetted lockfile install allowlist and toolchain check output format
-| dotnet     | pass  | pass | pass | PASS   |
+| typescript | pass  | pass | pass | PASS   |
 | python     | —     | pass | FAIL | FAIL   |
 
 Gates: go-mod-tidy-drift — FAIL (run go mod tidy and commit the updated go.mod/go.sum)

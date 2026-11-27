@@ -848,4 +848,35 @@ else
   ok "no ACTIVE token carries a backslash-b word-boundary escape"
 fi
 
+f="$(tmpfile '<!-- portability-scope: ecosystem=dotnet - declared C# surface -->
+Inspect src/App.csproj with dotnet build and C# rules.')"
+if SKILL_PORTABILITY_TOKENS="$REAL_TOKENS" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1; then
+  ok "ecosystem-only portability-scope excuses ecosystem tokens"
+else
+  fail "ecosystem-only portability-scope should excuse ecosystem tokens"
+fi
+rm -f "$f"
+
+f="$(tmpfile '<!-- portability-scope: ecosystem=dotnet - declared C# surface -->
+Base the diff on origin/main and inspect App.csproj.')"
+if out="$(SKILL_PORTABILITY_TOKENS="$REAL_TOKENS" bash "$SCRIPT" --paths "$f" 2>&1)"; then
+  fail "ecosystem-only portability-scope must not waive origin/main: $out"
+elif grep -q "COUPLING: ${f}:2: origin/(main|master) ->" <<<"$out" && ! grep -q '\\.csproj ->' <<<"$out"; then
+  ok "ecosystem-only portability-scope still enforces origin/main"
+else
+  fail "expected line 2 origin/main flagged without csproj, got: $out"
+fi
+rm -f "$f"
+
+f="$(tmpfile '<!-- portability-scope: ecosystem=dotnet - declared C# surface -->
+Place handlers per Clean Architecture in App.csproj.')"
+if out="$(SKILL_PORTABILITY_TOKENS="$REAL_TOKENS" bash "$SCRIPT" --paths "$f" 2>&1)"; then
+  fail "ecosystem-only portability-scope must not waive Clean Architecture: $out"
+elif grep -q "COUPLING: ${f}:2: .*Clean Arch" <<<"$out" && ! grep -q '\\.csproj ->' <<<"$out"; then
+  ok "ecosystem-only portability-scope still enforces Clean Architecture"
+else
+  fail "expected line 2 Clean Architecture flagged without csproj, got: $out"
+fi
+rm -f "$f"
+
 test_harness::report

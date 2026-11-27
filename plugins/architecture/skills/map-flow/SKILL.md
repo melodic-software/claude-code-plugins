@@ -9,7 +9,7 @@ metadata:
   summary: Trace one C# entry point into a sequence diagram with a citation on every hop
 ---
 
-<!-- portability-scope: R3 declared-ecosystem surface - C# entry-point call trace -->
+<!-- portability-scope: ecosystem=dotnet - R3 declared-ecosystem surface (C# entry-point call trace) -->
 
 ## Repository context
 

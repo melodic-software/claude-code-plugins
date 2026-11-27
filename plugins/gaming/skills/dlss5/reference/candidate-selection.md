@@ -1,4 +1,4 @@
-<!-- portability-scope: R3 declared-ecosystem surface - Windows DirectX 12 PE32 inspection -->
+<!-- portability-scope: ecosystem=windows - R3 declared-ecosystem surface (Windows DirectX 12 PE32 inspection) -->
 
 # Candidate selection
 

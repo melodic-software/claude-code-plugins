@@ -1,3 +1,5 @@
+<!-- portability-scope: ecosystem=dotnet - R6 kept-adapter record schema for dependency-graph.sh -->
+
 # dependency-graph.sh record and adapter rules
 
 Behavior notes for `dependency-graph.sh`.
@@ -54,7 +56,6 @@ render-dependencies.sh is that reader.
            ecosystem is the name of the reader that produced the node.
            kind is "project" or "package". id of a project is its
            repo-relative path. id of a package is "pkg:" plus the Include.
-           # portability-ok: R6 kept-adapter record schema - dependency-graph.sh .NET reader
            Nodes with the same id are one node, so a reader other than .NET
            puts its ecosystem name after the colon ("pkg:<ecosystem>:<name>").
            namespace is the project file's RootNamespace, else its
@@ -96,13 +97,11 @@ result "unknown" means this run did not read a shipped adapter. The arrays
 are empty and message says why. That is not an empty graph: an empty graph
 is result "ok" with project nodes and no edges.
 
-# portability-ok: R6 kept-adapter record schema - dependency-graph.sh .NET reader
 The .NET adapter: ProjectReference is a directed internal
 edge whose target is the Include path relative to the project file.
 PackageReference is an external package edge. A ProjectReference that is
 missing or escapes the repository root is status "unresolved" and is never
 matched to a similarly named project elsewhere. Solution files
-# portability-ok: R6 kept-adapter record schema - dependency-graph.sh .NET reader
 (*.sln, *.slnx) contribute membership, not dependency edges. A member whose
 path ends in another project extension (.vbproj, .sqlproj, ...) is an
 unread-manifest finding.

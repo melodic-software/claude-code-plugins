@@ -1,4 +1,4 @@
-<!-- portability-scope: R2/R3 declared-ecosystem security checklist for .NET (C#) -->
+<!-- portability-scope: ecosystem=dotnet - R2/R3 declared-ecosystem security checklist for .NET (C#) -->
 
 # .NET (C#) security checklist
 

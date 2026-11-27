@@ -79,15 +79,20 @@ fi
 
 scan_file() {
   local file="$1"
-  if grep -qE '^[[:space:]]*(#|((>|[-*+]|[0-9]+[.)])[[:space:]]+)*<!--)[[:space:]]*portability-scope:' -- "$file"; then
-    return 0
+  local scope_lines ecosystem_scoped=0
+  scope_lines="$(grep -E '^[[:space:]]*(#|((>|[-*+]|[0-9]+[.)])[[:space:]]+)*<!--)[[:space:]]*portability-scope:' -- "$file" || true)"
+  if [[ -n "$scope_lines" ]]; then
+    if printf '%s\n' "$scope_lines" | grep -qvE 'portability-scope:[[:space:]]*ecosystem([[:space:]=:-]|$)'; then
+      return 0
+    fi
+    ecosystem_scoped=1
   fi
   local awk_file is_shell=0
   [[ "$file" == *.sh ]] && is_shell=1
   # awk reads an operand shaped name=value as an assignment, not a file:
   # https://pubs.opengroup.org/onlinepubs/9799919799/utilities/awk.html
   awk_file="$(token_scan::awk_operand "$file")"
-  awk -v is_shell="$is_shell" '
+  awk -v is_shell="$is_shell" -v ecosystem_scoped="$ecosystem_scoped" '
     function is_annotated(l) { return l ~ /portability-ok:[[:space:]]*[^[:space:]#<\-]/ }
     # Block-level only: a content line that merely happens to carry an inline
     # HTML comment marker (e.g. prose with `<!-- note -->` mid-line) must NOT
@@ -226,7 +231,7 @@ scan_file() {
         return is_illustrated_placeholder(l)
       }
       if (is_ecosystem_pattern(p)) {
-        if (is_shell) return 1
+        if (is_shell || ecosystem_scoped) return 1
         return l ~ /[$]\{user_config\./ || is_illustrated_placeholder(l)
       }
       return 0

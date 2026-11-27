@@ -9,7 +9,7 @@ metadata:
   summary: Chart publishers, consumers, and orphan messages
 ---
 
-<!-- portability-scope: R3 declared-ecosystem surface - C# async message topology -->
+<!-- portability-scope: ecosystem=dotnet - R3 declared-ecosystem surface (C# async message topology) -->
 
 ## Repository context
 

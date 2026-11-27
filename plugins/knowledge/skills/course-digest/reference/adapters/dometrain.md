@@ -1,4 +1,4 @@
-<!-- portability-scope: R3 declared-ecosystem surface - Dometrain course adapter -->
+<!-- portability-scope: ecosystem=dometrain - R3 declared-ecosystem surface (Dometrain course adapter) -->
 
 # Dometrain Adapter
 

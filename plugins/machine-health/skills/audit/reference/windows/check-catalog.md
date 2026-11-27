@@ -1,4 +1,4 @@
-<!-- portability-scope: R3 declared-ecosystem surface - Windows host check catalog -->
+<!-- portability-scope: ecosystem=windows - R3 declared-ecosystem surface (Windows host check catalog) -->
 
 # Windows check catalog
 
