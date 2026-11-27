@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [16.2.6] - 2026-11-27
+
+### Fixed
+
+- `/work-items:triage --ci` follows the repository's form for quoting a recorded decision to the letter, when the repository's rules give one, instead of paraphrasing the decision inline or dropping its first line or link.
+
 ## [16.2.5] - 2026-11-27
 
 ### Fixed
