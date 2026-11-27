@@ -86,6 +86,47 @@ _mg_api_pages() {
   MG_OUT="$all"
 }
 
+_mg_bg_dir=""
+_mg_spawn() {
+  local name="$1"
+  shift
+  if [[ -z "$_mg_bg_dir" ]]; then
+    _mg_bg_dir="$(mktemp -d 2>/dev/null)" || {
+      _mg_bg_dir=""
+      return 0
+    }
+    [[ -n "$(trap -p EXIT)" ]] || trap '_mg_bg_reap' EXIT
+  fi
+  (
+    "$@"
+    rc=$?
+    printf '%s' "$MG_OUT" >"$_mg_bg_dir/$name.out" && printf '%s' "$MG_ERR" >"$_mg_bg_dir/$name.err" &&
+      printf '%s\n' "$rc" >"$_mg_bg_dir/$name.rc"
+  ) >/dev/null 2>&1 &
+  printf -v "_mg_pid_$name" '%s' "$!"
+}
+_mg_join() {
+  local name="$1" pid rc
+  shift
+  pid="_mg_pid_$name"
+  pid="${!pid:-}"
+  if [[ -n "$pid" ]]; then
+    unset "_mg_pid_$name"
+    wait "$pid" 2>/dev/null
+    if IFS= read -r rc <"$_mg_bg_dir/$name.rc" 2>/dev/null && [[ "$rc" =~ ^[0-9]+$ ]]; then
+      MG_OUT="$(<"$_mg_bg_dir/$name.out")"
+      MG_ERR="$(<"$_mg_bg_dir/$name.err")"
+      return "$rc"
+    fi
+  fi
+  "$@"
+}
+_mg_bg_reap() {
+  local v
+  for v in ${!_mg_pid_*}; do kill "${!v}" 2>/dev/null; done
+  [[ -n "$_mg_bg_dir" ]] && rm -rf "$_mg_bg_dir"
+}
+
 _mg_urlencode() {
   local s="$2" out="" c code i LC_ALL=C
   for ((i = 0; i < ${#s}; i++)); do
@@ -222,17 +263,28 @@ _mg_threads_ccr() {
     | "\(.path):\(.line // "?")  \(if ((.comment_ids // []) | length) > 0 then "'"$base"'\(.comment_ids[0])" else "" end)"'
 }
 
+MG_PV_WF=.github/workflows/pr-verify.yml
+MG_PV_PP=docs/conventions/pr-pipeline.yaml
+MG_PV_TA=.github/standards/trusted-actors/trusted-actors.json
+MG_PV_SC=docs/conventions/source-control.yaml
+_mg_pv_wanted() {
+  local skip
+  read -r skip _ <<<"$_mg_pv"
+  [[ "$skip" == - && -n "$_mg_base" && "$_mg_base" != null ]]
+}
+_mg_pv_conf() {
+  # shellcheck disable=SC2016  # GraphQL variables and jq, not shell expansions
+  _mg_api graphql -f query='query($o:String!,$r:String!,$w:String!,$c:String!,$t:String!,$s:String!){repository(owner:$o,name:$r){w:object(expression:$w){oid} c:object(expression:$c){... on Blob{text}} t:object(expression:$t){... on Blob{text}} s:object(expression:$s){... on Blob{text}}}}' \
+    -f o="${MG_REPO%%/*}" -f r="${MG_REPO#*/}" -f w="$_mg_base:$MG_PV_WF" -f c="$_mg_base:$MG_PV_PP" -f t="$_mg_base:$MG_PV_TA" -f s="$_mg_base:$MG_PV_SC" \
+    --jq '.data.repository | if . == null then error("no repository in the response") else . end
+      | {w: (.w != null), c: (.c.text // ""), t: (.t.text // ""), s: (.s.text // "")}'
+}
 _mg_verify() {
   local skip uid login default head conf="" base def digest suffix run judged counted
   read -r skip uid login default head <<<"$_mg_pv"
-  [[ "$skip" == - && -n "$_mg_base" && "$_mg_base" != null ]] || return 0
-  local wf=.github/workflows/pr-verify.yml pp=docs/conventions/pr-pipeline.yaml ta=.github/standards/trusted-actors/trusted-actors.json
-  local sc=docs/conventions/source-control.yaml source std sha
-  # shellcheck disable=SC2016  # GraphQL variables and jq, not shell expansions
-  if _mg_api graphql -f query='query($o:String!,$r:String!,$w:String!,$c:String!,$t:String!,$s:String!){repository(owner:$o,name:$r){w:object(expression:$w){oid} c:object(expression:$c){... on Blob{text}} t:object(expression:$t){... on Blob{text}} s:object(expression:$s){... on Blob{text}}}}' \
-    -f o="${MG_REPO%%/*}" -f r="${MG_REPO#*/}" -f w="$_mg_base:$wf" -f c="$_mg_base:$pp" -f t="$_mg_base:$ta" -f s="$_mg_base:$sc" \
-    --jq '.data.repository | if . == null then error("no repository in the response") else . end
-      | {w: (.w != null), c: (.c.text // ""), t: (.t.text // ""), s: (.s.text // "")}'; then
+  _mg_pv_wanted || return 0
+  local wf=$MG_PV_WF pp=$MG_PV_PP ta=$MG_PV_TA sc=$MG_PV_SC source std sha
+  if _mg_join pvconf _mg_pv_conf; then
     conf="$MG_OUT"
   else
     _mg_urlencode base "$_mg_base"
@@ -355,7 +407,15 @@ merge_readiness::check() {
       "BLOCKED: ${MG_REPO}#${MG_NUM} carries a hold label, so this merge is refused (--admin and --auto included)." \
       "Hold labels: $_mg_holds. Merge once the hold ends and the label is removed."
 
-  _mg_api_pages "repos/$MG_REPO/pulls/$MG_NUM/reviews" . || _mg_unchecked "$MG_ERR"
+  _mg_threads_first=_mg_threads_graphql _mg_threads_then=_mg_threads_ccr
+  [[ "${CLAUDE_CODE_REMOTE:-}" == true ]] && _mg_threads_first=_mg_threads_ccr _mg_threads_then=_mg_threads_graphql
+  _mg_spawn reviews _mg_api_pages "repos/$MG_REPO/pulls/$MG_NUM/reviews" .
+  _mg_spawn checks _mg_api_pages "repos/$MG_REPO/commits/$_mg_sha/check-runs" .check_runs
+  _mg_spawn statuses _mg_api_pages "repos/$MG_REPO/commits/$_mg_sha/status" .statuses
+  _mg_spawn threads "$_mg_threads_first"
+  _mg_pv_wanted && _mg_spawn pvconf _mg_pv_conf
+
+  _mg_join reviews _mg_api_pages "repos/$MG_REPO/pulls/$MG_NUM/reviews" . || _mg_unchecked "$MG_ERR"
   # shellcheck disable=SC2016
   _mg_changes="$(jq -r '
     reduce .[] as $r ({}; if ($r.state | IN("APPROVED","CHANGES_REQUESTED","DISMISSED"))
@@ -365,7 +425,7 @@ merge_readiness::check() {
 
   _mg_ignored="$(jq -cn --arg s "${CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS-github-actions:Merge,github-actions:merge}" \
     '$s | split(",") | map(gsub("^ +| +$"; "") | select(length > 0))')" || _mg_ignored='[]'
-  _mg_api_pages "repos/$MG_REPO/commits/$_mg_sha/check-runs" .check_runs || _mg_unchecked "$MG_ERR"
+  _mg_join checks _mg_api_pages "repos/$MG_REPO/commits/$_mg_sha/check-runs" .check_runs || _mg_unchecked "$MG_ERR"
   # shellcheck disable=SC2016
   _mg_all="$(jq -c "$_mg_ignored"' as $ign
     | [.[] | select(("\(.app.slug // ""):\(.name)") | IN($ign[]) | not)
@@ -425,7 +485,7 @@ merge_readiness::check() {
   IFS=$'\x1f' read -r _mg_failed _mg_pending _mg_failed_json _mg_failed_runs <<<"$MG_OUT"
 
   # https://docs.github.com/rest/commits/statuses#get-the-combined-status-for-a-specific-reference
-  _mg_api_pages "repos/$MG_REPO/commits/$_mg_sha/status" .statuses || _mg_unchecked "$MG_ERR"
+  _mg_join statuses _mg_api_pages "repos/$MG_REPO/commits/$_mg_sha/status" .statuses || _mg_unchecked "$MG_ERR"
   # shellcheck disable=SC2016
   MG_OUT="$(jq -r '
     [.[] | select(.state | IN("failure","error")) | .context] as $f
@@ -436,11 +496,7 @@ merge_readiness::check() {
   [[ -n "$_mg_sfailed" ]] && _mg_failed="${_mg_failed:+$_mg_failed, }$_mg_sfailed"
   [[ -n "$_mg_spending" ]] && _mg_pending="${_mg_pending:+$_mg_pending, }$_mg_spending"
 
-  if [[ "${CLAUDE_CODE_REMOTE:-}" == true ]]; then
-    _mg_threads_ccr || _mg_threads_graphql || _mg_unchecked "review threads: $MG_ERR"
-  else
-    _mg_threads_graphql || _mg_threads_ccr || _mg_unchecked "review threads: $MG_ERR"
-  fi
+  _mg_join threads "$_mg_threads_first" || "$_mg_threads_then" || _mg_unchecked "review threads: $MG_ERR"
   _mg_threads="$MG_OUT"
   _mg_nonreq=""
   [[ -n "$_mg_failed" ]] && _mg_exempt
