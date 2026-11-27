@@ -297,6 +297,8 @@ export const step = (s: State, e: Event, o: Options): Result => {
       const times = s.refused[e.command] ?? 0
       const row = { trigger: 'gate', latencyMs: e.latencyMs, usage: e.usage, ...(times > 0 ? { repeat: true } : {}) }
       const parsed = e.reply.isAnswered ? parseReply(e.reply.text, o.fieldMax) : undefined
+      if (parsed?.kind === 'finding' && o.deferKinds.includes(parsed.value.category))
+        return { state: s, effects: [{ kind: 'record', row: { ...row, outcome: 'deferred', finding: parsed.value.finding, category: parsed.value.category } }] }
       if (parsed?.kind === 'finding' && times < o.gateRefusals)
         return {
           state: { ...s, refused: { ...s.refused, [e.command]: times + 1 } },

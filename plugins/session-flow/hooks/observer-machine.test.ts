@@ -203,3 +203,10 @@ test('a deferred finding mid-turn is held, sent once at the turn end, and droppe
   const off = step(held.state, { kind: 'command', arg: 'off' }, o)
   expect(off.state.deferred).toEqual([])
 })
+
+test('a gate finding of a deferred kind lets the command run and records deferred', () => {
+  const o = readOptions({ observer_gate_check: true, observer_defer_kinds: 'improvement' }).options
+  const r = step(initial(), { kind: 'gate-replied', command: 'git push', reply: { isAnswered: true, text: 'finding: Slow step.\ncategory: improvement\nrule: R\nevidence: E' }, latencyMs: 5 }, o)
+  expect(r.effects).toEqual([{ kind: 'record', row: { trigger: 'gate', latencyMs: 5, usage: undefined, outcome: 'deferred', finding: 'Slow step.', category: 'improvement' } }])
+  expect(r.state.refused).toEqual({})
+})

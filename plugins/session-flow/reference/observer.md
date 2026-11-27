@@ -150,7 +150,7 @@ time, trigger, turn, step, outcome, latency and the fork's token usage; each ans
 disputed, dismissed, ignored, resolved, and the answers after Dismiss) appends one too. Auto-send adds
 `auto_sent` rows (delivery `append` or `submit`, note length in `chars`, and `stepsLate` for an
 append), `auto_send_failed` rows with the error, and one row per observer turn with its token usage;
-gate rows carry trigger `gate`, outcome `refused`, `none`, `timeout`, `error` or
+gate rows carry trigger `gate`, outcome `refused`, `deferred` (a finding of an `observer_defer_kinds` category, which never refuses), `none`, `timeout`, `error` or
 `allowed_after_refusals`, and `repeat`. A `parse_failed` row, check or gate, adds `reason`
 (`no_finding`, `no_rule`, `bad_category` or `field_too_long:<field>`) and, when the reply had a
 finding, the `lengths` of its finding, rule and evidence; never the reply text. A `shown` check row
