@@ -57,7 +57,7 @@ GIT_RUNS_RE = re.compile(
     r"(?<![\w.-])hooks(?![\w.-])|\.git/(?:config|info|hooks|modules)\b|\.git(?:config|attributes|modules)\b"
     r"|(?<![\w.])git/config\b|\bXDG_CONFIG_HOME\b|\bGIT_DIR\b|\bGIT_CONFIG\w*|--(?:separate-)?git-dir\b"
     r"|(?:^|[\s;&|(])(?:export\s+)?HOME="
-    r"""|(?<![\w.-])git\s+(?!(?:-[cC]\s+[^\s"'\\]\S*\s+)*(?:%s)\b)""" % GIT_SUBCOMMANDS
+    r"""|(?<![\w.-])git\s+(?!(?:-[cC]\s+(?:"[^"\s]*"|'[^'\s]*'|[^\s"'\\]\S*)\s+)*(?:%s)\b)""" % GIT_SUBCOMMANDS
 )
 CAT_HEREDOC_RE = re.compile(
     r"""^\s*(?:cat|tee)(?:\s+(?:>>?\s*)?[^\s<>|;&]+)*\s*<<-?\s*([A-Za-z_]\w*)"""
