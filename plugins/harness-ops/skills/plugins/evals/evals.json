@@ -231,14 +231,14 @@
       "id": 12,
       "name": "downgrade-guard-withholds-backward-catalog",
       "prompt": "/harness-ops:plugins sync. For this marketplace fleet-state.sh reports 3 user-scope ids (alpha@market1, beta@market1, gamma@market1) whose catalog_versions read 1.1.0 while the installed versions read 2.0.0, because the marketplace's directory source is parked on an old branch. The other 37 user-scope ids read the same version in both places.",
-      "expected_output": "The downgrade guard withholds a proven downgrade from the sweep by default. No `claude plugin update` runs for alpha, beta, or gamma; they are reported under `Action needed` as a `downgrade withheld:` row naming both versions and the likely cause (a marketplace source that moved backward), with the remediation to fix the source and rerun sync. `Updated:` does not list them. Rerun with --allow-downgrade and the same three ids are acted on and render under `Downgraded:`, never under `Updated:`.",
+      "expected_output": "The downgrade guard withholds a proven downgrade from the sweep by default. No `claude plugin update` runs for alpha, beta, or gamma; they are reported under `Action needed` as a `downgrade withheld:` row naming both versions and the likely cause (a marketplace source that moved backward), with the remediation to fix the source and rerun sync. The `updated:` row does not list them. Rerun with --allow-downgrade and the same three ids are acted on and render under the `downgraded:` row, never under `updated:`.",
       "files": [],
       "expectations": [
         "No `claude plugin update` call is issued for alpha@market1, beta@market1, or gamma@market1 on the default run",
         "The three ids appear under `Action needed` as a `downgrade withheld:` row carrying both the installed and the catalog version",
         "The row names a marketplace source that moved backward as the likely cause and gives the remediation of fixing the source and rerunning sync",
-        "`Updated:` does not list alpha@market1, beta@market1, or gamma@market1",
-        "With --allow-downgrade the three ids are updated and their outcomes render under `Downgraded:`, never under `Updated:`",
+        "The `updated:` row does not list alpha@market1, beta@market1, or gamma@market1",
+        "With --allow-downgrade the three ids are updated and their outcomes render under the `downgraded:` row, never under `updated:`",
         "The ids come from `fleet-state.sh --ids downgrade-candidates`, never from a hand-written jq extraction over the JSON"
       ]
     },

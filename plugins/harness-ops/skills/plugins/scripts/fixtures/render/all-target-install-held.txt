@@ -1,18 +1,33 @@
 Result: 2 item(s) under Action needed
-Marketplace: market1: current, 1 action(s) pending (autoUpdate: on)
-In-repo: 0: <case> has no project/local installs
-Divergences: 0 actionable
-Timing: <elided>
-Action needed:
-  - 1 catalog plugin(s) not installed at user scope (install held: policy all across every marketplace would install every catalog, so a person picks): beta@market1
+
+Action needed (2)
+  - market1: 1 catalog plugin(s) not installed at user scope (install held: policy all across every marketplace would install every catalog, so a person picks): beta@market1
     remedy: pick from the ask offer, then rerun with --only-install <picked ids> --run-dir <run journal>
-Marketplace: market2: current, 1 action(s) pending (autoUpdate: on)
-In-repo: 0: <case> has no project/local installs
-Divergences: 0 actionable
-Timing: <elided>
-Action needed:
-  - 1 catalog plugin(s) not installed at user scope (install held: policy all across every marketplace would install every catalog, so a person picks): gamma@market2
+  - market2: 1 catalog plugin(s) not installed at user scope (install held: policy all across every marketplace would install every catalog, so a person picks): gamma@market2
     remedy: pick from the ask offer, then rerun with --only-install <picked ids> --run-dir <run journal>
 
-Run journal: <run_dir>
-Timing: <elided>
+Marketplace: market1
+  status:       current
+  autoUpdate:   on
+  pending:      1 action(s)
+  in-repo:      0, <case> has no project/local installs
+  divergences:  0 actionable
+
+Marketplace: market2
+  status:       current
+  autoUpdate:   on
+  pending:      1 action(s)
+  in-repo:      0, <case> has no project/local installs
+  divergences:  0 actionable
+
+Run
+  journal:                    <run_dir>
+  total:                      <elided>
+  market1 block:              <elided>
+  market1 slowest step:       <elided>
+  market1 outside the steps:  <elided>
+  market2 block:              <elided>
+  market2 slowest step:       <elided>
+  market2 outside the steps:  <elided>
+  outside the blocks:         <elided>
+  clock resolution:           <elided>

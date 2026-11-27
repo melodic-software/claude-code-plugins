@@ -107,7 +107,7 @@ Re-read state immediately before each mutating
 step (`sync.md`'s "Concurrency" section, `converge.md` Step 4) rather than driving a whole multi-step
 sync off one snapshot taken at the start. When a mutation's actual result doesn't match what the
 snapshot predicted, that's this race. Note it in the report, don't treat it as a bug to chase. For
-an update call the CLI answers "already at the latest version", the report's `Moved during this run:`
+an update call the CLI answers "already at the latest version", the report's `moved during this run:`
 row is that note: `sync.md`'s "Concurrency" section says how the run's snapshots separate a moved id
 from a true no-op.
 

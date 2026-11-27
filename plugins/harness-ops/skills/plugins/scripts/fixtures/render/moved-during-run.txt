@@ -1,29 +1,42 @@
 Result: changes applied, nothing under Action needed
-Marketplace: market1: current (autoUpdate: on)
-In-repo: 0: <case> has no project/local installs
-Updated: 1 plugin(s)
-  - beta@market1 (user): 0.1.0 -> 0.2.0
-Moved during this run: 2 plugin(s), by something other than this run's update calls
-  - alpha@market1 (user): 0.1.0 -> 0.2.0
-  - zeta@market1 (user): 0.1.0 -> 0.2.0
-Divergences: 2 in all
-  2 actionable
-    2 elsewhere on this machine
-    remedy: run `/harness-ops:plugins converge`
-  by origin:
-    0 pre-existing
-    2 newly created by this run
-      0 by the in-repo update
-      1 by the user-scope sweep
-      1 moved during this run, cause unattributed
-  by project path:
-    - <case>/other: 2 diverging record(s): alpha@market1, beta@market1
-Note: zeta (0.1.0 -> 0.2.0) moved during this run
-  the algorithm that ran is the pre-update one: ${CLAUDE_PLUGIN_ROOT} still resolves to the version loaded at session start
-  remedy: /reload-plugins before relying on the new version
-Timing: <elided>
 
-Run journal: <run_dir>
-Timing: <elided>
+Changed by this run (1)
+  updated:  1 plugin(s)
+    - beta@market1 (user): 0.1.0 -> 0.2.0
+
+Marketplace: market1
+  status:                 current
+  autoUpdate:             on
+  in-repo:                0, <case> has no project/local installs
+  moved during this run:  2 plugin(s), by something other than this run's update calls
+    - alpha@market1 (user): 0.1.0 -> 0.2.0
+    - zeta@market1 (user): 0.1.0 -> 0.2.0
+  self-update:            zeta (0.1.0 -> 0.2.0) moved during this run
+    the algorithm that ran is the pre-update one: ${CLAUDE_PLUGIN_ROOT} still resolves to the version loaded at session start
+    remedy: /reload-plugins before relying on the new version
+
+Left as they are (1)
+  divergences:  2 in all
+    2 actionable
+      2 elsewhere on this machine
+      remedy: run `/harness-ops:plugins converge`
+    by origin:
+      0 pre-existing
+      2 newly created by this run
+        0 by the in-repo update
+        1 by the user-scope sweep
+        1 moved during this run, cause unattributed
+    by project path (diverging records, first ids):
+      <case>/other  2  alpha@market1, beta@market1
+
+Run
+  journal:             <run_dir>
+  total:               <elided>
+  marketplace block:   <elided>
+  slowest step:        <elided>
+  outside the steps:   <elided>
+  outside the blocks:  <elided>
+  clock resolution:    <elided>
+
 Reload: run /reload-plugins to load these changes into this session
   if it warns, rerun it as /reload-plugins --force

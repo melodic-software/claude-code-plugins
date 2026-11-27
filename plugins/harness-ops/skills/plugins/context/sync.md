@@ -137,12 +137,13 @@ so a second re-entry restores the first pass again.
 A re-entry times both passes: its `timings.total` and `timings.outside_marketplaces` sum the first
 pass's recorded timings and its own, `timings.resolution` is the coarser of their clocks, and
 `timings.passes[]` holds each pass's own `{pass, total, outside_marketplaces, resolution}`
-(`first`, then `only_install`). The wait between the passes is in neither, and the report's run
-`Timing:` row names both passes and says the wait is not counted. The blocks still time only the
+(`first`, then `only_install`). The wait between the passes is in neither, and the report's `Run`
+footer times both passes and says the wait is not counted. The blocks still time only the
 re-entry, so on a re-entry the block totals plus `outside_marketplaces` fall short of
 `timings.total` by the first pass's block time, and a second re-entry reports the first pass and
-itself, the earlier re-entry's time in neither. The digest's `cwd` is what the `In-repo:` row names when no
-project root resolved. Ids and counts only: the per-file cache detail and every snapshot stay in
+itself, the earlier re-entry's time in neither. The digest's `cwd` is what the `in-repo:` row names when no
+project root resolved, and `home` is the `$HOME` the run saw (`null` when unset): the render prints a
+path under exactly that prefix from `~`, and never shortens a path inside a command. Ids and counts only: the per-file cache detail and every snapshot stay in
 the run directory, which the digest names.
 
 ## Concurrency
@@ -158,7 +159,7 @@ steps. Inside a step, the loop body is deliberately snapshot-driven: Step 3 read
 and then issues one `claude plugin update` per line. That is the intended design, not a violation of
 the rule above. Re-reading state before each of sixty-odd calls would not close the race: an
 external writer can still land between the read and the call, and the lost write is silent. The
-step-boundary snapshots (`mid` and `post`, and the `Moved during this run:` row the gotchas
+step-boundary snapshots (`mid` and `post`, and the `moved during this run:` row the gotchas
 Concurrency section points to) are what detect it.
 
 A re-read whose inputs did not change reuses the last report instead of running `fleet-state.sh`
@@ -192,7 +193,7 @@ pre-mutation snapshot's version (`pre.<mp>.json` for Step 2, `mid.<mp>.json` for
 A moved row is `{id, scope, kind, old, new, direction}` in the digest's `moved_during_run[]`, with
 `new` the post version and `direction` from the same triple compare Updated rows use. The report says
 the id moved during this run "by something other than this run's update calls": the snapshots show
-that it moved, not who moved it, so no row names a process. The row is not an `Updated:` row, because
+that it moved, not who moved it, so no row names a process. The row is not an `updated:` row, because
 this run's call changed nothing. A backward move is also in `downgraded[]`, flagged `concurrent: true`,
 and the report qualifies it `(moved during this run)`. The row feeds the self-update check and the
 monitor count like an updated row, and the divergence split credits it separately. `noop_unverified`
@@ -222,7 +223,7 @@ reads as success.
 
 **The opt-in is explicit: the `--allow-downgrade` argument to `sync`.** Without it, Step 3 leaves
 every downgrade candidate untouched and reports it under `Action needed`. With it, Step 3 acts on
-them and their outcomes render under `Downgraded:`, never under `Updated:`.
+them and their outcomes render under `downgraded:`, never under `updated:`.
 
 **Name the likely cause in the report: a marketplace source that moved backward.** A `directory`
 source whose checkout is parked on an old branch, or a git source that was force-pushed or
@@ -284,7 +285,7 @@ shapes it matches live only in the script and its probe evidence, never here.
 An up-to-date result is not a source for `<new>`: this run's call
 changed nothing. It is the cross-check the "Concurrency" section's table uses against source 3, so
 an already-current id whose post version differs from `<old>` is reported as moved during the run,
-never dropped and never filed under `Updated:`.
+never dropped and never filed under `updated:`.
 
 One data point, not a license to drop the fallback: on Claude Code 2.1.228 a 63-plugin user-scope
 sweep had all 21 CLI-reported updates already reflected in a post-sweep `fleet-state.sh` re-read, so
@@ -359,7 +360,7 @@ Then, for the rest of the run:
 
   The script runs the triple compare per consecutive pair, stops at the first pair that finds a
   backward move, and reports that interval and its rows in the digest's `catalog_regression`.
-  The render's `Catalog regression:` row reads it and is absent when the field is null.
+  The render's `catalog regression:` row reads it and is absent when the field is null.
 - **Append every mutating CLI call and its output** to `$run_dir/journal.log` as it runs, so the
   `<new>` values that only the CLI reports survive the step that produced them:
 
@@ -503,7 +504,7 @@ when the source carries no key beyond `source`, `repo`, `url`, `ref` and `path`,
 is the clone's root, its `origin` is the recorded source, `git status` lists no modified or
 untracked file, a pinned ref is the checked-out branch, and the remote answers with the clone's
 HEAD. The
-journal and a `refresh skipped` row under the marketplace header say so, the digest's
+journal and a `refresh: skipped` row in the marketplace block say so, the digest's
 `refresh.skipped` holds `{head, ref}` with `refresh.rc` null, and `lastUpdated` keeps the last
 refresh's stamp. Every other case runs the refresh: another source kind, a pinned ref that is a tag
 or a different branch, an unreachable remote, or one that asks for a credential, since prompts are
@@ -556,8 +557,8 @@ is current with its source, nothing else: a current catalog can still read lower
 installed, because the source itself can have moved backward. The downgrade guard applies on every
 run, refreshed or not.
 
-The report says so rather than claiming the marketplace is current: its header reads `needs
-update`, a `refresh failed (exit <N>): <reason>` line sits under it, and `Action needed` carries
+The report says so rather than claiming the marketplace is current: its `status:` row reads `needs
+update`, a `refresh: failed (exit <N>): <reason>` row sits under it, and `Action needed` carries
 the error, which says the catalog may be stale and install/enable maintenance is deferred. The
 update sweep ran guarded, so its already-current ids are a lower bound. Do not
 delete, rename, or re-clone the marketplace directory to work around it. That is cache surgery
@@ -609,9 +610,9 @@ report. They are categorically different answers and the user cannot tell them a
 
 - **`project_root` is `null`**: no project root resolved (a run from `$HOME`, or from a non-git
   directory with no `.claude` of its own). Nothing in-repo can be updated because there is no
-  "here". The render's skipped `In-repo:` row names the cwd, and the run goes to Step 3. Do **not** report this as "0 updated".
+  "here". The render's skipped `in-repo:` row names the cwd, and the run goes to Step 3. Do **not** report this as "0 updated".
 - **`project_root` is a path and no record carries `currentProject: true`**: a project resolved and
-  it simply has no project/local-scope installs. Emit the `In-repo:` row as `0` **for that root**,
+  it simply has no project/local-scope installs. Emit the `in-repo:` row as `0` **for that root**,
   which is an honest zero rather than an absent step.
 - **`project_root` is a path and records carry `currentProject: true`**: the success path below.
 
@@ -697,8 +698,8 @@ this step only; an `--allow-downgrade` project/local rollback is not compared.
 Off by default, because it makes one serial CLI call per lagging record, which on a machine with
 many checkouts runs to tens of minutes. The calls stay serial, on the sandbox probe recorded in
 [#12525](https://github.com/melodic-software/claude-code-plugins/issues/12525).
-Off, the step makes no call and renders `Behind in other paths:` with the count and the remedy; those
-records are not counted for `converge`, and a user-home one leaves the `User-home project records` row.
+Off, the step makes no call and renders `behind in other paths:` with the count and the remedy; those
+records are not counted for `converge`, and a user-home one leaves the `user-home project records:` row.
 
 Step 2 covers the repo the run stands in. With `--update-other-paths`, right after the mid read and
 before the user-scope sweep, `sync-run.sh` takes the project/local records of every other path that is
@@ -717,9 +718,9 @@ The step does not rest on `update` leaving the settings files alone (the record 
 that path is reported as not tried.
 
 After the post read, each called record is read back by id, scope and path. A record that moved
-forward renders under `Updated in other paths:`. One left behind in a linked worktree or a user home
-renders under `Not moved in other paths:` with its label; the worktree keeps its divergence class and
-the home stays in the `User-home project records` row. Any other record left behind, a failed call,
+forward renders under `updated in other paths:`. One left behind in a linked worktree or a user home
+renders under `not moved in other paths:` with its label; the worktree keeps its divergence class and
+the home stays in the `user-home project records:` row. Any other record left behind, a failed call,
 and a stopped path go under `Action needed`. With the flag, audit runs no call and lists `Would update
 in other paths:`. The digest field is `other_paths`:
 `{updated, failed, not_moved, would_update, skipped, catalog_moved}`. `updated[]` is
@@ -729,7 +730,7 @@ in other paths:`. The digest field is `other_paths`:
 `.claude/` settings changed. Without the flag, `skipped` is `{records, paths}` and no call is
 made. `catalog_moved` counts the plugins whose catalog version changed between the pre and post
 reads.
-`Catalog moved during this run:` names a catalog that changed between the pre and post reads, since a
+`catalog moved during this run:` names a catalog that changed between the pre and post reads, since a
 long run can leave records on different versions. Each CLI call's duration is in the journal.
 
 ## Step 3: User-scope update sweep
@@ -751,14 +752,14 @@ an id current, and what each does:
   `marketplace.lastUpdated`:
 
   ```text
-  Would update: <N> plugin(s) (lower bound, predicted against a catalog last refreshed
-    <lastUpdated>, which `audit` does not refresh; `sync` refreshes first and may find more)
-  Would withhold: <N> downgrade(s) (the catalog reads lower than what is installed; `sync`
-    reports these under Action needed unless it is run with --allow-downgrade)
+  would update:    <N> plugin(s)
+  would withhold:  <N> downgrade(s)
   ```
 
-  The withheld count comes from `--ids downgrade-candidates`, projected off the same saved report
-  as the `Would update` count. Print it whenever it is non-zero: a prediction that names only what
+  The marketplace block's `refresh:` row names the `lastUpdated` the prediction ran against and
+  calls it a lower bound; `sync` reports a withheld downgrade under Action needed unless it is run
+  with --allow-downgrade. The withheld count comes from `--ids downgrade-candidates`, projected off
+  the same saved report as the `would update` count. Print it whenever it is non-zero: a prediction that names only what
   would move forward hides the direction problem the guard exists to surface.
 
   Never present an `audit` prediction of zero as "the fleet is current": it means "nothing is
@@ -794,7 +795,7 @@ as well as Step 3's. What happens to it is the operator's call, not this step's:
   both versions and the likely cause, per SKILL.md's `downgrade withheld:` row.
 - **`--allow-downgrade` was given.** Loop them too, taking `-s <scope>` from field 2 the way Step 2
   takes it off its own line, journaled through the same `tee` plus `PIPESTATUS[0]` shape as every
-  other mutating call. Their outcomes render under `Downgraded:`, never under `Updated:`, whatever
+  other mutating call. Their outcomes render under `downgraded:`, never under `updated:`, whatever
   the CLI's own line calls them. The digest carries them in `downgraded`, which is a separate array
   from `user_sweep.updated` for exactly that reason.
 
@@ -932,7 +933,7 @@ that could not be produced, never a second pass beside a JSON that was.
 directory removal under Claude Code's own plugin cache, which is outside the boundary the rest of
 this skill keeps: `sync` mutates only through documented `claude plugin` CLI calls, and no CLI verb
 rewrites a cache directory whose version number has not moved. So both actions report the ids and
-the remediation and stop. Emit SKILL.md's `Cache content:` row, and omit it entirely when the check
+the remediation and stop. Emit SKILL.md's `cache content:` row, and omit it entirely when the check
 found nothing.
 
 The check compares only installs recorded at the marketplace clone's HEAD. It never fetches a
@@ -953,20 +954,20 @@ row reads and why the row exists; the exact text of every row and variant is the
 
 **Every `<old> -> <new>` pair reaches the report already classified by direction.** Apply the same triple
 compare the guard uses, reading each numeric segment in base 10: a pair whose new version is higher, or whose direction the compare cannot
-read, goes under `Updated:`, with an unreadable one flagged `(direction unknown)`; a pair whose new
-version is lower goes under `Downgraded:`. A pair whose two versions differ as strings but whose
-triples tie, `1.2.3` to `1.2.3-beta`, goes under `Updated:` flagged `(direction unknown)` too,
+read, goes under `updated:`, with an unreadable one flagged `(direction unknown)`; a pair whose new
+version is lower goes under `downgraded:`. A pair whose two versions differ as strings but whose
+triples tie, `1.2.3` to `1.2.3-beta`, goes under `updated:` flagged `(direction unknown)` too,
 because the compare cannot rank suffixes. This classification is what makes a backward move
-unprintable as `Updated:` for the ids that still reach the CLI on the guard's fail-open path, the
+unprintable as `updated:` for the ids that still reach the CLI on the guard's fail-open path, the
 ones whose catalog version was null or unparsable and so could never be proven a downgrade in
 advance. The guard withholds what it can prove; this classification catches what only the outcome
 reveals. In the digest that is the split between each block's `updated` arrays, whose rows carry
 `direction`, and its `downgraded` array.
-The same classification governs the `In-repo:` count: it counts forward moves only, and an in-repo
-record that moved backward renders under `Downgraded:` with its scope instead of being counted
+The same classification governs the `in-repo:` count: it counts forward moves only, and an in-repo
+record that moved backward renders under `downgraded:` with its scope instead of being counted
 there.
 
-**Report the catalog regression check.** The render's `Catalog regression:` row names the first
+**Report the catalog regression check.** The render's `catalog regression:` row names the first
 snapshot interval in which any id's catalog version moved backward, from the digest's
 `catalog_regression` field that `sync-run.sh` computes (see the "Run journal" section). It is the signal that names the cause behind every withheld downgrade, so it belongs in the
 report even when `--allow-downgrade` moved them anyway.

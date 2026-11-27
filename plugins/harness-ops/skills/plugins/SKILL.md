@@ -206,7 +206,7 @@ verdict counts `Action needed` items only; a `remedy:` on another row still appl
 Paste the render as printed. Do not restate a number, an id, a scope, or a count it already
 carries, and do not add rows: an omitted row is an empty digest field, not proof that nothing
 happened. The initial report may add one caveat line when the run suggests more than the render
-shows (a `Not verified:` row, or `Moved during this run:` ids): state what the report cannot
+shows (a `not verified:` row, or `moved during this run:` ids): state what the report cannot
 establish, never a cause. The render ends with the reload guidance whenever the run changed what
 this session loads; add no reload advice of your own
 ([context/scope-semantics.md](context/scope-semantics.md) "`/reload-plugins`: bare by default,

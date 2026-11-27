@@ -1,13 +1,26 @@
 Result: changes applied, nothing under Action needed
-Marketplace: market1: current (autoUpdate: on)
-In-repo: 0: <case> has no project/local installs
-Updated: 1 plugin(s)
-  - alpha@market1 (user): 0.1.0 -> 0.3.0
-Installed: 1 new catalog plugin(s): beta@market1
-Divergences: 0 actionable
-Timing: <elided>
 
-Run journal: <run_dir>
-Timing: <elided>
+Changed by this run (2)
+  updated:    1 plugin(s)
+    - alpha@market1 (user): 0.1.0 -> 0.3.0
+  installed:  1 new catalog plugin(s): beta@market1
+
+Marketplace: market1
+  status:       current
+  autoUpdate:   on
+  in-repo:      0, <case> has no project/local installs
+  divergences:  0 actionable
+
+Run
+  journal:             <run_dir>
+  total:               <elided>
+  first pass:          <elided>
+  re-entry:            <elided>
+  marketplace block:   <elided>
+  slowest step:        <elided>
+  outside the steps:   <elided>
+  outside the blocks:  <elided>
+  clock resolution:    <elided>
+
 Reload: run /reload-plugins to load these changes into this session
   if it warns, rerun it as /reload-plugins --force

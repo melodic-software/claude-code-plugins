@@ -129,7 +129,7 @@ fewest keys the reorder moves, so one appended key reads `moved=1` at any N. `--
 `would-normalize moved=K keys=N` and exits `1`. A map already in order prints
 `already-sorted keys=N`. A `--file` path that does not exist prints `missing-file keys=0` and exits
 `0`: nothing is written, and it is never reported as `already-sorted`. The report renders it as
-`Normalized: skipped, no user settings file` (`Would normalize:` in audit). `sync-run.sh` parses
+`normalize: skipped, no user settings file` in the marketplace block, in both modes. `sync-run.sh` parses
 that line once into the digest's `normalize` fields, `status` (the first word, or `refused`),
 `moved`, `keys` and `reason` (the text after `refused:`), beside the raw `output` the journal
 keeps; `scripts/digest-contract.json` `shapes.normalize` holds the shape, and the report reads the

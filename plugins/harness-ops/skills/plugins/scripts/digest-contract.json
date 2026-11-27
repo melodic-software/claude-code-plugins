@@ -3,6 +3,7 @@
     "digest_version": 1,
     "run_dir": null,
     "cwd": null,
+    "home": null,
     "mode": null,
     "allow_downgrade": false,
     "install_new": null,

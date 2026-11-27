@@ -258,7 +258,7 @@ it does not rest on that treatment.
 
 A home-keyed record never sets a divergence's `highest`, so `converge` never targets its version.
 `sync` also drops its scope before comparing versions, so a divergence that exists only because of
-it is not counted as actionable, and lists in a `User-home project records` row only the records
+it is not counted as actionable, and lists in a `user-home project records:` row only the records
 `update` could not move.
 
 ## Where project-scope records come from, and why the skill cannot reap them

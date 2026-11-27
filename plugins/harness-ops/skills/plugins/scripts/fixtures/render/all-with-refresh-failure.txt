@@ -1,15 +1,29 @@
 Result: 1 item(s) under Action needed
-Marketplace: market1: current (autoUpdate: on)
-In-repo: 0: <case> has no project/local installs
-Divergences: 0 actionable
-Timing: <elided>
-Marketplace: market2: needs update (autoUpdate: on)
-  refresh failed (exit 1): ✘ Failed to clone marketplace repository
-In-repo: 0: <case> has no project/local installs
-Divergences: 0 actionable
-Timing: <elided>
-Action needed:
-  - error: marketplace refresh failed (exit 1): ✘ Failed to clone marketplace repository, so the catalog may be stale and install/enable maintenance is deferred
 
-Run journal: <run_dir>
-Timing: <elided>
+Action needed (1)
+  - market2: error: marketplace refresh failed (exit 1): ✘ Failed to clone marketplace repository, so the catalog may be stale and install/enable maintenance is deferred
+
+Marketplace: market1
+  status:       current
+  autoUpdate:   on
+  in-repo:      0, <case> has no project/local installs
+  divergences:  0 actionable
+
+Marketplace: market2
+  status:       needs update
+  autoUpdate:   on
+  refresh:      failed (exit 1): ✘ Failed to clone marketplace repository
+  in-repo:      0, <case> has no project/local installs
+  divergences:  0 actionable
+
+Run
+  journal:                    <run_dir>
+  total:                      <elided>
+  market1 block:              <elided>
+  market1 slowest step:       <elided>
+  market1 outside the steps:  <elided>
+  market2 block:              <elided>
+  market2 slowest step:       <elided>
+  market2 outside the steps:  <elided>
+  outside the blocks:         <elided>
+  clock resolution:           <elided>

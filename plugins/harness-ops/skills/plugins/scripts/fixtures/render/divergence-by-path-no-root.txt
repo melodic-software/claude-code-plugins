@@ -1,19 +1,30 @@
 Result: clean, nothing changed and nothing under Action needed
-Marketplace: m: current (autoUpdate: on)
-In-repo: skipped: no project context resolved from /w
-Divergences: 6 in all
-  6 actionable
-    6 elsewhere on this machine
-    remedy: run `/harness-ops:plugins converge`
-  by origin:
-    6 pre-existing
-    0 newly created by this run
-  by project path:
-    - /w/a: 5 diverging record(s): a@m, b@m, c@m, +2 more
-    - /w/b: 2 diverging record(s): a@m, f@m
-Timing: 1s this marketplace
-  clock resolution: seconds
 
-Run journal: /r
-Timing: 1s run total
-  clock resolution: seconds
+Marketplace: m
+  status:      current
+  autoUpdate:  on
+  in-repo:     skipped, no project context resolved from /w
+
+Left as they are (1)
+  divergences:  19 in all
+    18 actionable
+      18 elsewhere on this machine
+      remedy: run `/harness-ops:plugins converge`
+    1 in linked worktrees
+      remedy: remove the worktree
+      remedy: /source-control:worktree audit (if installed) classifies them
+    by origin:
+      19 pre-existing
+      0 newly created by this run
+    by project path (diverging records, first ids):
+      /w/a                               5  a@m, b@m, c@m, +2 more
+      /w/bb                             12  a@m, f@m
+      /w/longer-path (linked worktree)   1  a@m
+      +1 more path(s): in the digest's divergences.by_path
+      2 path(s) not present: 4 diverging record(s), counted under stale project records
+
+Run
+  journal:            /r
+  total:              1s
+  marketplace block:  1s
+  clock resolution:   seconds

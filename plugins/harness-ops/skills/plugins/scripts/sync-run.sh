@@ -16,7 +16,7 @@ CACHE_CHECK="${SYNC_RUN_CACHE_CHECK:-$SCRIPT_DIR/cache-content-check.sh}"
 NORMALIZE="${SYNC_RUN_NORMALIZE:-$SCRIPT_DIR/normalize-enabled-plugins.sh}"
 CLAUDE_BIN="${SYNC_RUN_CLAUDE_BIN:-claude}"
 MARKETPLACES_JSON="${FLEET_STATE_MARKETPLACES_JSON:-$HOME/.claude/plugins/known_marketplaces.json}"
-STALE_PARENT_ROWS=10
+STALE_PARENT_ROWS=3
 DIVERGENCE_PATH_IDS=3
 
 JQ_CAPTURE="$SCRIPT_DIR/jq-capture.sh"
@@ -2024,6 +2024,18 @@ report_extras() {
     --argjson left_to_step3a "$([[ "$MODE" == "audit" || "$UPDATE_OTHER_PATHS" == 0 ]] && echo true || echo false)" \
     "$ACTIONABLE_DEF$TRIPLE_DEF"'
     def parent: capture("^(?<p>.*[/\\\\])[^/\\\\]+[/\\\\]*$").p // .;
+    # One pass: parent groups that are siblings, more of them than the cap, merge
+    # into their own parent with summed counts, so they take one row, not many.
+    def fold_siblings:
+      if length <= $cap then .
+      else group_by(.parent | parent)
+        | map(if length > $cap and (.[0].parent | parent) != .[0].parent
+              then [{parent: (.[0].parent | parent), count: (map(.count) | add), paths: (map(.paths) | add)}]
+              else . end)
+        | add
+        | group_by(.parent)
+        | map({parent: .[0].parent, count: (map(.count) | add), paths: (map(.paths) | add)})
+      end;
     ([.divergences[]? | actionable | .id]) as $act
     | .catalog_versions as $cv
     | ([.installed[]? | select(.currentProject == true) | .id]) as $here
@@ -2046,6 +2058,7 @@ report_extras() {
        stale_project_records: (($absent | group_by(.projectPath | parent)
                                 | map({parent: (.[0].projectPath | parent), count: length,
                                        paths: (map(.projectPath) | unique | length)})
+                                | fold_siblings
                                 | sort_by(-.count, .parent)) as $groups
                                | {total: ($absent | length),
                                   paths: ($absent | map(.projectPath) | unique | length),
@@ -2474,6 +2487,7 @@ clock_into T_RUN_E
 jq_to DIGEST -c -n -L "$SCRIPT_DIR" \
   --arg run_dir "$RUN_DIR" \
   --arg cwd "$PWD" \
+  --arg home "${HOME:-}" \
   --arg mode "$MODE" \
   --argjson allow_downgrade "$ALLOW_DOWNGRADE_JSON" \
   --arg install_new "$INSTALL_NEW" \
@@ -2515,7 +2529,8 @@ jq_to DIGEST -c -n -L "$SCRIPT_DIR" \
            resolution: coarser($first.resolution; $this.resolution),
            passes: [{pass: "first"} + $first, {pass: "only_install"} + $this]}
      end) as $timings
-  | $contract[0].run * {run_dir: $run_dir, cwd: $cwd, mode: $mode, allow_downgrade: $allow_downgrade,
+  | $contract[0].run * {run_dir: $run_dir, cwd: $cwd, home: (if $home == "" then null else $home end),
+     mode: $mode, allow_downgrade: $allow_downgrade,
      install_new: $install_new,
      install_new_invalid: (if $install_new_invalid == "" then null else $install_new_invalid end),
      source_pull: $source_pull,

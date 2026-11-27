@@ -112,7 +112,7 @@ def classify_block($d):
        + ["likely cause: marketplace source moved backward (\(.catalog_source // "source unknown"))",
           "remedy: rerun with --allow-downgrade only if the rollback is intended"]
      else empty end | item("withheld")] as $withheld_pending
-  # Audit predicts a withheld downgrade as its `Would withhold` row, not a bullet;
+  # Audit predicts a withheld downgrade as its `would withhold` row, not a bullet;
   # it counts as one pending action.
   | ($install_pending + $enable_pending + $disabled_pending + $delisted_pending + $withheld_pending
      + (if $audit and ($withheld | length) > 0 then [[] | item("withheld")] else [] end)) as $pending

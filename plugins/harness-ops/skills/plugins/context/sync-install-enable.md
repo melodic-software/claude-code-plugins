@@ -99,7 +99,7 @@ so the id reappears in `missing_from_user_install` and the next sync reinstalls 
 `ask`/`none`.
 
 **Say that in the report, at the moment it fires.** When the policy is `all` and this step installed
-anything, the render's `Installed:` row carries the recurrence clause. A
+anything, the render's `installed:` row carries the recurrence clause. A
 caveat documented only here is invisible to the person reading the report, who is exactly the person
 about to be surprised by it on the next run. Do not leave it to inference.
 
@@ -114,7 +114,7 @@ record of what it said.
 
 **An install the CLI reports as disabled by default is installed and not loading.** `sync-run.sh`
 classifies that notice from the untruncated CLI output. Under `ask` it enables the pick at user
-scope, and the report lists it under `Enabled:`. Under `all` nobody chose it, so it stays off by
+scope, and the report lists it under `enabled:`. Under `all` nobody chose it, so it stays off by
 the publisher's choice: the digest's `verdict.installed_disabled[]` names it, and the render says the
 plugin is installed but not enabled and gives `claude plugin enable <id> -s user`. An `ask` pick
 whose enable failed is named there too, beside the failure. The classification keys off the CLI's line, never the catalog's `defaultEnabled`: we
@@ -165,12 +165,12 @@ machine default (same override `fleet-state.sh` honors).
 
   `project-unsorted` is a report row, not a write. `converge` remains the only action that may
   touch that file.
-- **Never silent.** A `normalized moved=K keys=N` result becomes the report's `Normalized:` row,
+- **Never silent.** A `normalized moved=K keys=N` result becomes the report's `normalized:` row,
   `K of N keys moved`. A `refused:` result (permission denial, unreadable JSON, a semantic diff)
   becomes an Action needed bullet: fail loudly, never skip. `--check` is the audit-mode stand-in
   (predict `would-normalize moved=K keys=N`, write nothing).
 - **A missing user settings file is not an error.** `missing-file keys=0` exits `0` and renders as
-  `Normalized: skipped, no user settings file` (`Would normalize:` in audit), never as already
+  `normalize: skipped, no user settings file` in the marketplace block, in both modes, never as already
   sorted.
 - **Skip the write when this step installed nothing.** An already-sorted map is a no-op either
   way (`already-sorted`); the reorder exists to heal the tail this step just created.
