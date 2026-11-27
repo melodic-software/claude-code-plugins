@@ -22,13 +22,12 @@ structured output.
    category + state) of `SKILL.md` as far as reading goes: the project's own record, the
    redundancy and rejected-concept checks against `open_issues` and `merged_pulls`, and clusters.
    Check each factual claim the issue makes about the repository (a file, a behavior, a value, an
-   error) by reading the checkout, never by running it. Search only the checkout, your working
-   directory: read this plugin's files by the paths this file names, and never Grep or Glob the
-   plugin root or a directory above it, which the run may not be granted. Skip step 3's
-   reproduction runs and step 4's interview; a claim that does not hold shapes the dimensions and
-   becomes an open question. When
+   error) by reading the checkout, never by running it. Skip step 3's reproduction runs and step 4's
+   interview; a claim that does not hold shapes the dimensions and becomes an open question. When
    the repository's `docs/conventions/work-items.md` has a `## Triage rules` section, apply its
    rules too: they add to this file's, and never relax one.
+   Search only the checkout, your working directory, and read this plugin's own files by the
+   paths this file names: the run may not be granted the plugin root or a directory above it.
 3. **Choose the dimensions.** One option key each for `size`, `complexity` and `uncertainty`, from
    the repository's dimension map. Your output schema lists the keys each takes; the lane checks
    them again.
