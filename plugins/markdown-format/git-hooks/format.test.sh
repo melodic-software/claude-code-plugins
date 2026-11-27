@@ -400,5 +400,36 @@ expect "EOF newline case: untouched last line keeps its exact bytes without trai
 )"
 expect "EOF newline case: subsequent lint passes" "0||" "$(CHECK="$LINT" check "$REPO")"
 
+new_repo
+printf '# T\n\n- Allow Bash(git *) and Bash(npm *) here.\n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+git -C "$REPO" commit -q -m adjacent-drift --no-verify
+printf '# T\n\n- Allow Bash(git *) and Bash(npm *) here.\n- New item   \n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+WANT_ADJ=$'# T\n\n- Allow Bash(git *) and Bash(npm *) here.\n- New item\n'
+expect "adjacent fixable added row fixes only the added row and leaves the untouched row above byte-identical" \
+  "0|a.md|markdown-format: a.md: skipped formatting drift on untouched lines (1 hunk)" "$(check "$REPO")"
+expect "adjacent case: untouched row above stays byte-identical while added row is fixed" "${WANT_ADJ}x" "$(
+  git -C "$REPO" show :a.md
+  printf x
+)"
+expect "adjacent case: subsequent lint passes" "0||" "$(CHECK="$LINT" check "$REPO")"
+
+new_repo
+git -C "$REPO" config diff.interHunkContext 20
+printf '# T\n\nAllow Bash(git *) and Bash(npm *) here.\n\nMiddle paragraph.\n\nExisting paragraph.\n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+git -C "$REPO" commit -q -m inter-hunk --no-verify
+printf '# T\n\nAllow Bash(git *) and Bash(npm *) here.\n\nMiddle paragraph.\n\nExisting paragraph.\n\nNew trailing spaces   \n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+WANT_IHC=$'# T\n\nAllow Bash(git *) and Bash(npm *) here.\n\nMiddle paragraph.\n\nExisting paragraph.\n\nNew trailing spaces\n'
+expect "nonzero diff.interHunkContext cannot widen formatting to untouched lines" \
+  "0|a.md|markdown-format: a.md: skipped formatting drift on untouched lines (1 hunk)" "$(check "$REPO")"
+expect "interHunkContext case: untouched drift stays byte-identical" "${WANT_IHC}x" "$(
+  git -C "$REPO" show :a.md
+  printf x
+)"
+expect "interHunkContext case: subsequent lint passes" "0||" "$(CHECK="$LINT" check "$REPO")"
+
 echo "format: $PASS passed, $FAIL failed"
 ((FAIL == 0))

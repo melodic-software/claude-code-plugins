@@ -267,14 +267,19 @@ function splitLines(buf) {
   return lines;
 }
 
-function overlaps(ranges, oldStart, oldCount) {
+function lineInRanges(ranges, lineNo) {
   if (!ranges || ranges.length === 0) return false;
-  const lo = oldCount === 0 ? (oldStart === 0 ? 1 : oldStart) : oldStart;
-  const hi = oldCount === 0 ? oldStart + 1 : oldStart + oldCount - 1;
   for (const [s, e] of ranges) {
-    if (lo <= e && hi >= s) return true;
+    if (lineNo >= s && lineNo <= e) return true;
   }
   return false;
+}
+
+function allInRanges(ranges, start, count) {
+  for (let ln = start; ln < start + count; ln++) {
+    if (!lineInRanges(ranges, ln)) return false;
+  }
+  return true;
 }
 
 const rawPairs = fs.readFileSync(pairsPath).toString("utf8");
@@ -291,7 +296,7 @@ for (let idx = 0; idx + 1 < tokens.length; idx += 2) {
 
   const r = cp.spawnSync(
     "git",
-    ["-c", "core.quotePath=false", "diff", "--no-index", "--no-color", "--no-ext-diff", "--no-textconv", "-U0", "--text", "--", origPath, fmtPath],
+    ["-c", "core.quotePath=false", "diff", "--no-index", "--no-color", "--no-ext-diff", "--no-textconv", "-U0", "--inter-hunk-context=0", "--text", "--", origPath, fmtPath],
     { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }
   );
   if (r.error || (r.status !== 0 && r.status !== 1)) {
@@ -335,13 +340,37 @@ for (let idx = 0; idx + 1 < tokens.length; idx += 2) {
   let skipped = 0;
 
   for (const h of hunks) {
-    if (!overlaps(ranges, h.oldStart, h.oldCount)) {
+    const cut = h.oldCount === 0 ? h.oldStart : h.oldStart - 1;
+    const ncut = h.newCount === 0 ? h.newStart : h.newStart - 1;
+    if (h.oldCount > 0 && h.oldCount === h.newCount) {
+      let hunkApplied = false;
+      let hunkSkipped = false;
+      for (let j = cursor; j < cut; j++) outChunks.push(origLines[j]);
+      for (let j = 0; j < h.oldCount; j++) {
+        const origLine = origLines[cut + j];
+        const fmtLine = fmtLines[ncut + j];
+        if (lineInRanges(ranges, h.oldStart + j)) {
+          outChunks.push(fmtLine);
+          if (!origLine.equals(fmtLine)) hunkApplied = true;
+        } else {
+          outChunks.push(origLine);
+          if (!origLine.equals(fmtLine)) hunkSkipped = true;
+        }
+      }
+      cursor = cut + h.oldCount;
+      if (hunkApplied) applied++;
+      if (hunkSkipped) skipped++;
+      continue;
+    }
+    const allow =
+      h.oldCount === 0
+        ? lineInRanges(ranges, h.oldStart === 0 ? 1 : h.oldStart) || lineInRanges(ranges, h.oldStart + 1)
+        : allInRanges(ranges, h.oldStart, h.oldCount);
+    if (!allow) {
       skipped++;
       continue;
     }
     applied++;
-    const cut = h.oldCount === 0 ? h.oldStart : h.oldStart - 1;
-    const ncut = h.newCount === 0 ? h.newStart : h.newStart - 1;
     for (let j = cursor; j < cut; j++) outChunks.push(origLines[j]);
     for (let j = ncut; j < ncut + h.newCount; j++) outChunks.push(fmtLines[j]);
     cursor = cut + h.oldCount;
