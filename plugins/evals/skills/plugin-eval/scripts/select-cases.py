@@ -48,6 +48,7 @@ VALIDATE_CASES_PY = os.path.normpath(
     os.path.join(HERE, os.pardir, os.pardir, "validate", "scripts", "validate-cases.py")
 )
 SELECT_MAPPING_PY = os.path.join(HERE, "select_mapping.py")
+EVAL_VISIBILITY_PY = os.path.join(HERE, "eval_visibility.py")
 SELECT_PLUGINS_MJS = (".github", "scripts", "plugin-eval", "select-plugins.mjs")
 SELECT_PLUGINS_HEADER = "a selected plugin changes more than"
 REFUSED_PLUGIN_RE = re.compile(r'^"?plugins/([^/:"\\]+)[/:]')
@@ -74,6 +75,7 @@ def _load_module(name, path):
 case_skills = _load_module("evals_case_skills", CASE_SKILLS_PY)
 validate_cases = _load_module("evals_validate_cases", VALIDATE_CASES_PY)
 select_mapping = _load_module("evals_select_mapping", SELECT_MAPPING_PY)
+eval_visibility = _load_module("evals_eval_visibility", EVAL_VISIBILITY_PY)
 
 CaseInfo = collections.namedtuple(
     "CaseInfo",
@@ -484,8 +486,8 @@ def select_cases(repo_root, diff_base, merge_base):
             return False
         deleted = ()
         if owning_case is not None and rel_path.endswith("/case.yaml"):
-            deleted = select_mapping.deleted_lines(repo_root, merge_base, rel_path)
-        hidden = bool(cases) and select_mapping.hidden_from_agent(
+            deleted = eval_visibility.deleted_lines(repo_root, merge_base, rel_path)
+        hidden = bool(cases) and eval_visibility.hidden_from_agent(
             eval_abs,
             os.path.join(repo_root, rel_path),
             cases,
