@@ -2,9 +2,11 @@
 
 Install, configure, command reference, flags, env vars, and Windows-specific gotchas.
 
-> Verified 2026-11-03 against `ctx7` 0.9.0 (live `--help` output); first verified 2026-07-18
-> against 0.5.5 and [Context7's CLI docs](https://context7.com/docs/clients/cli).
-> The CLI moves fast. Re-check against a current install before acting on a row.
+> Verified 2026-11-27 against `ctx7` 0.13.1 source (`packages/cli/src/index.ts` and
+> `packages/cli/src/commands/docs.ts` at `upstash/context7@17839096`) and
+> [Context7's CLI docs](https://context7.com/docs/clients/cli) (live `--help` checked on installed
+> 0.12.2). **Recheck trigger**: `ctx7` ships a new minor release or the `update` action reports CLI
+> or upstream skill drift.
 
 ## Install
 
@@ -34,6 +36,8 @@ Set it wherever your project manages local environment variables (shell profile,
 | `ctx7 library <name> [query]` | Resolve library name to a Context7 library ID (the query argument is optional, but pass one: it drives ranking) |
 | `ctx7 docs <libraryId> <query>` | Fetch documentation for a resolved library |
 | `ctx7 search <query>` | An option, not the default (record below) |
+| `ctx7 code <libraryId> [pattern]` | Search and read a library's source code (optional; check `ctx7 code --help` when needed) |
+| `ctx7 get-upgrade-guide <libraryId> <fromVersion> [toVersion]` | Upgrade guide between two versions of a library (optional; check `ctx7 get-upgrade-guide --help` when needed) |
 | `ctx7 setup [flags]` | Configure Context7 for an IDE (this plugin does not use it, see below) |
 | `ctx7 login` / `logout` / `whoami` | OAuth flow (this plugin does not use it, since the env var is enough) |
 | `ctx7 remove` / `uninstall` | Remove a `setup`-installed agent configuration (this plugin does not use it) |
@@ -61,7 +65,7 @@ the two steps.
 
 | Flag | Default | Purpose |
 |---|---|---|
-| `--base-url <url>` | `https://context7.com` | Point at a custom Context7 backend (API paths are appended) |
+| `--base-url <url>` | `$CONTEXT7_BASE_URL` or `https://context7.com` | Point at a custom Context7 deployment URL (CLI flag wins over the env var) |
 | `-v, --version` | | Print version |
 | `-h, --help` | | Help for the current command |
 
@@ -71,6 +75,7 @@ the two steps.
 |---|---|
 | `--json` | Structured JSON output (vs. formatted text). Useful for scripts / `jq` extraction |
 | `--language <name>` | `docs` only: passed with the user's language when the installed CLI lists it; the probe and its pointer record are in [lookup.md](lookup.md#step-2-query-documentation) |
+| `--tag <version>` | `docs` only: passed with the project's or question's library version when the installed CLI lists it; the probe and its pointer record are in [lookup.md](lookup.md#versions) |
 
 **When the MCP server is configured, prefer it for conversational lookups** (`mcp__context7__query-docs`; why: [mcp.md](mcp.md)). Which flags `docs` takes is [Context7 CLI § Query Library Documentation](https://context7.com/docs/clients/cli#query-library-documentation).
 
@@ -87,6 +92,7 @@ the two steps.
 | Variable | Purpose |
 |---|---|
 | `CONTEXT7_API_KEY` | Higher rate limits + priority |
+| `CONTEXT7_BASE_URL` | Custom Context7 deployment root URL when `--base-url` is not passed ([Context7 CLI § On-premise deployments](https://context7.com/docs/clients/cli#on-premise-deployments)) |
 | `CTX7_TELEMETRY_DISABLED` | Set to `1` to disable the CLI's anonymous usage telemetry |
 
 Whether and what the CLI sends as telemetry is [Context7 CLI § Telemetry](https://context7.com/docs/clients/cli#telemetry). In privacy-sensitive environments, disable it per invocation (`CTX7_TELEMETRY_DISABLED=1 ctx7 docs ...`) or permanently by exporting the variable in your shell profile.
