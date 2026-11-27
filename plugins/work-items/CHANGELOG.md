@@ -3,6 +3,13 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [16.2.4] - 2026-11-27
+
+### Fixed
+
+- `/work-items:triage --ci` reads what a recorded decision opens, not only what it settles. A step the decision reserves to a person (the author runs or approves something first) takes `needs-human` with `needs_human` false, even where a rule says a done-when item a lane run cannot do needs no person. A term the decision adds that leaves a set or value undefined becomes a new open question with a `RECOMMENDED:` answer, never a choice the run makes itself.
+- `/work-items:triage --ci` searches only its checkout and reads the plugin's own files by the paths `ci-mode.md` names, never searching the plugin root or a folder above it, which a lane or eval run may not be granted.
+
 ## [16.2.3] - 2026-11-27
 
 ### Fixed
