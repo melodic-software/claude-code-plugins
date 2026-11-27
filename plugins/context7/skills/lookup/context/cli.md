@@ -65,7 +65,7 @@ the two steps.
 
 | Flag | Default | Purpose |
 |---|---|---|
-| `--base-url <url>` | `$CONTEXT7_BASE_URL` or `https://context7.com` | Point at a custom Context7 deployment URL (CLI flag wins over the env var) |
+| `--base-url <url>` | `$CONTEXT7_BASE_URL` or `https://context7.com` | Point at a custom Context7 deployment URL ([Context7 CLI § On-premise deployments](https://context7.com/docs/clients/cli#on-premise-deployments)) |
 | `-v, --version` | | Print version |
 | `-h, --help` | | Help for the current command |
 
@@ -92,7 +92,7 @@ the two steps.
 | Variable | Purpose |
 |---|---|
 | `CONTEXT7_API_KEY` | Higher rate limits + priority |
-| `CONTEXT7_BASE_URL` | Custom Context7 deployment root URL when `--base-url` is not passed ([Context7 CLI § On-premise deployments](https://context7.com/docs/clients/cli#on-premise-deployments)) |
+| `CONTEXT7_BASE_URL` | Custom Context7 deployment root URL ([Context7 CLI § On-premise deployments](https://context7.com/docs/clients/cli#on-premise-deployments)) |
 | `CTX7_TELEMETRY_DISABLED` | Set to `1` to disable the CLI's anonymous usage telemetry |
 
 Whether and what the CLI sends as telemetry is [Context7 CLI § Telemetry](https://context7.com/docs/clients/cli#telemetry). In privacy-sensitive environments, disable it per invocation (`CTX7_TELEMETRY_DISABLED=1 ctx7 docs ...`) or permanently by exporting the variable in your shell profile.
