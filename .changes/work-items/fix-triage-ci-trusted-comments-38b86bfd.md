@@ -1,5 +1,5 @@
 ---
-bump: none
+bump: patch
 ---
 
-Eval fixture only: the `ci-intake` fixture's triage rules say that every comment in `issue.json` is a trusted author's, because the lane drops the rest, so a recorded decision there is acted on without a write-access read, matching the repository's own triage rules. No shipped skill text changes.
+- **Fixed:** `/work-items:triage --ci` acted on no recorded decision: it cannot make the write-access read the attended steps ask before a comment counts, so it held every `**Decision recorded.**` comment as unverified. CI mode now takes a comment in `issue.json` as passing that test when the repository's `## Triage rules` state that the lane keeps only trusted authors' comments; without that statement every comment stays a claim to verify.
