@@ -100,7 +100,7 @@ build "" || fail "fixture: build failed"
 STATUSES="$(statuses_json success)"
 run_sut
 expect_line "X empty: every unit and every whole-tree job would skip" \
-  'would-run=0 would-skip=4 whole-tree-would-skip=6 tree-identical=true x-files=0 est-job-min-saved=0.3 fallback=none'
+  'would-run=0 would-skip=4 whole-tree-would-skip=7 tree-identical=true x-files=0 est-job-min-saved=0.3 fallback=none'
 if [[ ! -s "$TMP_ROOT/planner.log" ]]; then ok "X empty: the planner does not run"; else fail "X empty ran the planner: $(cat "$TMP_ROOT/planner.log")"; fi
 
 build docs/x.md || fail "fixture: build failed"
@@ -159,7 +159,7 @@ STATUSES="$(jq -c --arg d "$(marker 0123456789abcdef0123456789abcdef01234567)" '
     target_url: "https://github.com/o/r/actions/runs/200", creator: {login: "github-actions[bot]"}}] + [.[1]]' <<<"$(statuses_json success)")"
 run_sut
 expect_line "the tested merge comes from the green run's own marker, not another run's" \
-  'would-run=0 would-skip=4 whole-tree-would-skip=6 tree-identical=true x-files=0 est-job-min-saved=0.3 fallback=none'
+  'would-run=0 would-skip=4 whole-tree-would-skip=7 tree-identical=true x-files=0 est-job-min-saved=0.3 fallback=none'
 
 ORIGIN="$TMP_ROOT/origin-$RANDOM$RANDOM.git"
 git_test_config "$REPO" update-ref refs/pull/7/merge "$MERGE"
@@ -174,7 +174,7 @@ REPO="$CLONE"
 STATUSES="$(statuses_json success)"
 run_sut
 expect_line "a partial clone without the tested merge fetches it from origin" \
-  'would-run=0 would-skip=4 whole-tree-would-skip=6 tree-identical=true x-files=0 est-job-min-saved=0.3 fallback=none'
+  'would-run=0 would-skip=4 whole-tree-would-skip=7 tree-identical=true x-files=0 est-job-min-saved=0.3 fallback=none'
 
 build lib/shared.sh || fail "fixture: build failed"
 git_test_config "$REPO" checkout -q --detach "$GROUP_BASE~1"

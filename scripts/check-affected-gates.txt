@@ -1,4 +1,4 @@
-# Every hygiene gate the CI jobs lint-repo, lint-shell, check-plugins and
+# Every hygiene gate the CI jobs lint-repo, lint-repo-tree, lint-shell, check-plugins and
 # check-skills feed to the aggregator, and how scripts/check-affected.sh covers it.
 #
 #   <gate> run <runner check>     the runner runs it, under that check name

@@ -24,6 +24,7 @@ export const UPSTREAM_JOBS = Object.freeze([
   "Mark Lanes",
   "Select Tests",
   "Lint Repo",
+  "Lint Repo Tree",
   "Lint Shell",
   "Check Plugins",
   "Check Catalog",
