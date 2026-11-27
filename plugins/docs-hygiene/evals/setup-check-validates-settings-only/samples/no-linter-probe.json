@@ -6,6 +6,7 @@
     {"answer": [{"tool": "Bash", "input": {"command": "cat package.json"}}], "why": "reading the manifest probes no linter"}
   ],
   "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "cd docs\nmarkdownlint-cli2 onboarding.md"}}], "why": "a linter run on the second line of a command"},
     {"answer": [{"tool": "Bash", "input": {"command": "command -v markdownlint-cli2"}}], "why": "the PATH probe the old setup ran"},
     {"answer": [{"tool": "Bash", "input": {"command": "node_modules/.bin/markdownlint-cli2 --help 2>&1 | head -n 1"}}], "why": "the --help probe"},
     {"answer": [{"tool": "Bash", "input": {"command": "setup-apply.mjs --check; ls node_modules/.bin/markdownlint-cli2"}}], "why": "a probe after the check"},

@@ -6,6 +6,7 @@
     {"answer": [{"tool": "Bash", "input": {"command": "cat scripts/lint-md.sh"}}], "why": "reading the script"}
   ],
   "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "cd docs\nmarkdownlint-cli2 onboarding.md"}}], "why": "a linter run on the second line of a command"},
     {"answer": [{"tool": "Bash", "input": {"command": "command -v markdownlint-cli2"}}], "why": "a PATH probe for a linter the skill picked"},
     {"answer": [{"tool": "Bash", "input": {"command": "npx markdownlint-cli2 docs/onboarding.md"}}], "why": "runs a linter the repository never named"},
     {"answer": [{"tool": "Bash", "input": {"command": "npm run lint:md -- docs/onboarding.md || markdownlint docs/onboarding.md"}}], "why": "a shipped linter after the script fails"}
