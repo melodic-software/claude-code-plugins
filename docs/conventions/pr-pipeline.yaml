@@ -1039,6 +1039,8 @@ merge:
         class: gate
       - glob: ".github/workflows/maintenance-reconcile-lost-runs.yml"
         class: gate
+      - glob: ".github/workflows/maintenance-scan-architecture.yml"
+        class: gate
       - glob: ".github/workflows/maintenance-tidy-code-upkeep.yml"
         class: gate
       - glob: ".github/workflows/post-merge-file-demotion-issues.yml"
