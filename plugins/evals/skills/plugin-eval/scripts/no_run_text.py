@@ -241,14 +241,14 @@ def _string_block_lines(ext, text):
     return frozenset(inside)
 
 
-def comment_style(path, text=""):
+def comment_style(path, text="", hidden=False):
     """(`hash` or `slash`, the lines of `text` inside a heredoc, block scalar or multi-line
     string) for a code, YAML or shell file; None for markdown and any other type, whose comments
-    a model may read as instructions, for an eval case file, whose comments the model running the
-    case may read, and for a cgo file, whose preamble comment is C code."""
+    a model may read as instructions, for an eval file unless `hidden` (the agent under test
+    never sees it), and for a cgo file, whose preamble comment is C code."""
     ext = os.path.splitext(path)[1].lower()
     kind = "hash" if ext in HASH_COMMENT_EXTS else "slash" if ext in SLASH_COMMENT_EXTS else None
-    if "/evals/" in "/" + path or ext == ".go" and 'import "C"' in text:
+    if "/evals/" in "/" + path and not hidden or ext == ".go" and 'import "C"' in text:
         return None
     return (kind, _string_block_lines(ext, text)) if kind else None
 

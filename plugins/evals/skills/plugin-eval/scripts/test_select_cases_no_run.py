@@ -433,13 +433,79 @@ class SelectCasesNoRunTest(unittest.TestCase):
         self.assertEqual("control-no-fire one-basic one-trigger", block.get("affected-no-run"))
         self.assertEqual("0", block["agent-runs"])
 
-    def test_scaffold_comment_deletion_runs_its_case(self):
+    def test_scaffold_comment_deletion_is_no_run(self):
         self._base_with_comments()
         scaffold = self.repo / "plugins/alpha/evals/one-basic/scaffold.sh"
         block = self._edit_and_select(scaffold, "# Seeds the shared fixture.\n", "")
-        self.assertEqual(
-            "one-basic", block.get("cases"), "the model running a case may read its comments"
+        self.assertNotIn("cases", block, "the agent never sees a scaffold it only runs")
+        self.assertIn("one-basic", block.get("affected-no-run", "").split())
+
+    def _base_with_eval_files(self, scaffold_extra="", setup_extra=""):
+        _write(
+            self.repo,
+            "plugins/alpha/evals/one-basic/case.yaml",
+            'schema_version: "1.1"\n# Seeds one fixture.\nname: one-basic\n'
+            'description: "Basic case for alpha:one"\ntags: [alpha:one]\n'
+            "context:\n  scaffold_script: scaffold.sh\n",
         )
+        scaffold = self.repo / "plugins/alpha/evals/one-basic/scaffold.sh"
+        scaffold.write_text(
+            scaffold.read_text(encoding="utf-8").replace(
+                "#!/usr/bin/env bash\n", "#!/usr/bin/env bash\n# Builds the workspace.\n"
+            )
+            + scaffold_extra,
+            encoding="utf-8",
+        )
+        _write(
+            self.repo,
+            "plugins/alpha/evals/fixtures/setup.sh",
+            "#!/usr/bin/env bash\n# Prints the fixture.\necho fixture\n" + setup_extra,
+        )
+        _write(
+            self.repo,
+            "plugins/alpha/evals/one-basic/graders/check.md",
+            '---\ntype: regex\n# Matches the reply.\npattern: "ok"\n---\n',
+        )
+        _commit_all(self.repo, "add eval comments")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+
+    def test_case_yaml_comment_deletion_is_no_run(self):
+        self._base_with_eval_files()
+        case = self.repo / "plugins/alpha/evals/one-basic/case.yaml"
+        block = self._edit_and_select(case, "# Seeds one fixture.\n", "")
+        self.assertNotIn("cases", block, "the agent never sees case.yaml")
+
+    def test_helper_comment_deletion_is_no_run(self):
+        self._base_with_eval_files()
+        setup = self.repo / "plugins/alpha/evals/fixtures/setup.sh"
+        block = self._edit_and_select(setup, "# Prints the fixture.\n", "")
+        self.assertNotIn("cases", block, "a helper the scaffold only runs stays hidden")
+
+    def test_scaffold_heredoc_line_still_runs(self):
+        self._base_with_eval_files("cat > notes.md <<'MD'\n# Notes the agent reads\nMD\n")
+        scaffold = self.repo / "plugins/alpha/evals/one-basic/scaffold.sh"
+        block = self._edit_and_select(scaffold, "# Notes the agent reads\n", "")
+        self.assertEqual("one-basic", block.get("cases"), "a heredoc line lands in the workspace")
+
+    def test_helper_the_scaffold_copies_still_runs(self):
+        self._base_with_eval_files(
+            'cp "$(dirname "${BASH_SOURCE[0]}")/../fixtures/setup.sh" tools/\n'
+        )
+        setup = self.repo / "plugins/alpha/evals/fixtures/setup.sh"
+        block = self._edit_and_select(setup, "# Prints the fixture.\n", "")
+        self.assertEqual("one-basic", block.get("cases"), "a copied helper reaches the agent")
+
+    def test_grader_comment_deletion_still_runs(self):
+        self._base_with_eval_files()
+        grader = self.repo / "plugins/alpha/evals/one-basic/graders/check.md"
+        block = self._edit_and_select(grader, "# Matches the reply.\n", "")
+        self.assertEqual("one-basic", block.get("cases"), "a judge model reads graders")
+
+    def test_helper_that_prints_its_own_source_still_runs(self):
+        self._base_with_eval_files(setup_extra="sed -n '2p' \"${BASH_SOURCE[0]}\"\n")
+        setup = self.repo / "plugins/alpha/evals/fixtures/setup.sh"
+        block = self._edit_and_select(setup, "# Prints the fixture.\n", "")
+        self.assertEqual("one-basic", block.get("cases"), "the helper prints its comments")
 
     def _deletion_is_no_run(self, name, text, deleted):
         """Whether deleting the consecutive `deleted` lines from `text` in a skill file counts as
