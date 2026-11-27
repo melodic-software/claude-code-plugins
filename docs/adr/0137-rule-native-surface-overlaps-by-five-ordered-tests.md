@@ -30,15 +30,17 @@ write a verdict only "acting on the owner's recorded direction" (audit-native-ov
 3. **Mapping.**
    - A test 1 or 2 failure is `prefer-ours` when both do the same job, with a reason naming the
      failed test, and `complementary` when the jobs differ.
-   - A surface missing on some consumers' plans, or gated, is ruled on its job like any other,
-     carries the `gated` marker, and caps at `prefer-native`: ours stays the fallback wherever it is
-     absent, so it is never `superseded`.
+   - A surface missing on some consumers' plans, gated, or billed is ruled on its job like any
+     other, carries its marker, and caps at `prefer-native`: ours stays the fallback wherever it is
+     absent or not opted in to, so it is never `superseded`.
    - Passing tests 1 to 4 on the same job is `prefer-native`; it is `superseded` only when ours
      has no behavior the built-in lacks.
    - A different job is `complementary`. A surface the evidence cannot judge yet is `defer`.
-4. **One committed verdict per pair.** The verdict judges the job. Per-consumer conditions (a gate,
-   billing, the consumer's contract) apply at run time through the store's presence-gated baked
-   phrase and its `integration` field; no row is written per consumer.
+4. **One committed verdict per pair.** A test result that holds whatever a consumer's settings
+   say (the surface's documented behavior always breaks a contract field, for example) decides the
+   committed verdict. A result that depends on one consumer's settings (its contract, merge rule,
+   cost choice or plan) applies at run time through the store's presence-gated baked phrase and
+   its `integration` field; no row is written per consumer.
 5. **Billing.** A billed surface is ruled on its job, and routing to it needs the consumer's opt-in.
    The store marker and the consumer key that carry this are added with the first billed row that
    needs routing.
