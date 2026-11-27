@@ -121,7 +121,7 @@ jobs:
         with:
           leg: start
           role: automations
-          key-job: scan
+          key-job: find-candidates
           window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
@@ -146,8 +146,8 @@ jobs:
         with:
           tokens: github-token
 
-  scan:
-    name: Scan
+  find-candidates:
+    name: Find Candidates
     needs: gate
     if: needs.gate.outputs.run == 'true' && needs.gate.outputs.next-leg != 'subscription' && github.run_attempt == '1'
     runs-on: ubuntu-24.04
@@ -368,8 +368,8 @@ jobs:
           LANE_CLASS: ${{ steps.run.outputs.lane-class }}
         run: |
           case "$LANE_CLASS" in
-            auth) line="the API refused AUTOMATIONS_CLAUDE_API_KEY (class auth); the owner must replace the secret, and scan-subscription scans on the subscription token" ;;
-            *) line="AUTOMATIONS_CLAUDE_API_KEY hit a credit stop (class credit-stop); scan-subscription scans on the subscription token" ;;
+            auth) line="the API refused AUTOMATIONS_CLAUDE_API_KEY (class auth); the owner must replace the secret, and find-candidates-subscription runs on the subscription token" ;;
+            *) line="AUTOMATIONS_CLAUDE_API_KEY hit a credit stop (class credit-stop); find-candidates-subscription runs on the subscription token" ;;
           esac
           echo "::warning::$line"
           echo "$line" >>"$GITHUB_STEP_SUMMARY"
@@ -396,7 +396,7 @@ jobs:
         env:
           TRUSTED: ${{ github.workspace }}/.lane-trusted
           FINDINGS: ${{ steps.run.outputs.structured-output-file }}
-          JOB_ID: scan
+          JOB_ID: find-candidates
           MAX_CHUNKS: "2"
         run: |
           PUBLIC_KEY_FILE="$TRUSTED/.github/lane-keys/scan-carrier.pub"
@@ -423,12 +423,12 @@ jobs:
         with:
           tokens: github-token
 
-  scan-subscription:
-    name: Scan Subscription
-    needs: [gate, scan]
+  find-candidates-subscription:
+    name: Find Candidates Subscription
+    needs: [gate, find-candidates]
     if: >-
       ${{ !cancelled() && needs.gate.outputs.run == 'true' && github.run_attempt == '1'
-      && (needs.scan.outputs.next-leg == 'subscription' || needs.gate.outputs.next-leg == 'subscription') }}
+      && (needs.find-candidates.outputs.next-leg == 'subscription' || needs.gate.outputs.next-leg == 'subscription') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
@@ -492,7 +492,7 @@ jobs:
           role: automations
           credential-set: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          reason: ${{ needs.scan.outputs.next-reason || needs.gate.outputs.next-reason }}
+          reason: ${{ needs.find-candidates.outputs.next-reason || needs.gate.outputs.next-reason }}
 
       - name: Stage the plugins and the prompt
         if: steps.models.outcome == 'success'
@@ -617,7 +617,7 @@ jobs:
         env:
           HANDOFF_REASON: ${{ steps.run.outputs.handoff-reason }}
         run: |
-          line="AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN handed off (${HANDOFF_REASON:-unknown}); scan-fallback scans on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
+          line="AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN handed off (${HANDOFF_REASON:-unknown}); find-candidates-fallback runs on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
           echo "::notice::$line"
           echo "$line" >>"$GITHUB_STEP_SUMMARY"
 
@@ -643,7 +643,7 @@ jobs:
         env:
           TRUSTED: ${{ github.workspace }}/.lane-trusted
           FINDINGS: ${{ steps.run.outputs.structured-output-file }}
-          JOB_ID: scan-subscription
+          JOB_ID: find-candidates-subscription
           MAX_CHUNKS: "2"
         run: |
           PUBLIC_KEY_FILE="$TRUSTED/.github/lane-keys/scan-carrier.pub"
@@ -670,12 +670,12 @@ jobs:
         with:
           tokens: github-token
 
-  scan-fallback:
-    name: Scan Fallback
-    needs: [gate, scan-subscription]
+  find-candidates-fallback:
+    name: Find Candidates Fallback
+    needs: [gate, find-candidates-subscription]
     if: >-
       ${{ !cancelled() && needs.gate.outputs.run == 'true' && github.run_attempt == '1'
-      && (needs.scan-subscription.outputs.next-leg == 'fallback' || needs.scan-subscription.outputs.credential-present == 'false') }}
+      && (needs.find-candidates-subscription.outputs.next-leg == 'fallback' || needs.find-candidates-subscription.outputs.credential-present == 'false') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
@@ -735,7 +735,7 @@ jobs:
           leg: fallback
           role: automations
           credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          reason: ${{ needs.scan-subscription.outputs.next-reason }}
+          reason: ${{ needs.find-candidates-subscription.outputs.next-reason }}
 
       - name: Stage the plugins and the prompt
         if: steps.models.outcome == 'success'
@@ -874,7 +874,7 @@ jobs:
         env:
           TRUSTED: ${{ github.workspace }}/.lane-trusted
           FINDINGS: ${{ steps.run.outputs.structured-output-file }}
-          JOB_ID: scan-fallback
+          JOB_ID: find-candidates-fallback
           MAX_CHUNKS: "2"
         run: |
           PUBLIC_KEY_FILE="$TRUSTED/.github/lane-keys/scan-carrier.pub"
@@ -890,10 +890,10 @@ jobs:
         with:
           tokens: github-token
 
-  check-findings:
-    name: Check Findings
-    needs: [gate, scan, scan-subscription, scan-fallback]
-    if: ${{ !cancelled() && (needs.scan-fallback.result != 'skipped' && needs.scan-fallback.outputs.sealed-length || needs.scan-fallback.result == 'skipped' && needs.scan-subscription.result != 'skipped' && needs.scan-subscription.outputs.sealed-length || needs.scan-fallback.result == 'skipped' && needs.scan-subscription.result == 'skipped' && needs.scan.outputs.sealed-length || '') != '' }}
+  scan:
+    name: Scan
+    needs: [gate, find-candidates, find-candidates-subscription, find-candidates-fallback]
+    if: ${{ !cancelled() && (needs.find-candidates-fallback.result != 'skipped' && needs.find-candidates-fallback.outputs.sealed-length || needs.find-candidates-fallback.result == 'skipped' && needs.find-candidates-subscription.result != 'skipped' && needs.find-candidates-subscription.outputs.sealed-length || needs.find-candidates-fallback.result == 'skipped' && needs.find-candidates-subscription.result == 'skipped' && needs.find-candidates.outputs.sealed-length || '') != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
@@ -928,19 +928,19 @@ jobs:
           read -r _ id _ <.base/.github/lane-keys/scan-carrier.pub || true
           echo "id=$id" >>"$GITHUB_OUTPUT"
 
-      - name: Open the scan job's sealed findings
+      - name: Open the find-candidates job's sealed findings
         id: open
         uses: ./.base/.github/actions/open-lane-output # zizmor: ignore[self-repository]
         with:
           private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
           expected-key-ids: ${{ steps.key.outputs.id }}
-          job-id: ${{ needs.scan-fallback.result != 'skipped' && 'scan-fallback' || needs.scan-subscription.result != 'skipped' && 'scan-subscription' || 'scan' }}
+          job-id: ${{ needs.find-candidates-fallback.result != 'skipped' && 'find-candidates-fallback' || needs.find-candidates-subscription.result != 'skipped' && 'find-candidates-subscription' || 'find-candidates' }}
           max-bytes: |
             findings.json=131072
           directory: ${{ runner.temp }}/scan-in
-          sealed-length: ${{ needs.scan-fallback.result != 'skipped' && needs.scan-fallback.outputs.sealed-length || needs.scan-fallback.result == 'skipped' && needs.scan-subscription.result != 'skipped' && needs.scan-subscription.outputs.sealed-length || needs.scan-fallback.result == 'skipped' && needs.scan-subscription.result == 'skipped' && needs.scan.outputs.sealed-length || '' }}
-          sealed-1: ${{ needs.scan-fallback.result != 'skipped' && needs.scan-fallback.outputs.sealed-1 || needs.scan-fallback.result == 'skipped' && needs.scan-subscription.result != 'skipped' && needs.scan-subscription.outputs.sealed-1 || needs.scan-fallback.result == 'skipped' && needs.scan-subscription.result == 'skipped' && needs.scan.outputs.sealed-1 || '' }}
-          sealed-2: ${{ needs.scan-fallback.result != 'skipped' && needs.scan-fallback.outputs.sealed-2 || needs.scan-fallback.result == 'skipped' && needs.scan-subscription.result != 'skipped' && needs.scan-subscription.outputs.sealed-2 || needs.scan-fallback.result == 'skipped' && needs.scan-subscription.result == 'skipped' && needs.scan.outputs.sealed-2 || '' }}
+          sealed-length: ${{ needs.find-candidates-fallback.result != 'skipped' && needs.find-candidates-fallback.outputs.sealed-length || needs.find-candidates-fallback.result == 'skipped' && needs.find-candidates-subscription.result != 'skipped' && needs.find-candidates-subscription.outputs.sealed-length || needs.find-candidates-fallback.result == 'skipped' && needs.find-candidates-subscription.result == 'skipped' && needs.find-candidates.outputs.sealed-length || '' }}
+          sealed-1: ${{ needs.find-candidates-fallback.result != 'skipped' && needs.find-candidates-fallback.outputs.sealed-1 || needs.find-candidates-fallback.result == 'skipped' && needs.find-candidates-subscription.result != 'skipped' && needs.find-candidates-subscription.outputs.sealed-1 || needs.find-candidates-fallback.result == 'skipped' && needs.find-candidates-subscription.result == 'skipped' && needs.find-candidates.outputs.sealed-1 || '' }}
+          sealed-2: ${{ needs.find-candidates-fallback.result != 'skipped' && needs.find-candidates-fallback.outputs.sealed-2 || needs.find-candidates-fallback.result == 'skipped' && needs.find-candidates-subscription.result != 'skipped' && needs.find-candidates-subscription.outputs.sealed-2 || needs.find-candidates-fallback.result == 'skipped' && needs.find-candidates-subscription.result == 'skipped' && needs.find-candidates.outputs.sealed-2 || '' }}
 
       - name: Check the findings' shape
         env:
@@ -975,8 +975,8 @@ jobs:
 
   file-findings:
     name: File Findings
-    needs: [gate, check-findings]
-    if: ${{ !cancelled() && needs.check-findings.result == 'success' && needs.check-findings.outputs.artifact-id != '' }}
+    needs: [gate, scan]
+    if: ${{ !cancelled() && needs.scan.result == 'success' && needs.scan.outputs.artifact-id != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
@@ -986,10 +986,6 @@ jobs:
     env:
       GIT_CONFIG_GLOBAL: /dev/null
       GIT_CONFIG_NOSYSTEM: "1"
-      npm_config_audit: "false"
-      npm_config_fetch_timeout: "60000"
-      npm_config_fund: "false"
-      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@v7
@@ -1030,15 +1026,11 @@ jobs:
           output-path: ${{ runner.temp }}/resolved-config.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      - name: Report a lane that is off
-        if: steps.config.outcome == 'success' && steps.config.outputs.applies != 'true'
-        run: echo "::notice::the lane or its file-architecture-findings slot is off in docs/conventions/pr-pipeline.yaml, so this run files nothing; its findings stay in the run's artifact for a day"
-
       - name: Download the findings
         if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
         uses: actions/download-artifact@v8
         with:
-          artifact-ids: ${{ needs.check-findings.outputs.artifact-id }}
+          artifact-ids: ${{ needs.scan.outputs.artifact-id }}
           path: ${{ runner.temp }}/findings
 
       - name: Check the findings
@@ -1046,7 +1038,7 @@ jobs:
         if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
         env:
           FILE: ${{ runner.temp }}/findings/findings.json
-          WANT: ${{ needs.check-findings.outputs.findings-sha256 }}
+          WANT: ${{ needs.scan.outputs.findings-sha256 }}
         run: |
           if [ -L "$FILE" ] || [ ! -f "$FILE" ] || [ "$(stat -c %s "$FILE")" -gt 131072 ]; then
             echo "::error::the findings artifact holds no findings.json of at most 128 KiB"

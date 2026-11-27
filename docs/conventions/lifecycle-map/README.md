@@ -133,6 +133,8 @@ rows and the as-of date in the same pull request.
 | Delete stale branches (`maintenance-delete-stale-branches.yml`) | own run | git host | no | schedule, daily; `workflow_dispatch` | branches; PR and issue state; rulesets | branches deleted; ledger artifact |
 | Report changed areas for tidying | step in `maintenance-tidy-code-upkeep.yml` | observability | no | push to main | the pushed range | job summary |
 | Tidy code by area | step in `maintenance-tidy-code-upkeep.yml` | git host | yes | schedule, daily; `workflow_dispatch` | settings; open tidy PRs; sweep records | one tidy branch and PR per area |
+| Gate the architecture scan | step in `maintenance-scan-architecture.yml` | orchestrator | no | schedule, daily; `workflow_dispatch` | `lanes` block in `pr-pipeline.yaml`; `find_open_item_cap`; open `source: architecture-improve` issues; earlier runs; main history | run or a named stop reason |
+| Scan the architecture | step in `maintenance-scan-architecture.yml` | tracker | yes | the gate says run | the repository at main; the room under the cap | issues labelled `source: architecture-improve`, which admission holds for a person |
 | Measure a skill edit (`maintenance-measure-skill-edit.yml`) | own run | git host | yes | `workflow_dispatch` by a listed human | plugin and skill names; the skill's eval suite | draft PR when the edit scores better than the merged skill |
 
 ## Plugins
@@ -151,6 +153,7 @@ on their own change, which runs the `bash-format`, `code-metrics`, `code-tidying
 | Plugin | Tasks that use it, and how |
 |---|---|
 | `ai-slop` | Fix docs loads `ai-slop:audit fix`; Resolve an issue loads it as a tidy pass; Required CI runs its `detect.sh` through the em-dash gate |
+| `architecture` | Scan the architecture loads it, and `improvement:find` runs `architecture:improve deepening --unattended` inline |
 | `bash-format` | Required CI runs its `lint-full.sh` |
 | `code-metrics` | Required CI runs its `audit-size.sh --check` |
 | `code-tidying` | Tidy code by area loads `code-tidying:tidy` and runs its upkeep scripts; Resolve an issue loads `code-tidying:tidy-diff`; Required CI runs its `comment-lint.sh` |
@@ -164,9 +167,10 @@ on their own change, which runs the `bash-format`, `code-metrics`, `code-tidying
 | `guardrails` | Required CI runs its `reference-verify.sh` |
 | `harness-ops` | Apply a Claude Code release loads `harness-ops:changelog` and runs its changelog status and inventory scripts |
 | `implementation` | Apply a Claude Code release loads it; the changelog skill's CI mode runs `/implementation:implement` |
+| `improvement` | Scan the architecture loads `improvement:find` unattended |
 | `instruction-placement` | Required CI runs its `render-index.sh check` on `AGENTS.md` |
 | `knowledge` | Resolve an issue loads it for page digests |
-| `multi-agent` | The model profiles of Resolve an issue, Resolve merge conflicts, Address review feedback, Fix failing CI, Fix docs, Tidy code by area, Measure a skill edit and Apply a Claude Code release resolve through its role map, `reference/defaults.yaml` |
+| `multi-agent` | The model profiles of Resolve an issue, Resolve merge conflicts, Address review feedback, Fix failing CI, Fix docs, Tidy code by area, Scan the architecture, Measure a skill edit and Apply a Claude Code release resolve through its role map, `reference/defaults.yaml` |
 | `mutation-testing` | Mutation test the change loads `mutation-testing:audit` |
 | `performance` | Required CI runs its `ratchet.py check` |
 | `planning` | Apply a Claude Code release loads it and runs `/planning:plan --unattended`; Resolve an issue and Fix failing CI may run its `repin-digests.sh` |
@@ -187,12 +191,12 @@ on their own change, which runs the `bash-format`, `code-metrics`, `code-tidying
 No task above uses these plugins to do its work. CI may still run their own tests or checks;
 otherwise they run only in a person's own Claude Code session:
 
-`actionlint`, `adhd`, `ai-briefing`, `animation`, `app-control`, `architecture`, `attribution`,
+`actionlint`, `adhd`, `ai-briefing`, `animation`, `app-control`, `attribution`,
 `autonomy`, `bugs`, `codebase-health`, `computer-use`, `context-budget`, `context-usage`,
 `corrections`, `coupling`, `debugging`, `desktop-notification`, `developer-experience`,
 `discipline`, `disk-hygiene`, `display-redaction`, `docs-naming`, `domain-driven-design`,
 `education`, `eol-normalizer`, `event-storming`, `explainer-video`, `external-agents`, `fleet`,
-`gaming`, `github`, `go-format`, `harness-config`, `harness-memory`, `improvement`,
+`gaming`, `github`, `go-format`, `harness-config`, `harness-memory`,
 `javascript-format`, `kindle-dedrm`, `machine-health`, `markdown-format`, `mcp-tools`, `miro`,
 `naming`, `overengineering`, `pixel-art`, `playgrounds`, `plugin-diagnostics`,
 `plugin-profiles`, `plugin-quality`, `powershell-format`, `prototype`, `python-format`,

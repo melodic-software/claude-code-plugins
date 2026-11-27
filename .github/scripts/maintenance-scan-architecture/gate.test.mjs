@@ -1,4 +1,4 @@
-// test-scope: .github/actions/resolve-config/package.json
+// test-scope: .github/actions/resolve-config/package.json .github/workflows/maintenance-scan-architecture.yml docs/conventions/pr-pipeline.yaml docs/conventions/pr-pipeline/pr-pipeline.schema.json
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -59,12 +59,12 @@ test("the workflow's model legs are skipped whenever the gate says run=false, an
   const base = { "github.run_attempt": "1", "needs.gate.outputs.next-leg": "" };
   for (const reason of ["lane-off", "at-cap", "not-due", "no-merges"]) {
     const ctx = { ...base, "needs.gate.outputs.run": "false", "needs.gate.outputs.reason": reason, "needs.gate.outputs.next-leg": "subscription" };
-    for (const job of ["scan", "scan-subscription", "scan-fallback"]) {
-      assert.equal(runs(wf.jobIf(job), { ...ctx, "needs.scan-subscription.outputs.credential-present": "false" }), false, `${job} on ${reason}`);
+    for (const job of ["find-candidates", "find-candidates-subscription", "find-candidates-fallback"]) {
+      assert.equal(runs(wf.jobIf(job), { ...ctx, "needs.find-candidates-subscription.outputs.credential-present": "false" }), false, `${job} on ${reason}`);
     }
   }
-  assert.equal(runs(wf.jobIf("scan"), { ...base, "needs.gate.outputs.run": "true" }), true);
-  assert.equal(runs(wf.jobIf("scan-subscription"), { ...base, "needs.gate.outputs.run": "true", "needs.scan.outputs.next-leg": "subscription" }), true);
+  assert.equal(runs(wf.jobIf("find-candidates"), { ...base, "needs.gate.outputs.run": "true" }), true);
+  assert.equal(runs(wf.jobIf("find-candidates-subscription"), { ...base, "needs.gate.outputs.run": "true", "needs.find-candidates.outputs.next-leg": "subscription" }), true);
 });
 
 test("the gate is the first job, runs a script and no model, and every model leg needs it", () => {
@@ -74,7 +74,7 @@ test("the gate is the first job, runs a script and no model, and every model leg
   const gateSteps = workflow.jobs.gate.steps;
   assert.ok(gateSteps.some((step) => /gate\.mjs gate$/.test(step.run ?? "")), "the gate step runs gate.mjs");
   assert.ok(!gateSteps.some((step) => /run-claude-cli|claude-code-action/.test(step.uses ?? "") || /\bclaude\s+-p\b/.test(step.run ?? "")));
-  for (const leg of ["scan", "scan-subscription", "scan-fallback"]) {
+  for (const leg of ["find-candidates", "find-candidates-subscription", "find-candidates-fallback"]) {
     assert.ok([workflow.jobs[leg].needs].flat().includes("gate"), leg);
     assert.match(workflow.jobs[leg].if, /needs\.gate\.outputs\.run == 'true'/, leg);
   }
@@ -112,7 +112,7 @@ test("the open count leaves out pull requests and reads pages until it passes th
   assert.equal(pages.length, 1);
 });
 
-test("the last scan is the newest completed main run whose Check Findings job succeeded", async () => {
+test("the last scan is the newest completed main run whose Scan job, which checked the sealed findings, succeeded", async () => {
   const jobs = { 3: [{ name: SCAN_DONE_JOB, conclusion: "skipped" }], 2: [{ name: "Gate", conclusion: "success" }], 1: [{ name: SCAN_DONE_JOB, conclusion: "success" }] };
   const call = async (method, path) =>
     path.includes("/workflows/")

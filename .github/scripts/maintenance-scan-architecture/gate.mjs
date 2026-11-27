@@ -7,7 +7,7 @@ import { budgetedClient } from "../lib/github-rest.mjs";
 import { countOpen, LANE, openItemCap, SOURCE_LABEL } from "./lane.mjs";
 
 export const WORKFLOW = `${LANE}.yml`;
-export const SCAN_DONE_JOB = "Check Findings";
+export const SCAN_DONE_JOB = "Scan";
 export const DEFAULT_EVERY_DAYS = 1;
 const RUNS_READ = 40;
 const DAY_MS = 86_400_000;

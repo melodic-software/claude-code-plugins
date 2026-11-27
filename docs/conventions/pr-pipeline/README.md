@@ -200,6 +200,23 @@ not a lane, such as `maintenance-measure-skill-edit-pass` (a `workflow_call` reu
 | `pr-unblock` | a dispatch for each conflicting PR but a Dependabot head (Dependabot rebases its own), each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch or at the dispatcher's half-hourly tick, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, a dispatch at the half-hourly tick for a fix request on such a thread or a trusted person's top-level comment addressed to the lane, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
 | `work-unblock` | an issue closing, by a listed human, and a sweep every 15 minutes ([the work-unblock sweep](#the-work-unblock-sweep)) of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran; a sweep whose closed-issue listing fails holds green, and the next one reads back past it), which each finished `work-resolve-issue` run that ran a job also starts, so a freed slot admits the next deferred issue at once; labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs (one a merged `Refs:` pull request names after its newest decision comment goes to triage instead) and relabels a red-main fix issue a repeat failure reopened |
+| `maintenance-scan-architecture` | its daily schedule, or a dispatch by an account with write access, past its no-model gate job |
+
+A lane section's `enabled: false` turns every slot of the lane off, and `every-days` (default 1) is
+how many days a scheduled lane with a cadence gate waits after its last completed run.
+`maintenance-scan-architecture` ships off. Its gate job
+(`.github/scripts/maintenance-scan-architecture/gate.mjs`) reads both keys and `find_open_item_cap`
+from the improvement config cascade (default 5), and stops the run with a named reason when the lane
+is off (`lane-off`), the open `source: architecture-improve` issues are at or above the cap
+(`at-cap`), fewer than `every-days` calendar days passed since the last run whose `Check Findings`
+job succeeded (`not-due`), or nothing merged to main since it (`no-merges`). A dispatch's `force`
+input skips only `lane-off` and `not-due`; a schedule run never reads it. The model job runs
+`/improvement:find` unattended with `/architecture:improve deepening --unattended` inline and holds
+no write token: it returns the candidates find may file, sealed for the scan-carrier job, and
+`File Findings` files them on the lanes App token (`file-architecture-findings`, `mutate-tracker`,
+which a disabled lane is not granted), each with exactly one `source: architecture-improve` label.
+Admission's `own-agents.hold-sources` in `admission-rules.json` holds those filings for a listed
+human.
 
 `pr-unblock`'s dispatches come from `pr-unblock-dispatch.yml`, a scripted workflow with no model
 that runs on a push to `main`, half-hourly (five minutes after the lost-run reconciler's :04 and
