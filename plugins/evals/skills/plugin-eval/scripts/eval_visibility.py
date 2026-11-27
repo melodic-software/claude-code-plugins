@@ -52,12 +52,11 @@ GIT_SUBCOMMANDS = (
     "|clone|checkout|switch|restore|branch|tag|reset|merge|rebase|cherry-pick|stash|worktree|am"
     "|apply|update-index|update-ref|symbolic-ref|gc"
 )
-GIT_SETTINGS_FILES = frozenset(["config", ".gitconfig", ".gitattributes", ".gitmodules"])
 GIT_RUNS_RE = re.compile(
     r"(?<![\w.-])hooks(?![\w.-])|\.git/(?:config|info|hooks|modules)\b|\.git(?:config|attributes|modules)\b"
     r"|(?<![\w.])git/config\b|\bXDG_CONFIG_HOME\b|\bGIT_DIR\b|\bGIT_CONFIG\w*|--(?:separate-)?git-dir\b"
     r"|(?:^|[\s;&|(])(?:export\s+)?HOME="
-    r"""|(?<![\w.-])git\s+(?!(?:-[cC]\s+(?:"[^"\s]*"|'[^'\s]*'|[^\s"'\\]\S*)\s+)*(?:%s)\b)""" % GIT_SUBCOMMANDS
+    r"""|(?<![\w.-])git\s+(?!(?:-[cC]\s+(?:"[^"\s\\]*"|'[^'\s]*'|[^\s"'\\]+)\s+)*(?:%s)\b)""" % GIT_SUBCOMMANDS
 )
 CAT_HEREDOC_RE = re.compile(
     r"""^\s*(?:cat|tee)(?:\s+(?:>>?\s*)?[^\s<>|;&]+)*\s*<<-?\s*([A-Za-z_]\w*)"""
@@ -248,7 +247,7 @@ def _written_files_run(files):
         if found is None or texts is None:
             return True
         names |= found | texts
-    if names & GIT_SETTINGS_FILES:
+    if any(n in ("config", "config.worktree") or n.startswith(".git") for n in names) or _writes_git_folder(shell):
         return True
     run, grew = set(), bool(names)
     written = re.compile(r"(?<![\w.-])(%s)(?![\w.-])" % "|".join(re.escape(n) for n in names))
@@ -285,6 +284,16 @@ def _written_files_run(files):
                     run |= hit
                     grew = True
     return frozenset(run)
+
+
+def _writes_git_folder(shell):
+    """Some heredoc in the case shell files writes into an `info/` or `hooks/` folder, which git
+    reads as settings or runs."""
+    return any(
+        re.search(r"<<", line) and re.search(r"(?:^|[\s>/\"'])(?:info|hooks)/", line)
+        for lines in shell
+        for line in lines
+    )
 
 
 def _cat_heredoc_text_lines(lines):
