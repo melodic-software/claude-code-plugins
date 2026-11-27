@@ -521,6 +521,29 @@ class SelectCasesNoRunTest(unittest.TestCase):
         block = self._edit_and_select(setup, "# Prints the fixture.\n", "")
         self.assertEqual("one-basic", block.get("cases"), "the whole plugin root is copied")
 
+    def test_case_yaml_under_a_copied_evals_folder_still_runs(self):
+        self._base_with_eval_files('cp -r "$(dirname "$0")/.." ws/\n')
+        case = self.repo / "plugins/alpha/evals/one-basic/case.yaml"
+        block = self._edit_and_select(case, "# Seeds one fixture.\n", "")
+        self.assertEqual("one-basic", block.get("cases"), "the copy puts case.yaml in the workspace")
+
+    def test_case_yaml_comment_a_script_reads_still_runs(self):
+        _write(
+            self.repo,
+            "plugins/alpha/evals/revert-cases.sh",
+            "#!/usr/bin/env bash\n"
+            "grep -q '^# confirmed-by: pending' \"$EVALS/$1/case.yaml\" && exit 3\n",
+        )
+        self._base_with_eval_files()
+        case = self.repo / "plugins/alpha/evals/one-basic/case.yaml"
+        case.write_text(
+            "# confirmed-by: pending\n" + case.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        _commit_all(self.repo, "mark the case unconfirmed")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        block = self._edit_and_select(case, "# confirmed-by: pending\n", "")
+        self.assertEqual("one-basic", block.get("cases"), "revert-cases.sh reads that comment")
+
     def test_case_yaml_block_scalar_line_still_runs(self):
         self._base_with_eval_files()
         case = self.repo / "plugins/alpha/evals/one-basic/case.yaml"

@@ -27,7 +27,9 @@ comment in a cgo file, a `/*` opener deleted without its `*/` and a PowerShell `
 never deletable comments; a swap in a skill's `name` or a skill or agent rename always runs; a script gets no swap exemption; a change with no hunks is never exempt; a
 plugin-wide file is always listed. A comment deletion under `evals/` runs its case, since the
 model running the case may read it, unless the agent under test cannot see the file: the case's
-`case.yaml`, or a `.sh` or `.bash` script a case's scaffold runs (`bash`, `sh`, `source` or `.`
+`case.yaml` when no file of a case reaching it names its case folder, the evals folder or a folder
+above, and no script under the evals folder that names `case.yaml` holds the deleted comment's text
+or a quoted pattern matching it; or a `.sh` or `.bash` script a case's scaffold runs (`bash`, `sh`, `source` or `.`
 with the script's path, or its `context.scaffold_script`) that no file of a case reaching it names,
 or names any folder holding it (the evals folder and those above included) or a glob or unresolved path that could match it, in any other form, and that never reads its own source (`$0`, `BASH_SOURCE`
 outside `$(dirname ...)`, or its own name). A heredoc or quoted-string line stays content. A swap under `evals/`

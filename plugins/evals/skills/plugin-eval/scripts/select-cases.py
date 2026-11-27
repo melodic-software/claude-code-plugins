@@ -482,11 +482,15 @@ def select_cases(repo_root, diff_base, merge_base):
             return True
         if code != "M":
             return False
+        deleted = ()
+        if owning_case is not None and rel_path.endswith("/case.yaml"):
+            deleted = select_mapping.deleted_lines(repo_root, merge_base, rel_path)
         hidden = bool(cases) and select_mapping.hidden_from_agent(
             eval_abs,
             os.path.join(repo_root, rel_path),
             cases,
             owning_case,
+            deleted,
         )
         return select_mapping.is_no_run_file_change(
             repo_root, merge_base, rel_path, rel_path, hidden

@@ -39,6 +39,7 @@ SCRIPT_RUN_RE = re.compile(
     r"""(?P<rest>(?:\s.*)?)$"""
 )
 WILD_PATH_RE = re.compile(r"[*?[$`{]")
+QUOTED_TOKEN_RE = re.compile(r"""(['"])([^'"\n]+)\1""")
 SELF_REF_RE = re.compile(r"BASH_SOURCE|\$\{?0(?![0-9])")
 YAML_TOP_KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_.\-]*)[ \t]*:(?:[ \t]+(.*))?$")
 
@@ -516,6 +517,10 @@ def _parse_case_yaml_text(text):
     return validate_cases.parse_yaml(stripped)
 
 
+def _comment_lines(text):
+    return [line.strip() for line in text.splitlines() if line.strip().startswith("#")]
+
+
 def is_description_only_case_edit(repo_root, merge_base, rel_path, filename):
     """True when a modified case.yaml or prompt.md changes only its description."""
     base_text = git_show(repo_root, merge_base, rel_path)
@@ -530,7 +535,9 @@ def is_description_only_case_edit(repo_root, merge_base, rel_path, filename):
                 return False
             base_rest = {k: v for k, v in base_doc.items() if k != "description"}
             head_rest = {k: v for k, v in head_doc.items() if k != "description"}
-            return base_rest == head_rest
+            return base_rest == head_rest and _comment_lines(base_text) == _comment_lines(
+                head_text
+            )
         if filename == "prompt.md":
             base_fm_raw, base_body = validate_cases.split_markdown(base_text)
             head_fm_raw, head_body = validate_cases.split_markdown(head_text)
@@ -956,21 +963,80 @@ def _covers(ref, target):
     return bool(prefix) and target.startswith(prefix + os.sep)
 
 
-def hidden_from_agent(eval_abs, target_abs, cases, owning_case=None):
-    """Whether the agent under test can never see `target_abs`: the owning case's `case.yaml`,
-    or a shell script some case's scaffold runs that no case's files copy, print, read, pass on
-    or name, or name a folder holding it, in any other form, and that never reads its own source. Unsure is visible."""
+def deleted_lines(repo_root, merge_base, rel_path):
+    """The lines `merge_base...HEAD` removes from `rel_path`, or None when git cannot say."""
+    done = _git(repo_root, "diff", "-U0", merge_base, "HEAD", "--", rel_path)
+    if done.returncode != 0:
+        return None
+    return [
+        line[1:]
+        for line in done.stdout.splitlines()
+        if line.startswith("-") and not line.startswith("---")
+    ]
+
+
+def _comment_reader_texts(eval_norm, files):
+    for dirpath, dirnames, filenames in os.walk(eval_norm):
+        dirnames[:] = [d for d in dirnames if d not in ("node_modules", "__pycache__")]
+        for filename in filenames:
+            if os.path.splitext(filename)[1].lower() in SCRIPT_EXTENSIONS:
+                yield _read_text_safe(os.path.join(dirpath, filename)) or ""
+    for text, _ in files:
+        yield text or ""
+
+
+def _reads_deleted_comment(texts, deleted):
+    """Some text naming `case.yaml` holds a deleted comment's words, or a quoted pattern that
+    matches the deleted line."""
+    comments = [line.strip() for line in deleted if line.strip().startswith("#")]
+    bodies = [line.lstrip("#").strip() for line in comments]
+    for text in texts:
+        if "case.yaml" not in text:
+            continue
+        if any(body and body in text for body in bodies):
+            return True
+        for _, token in QUOTED_TOKEN_RE.findall(text):
+            if not re.search(r"[A-Za-z]{3}", token):
+                continue
+            try:
+                pattern = re.compile(token)
+            except re.error:
+                continue
+            if any(pattern.search(line) for line in comments):
+                return True
+    return False
+
+
+def _case_yaml_hidden(target, cases, eval_norm, deleted):
+    if deleted is None:
+        return False
+    files = {}
+    for case in cases:
+        files.update(_case_suite_files(case, eval_norm))
+    for _, sites in files.values():
+        for _, refs, _, _, _, wide in sites:
+            if wide or any(_covers(ref, target) for ref in refs):
+                return False
+    return not _reads_deleted_comment(_comment_reader_texts(eval_norm, files.values()), deleted)
+
+
+def hidden_from_agent(eval_abs, target_abs, cases, owning_case=None, deleted=()):
+    """Whether the agent under test can never see `target_abs`. The owning case's `case.yaml`
+    is hidden when no case file names its folder, the evals folder or one above, and no script
+    naming `case.yaml` reads a `deleted` comment. A shell script is hidden when some case's
+    scaffold runs it, no case's files copy, print, read, pass on or name it, or a folder holding
+    it, in any other form, and it never reads its own source. Unsure is visible."""
     target = os.path.normpath(target_abs)
+    eval_norm = os.path.normpath(eval_abs)
     if owning_case is not None and target == os.path.normpath(
         os.path.join(owning_case.abs_dir, "case.yaml")
     ):
-        return True
+        return _case_yaml_hidden(target, cases, eval_norm, deleted)
     if os.path.splitext(target)[1].lower() not in HIDDEN_SCRIPT_EXTS:
         return False
     own_text = _read_text_safe(target)
     if own_text is None or _reads_own_source(target, own_text):
         return False
-    eval_norm = os.path.normpath(eval_abs)
     name_re = _name_re(os.path.basename(target))
     run = False
     for case in cases:
