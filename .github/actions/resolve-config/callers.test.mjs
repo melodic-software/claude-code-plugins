@@ -5464,7 +5464,8 @@ test("scan job: every run job output set after head code must be in its closed s
   }
 });
 
-const CARRIER_HOLDERS = ["upstream-apply-changelog.yml", "maintenance-tidy-code-upkeep.yml"];
+const CARRIER_HOLDERS = ["upstream-apply-changelog.yml", "maintenance-tidy-code-upkeep.yml", "maintenance-scan-architecture.yml"];
+const CARRIER_SELECT = { "upstream-apply-changelog.yml": "select-release", "maintenance-tidy-code-upkeep.yml": "select-areas", "maintenance-scan-architecture.yml": "gate" };
 
 test("pr-run-activity-read.yml: the scan-carrier key is passed by name by each read-runner caller, read by the scan job's decode step alone, and its environment is on that job alone", () => {
   const files = workflowFiles();
@@ -5509,7 +5510,7 @@ test("pr-run-activity-read.yml: the scan-carrier key is passed by name by each r
     assert.deepEqual(holder.permissions, { contents: "read" });
     assert.equal(holder["cache-mode"], "read");
     assert.ok(!holder.steps.some((step) => String(step.uses ?? "").includes("/run-claude-cli@")), `${file} scan runs no model`);
-    const select = file === "upstream-apply-changelog.yml" ? "select-release" : "select-areas";
+    const select = CARRIER_SELECT[file];
     assert.ok([holder.needs].flat().includes(select));
     assert.match(intake[select].if ?? "", /github\.ref == 'refs\/heads\/main'/);
   }

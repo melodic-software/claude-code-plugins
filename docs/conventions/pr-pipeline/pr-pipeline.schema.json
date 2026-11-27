@@ -1059,6 +1059,12 @@
       "properties": {
         "stage": { "$ref": "#/$defs/stage" },
         "enabled": { "type": "boolean", "default": true },
+        "every-days": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Days a scheduled lane waits before it runs again, counted from its last run whose Scan job succeeded, read by the lane's gate script; a lane with no cadence gate ignores it (README.md, Lanes)."
+        },
         "slots": { "type": "array", "items": { "$ref": "#/$defs/slot" } }
       }
     },

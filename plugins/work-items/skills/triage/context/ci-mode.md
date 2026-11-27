@@ -26,13 +26,24 @@ structured output.
    interview; a claim that does not hold shapes the dimensions and becomes an open question. When
    the repository's `docs/conventions/work-items.md` has a `## Triage rules` section, apply its
    rules too: they add to this file's, and never relax one.
+   Search only the checkout, your working directory, and read this plugin's own files by the
+   paths this file names: the run may not be granted the plugin root or a directory above it.
 3. **Choose the dimensions.** One option key each for `size`, `complexity` and `uncertainty`, from
    the repository's dimension map. Your output schema lists the keys each takes; the lane checks
    them again.
 4. **Choose the flags.** Each that applies, or none:
    - `intent`: the intended outcome or done-when is not exact, or the issue lists primary-design
      alternatives and picks none (the label test's part 4 in `SKILL.md`). A choice of means is not
-     an intent question.
+     an intent question. A recorded decision in `comments` can open questions as well as settle
+     them, and two of its openings are `intent`, never a choice of means:
+     - A step it reserves to a person (the author runs, checks or approves something first and the
+       work waits on it) is that person's consent, the label test's part 2: apply `needs-human`
+       with `needs_human` false and say which step waits on whom. A rule that a done-when item a
+       lane run cannot do needs no person covers only steps the decision does not reserve.
+     - A term it adds that leaves a set, value or boundary undefined (which items, which threshold),
+       and that neither the issue nor the checkout defines, is a design choice the owner has not
+       made, the label test's part 4: ask it as a new open question with its `RECOMMENDED:`
+       answer. Never pick the set yourself as if decided.
    - `security`: the work would carry a HIGH or CRITICAL security risk: expose a secret, bypass a
      trust boundary, or open an external attack surface.
    - `cost`: the work would add or raise a charge no diff shows, with no recorded decision
