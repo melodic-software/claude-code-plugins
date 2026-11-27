@@ -4443,6 +4443,13 @@ def apply_plan(
                 )
             )
             continue
+        try:
+            fresh_vcs = tracked_blocker(candidate_path, target)
+        except (OSError, subprocess.SubprocessError):
+            fresh_vcs = "vcs-state-unverified"
+        if fresh_vcs:
+            skipped.extend(protected_skip(relative, fresh_vcs) for relative in selected)
+            continue
         fresh_mounts, fresh_mount_error = linux_mount_points()
         handle_skips = (
             {}

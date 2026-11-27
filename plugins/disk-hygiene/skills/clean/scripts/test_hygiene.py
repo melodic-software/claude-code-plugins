@@ -4312,7 +4312,7 @@ class HygieneTests(unittest.TestCase):
                 mock.patch.object(
                     hygiene,
                     "tracked_blocker",
-                    return_value="vcs-tracked-content",
+                    side_effect=[None, "vcs-tracked-content"],
                 ),
                 mock.patch.object(hygiene, "execution_blockers", return_value=[]),
                 mock.patch.object(
@@ -18247,11 +18247,17 @@ class ApplyPerCandidateProbeTests(unittest.TestCase):
                 self.calls.clear()
                 self.batch.mkdir(exist_ok=True)
                 snapshot, plan = self.fixture(files)
-                report = self.apply(snapshot, plan, [(1, "", ""), (1, "", "")])
+                with mock.patch.object(
+                    hygiene, "tracked_blocker", wraps=hygiene.tracked_blocker
+                ) as tracked:
+                    report = self.apply(snapshot, plan, [(1, "", ""), (1, "", "")])
                 self.assertEqual("completed", report["status"], report["skipped"])
                 self.assertEqual(files + 1, report["paths_removed"])
                 self.assertEqual(2, self.calls.count("lsof"), "preview + apply")
-                self.assertEqual(2, self.calls.count("git"), "preview + apply")
+                self.assertEqual(
+                    3, tracked.call_count, "preview + apply gate + apply recheck"
+                )
+                self.assertEqual(3, self.calls.count("git"), "one rev-parse per check")
 
     def test_an_open_descendant_is_kept_and_its_siblings_removed(self) -> None:
         (self.batch / "sub").mkdir()
