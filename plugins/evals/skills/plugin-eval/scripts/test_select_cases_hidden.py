@@ -148,13 +148,6 @@ class SelectCasesHiddenTest(unittest.TestCase):
         block = self._select(SETUP, "# Prints the fixture.\n", "")
         self.assert_runs(block, "eval runs the string with the script as $0")
 
-    def test_literal_heredoc_naming_the_case_folder_is_no_run(self):
-        self._base(
-            scaffold=RUN_SETUP + "cat >bench.sh <<'EOF'\ncd \"$(dirname \"${BASH_SOURCE[0]}\")\"\nEOF\n"
-        )
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_free(block, "the heredoc writes text into the workspace and runs none of it")
-
     def test_unquoted_heredoc_copying_the_helper_still_runs(self):
         self._base(
             scaffold=RUN_SETUP + 'cat >copy.sh <<EOF\n$(cat "$(dirname "$0")/../fixtures/setup.sh")\nEOF\n'
@@ -339,158 +332,12 @@ class SelectCasesHiddenTest(unittest.TestCase):
         block = self._select("plugins/alpha/skills/one/evals/notes.yaml", "# Calibration notes.\n", "")
         self.assertIn("one-basic", block.get("cases", "").split(), "the agent can read a skill folder")
 
-
-    def test_literal_heredoc_written_then_run_still_runs(self):
-        self._base(
-            scaffold=RUN_SETUP + "cat >runner.sh <<'EOF'\ncp -r \"$(dirname \"$0\")/../fixtures\" ./copy\nEOF\n"
-            "bash runner.sh\n"
-        )
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_runs(block, "the scaffold runs the script the heredoc wrote")
-
-    def test_literal_heredoc_made_executable_still_runs(self):
-        self._base(
-            scaffold=RUN_SETUP + "cat >runner.sh <<'EOF'\ncp -r \"$(dirname \"$0\")/../fixtures\" ./copy\nEOF\n"
-            "chmod +x runner.sh\n"
-        )
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_runs(block, "a file made executable may be run")
-
-    def test_running_one_written_file_leaves_other_heredocs_inert(self):
-        self._base(
-            scaffold=RUN_SETUP + "cat >tool <<'EOF'\necho ok\nEOF\nchmod +x tool\n"
-            "cat >notes.sh <<'EOF'\ncd \"$(dirname \"${BASH_SOURCE[0]}\")\"\nEOF\n"
-        )
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_free(block, "only tool runs; notes.sh stays text")
-
-    def test_a_written_file_run_by_another_written_file_still_runs(self):
-        self._base(
-            scaffold=RUN_SETUP + "cat >a.sh <<'EOF'\nbash b.sh\nEOF\n"
-            "cat >b.sh <<'EOF'\ncp -r \"$(dirname \"$0\")/../fixtures\" ./copy\nEOF\nbash a.sh\n"
-        )
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_runs(block, "a.sh runs b.sh")
-
-    def _written_runner(self, run_lines, body='cp -r "$(dirname "$0")/../fixtures" ./copy'):
-        self._base(scaffold=RUN_SETUP + "cat >gen.sh <<'EOF'\n" + body + "\nEOF\n" + run_lines)
-        return self._select(SETUP, "# Prints the fixture.\n", "")
-
-    def test_written_file_run_through_a_wrapper_or_variable_still_runs(self):
-        for run in (
-            "nice bash gen.sh\n", "timeout 60 bash gen.sh\n", "env -i bash gen.sh\n",
-            "f=gen.sh\nbash \"$f\"\n", "\"$SHELL\" gen.sh\n", "cd sub && ./gen.sh\n",
-        ):
-            with self.subTest(run=run):
-                self.assert_runs(self._written_runner(run), "the scaffold may run gen.sh")
-
-    def test_written_file_renamed_or_linked_still_runs(self):
-        for run in ("mv gen.sh run.sh\nbash run.sh\n", "ln -s gen.sh run.sh\n", "cp gen.sh x.sh\n"):
-            with self.subTest(run=run):
-                self.assert_runs(self._written_runner(run), "gen.sh moves to a name that runs")
-
-    def test_written_file_only_committed_read_or_appended_is_no_run(self):
-        for run in ("git add gen.sh\n", "printf 'x\\n' >>gen.sh\n", "git -c user.name=x commit -qm x\n", 'git -C "$PWD" commit -qm x\n',
-                    "git init -q --bare .git/origin.git\n"):
-            with self.subTest(run=run):
-                self.assert_free(self._written_runner(run), "nothing runs gen.sh")
-
-    def test_written_file_named_in_unquoted_heredoc_text(self):
-        free = self._written_runner("cat >notes.txt <<EOF\nrun: bash gen.sh in $PWD\nEOF\n")
-        self.assert_free(free, "the unquoted heredoc only writes the text")
-        runs = self._written_runner("cat >notes.txt <<EOF\n$(bash gen.sh)\nEOF\n")
-        self.assert_runs(runs, "the command substitution runs gen.sh")
-        chained = self._written_runner("cat >run.sh <<EOF\nbash gen.sh\nEOF\nbash run.sh\n")
-        self.assert_runs(chained, "run.sh, which an unquoted heredoc writes, runs gen.sh")
-
-    def test_written_file_reached_by_a_built_name_or_odd_form_still_runs(self):
-        for run in (
-            'n=gen\nbash "$n.sh"\n', "bash ./g*.sh\n", 'for f in ./*.sh; do bash "$f"; done\n',
-            'v=f\nf=gen.sh\nbash "${!v}"\n', "bash <>gen.sh\n", 'bash <<<"$(cat gen.sh)"\n',
-            'echo "$(cat gen.sh)" >run.sh\nbash run.sh\n',
-            "git init -q\ngit add gen.sh\ngit -c 'diff.external=bash<gen.sh' diff\n",
-            'x="\ncat <<EOF\n"\nbash gen.sh\n', "cat >notes.txt <<EOF\n$\\\n(bash gen.sh)\nEOF\n",
-            '"make"\n', "${MAKE:-make}\n", "cmake -S . -B build\n",
-            "mkdir -p .git/hooks\ncp gen.sh .git/hooks/pre-commit\n", "cd .git/hooks\n",
-            "git init -q\ncat >>.git/config <<'EOF'\n[alias]\n\tsetup = !bash gen.sh\nEOF\ngit setup\n",
-            "cat >.gitattributes <<'EOF'\n* diff=x\nEOF\n",
-            "mkdir -p git\ncat >git/config <<'EOF'\n[alias]\n\tsetup = !bash gen.sh\nEOF\nXDG_CONFIG_HOME=\"$PWD\" git setup\n",
-            "git init -q --bare meta\ncat >>meta/config <<'EOF'\n[alias]\n\tsetup = !bash gen.sh\nEOF\nGIT_DIR=meta git setup\n",
-            "git setup\n", "HOME=\"$PWD\" git status\n",
-            "git init -q --bare meta\ncat >>meta/config <<'EOF'\n[alias]\n\tsetup = !bash ../gen.sh\nEOF\ngit -P -C meta setup\n",
-            "git --no-pager setup\n",
-            "git init -q --bare meta\ncat >>meta/config <<'EOF'\n[remote \"o\"]\n\turl = .\n\tuploadpack = bash ../gen.sh\nEOF\ngit -C meta fetch o\n",
-            "git -C meta -c 'user.name=a status' setup\n",
-            "git -c user.name='a status' setup\n", "git -c user.name=a\\ status setup\n",
-            "git init -q --bare meta\ngit -C meta config extensions.worktreeConfig true\ncat >meta/config.worktree <<'EOF'\n[remote \"o\"]\n\turl = .\n\tuploadpack = bash ../gen.sh\nEOF\ngit -C meta fetch o\n",
-            "git init -q --bare meta\ncat >meta/info/attributes <<'EOF'\n* diff=x\nEOF\n",
-        ):
-            with self.subTest(run=run):
-                self.assert_runs(self._written_runner(run), "the scaffold may run gen.sh")
-
-    def test_written_file_named_by_a_non_shell_case_file_still_runs(self):
-        _write(self.repo, "plugins/alpha/evals/fixtures/helper.py", 'import subprocess\nsubprocess.run(["bash", "gen.sh"])\n')
-        block = self._written_runner('python3 "$(dirname "$0")/../fixtures/helper.py"\n')
-        self.assert_runs(block, "helper.py runs gen.sh")
-
-    def test_shadowed_cat_or_path_change_still_runs(self):
-        for prefix in ("cat() { bash -s; }\n", 'PATH="$PWD/bin:$PATH"\n', "alias cat=bash\n"):
-            with self.subTest(prefix=prefix):
-                self._base(
-                    scaffold=RUN_SETUP + prefix + "cat >out.txt <<'EOF'\n"
-                    'cp -r "$(dirname "$0")/../fixtures" ./copy\nEOF\n'
-                )
-                block = self._select(SETUP, "# Prints the fixture.\n", "")
-                self.assert_runs(block, "cat no longer just writes text")
-
-    def test_heredoc_in_a_file_that_sources_a_library_still_runs(self):
-        _write(self.repo, "plugins/alpha/evals/fixtures/lib.sh", "cat() { bash -s; }\n")
-        self._base(
-            scaffold=RUN_SETUP + 'source "$(dirname "$0")/../fixtures/lib.sh"\n'
-            "cat >out.txt <<'EOF'\ncp -r \"$(dirname \"$0\")/../fixtures\" ./copy\nEOF\n"
-        )
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_runs(block, "the sourced library may redefine cat")
-
-    def test_git_hooks_path_or_hooks_heredoc_still_runs(self):
-        for extra in ("git config core.hooksPath hooks\n", "cat >.git/hooks/pre-commit <<'H'\nx\nH\n"):
-            with self.subTest(extra=extra):
-                self.assert_runs(self._written_runner(extra), "git runs hooks it finds")
-
-    def test_hooks_path_dev_null_keeps_heredocs_inert(self):
-        self.assert_free(
-            self._written_runner("git -c core.hooksPath=/dev/null commit -q -m x\n"),
-            "hooks are switched off",
-        )
-
-    def test_heredoc_with_a_variable_target_still_runs(self):
-        self._base(
-            scaffold=RUN_SETUP + 'f=x.sh\ncat >"$f" <<\'EOF\'\ncp -r "$(dirname "$0")/../fixtures" ./copy\nEOF\n'
-        )
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_runs(block, "the written name is not literal")
-
     def test_pushd_into_the_suite_still_runs(self):
         self._base(
             scaffold=RUN_SETUP + 'pushd "$(dirname "${BASH_SOURCE[0]}")"\npushd ..\ntar c fixtures | tar x -C ws\n'
         )
         block = self._select(SETUP, "# Prints the fixture.\n", "")
         self.assert_runs(block, "after the pushd, fixtures names the helper's folder")
-
-    def test_literal_heredoc_in_a_case_that_runs_make_still_runs(self):
-        self._base(
-            scaffold=RUN_SETUP + "cat >Makefile <<'EOF'\nall:\n\tcp -r \"$(dirname \"$0\")/../fixtures\" copy\nEOF\nmake\n"
-        )
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_runs(block, "make runs the Makefile the heredoc wrote")
-
-    def test_if_source_of_a_written_file_still_runs(self):
-        self._base(
-            scaffold=RUN_SETUP + "cat >env.sh <<'EOF'\ncp \"$(dirname \"$0\")/../fixtures/setup.sh\" ws/\nEOF\n"
-            "if source ./env.sh; then :; fi\n"
-        )
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_runs(block, "the sourced file runs with the scaffold as $0")
 
     def _positional_base(self, calls):
         _write(

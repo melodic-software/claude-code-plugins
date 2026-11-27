@@ -349,59 +349,30 @@ def shadows_writers(lines, inside=frozenset()):
     )
 
 
-def literal_heredoc_lines(lines, run=frozenset()):
+def literal_heredoc_lines(lines):
     """0-based numbers of the body lines of each `cat` or `tee` heredoc with a quoted delimiter,
     which the shell writes out as literal text and never runs; an unterminated one counts none,
     and none count when the file's strings do not read cleanly, an opener sits in a string, or
     the file pipes into a shell, evaluates anything, sources any file (which may redefine `cat`),
-    or redefines `cat` or `tee` or the `PATH` that finds them. A heredoc writing a file named in
-    `run` (files the case may run) is not counted."""
+    or redefines `cat` or `tee` or the `PATH` that finds them."""
     inside = no_run_text._string_block_lines(".sh", "\n".join(lines))
     if inside is None or runs_strings(lines, inside) or shadows_writers(lines, inside):
         return set()
-    found, body, closer, counted = set(), [], None, False
+    found, body, closer = set(), [], None
     for number, line in enumerate(lines):
         if closer is None and number + 1 in inside:
             continue
         if closer is not None:
             if line.lstrip("\t") == closer:
-                found.update(body if counted else ())
+                found.update(body)
                 closer = None
             else:
                 body.append(number)
             continue
         opener = LITERAL_HEREDOC_RE.match(line)
         if opener:
-            names = _heredoc_names(line, opener.end(2) + 1)
             closer, body = opener.group(2), []
-            counted = names is not None and not names & run
     return found
-
-
-def _heredoc_names(line, tail):
-    """The file names the heredoc opener on `line`, whose delimiter ends before index `tail`,
-    writes to, or None when one is not literal."""
-    head = line[: line.index("<<")] + " " + line[tail:]
-    if re.match(r"\s*tee\b", head):
-        words = [w for w in head.split()[1:] if not w.startswith(("-", ">"))]
-    else:
-        words = re.findall(r">>?\s*([^\s<>|;&]+)", head)
-    names = {word.strip("\"'").rsplit("/", 1)[-1] for word in words}
-    return names if names and all(n and "$" not in n and "`" not in n for n in names) else None
-
-
-def literal_heredoc_targets(lines):
-    """The file names each `cat` or `tee` literal heredoc writes to, or None when one has a target
-    whose name is not literal (a bare variable) or none at all."""
-    names = set()
-    for line in lines:
-        opener = LITERAL_HEREDOC_RE.match(line)
-        if opener:
-            found = _heredoc_names(line, opener.end(2) + 1)
-            if found is None:
-                return None
-            names |= found
-    return names
 
 
 def binding_lines(fpath, text, target):
@@ -438,27 +409,21 @@ def _plain_cd_run(shape, base_dir, var_dirs, eval_norm):
     return top is not None and not re.search(r"[;&|()]", top)
 
 
-def _suite_ref_sites(fpath, text, eval_norm, visibility=False, inert_heredocs=True):
+def _suite_ref_sites(fpath, text, eval_norm, visibility=False):
     """Each reference `fpath` makes into the suite: (line, refs, runs, rest, rest_refs, wide,
     narrow), where `runs` is the one script a shell line or a `scaffold_script` value executes,
     `rest` the line after that script's path, `wide` whether it names the suite folder or one
     above, and `narrow` maps each ref every occurrence of which names only paths ending in one of
-    its tails (`_quoted_tail`) to those tails. With `visibility`, the body of a literal `cat` or
-    `tee` heredoc is skipped, and so is a top-level `plugins: [...]` line of a `case.yaml` or
-    `prompt.md` naming the plugin the suite belongs to, which is the plugin loaded by default.
-    `inert_heredocs=False` reads every such body, and a frozenset of file names reads the bodies
-    writing those files, for a case that may run what one writes."""
+    its tails (`_quoted_tail`) to those tails. With `visibility`, a top-level `plugins: [...]` line of a `case.yaml` or
+    `prompt.md` naming the plugin the suite belongs to, which is the plugin loaded by default, is skipped."""
     base_dir = os.path.dirname(fpath)
     lines = text.splitlines()
     var_dirs, assign_lines = _shell_var_dirs(lines, base_dir)
     is_shell = os.path.splitext(fpath)[1].lower() in HIDDEN_SCRIPT_EXTS
-    run = inert_heredocs if isinstance(inert_heredocs, frozenset) else frozenset()
-    skip = visibility and is_shell and inert_heredocs is not False
-    skipped = literal_heredoc_lines(lines, run) if skip else set()
     own_plugin = os.path.basename(fpath) in ("case.yaml", "prompt.md") and visibility
     sites = []
     for line_no, line in enumerate(lines):
-        if line_no in assign_lines or line_no in skipped:
+        if line_no in assign_lines:
             continue
         stripped = line.lstrip()
         if not stripped or stripped.startswith("#"):
@@ -515,9 +480,9 @@ def _extract_suite_refs(fpath, text, eval_norm):
     return {ref for site in _suite_ref_sites(fpath, text, eval_norm) for ref in site[1]}
 
 
-def _case_suite_files(case, eval_norm, visibility=False, inert_heredocs=True):
+def _case_suite_files(case, eval_norm, visibility=False):
     """{path: (text, sites)} for every file of `case` and every suite file they reach, with
-    `visibility` and `inert_heredocs` passed to `_suite_ref_sites`."""
+    `visibility` passed to `_suite_ref_sites`."""
     queue = collections.deque()
     for dirpath, dirnames, filenames in os.walk(case.abs_dir):
         dirnames[:] = sorted(
@@ -538,7 +503,7 @@ def _case_suite_files(case, eval_norm, visibility=False, inert_heredocs=True):
             continue
         text = _read_text_safe(fpath)
         sites = (
-            _suite_ref_sites(fpath, text, eval_norm, visibility, inert_heredocs) if text else []
+            _suite_ref_sites(fpath, text, eval_norm, visibility) if text else []
         )
         files[fpath] = (text, sites)
         for site in sites:

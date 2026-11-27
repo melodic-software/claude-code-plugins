@@ -40,32 +40,6 @@ SELF_LOCATE_RE = re.compile(
 POSITIONAL_COPY_RE = re.compile(
     r"""^cp\s+(?:-[A-Za-z]+\s+)*"\$\{?(?P<dir>\w+)\}?/\$\{?(?P<var>[A-Za-z_]\w*)\}?"\s+"[^"$`]*(?:\$\{?\w+\}?[^"$`]*)*"\s*$"""
 )
-RUNNER_RE = re.compile(
-    suite_refs.COMMAND_START
-    + r"""["'\\]?(?:\$\{\w+:-)?(?:make|gmake|cmake|ninja|meson|scons|bazel|gradle|gradlew|mvn"""
-    r"|ant|rake|dotnet|pre-commit|direnv|npm|npx|yarn|pnpm|bun|deno|node|python3?|pytest|tox|uv"
-    r"|ruby|perl|php|go|cargo|just|task|bats|find|xargs|run-parts|parallel|watch)\b"
-)
-INDIRECT_NAME_RE = re.compile(r"\$\{!|(?<![$\\:])[*?]|\$\w+[.-]|\$\{\w+\}[\w.-]|[\w.-]\$\{?\w")
-GIT_SUBCOMMANDS = (
-    "init|config|add|rm|mv|commit|diff|status|ls-files|log|show|rev-parse|remote|push|fetch|pull"
-    "|clone|checkout|switch|restore|branch|tag|reset|merge|rebase|cherry-pick|stash|worktree|am"
-    "|apply|update-index|update-ref|symbolic-ref|gc"
-)
-GIT_RUNS_RE = re.compile(
-    r"(?<![\w.-])hooks(?![\w.-])|\.git/(?:config|info|hooks|modules)\b|\.git(?:config|attributes|modules)\b"
-    r"|(?<![\w.])git/config\b|\bXDG_CONFIG_HOME\b|\bGIT_DIR\b|\bGIT_CONFIG\w*|--(?:separate-)?git-dir\b"
-    r"|(?:^|[\s;&|(])(?:export\s+)?HOME="
-    r"""|(?<![\w.-])git\s+(?!(?:-[cC]\s+(?:"[^"\s\\]*"|'[^'\s]*'|[^\s"'\\]+)\s+)*(?:%s)\b)""" % GIT_SUBCOMMANDS
-)
-CAT_HEREDOC_RE = re.compile(
-    r"""^\s*(?:cat|tee)(?:\s+(?:>>?\s*)?[^\s<>|;&]+)*\s*<<-?\s*([A-Za-z_]\w*)"""
-    r"""\s*(?:>>?\s*[^\s<>|;&]+\s*)?$"""
-)
-GIT_RECORD_RE = re.compile(
-    r"^\s*git\s+(?:-c\s+(?:core\.hooksPath=/dev/null|user\.\w+=\S*)\s+)*"
-    r"(?:add|rm|commit|diff|status|ls-files)\b[^;&|`$()<>]*$"
-)
 UNSET_MESSAGE_RE = re.compile(r"\$\{(\w+):?\?[^}$`]*\}")
 TEXT_TOOL_RE = re.compile(r"\b(?:awk|gawk|mawk|sed|grep|jq)\b(?:[^;&|()`$]|\$(?!\())*$")
 
@@ -227,144 +201,6 @@ def _reads_deleted_comment(texts, deleted):
     return False
 
 
-def _written_files_run(files):
-    """The names of the files literal heredocs write that a case shell file may run (it names one
-    on any code line but the heredoc's own opener and a plain `git add`, `rm`, `commit`, `diff`,
-    `status` or `ls-files`, which covers running, sourcing, renaming, linking and making it
-    executable), or True when it may run any of them: it runs a tool that executes files it finds
-    (`make`, `npm`, `python`, `find`, ...), points git at a hooks folder, redefines `PATH` or a
-    child shell's startup, or writes a heredoc with no literal target name. A literal heredoc body
-    is text, read as code only once its own file is found to run."""
-    shell = [
-        (text or "").splitlines()
-        for fpath, (text, _) in files.items()
-        if os.path.splitext(fpath)[1].lower() in select_mapping.HIDDEN_SCRIPT_EXTS
-    ]
-    names = set()
-    for lines in shell:
-        found = suite_refs.literal_heredoc_targets(lines)
-        texts = _cat_heredoc_targets(lines)
-        if found is None or texts is None:
-            return True
-        names |= found | texts
-    if any(n in ("config", "config.worktree") or n.startswith(".git") for n in names) or _writes_git_folder(shell):
-        return True
-    run, grew = set(), bool(names)
-    written = re.compile(r"(?<![\w.-])(%s)(?![\w.-])" % "|".join(re.escape(n) for n in names))
-    every = frozenset(names)
-    for fpath, (text, _) in files.items():
-        ext = os.path.splitext(fpath)[1].lower()
-        if ext in select_mapping.SCRIPT_EXTENSIONS and ext not in select_mapping.HIDDEN_SCRIPT_EXTS:
-            if names and written.search(text or ""):
-                return True
-    aliases = {}
-    for lines in shell:
-        for line in lines:
-            _names_run(line, written, aliases, every)
-    while grew:
-        grew = False
-        for lines in shell:
-            bodies = suite_refs.literal_heredoc_lines(lines, frozenset(run))
-            texts = set() if run else _cat_heredoc_text_lines(lines)
-            for number, line in enumerate(lines):
-                stripped = line.strip()
-                if number in bodies or number in texts or not stripped or stripped.startswith("#"):
-                    continue
-                hooks_path = re.search(r"hooksPath[=\s]+(\S+)", line)
-                if hooks_path and hooks_path.group(1).strip("\"'") != "/dev/null":
-                    return True
-                if RUNNER_RE.search(line) or GIT_RUNS_RE.search(line):
-                    return True
-                if suite_refs.LITERAL_HEREDOC_RE.match(line):
-                    continue
-                if suite_refs.SHADOWS_WRITER_RE.search(line):
-                    return True
-                hit = _names_run(line, written, aliases, every)
-                if hit - run:
-                    run |= hit
-                    grew = True
-    return frozenset(run)
-
-
-def _writes_git_folder(shell):
-    """Some heredoc in the case shell files writes into an `info/` or `hooks/` folder, which git
-    reads as settings or runs."""
-    return any(
-        re.search(r"<<", line) and re.search(r"(?:^|[\s>/\"'])(?:info|hooks)/", line)
-        for lines in shell
-        for line in lines
-    )
-
-
-def _cat_heredoc_text_lines(lines):
-    """0-based body lines of `cat` or `tee` heredocs with an unquoted delimiter that hold no `$(`
-    or backtick: text written out, whose only expansions are variables, so nothing on them runs.
-    None count in a file that redefines `cat`, `tee` or `PATH` or sources a file, or whose
-    strings do not read cleanly; an opener inside a string opens none, and a line continued with a
-    backslash and the line after it count only when the joined text holds neither."""
-    inside = no_run_text._string_block_lines(".sh", "\n".join(lines))
-    if inside is None or suite_refs.shadows_writers(lines):
-        return set()
-    found, closer, joined = set(), None, []
-    for number, line in enumerate(lines):
-        if closer is not None:
-            if line.lstrip("\t") == closer:
-                closer, joined = None, []
-                continue
-            joined.append(number)
-            if line.endswith("\\"):
-                continue
-            text = "".join(lines[n][:-1] if n != number else lines[n] for n in joined)
-            if "$(" not in text and "`" not in text:
-                found.update(joined)
-            joined = []
-            continue
-        if number + 1 in inside:
-            continue
-        opener = CAT_HEREDOC_RE.match(line)
-        if opener:
-            closer = opener.group(1)
-    return found
-
-
-def _cat_heredoc_targets(lines):
-    """The file names each `cat` or `tee` heredoc with an unquoted delimiter writes to, or None
-    when one has a target whose name is not literal. One that only prints writes none."""
-    names = set()
-    for line in lines:
-        opener = CAT_HEREDOC_RE.match(line)
-        if opener and (">" in line or line.lstrip().startswith("tee")):
-            found = suite_refs._heredoc_names(line, opener.end(1))
-            if found is None:
-                return None
-            names |= found
-    return names
-
-
-def _names_run(line, written, aliases, every):
-    """The written-file names `line` may run: every one it names, or names through a variable in
-    `aliases` (bound, by a line that does only that, to a written path, and recorded here), or all
-    of `every` when it builds a name (a glob, `${!name}`, or an expansion joined to text), except
-    on a plain `git add`/`rm`/`commit`/`diff`/`status`/`ls-files` line or as an output redirection
-    target (`>file`, `>>"$f"`)."""
-    if GIT_RECORD_RE.match(line):
-        return set()
-    bound = suite_refs.SHELL_ASSIGN_RE.match(line)
-    if bound and suite_refs._is_lone_assignment(line) and not re.search(r"\$\(|`", line):
-        found = set(written.findall(bound.group(2)))
-        if found:
-            aliases[bound.group(1)] = found
-            return set()
-    rest = re.sub(r"""[0-9&]?(?<!<)>>?\s*(?:"[^"]*"|'[^']*'|[^\s;&|]+)""", " ", line)
-    if INDIRECT_NAME_RE.search(_printed_text_cut(rest)):
-        return set(every)
-    hit = set(written.findall(rest))
-    for name, targets in aliases.items():
-        if re.search(r"\$\{?%s(?![\w])" % re.escape(name), rest):
-            hit |= targets
-    return hit
-
-
 @functools.lru_cache(maxsize=None)
 def _scripts_under(root):
     """((path, text, is_shell), ...) for every text file under `root`: a `Makefile`, an
@@ -483,14 +319,7 @@ def _positional_copy_is_safe(fpath, text, line, target, eval_norm):
 
 
 def _case_files(case, eval_norm):
-    """`_case_suite_files` for the visibility check, reading literal heredoc bodies as references
-    whenever the case may run what one writes."""
-    files = select_mapping._case_suite_files(case, eval_norm, visibility=True)
-    run = _written_files_run(files)
-    if run:
-        inert = False if run is True else run
-        files = select_mapping._case_suite_files(case, eval_norm, True, inert_heredocs=inert)
-    return files
+    return select_mapping._case_suite_files(case, eval_norm, visibility=True)
 
 
 def _case_yaml_hidden(target, cases, eval_norm, deleted):
@@ -520,8 +349,7 @@ def hidden_from_agent(eval_abs, target_abs, cases, owning_case=None, deleted=())
     is hidden when no case file names its folder, the evals folder or one above, and no script
     naming `case.yaml` reads a `deleted` comment. A shell script is hidden when some case's
     scaffold runs it, no case's files copy, print, read, pass on or name it, or a folder holding
-    it, in any other form, and it never reads its own source. Text a literal heredoc writes out,
-    a print-only line, a binding of a variable to the script's exact path, and a `plugins` entry
+    it, in any other form, and it never reads its own source. A print-only line, a binding of a variable to the script's exact path, and a `plugins` entry
     naming the suite's own plugin are not such forms. Unsure is visible."""
     target = os.path.normpath(target_abs)
     eval_norm = os.path.normpath(eval_abs)
