@@ -130,6 +130,12 @@ test("the model legs' Bash rules refuse each route to arbitrary code, the enviro
   }
   for (const command of [
     "git rev-parse --is-shallow-repository",
+    "git rev-parse HEAD",
+    "git branch --show-current",
+    "git log --oneline -20",
+    "git status --porcelain",
+    "head -10",
+    "git log --name-only --format='%h %an: %s' -100",
     "git log --reverse --format=%cs",
     "head -n 1",
     "git log --since='90 days ago' --pretty=format: --name-only",
