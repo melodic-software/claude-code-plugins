@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "authoritative_source: docs/contracts/webhook-delivery.md\nmax_backoff_seconds: 90\njitter_mode: decorrelated\n",
+      "why": "plain decorrelated value"
+    },
+    {
+      "answer": "- **authoritative_source:** `docs/contracts/webhook-delivery.md`\n- **max_backoff_seconds:** `90`\n- **jitter_mode:** `decorrelated` (replaces equal)\n",
+      "why": "markdown formatted decorrelated with parenthetical"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "authoritative_source: docs/contracts/webhook-delivery.md\nmax_backoff_seconds: 90\njitter_mode: equal\n",
+      "why": "stale equal jitter"
+    },
+    {
+      "answer": "authoritative_source: docs/blog/2024-06-retry-tuning.md\nmax_backoff_seconds: 600\njitter_mode: full\n",
+      "why": "non-normative full jitter"
+    },
+    {
+      "answer": "authoritative_source: docs/contracts/webhook-delivery.md\nmax_backoff_seconds: 90\njitter_mode: equal (contract says decorrelated)\n",
+      "why": "hedges with stale equal jitter first"
+    }
+  ]
+}

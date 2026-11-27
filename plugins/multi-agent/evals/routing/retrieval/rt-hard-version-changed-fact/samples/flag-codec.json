@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "default_compression: zstd\noverride_flag: --codec\nchanged_in_version: 3.0.0\n",
+      "why": "plain --codec flag"
+    },
+    {
+      "answer": "- **default_compression:** `zstd`\n- **override_flag:** `--codec <zstd|gzip|none>`\n- **changed_in_version:** `3.0.0`\n",
+      "why": "markdown formatted --codec with argument syntax"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "default_compression: zstd\noverride_flag: --compress\nchanged_in_version: 3.0.0\n",
+      "why": "removed v2 flag --compress"
+    },
+    {
+      "answer": "default_compression: zstd\noverride_flag: --compress (now --codec)\nchanged_in_version: 3.0.0\n",
+      "why": "lists removed flag first"
+    },
+    {
+      "answer": "default_compression: zstd\noverride_flag: --codec-name\nchanged_in_version: 3.0.0\n",
+      "why": "wrong flag with --codec prefix"
+    }
+  ]
+}

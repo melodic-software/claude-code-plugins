@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "default_compression: zstd\noverride_flag: --codec\nchanged_in_version: 3.0.0\n",
+      "why": "plain 3.0.0"
+    },
+    {
+      "answer": "- **default_compression:** `zstd`\n- **override_flag:** `--codec`\n- **changed_in_version:** `v3.0.0`\n",
+      "why": "v-prefixed v3.0.0 in markdown"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "default_compression: zstd\noverride_flag: --codec\nchanged_in_version: 3.2.0\n",
+      "why": "confuses current VERSION 3.2.0 with the version that introduced the change"
+    },
+    {
+      "answer": "default_compression: zstd\noverride_flag: --codec\nchanged_in_version: 2.4.0\n",
+      "why": "wrong earlier version"
+    },
+    {
+      "answer": "default_compression: zstd\noverride_flag: --codec\nchanged_in_version: 3.0.0.1\n",
+      "why": "extra version component"
+    }
+  ]
+}
