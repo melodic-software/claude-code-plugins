@@ -115,9 +115,118 @@ class PruneRunRootsTest(unittest.TestCase):
         outside = self.run_root(self.base, "outside")
         result = self.cli(str(outside), "/tmp")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("refused (not directly under %s): %s" % (self.ev, outside), result.stdout)
-        self.assertIn("refused (not directly under %s): /tmp" % self.ev, result.stdout)
+        reason = "not directly under %s and not a legacy %s/.ev* root" % (
+            self.ev,
+            self.home,
+        )
+        self.assertIn("refused (%s): %s" % (reason, outside), result.stdout)
+        self.assertIn("refused (%s): /tmp" % reason, result.stdout)
         self.assertTrue(outside.exists())
+
+    def test_old_legacy_run_root_is_removed_with_its_sealed_dir(self):
+        root = self.run_root(self.home, ".ev-16626f-a")
+        sealed = root / "claude-eval-abc123" / "sealed"
+        self.assertEqual(stat.S_IMODE(os.lstat(sealed).st_mode), 0)
+        result = self.cli()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("removed: %s" % root, result.stdout)
+        self.assertFalse(root.exists())
+        self.assertTrue(self.ev.is_dir())
+
+    def test_legacy_run_root_given_as_an_argument_is_removed(self):
+        root = self.run_root(self.home, ".evs3")
+        result = self.cli(str(root))
+        self.assertIn("removed: %s" % root, result.stdout)
+        self.assertFalse(root.exists())
+
+    def test_recent_legacy_run_root_is_kept(self):
+        root = self.run_root(self.home, ".evc-16626g", age=60)
+        result = self.cli()
+        self.assertIn("kept (changed within 3 days): %s" % root, result.stdout)
+        self.assertTrue(root.exists())
+
+    def test_legacy_run_root_a_live_process_holds_is_kept(self):
+        root = self.run_root(self.home, ".evfsl")
+        held = subprocess.Popen(["sleep", "60"], cwd=str(root))
+        self.addCleanup(held.wait)
+        self.addCleanup(held.kill)
+        result = self.cli()
+        self.assertIn(
+            "kept (a process has a file open under it): %s" % root, result.stdout
+        )
+        self.assertTrue(root.exists())
+
+    def test_legacy_symlink_is_left_with_how_to_remove_it(self):
+        outside = self.run_root(self.base, "elsewhere")
+        link = self.home / ".ev-b6"
+        link.symlink_to(outside)
+        result = self.cli()
+        self.assertIn(
+            "refused (a symlink, not followed; rm on the link alone removes it, once "
+            "nothing uses its target): %s" % link,
+            result.stdout,
+        )
+        self.assertTrue(link.is_symlink())
+        self.assertTrue((outside / "claude-eval-abc123").exists())
+
+    def test_legacy_directory_without_a_sandbox_is_left_with_how_to_remove_it(self):
+        other = self.home / ".evolution"
+        (other / "mail").mkdir(parents=True)
+        self.age(other, FOUR_DAYS)
+        result = self.cli()
+        self.assertIn(
+            "kept (holds no claude-eval-* sandbox, so not a run root; remove it by hand "
+            "only after checking its contents): %s" % other,
+            result.stdout,
+        )
+        self.assertTrue((other / "mail").is_dir())
+
+    def test_home_entry_without_the_ev_prefix_is_not_a_candidate(self):
+        root = self.run_root(self.home, ".cache-ev")
+        listed = self.cli()
+        self.assertNotIn(str(root), listed.stdout)
+        named = self.cli(str(root))
+        self.assertIn("refused (not directly under", named.stdout)
+        self.assertTrue((root / "claude-eval-abc123").exists())
+
+    def test_eval_root_itself_is_refused(self):
+        os.mkdir(self.ev / "claude-eval-abc123")
+        self.age(self.ev, FOUR_DAYS)
+        result = self.cli(str(self.ev))
+        self.assertIn(
+            "refused (%s itself, which holds every run's root): %s"
+            % (self.ev, self.ev),
+            result.stdout,
+        )
+        self.assertTrue((self.ev / "claude-eval-abc123").is_dir())
+
+    def test_eval_root_linked_to_a_legacy_name_is_refused(self):
+        real = self.home / ".evdata"
+        self.ev.rmdir()
+        self.run_root(self.home, ".evdata")
+        self.ev.symlink_to(real)
+        result = self.cli()
+        self.assertIn(
+            "refused (%s itself, which holds every run's root): %s" % (real, real),
+            result.stdout,
+        )
+        self.assertTrue((real / "claude-eval-abc123").exists())
+
+    def test_docker_link_swap_state_files_are_not_candidates(self):
+        (self.ev / ".docker-link-swap.lock").write_text("", encoding="utf-8")
+        (self.ev / ".docker-link-swap.json").write_text("{}\n", encoding="utf-8")
+        result = self.cli()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assertTrue((self.ev / ".docker-link-swap.json").is_file())
+
+    def test_home_resolving_to_the_temp_dir_is_refused(self):
+        shared = self.base / "shared-tmp"
+        root = self.run_root(shared, ".ev-old")
+        result = self.cli(env=dict(self.env, HOME=str(shared), TMPDIR=str(shared)))
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("shared directory", result.stderr)
+        self.assertTrue(root.exists())
 
     def test_eval_root_resolving_to_the_temp_dir_is_refused(self):
         shared = self.base / "shared-tmp"

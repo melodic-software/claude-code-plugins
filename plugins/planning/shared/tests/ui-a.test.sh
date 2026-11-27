@@ -6,5 +6,6 @@
 # test-scope: plugins/planning/shared/server.py plugins/planning/shared/session.py plugins/planning/shared/session_bridge.py
 # test-scope: plugins/planning/shared/share.py plugins/planning/shared/share.sh plugins/planning/shared/tunnel.py
 # test-scope: plugins/planning/shared/cfdns.py plugins/planning/shared/detached.py plugins/planning/shared/liveserve.py
+# test-scope: plugins/planning/surface/question_shape.py plugins/planning/surface/schema.py
 # test-scope: plugins/planning/shared/tests/fixtures/fake-cloudflared.sh plugins/planning/shared/tests/fixtures/live_stub_server.py
 exec bash "$(dirname "${BASH_SOURCE[0]}")/ui-run.sh" a

@@ -47,10 +47,46 @@ to set these keys, checked against
 
 | Key | Values | Default | What it controls |
 |---|---|---|---|
+| `install_python_deps_enabled` | `true`, `false` | `false` | Whether the SessionStart `install-python-deps` hook installs explainer-video's hash-locked Python packages (ManimCE) into the plugin data directory. A user-layer value in `pluginConfigs` wins when set; otherwise this repository value overrides the plugin default ([hook enablement](../../docs/contracts/hook-enablement/README.md)). |
 | `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/explainer-video:produce` dispatches its fresh-context frame judge on the delivery render: `light` and `off` skip it and report the frames as not independently judged. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
 | `stitcher` | `ffmpeg`, or a command with `{inputs}` and `{out}` | `ffmpeg` | The stills renderer's final encode; a command receives `stitch.json` (frames with seconds, audio, captions) and writes the MP4. Read from the default branch only, since it runs a command. |
 | `frame_stylesheet` | a repository-relative CSS path | the bundled `frames.css` | The stills frames' look. The file and its content are read from the default branch only. The renderer sets the frame size and pads the bottom 24% for captions; keep content out of it. |
 | `upload_limit_mb` | a number over 0 | `10` | Over it, a stills video splits at chapter starts; it is never recompressed or cut. |
+
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `install_python_deps_enabled` | boolean | `false` | Install explainer-video Python packages (ManimCE) into the plugin data directory at session start. Off by default; running /explainer-video:produce without them prints the one-line install command. |
+
+### How to set these
+
+Set the options above for `explainer-video@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
+
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
+
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+<!-- END GENERATED: plugin options -->
 
 ## Stills renderer
 
@@ -98,10 +134,11 @@ then holds only its `hold` seconds.
   PATH that is one of them. On Windows it then tries each interpreter that
   [`py -0p`](https://docs.python.org/3/using/windows.html#listing-runtimes) lists, so a python.org
   install is found even when another Python comes first on PATH. ManimCE is not vendored and
-  never fetched while a skill runs: a SessionStart hook installs the hash-locked set in
-  `requirements.txt` into the plugin data directory (`pip install --require-hashes`) and does
-  nothing once it loads. A failed install is reported as a notice with the repair line. The first
-  install takes a few minutes.
+  never fetched while a skill runs: the SessionStart hook (`install_python_deps_enabled`, off by
+  default) can install the hash-locked set in `requirements.txt` into the plugin data directory
+  (`pip install --require-hashes`) and does nothing once it loads. A failed install is reported as a
+  notice with the repair line; running without the packages prints the same install command. The
+  first install takes a few minutes.
 - Three packages build from their hash-pinned source archives, because no wheel exists for the
   platform: `srt` everywhere, `pycairo` on Linux and macOS, `manimpango` on Linux. Every other
   package installs from wheels only. The build needs a C compiler, `pkg-config`, and the cairo

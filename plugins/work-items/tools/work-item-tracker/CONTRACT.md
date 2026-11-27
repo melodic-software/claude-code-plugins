@@ -240,6 +240,12 @@ work-item-tracker.sh get-statuses --field <name> <id>...
 work-item-tracker.sh status-storage [--repo <o>/<r>]
 work-item-tracker.sh change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <o>/<r>]
 work-item-tracker.sh add-recurrence <id> --source-link <url> --note <text>
+work-item-tracker.sh put-artifact <id> (--body-file <path> | --body <text> | --url <url>) [--name <name>] [--type generic|plan|embedded_html] [--artifact <number>]
+work-item-tracker.sh list-artifacts <id> [--type generic|plan|link|embedded_html] [--limit <n>]
+work-item-tracker.sh get-artifact <id> (--artifact <number> | --name <name>) [--version <n>] [--versions]
+work-item-tracker.sh link-relates <id> --related-to <id>
+work-item-tracker.sh unlink-relates <id> --related-to <id>
+work-item-tracker.sh list-relates <id>
 work-item-tracker.sh wayfind-labels
 work-item-tracker.sh capabilities
 ```
@@ -265,6 +271,29 @@ an existing marker only from the authors a lease comment counts from ("Lease pro
 anyone can comment on a public repository. local-markdown appends the marker line to the item
 file. The check and the write are two calls with no compare-and-set, so two concurrent calls
 with one link can both write. An adapter that declares no `add-recurrence` key exits `6`.
+
+`put-artifact`, `list-artifacts`, and `get-artifact` store, enumerate, and retrieve structured
+item artifacts (Markdown documents, plans, HTML reports, and links). `put-artifact` upserts by
+exact `--name` (defaulting to the basename of `--body-file`) or updates an explicit `--artifact
+<number>` in place so revision history stays non-destructive; trying to change an existing
+artifact's type exits `7`. `get-artifact` reads the current body by `--artifact` or `--name`,
+includes revision metadata with `--versions`, and fetches an earlier revision with `--version <n>`.
+Only the GitHub adapter implements these verbs today, wrapping `gh issue artifact`. When the local
+`gh` binary lacks `issue artifact`, or the repository returns HTTP `403` (non-rate-limit) or `404`
+on an existing item, the verb exits `6` and emits `{schema_version, id, available: false, reason,
+fallback: "comment"}` so callers fall back to an issue comment without failing on
+un-converged hosts. Missing items or artifacts still exit `5`, auth errors exit `4`, and rate
+limits exit `8` (or `4` on a rate-limited `403`).
+
+`link-relates`, `unlink-relates`, and `list-relates` manage symmetric non-blocking "Relates to"
+edges between two items (distinct from blocking dependencies in `link-blocks`). Relating an item
+to itself exits `2`. Only the GitHub adapter implements them today (`addRelatesTo` /
+`removeRelatesTo` GraphQL mutations and paginated REST `GET .../relates_to`). When the feature is
+unavailable in the session or repository (GraphQL-refusing cloud session on writes, missing
+mutation, HTTP `403` non-rate-limit, or `404` on an existing item), the verb exits `6` and emits
+`{schema_version, id, available: false, reason, fallback: "refs-comment"}` so callers fall back
+to a `Refs` mention. An adapter that declares any of these six verbs `false` (or omits
+them) exits `6` at the dispatcher.
 
 `get-item <id> --history` adds `state_history` to the item object: when the item was closed and
 reopened. It costs one more provider read, so only a caller that asks pays it; `list-items`,
@@ -638,6 +667,12 @@ Per-verb result objects:
 | `get-statuses` | `statuses` (item id → option name or `null`) |
 | `status-storage` | `storage` (`field` or `labels`), `field` (`"Work status"` or `null`), `reason` |
 | `add-recurrence` | `id, source_link, recorded` (bool, `false` when the link was already recorded), `reason` |
+| `put-artifact` | `id, available` (bool), `action` (`"created"` \| `"updated"` \| `null`), `artifact: {number, name, type, url}` (or `null` with `reason, fallback` on exit `6`) |
+| `list-artifacts` | `id, available` (bool), `artifacts: [{id, number, name, type, url, created_at, updated_at}]` (plus `reason, fallback` on exit `6`) |
+| `get-artifact` | `id, available` (bool), `artifact: {id, number, name, type, url, version, body, created_at, updated_at[, versions]}` (or `null` with `reason, fallback` on exit `6`) |
+| `link-relates` | `id, related_to, available` (bool), `linked: true, symmetric: true` (or `linked: false, reason, fallback` on exit `6`) |
+| `unlink-relates` | `id, related_to, available` (bool), `linked: false, unlinked: true, symmetric: true` (or `reason, fallback` on exit `6`) |
+| `list-relates` | `id, available` (bool), `items: [{id, title, state, url}]` (plus `reason, fallback` on exit `6`) |
 | `wayfind-labels` | `prefix, prefix_source, human_gated, human_gated_source` (each source `binding` or `default`) |
 | `capabilities` | manifest object (see below) |
 

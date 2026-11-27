@@ -8,7 +8,7 @@ metadata:
   summary: Polyglot lint and format checks without a full build
 ---
 
-**Arguments.** `[ecosystem] [--fix|--code-fix] [--yes] [--dry-run] [--all-files] [--unattended]`. e.g., /toolchain:lint, /toolchain:lint dotnet, /toolchain:lint --fix, /toolchain:lint --code-fix --yes, /toolchain:lint all, /toolchain:lint --unattended
+**Arguments.** `[ecosystem] [--fix|--code-fix] [--yes] [--dry-run] [--all-files] [--unattended]`. e.g., /toolchain:lint, /toolchain:lint dotnet, /toolchain:lint --fix, /toolchain:lint --code-fix --yes, /toolchain:lint all, /toolchain:lint --unattended <!-- portability-ok: R6 toolchain ecosystem id argument and report format -->
 
 ## Repository context. Gather first
 
@@ -59,7 +59,7 @@ Use `/toolchain:lint` for quick feedback during development. Use `/verification:
 | `--all-files` | With `--code-fix`: allow applying when the scoped file count exceeds the [file-cap](#code-fix-scope-fence) (default 40). Without it, over-cap runs stop after the plan. |
 | `--unattended` | Marks the run unattended. A run without it is still unattended when the ladder's "Run kind" says so, including one that cannot tell whether a person is present. An unattended run resolves commands by the ladder's "Unattended runs": only a recorded, stated or inferred command runs, each logged `assumed:` with its source; nothing is asked or installed, and no `docs/conventions/ecosystems/` or legacy `.claude/ecosystems/` record is written; a key nothing resolved, or a tie, reads `skip (unresolved: <ecosystem>.<key>)`. It is non-interactive for the [confirmation gate](#code-fix-confirmation-gate). |
 
-**Combinable:** `/toolchain:lint dotnet --fix`, `/toolchain:lint --fix`, `/toolchain:lint --code-fix`, `/toolchain:lint --code-fix --yes`, `/toolchain:lint all`, `/toolchain:lint md`
+**Combinable:** `/toolchain:lint dotnet --fix`, `/toolchain:lint --fix`, `/toolchain:lint --code-fix`, `/toolchain:lint --code-fix --yes`, `/toolchain:lint all`, `/toolchain:lint md` <!-- portability-ok: R6 toolchain ecosystem id argument and report format -->
 
 ## Workflow
 
@@ -206,7 +206,7 @@ In check mode, settle the Overall line and record it (section 5) before writing 
 
 | Ecosystem  | Lint     | Format   | Status |
 |------------|----------|----------|--------|
-| dotnet     | pass     | pass     | PASS   |
+| go         | pass     | pass     | PASS   |
 | python     | FAIL     | pass     | FAIL   |
 | bash       | pass     | pass     | PASS   |
 | markdown   | pass     | —        | PASS   |
@@ -218,7 +218,7 @@ Use `pass`, `FAIL`, a named skip, or `—` (not applicable). Every skip names it
 
 An ecosystem's Status and the Overall line read `FAIL` when any cell failed, `INCOMPLETE` when nothing failed but an environment skip remains, and `PASS` only when neither holds. `INCOMPLETE` names each cause with its reason (e.g. `Overall: INCOMPLETE (3 of 4 ecosystems passed; markdown: skip (tool missing: markdownlint-cli2))`), so a caller such as `/verification:confirm` (if enabled) holds its verdict on a lint-only environment gap. An opt-in-unmet skip or a `—` cell never makes a run `INCOMPLETE`.
 
-Split lint and format into separate columns where the ecosystem has both (dotnet, python, bash). Use a single "Lint" column for ecosystems with only one tool (markdown, yaml, powershell). An opt-in-unmet skip fills every column that ecosystem's row has.
+Split lint and format into separate columns where the ecosystem has both (dotnet, python, bash). Use a single "Lint" column for ecosystems with only one tool (markdown, yaml, powershell). An opt-in-unmet skip fills every column that ecosystem's row has. <!-- portability-ok: R6 toolchain ecosystem id argument and report format -->
 
 If `--fix` was used, note which ecosystems were format-fixed vs which have no `fix-cmd`.
 
@@ -235,8 +235,8 @@ Neither line changes a Status or the Overall line, and no binary file is on eith
 
 ### 4. Fix mode notes
 
-- **`--fix`:** auto-fix capability derives from a non-null `fix-cmd`. Report check-only ecosystems alongside format fixes: "Fixed formatting in dotnet, python, bash. markdownlint had no remaining auto-fixes."
-- **`--code-fix`:** capability derives from a non-null `code-fix-cmd`. Ecosystems with only `fix-cmd` (format-only) are not code-fixed under this flag. Tell the operator to use `--fix` for those. Example: "Applied code-fix in python, go. typescript has no code-fix-cmd. Use `--fix` for format-only ecosystems (dotnet, bash, …)."
+- **`--fix`:** auto-fix capability derives from a non-null `fix-cmd`. Report check-only ecosystems alongside format fixes: "Fixed formatting in dotnet, python, bash. markdownlint had no remaining auto-fixes." <!-- portability-ok: R6 toolchain ecosystem id argument and report format -->
+- **`--code-fix`:** capability derives from a non-null `code-fix-cmd`. Ecosystems with only `fix-cmd` (format-only) are not code-fixed under this flag. Tell the operator to use `--fix` for those. Example: "Applied code-fix in python, go. typescript has no code-fix-cmd. Use `--fix` for format-only ecosystems (dotnet, bash, …)." <!-- portability-ok: R6 toolchain ecosystem id argument and report format -->
 
 **Consumer overrides:** a consumer who still puts code-changing autofixes in `fix-cmd` keeps that behavior under `--fix` (their file wins). Prefer migrating those verbs into `code-fix-cmd` so bare `--fix` stays format-only.
 

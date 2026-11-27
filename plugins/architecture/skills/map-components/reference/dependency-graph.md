@@ -1,3 +1,5 @@
+<!-- portability-scope: ecosystem=dotnet - R6 kept-adapter record schema for dependency-graph.sh and render-components.sh -->
+
 # dependency-graph.json as the renderer reads it
 
 `dependency-graph.sh` in `map-dependencies` writes the record, and

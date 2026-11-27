@@ -1,0 +1,11 @@
+captured 2026-11-27 from gh v2.105.0 (cli/cli@v2.105.0) and live GitHub API:
+- gh-artifact-list.json and gh-artifact-view.json: exported JSON shapes from
+  cli/cli@v2.105.0 pkg/cmd/issue/artifact/client/types.go (Artifact.ExportData,
+  ArtifactWithVersions.ExportData, Version.export — note integer id, camelCase
+  fields, and versions[].version newest-first) and piped TSV result lines from
+  pkg/cmd/issue/artifact/shared/results.go (PrintSuccess: "<status>\t<number>\t<name>\t<source>\t").
+- gh-relates-to-rest.json: REST Issue object shape captured from
+  gh api repos/melodic-software/claude-code-plugins/issues/19449 (GET .../relates_to
+  returns an array of Issue objects; verified 200 OK on Track 3A).
+- gh-relates-to-graphql.json: GraphQL mutation payload shapes verified against live
+  introspection of AddRelatesToPayload and RemoveRelatesToPayload ({issue, relatedIssue}).

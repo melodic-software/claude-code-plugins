@@ -43,7 +43,7 @@ The cross-ecosystem checks and the OWASP floor below apply to every review. On t
 
 | Touched by the change set | Read | What that file adds to the floor |
 |---|---|---|
-| .NET (C#) | `${CLAUDE_PLUGIN_ROOT}/context/security-dotnet.md` | Raw-SQL concatenation, raw-markup XSS sinks, OIDC/OAuth and token validation, hardcoded connection strings, deserialization, `Path.Combine` traversal |
+| .NET (C#) | `${CLAUDE_PLUGIN_ROOT}/context/security-dotnet.md` | Raw-SQL concatenation, raw-markup XSS sinks, OIDC/OAuth and token validation, hardcoded connection strings, deserialization, `Path.Combine` traversal <!-- portability-ok: R2 security floor - routes to security-dotnet.md checklist --> |
 | Python | `${CLAUDE_PLUGIN_ROOT}/context/security-python.md` | `shell=True`, `eval`/`exec`/`pickle` on untrusted data, `os.path.join` traversal, dependency confusion |
 | TypeScript/JavaScript | `${CLAUDE_PLUGIN_ROOT}/context/security-typescript.md` | DOM XSS sinks, prototype pollution, schema validation at HTTP and MCP entry points |
 | Bash/Shell | `${CLAUDE_PLUGIN_ROOT}/context/security-shell.md` | Command injection, glob-expansion path injection, secrets echoed to logs |

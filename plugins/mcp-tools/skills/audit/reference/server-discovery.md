@@ -9,7 +9,7 @@ Repo-agnostic: nothing here assumes a specific directory layout or project.
 per-language tool markers below, skipping vendor, build, and test paths. It emits one record per tool
 (`Tool file`, `Tool`, `Tool line`), grouped under a best-effort **server label** derived from each
 tool file's path: the nearest ancestor directory above a runtime/source folder (`node/`, `python/`,
-`dotnet/`, `src/`), or the top-level directory otherwise. Pass `--path <dir>` to scope the audit to a
+`dotnet/`, `src/`), or the top-level directory otherwise. Pass `--path <dir>` to scope the audit to a <!-- portability-ok: R6 kept-adapter operation - discover.sh dotnet scanner -->
 single server's directory; `--path` is bounded to the project directory and a path resolving outside it
 is refused.
 
@@ -86,9 +86,10 @@ from a quoted string or a number written in that language's syntax.
   read at the [`registerTool` reference](https://ts.sdk.modelcontextprotocol.io/v2/api/@modelcontextprotocol/server/server/mcp.html#registertool);
   only a value that serializes to JSON `true` satisfies C18
 
+<!-- portability-ok: R6 kept-adapter operation - discover.sh dotnet scanner -->
 ### dotnet (`ModelContextProtocol`)
 
-- **source-glob:** `**/*.cs`
+- **source-glob:** `**/*.cs` <!-- portability-ok: R6 kept-adapter operation - discover.sh dotnet scanner -->
 - **exclude-globs:** `**/bin/**`, `**/obj/**`, `**/*Tests/**`
 - **tool-marker:** `[McpServerTool]`
 - **name-extraction:** method name carrying the `[McpServerTool]` attribute

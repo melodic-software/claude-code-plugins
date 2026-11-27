@@ -11,16 +11,11 @@ SCRIPT="$SELF_DIR/list-hook-enablement-gaps.sh"
 . "$SELF_DIR/lib/fixture-tree.sh" || exit 2
 
 PENDING=(
-  animation
   context-budget
   discovery
   display-redaction
-  explainer-video
   fleet
-  multi-agent
-  playwright
   plugin-profiles
-  speech
   themes
   toolchain
 )
@@ -113,6 +108,44 @@ if ((RC == 2)) && [[ -z "$OUT" && "$ERR" == *"refusing to report an empty list"*
   ok "a tree with no hook to scan exits 2, not an empty list"
 else
   fail "wanted exit 2 on an empty corpus (rc=$RC, stdout='$OUT', stderr='$ERR')"
+fi
+
+fixture_tree::build f --sut "$SCRIPT" --plugins || exit 2
+plugin keyed "$HOOK" '{"name":"keyed","userConfig":{"keyed_enabled":{"type":"boolean","default":true}}}'
+# shellcheck disable=SC2016
+plugin multi-agent '{"hooks":{"PreToolUse":[{"matcher":"WebFetch","hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/hooks/drift-checker-fetch-gate.mjs"]}]},{"matcher":"Bash","hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/lib/docs-fetcher-gate.mjs","multi-agent:docs-fetcher","code.claude.com"]}]},{"matcher":"Bash","hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/lib/docs-fetcher-gate.mjs","multi-agent:registry-fetcher","arena.ai"]}]}]}}' '{"name":"multi-agent"}'
+# shellcheck disable=SC2016
+plugin discovery '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/lib/docs-fetcher-gate.mjs","discovery:docs-fetcher"]}]}]}}' '{"name":"discovery"}'
+run_list "$f"
+if ((RC == 0)) && [[ -z "$OUT" && "$ERR" == *"0 of 1 plugin(s)"* ]]; then
+  ok "exempt subagent-confining gates alone do not place a plugin on the gap list"
+else
+  fail "wanted exit 0 and an empty list for exempt-only plugins (rc=$RC, stdout='$OUT', stderr='$ERR')"
+fi
+
+fixture_tree::build f --sut "$SCRIPT" --plugins || exit 2
+# shellcheck disable=SC2016
+plugin discovery '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/lib/docs-fetcher-gate.mjs","discovery:docs-fetcher"]}]}],"PostToolUse":[{"matcher":"WebFetch","hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/hooks/webfetch-truncation.mjs"]}]}]}}' '{"name":"discovery"}'
+# shellcheck disable=SC2016
+plugin multi-agent '{"hooks":{"PreToolUse":[{"matcher":"WebFetch","hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/hooks/drift-checker-fetch-gate.mjs"]}]},{"matcher":"Bash","hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/hooks/extra.mjs"]}]}]}}' '{"name":"multi-agent"}'
+# shellcheck disable=SC2016
+plugin other '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/lib/docs-fetcher-gate.mjs","discovery:docs-fetcher"]}]}]}}' '{"name":"other"}'
+run_list "$f"
+want=$'discovery\nmulti-agent\nother'
+if ((RC == 0)) && [[ "$OUT" == "$want" && "$ERR" == *"3 of 3 plugin(s)"* ]]; then
+  ok "a non-exempt hook in an exempt plugin, or a different plugin with exempt args, is still listed"
+else
+  fail "wanted exit 0 and '$want' (rc=$RC, stdout='$OUT', stderr='$ERR')"
+fi
+
+fixture_tree::build f --sut "$SCRIPT" --plugins || exit 2
+# shellcheck disable=SC2016
+plugin discovery '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/lib/docs-fetcher-gate.mjs","discovery:other"]}]}]}}' '{"name":"discovery"}'
+run_list "$f"
+if ((RC == 0)) && [[ "$OUT" == "discovery" && "$ERR" == *"1 of 1 plugin(s)"* ]]; then
+  ok "an exempt plugin with a non-matching gate agent argument is still listed"
+else
+  fail "wanted exit 0 and 'discovery' (rc=$RC, stdout='$OUT', stderr='$ERR')"
 fi
 
 run_list "$SELF_DIR/.."

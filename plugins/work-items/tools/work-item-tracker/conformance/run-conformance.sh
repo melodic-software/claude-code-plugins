@@ -176,6 +176,12 @@ wit_case_if_unsupported set-fields "$FAKE_ID" --field 1=2
 wit_case_if_unsupported get-field-options --field Size
 wit_case_if_unsupported get-statuses --field "Work status" "$FAKE_ID"
 wit_case_if_unsupported add-recurrence "$FAKE_ID" --source-link https://example.com/1 --note seen
+wit_case_if_unsupported put-artifact "$FAKE_ID" --body "x" --name "a.md"
+wit_case_if_unsupported list-artifacts "$FAKE_ID"
+wit_case_if_unsupported get-artifact "$FAKE_ID" --artifact 1
+wit_case_if_unsupported link-relates "$FAKE_ID" --related-to "$FAKE_ID"
+wit_case_if_unsupported unlink-relates "$FAKE_ID" --related-to "$FAKE_ID"
+wit_case_if_unsupported list-relates "$FAKE_ID"
 if ! verb_supported list-items; then
   wit_case "unsupported list-items gates list-frontier → exit 6" 6 list-frontier
 fi

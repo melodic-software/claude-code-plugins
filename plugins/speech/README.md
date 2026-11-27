@@ -84,7 +84,7 @@ Word times come from the API's per-character alignment: a word spans its first t
 | Python 3.12 or later | you | the install hook and every script |
 | Node.js | you | starting the SessionStart hook |
 | espeak-ng | you (`apt`/`dnf`/`pacman`/`brew install espeak-ng`, `winget install eSpeak-NG.eSpeak-NG`) | `/speech:narrate` |
-| numpy, onnxruntime | the SessionStart hook | `/speech:narrate` |
+| numpy, onnxruntime | the SessionStart hook (`install_python_deps_enabled`, off by default) or the repair line | `/speech:narrate` |
 | Kokoro model, tokenizer, voices (about 340 MB) | `/speech:setup apply install-model`, into the `model_dir` option's folder when set | `/speech:narrate` |
 
 `prerequisites.json` declares the tools, with their install hints and what stops without each
@@ -93,9 +93,11 @@ one. `scripts/check.py`, the read-only report behind `/speech:setup check`, read
 The Python packages follow the
 [on-demand dependencies convention](../../docs/contracts/on-demand-dependencies/README.md#python).
 `requirements.in` pins them, `requirements.txt` hash-locks every wheel, and the SessionStart hook
-installs them into `${CLAUDE_PLUGIN_DATA}/python/<lock hash>-<interpreter>/` with
-`pip install --require-hashes --only-binary :all:`. Nothing else installs a package. A failed
-install shows a notice at session start with the repair command.
+(`install_python_deps_enabled`, off by default) can install them into
+`${CLAUDE_PLUGIN_DATA}/python/<lock hash>-<interpreter>/` with
+`pip install --require-hashes --only-binary :all:`. Nothing else installs a package; running
+without them prints the one-line install command, and a failed install shows a notice at session
+start with the repair command.
 
 ## Output
 
@@ -130,6 +132,16 @@ bash lib/install-python-deps.test.sh
 Set `SPEECH_E2E_DATA_DIR` to a data directory that holds the installed packages and the model, with
 espeak-ng on `PATH`, to also run a real narration.
 
+## Configuration
+
+A repository can commit `speech.yaml` in its convention home (default `docs/conventions`)
+to set these keys, checked against
+[`schemas/speech.schema.json`](schemas/speech.schema.json):
+
+| Key | Values | Default | What it controls |
+|---|---|---|---|
+| `install_python_deps_enabled` | `true`, `false` | `false` | Whether the SessionStart `install-python-deps` hook installs speech's hash-locked Python packages (numpy, onnxruntime) into the plugin data directory. A user-layer value in `pluginConfigs` wins when set; otherwise this repository value overrides the plugin default ([hook enablement](../../docs/contracts/hook-enablement/README.md)). |
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -139,6 +151,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
+| `install_python_deps_enabled` | boolean | `false` | Install speech Python packages (numpy, onnxruntime) into the plugin data directory at session start. Off by default; running /speech:narrate without them prints the one-line install command. |
 | `elevenlabs_model` | string | `"eleven_v4"` | Model id the elevenlabs backend uses when a run names none, one of the ids in the MODELS table of scripts/elevenlabs.py. The default matches the script's own default. |
 | `model_dir` | directory | *(none)* | Folder that holds the downloaded Kokoro model set (a kokoro-<revision> subfolder per pin), for a larger disk or one cache shared across worktrees and plugins. Unset keeps it under the plugin data directory's models folder. |
 

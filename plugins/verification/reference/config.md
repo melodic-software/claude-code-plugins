@@ -73,8 +73,8 @@ at. When the working tree's copy, read with `setup-apply.mjs --check` (no `--ref
 different level from the default branch's copy, the report names both and says which one applied.
 
 **Report line.** One line before Stage 2 names the level and the layer that supplied it, for example
-`proof_level: strict (docs/conventions/verification.yaml at origin/main, commit <sha>)`,
-`proof_level: live (userConfig; docs/conventions/verification.yaml at origin/main says path)` or
+`proof_level: strict (docs/conventions/verification.yaml at origin/main, commit <sha>)`, <!-- portability-ok: illustrative report-line example showing resolved default branch -->
+`proof_level: live (userConfig; docs/conventions/verification.yaml at origin/main says path)` or <!-- portability-ok: illustrative report-line example showing resolved default branch -->
 `proof_level: path (default)`. A dropped or skipped layer is named on the same line with its reason.
 
 **Older releases.** A verification release from before this key has no reader for
@@ -115,7 +115,7 @@ invalid value never stops the run, and an invalid `live_workers` never changes `
 reader still prints `PASS proof_level` for a valid committed level.
 
 **Report line.** The worker line names the count and the layer that supplied it, for example
-`live_workers: 3 (docs/conventions/verification.yaml at origin/main, commit <sha>)` or
+`live_workers: 3 (docs/conventions/verification.yaml at origin/main, commit <sha>)` or <!-- portability-ok: illustrative report-line example showing resolved default branch -->
 `live_workers: 1 (default)`, with any dropped layer and its reason.
 
 **Older releases.** A verification release from before this key ignores it and runs one worker.

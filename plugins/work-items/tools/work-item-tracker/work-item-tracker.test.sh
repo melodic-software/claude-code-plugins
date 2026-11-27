@@ -158,6 +158,13 @@ RC_CAPTURE=$?
 assert_eq "undeclared add-recurrence verb → exit 6" "6" "$RC_CAPTURE"
 assert_contains "exit-6 stderr names the add-recurrence verb" "$ERR" "add-recurrence"
 
+for v in put-artifact list-artifacts get-artifact link-relates unlink-relates list-relates; do
+  ERR="$(run_dispatcher "$v" "fake:o/r#1" 2>&1 >/dev/null)"
+  RC_CAPTURE=$?
+  assert_eq "undeclared $v verb → exit 6" "6" "$RC_CAPTURE"
+  assert_contains "exit-6 stderr names the $v verb" "$ERR" "$v"
+done
+
 OUT="$(run_dispatcher capabilities)"
 assert_eq "capabilities → exit 0" "0" "$?"
 assert_eq "capabilities schema_version" "1.0" "$(jq -r '.schema_version' <<<"$OUT")"

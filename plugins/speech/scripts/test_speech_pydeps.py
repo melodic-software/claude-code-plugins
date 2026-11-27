@@ -141,7 +141,8 @@ class OnDemandInstall(unittest.TestCase):
         script.write_text('print("ran")\n', encoding='utf-8')
         r = self.pydeps('run', '--data-dir', str(self.data), '--', str(script))
         self.assertEqual(r.returncode, 2)
-        self.assertIn('SessionStart hook installs them, or run:', r.stderr)
+        self.assertIn('install_python_deps_enabled', r.stderr)
+        self.assertIn('install --data-dir', r.stderr)
         self.assertEqual(r.stdout, '')
         self.assertEqual(self.installs(), [])
 

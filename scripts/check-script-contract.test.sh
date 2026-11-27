@@ -52,6 +52,7 @@ REGISTRY=(
   "check-html-assets.sh|HTMLHINT_BIN=/nonexistent/htmlhint|-|html_assets"
   "check-killswitch-hoist.sh|jq|-|killswitch_hoist"
   "check-lane-coverage.sh|-|-|-"
+  "check-lifecycle-map.sh|jq|--check|lifecycle_map"
   "check-loop-lane-floor-drift.sh|git|-|-"
   "check-org-repo-tokens.sh|git|-|-"
   "check-orphaned-fixtures.sh|-|-|-"
@@ -416,7 +417,41 @@ recipe::upstream_drift() {
   capture run_in "$f" env UPSTREAM_DRIFT_FIXTURE_DIR="$f/fx" bash scripts/check-upstream-drift.sh
 }
 
+recipe::lifecycle_map() {
+  fixture_tree::build f --sut "$SELF_DIR/check-lifecycle-map.sh" --label lifecycle-map || return 2
+  mkdir -p "$f/.github/workflows" "$f/.claude-plugin" "$f/docs/conventions/lifecycle-map"
+  : >"$f/.github/workflows/ci.yml"
+  if [[ "$1" == violation ]]; then
+    printf '{"plugins":[{"name":"alpha"},{"name":"beta"}]}\n' >"$f/.claude-plugin/marketplace.json"
+  else
+    printf '{"plugins":[{"name":"alpha"}]}\n' >"$f/.claude-plugin/marketplace.json"
+  fi
+  cat >"$f/docs/conventions/lifecycle-map/README.md" <<'MD'
+# Lifecycle map
+
+## Pull request checks
+
+| Task | Shape | Component | Model | Trigger | Inputs | Outputs |
+|---|---|---|---|---|---|---|
+| CI (`ci.yml`) | own run | runner | no | push | diff | status |
+
+## Plugins
+
+### On the map
+
+| Plugin | Tasks that use it, and how |
+|---|---|
+| `alpha` | CI runs it |
+
+### Not an automated task
+
+None.
+MD
+  capture run_in "$f" bash scripts/check-lifecycle-map.sh --check
+}
+
 declare -A VIOLATION_NEEDLE=(
+  [lifecycle_map]='MISSING PLUGIN:'
   [hooks_description]='HOOKS DESCRIPTION:'
   [hook_userconfig_argv]='USERCONFIG ARGV:'
   [hook_exec_form]='EXEC-FORM HOOK:'

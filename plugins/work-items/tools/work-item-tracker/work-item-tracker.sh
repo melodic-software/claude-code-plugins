@@ -62,6 +62,13 @@ Verbs:
   status-storage [--repo <owner>/<repo>]
   change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <owner>/<repo>]
   add-recurrence <id> --source-link <url> --note <text>
+  put-artifact <id> (--body-file <path> | --body <text> | --url <url>) [--name <name>]
+               [--type generic|plan|embedded_html] [--artifact <number>]
+  list-artifacts <id> [--type generic|plan|link|embedded_html] [--limit <n>]
+  get-artifact <id> (--artifact <number> | --name <name>) [--version <n>] [--versions]
+  link-relates <id> --related-to <id>
+  unlink-relates <id> --related-to <id>
+  list-relates <id>
   wayfind-labels
   capabilities
 Contract: tools/work-item-tracker/CONTRACT.md
@@ -219,7 +226,7 @@ main() {
 
   local adapter_verb="$verb"
   case "$verb" in
-  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | label-provenance | set-fields | get-field-options | get-statuses | change-link | add-recurrence | capabilities) ;;
+  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | label-provenance | set-fields | get-field-options | get-statuses | change-link | add-recurrence | put-artifact | list-artifacts | get-artifact | link-relates | unlink-relates | list-relates | capabilities) ;;
   list-items | status-storage) ;;
   list-frontier)
     adapter_verb="list-items"

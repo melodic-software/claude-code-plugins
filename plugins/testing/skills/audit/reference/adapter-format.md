@@ -79,7 +79,7 @@ config it prints `block <tab> <file> <tab> <first body line> <tab> <last body li
 layer that holds a block; a .md layer with none contributes nothing.
 
 Keys: `adapters.enable`, `adapters.disable`, `paths.include`, `paths.exclude`, `adapter_dirs`
-(lists), `project_kinds` (a list of `<glob>=<kind>`: a C# project whose .csproj path the glob
+(lists), `project_kinds` (a list of `<glob>=<kind>`: a C# project whose .csproj path the glob <!-- portability-ok: R6 kept-adapter config schema - cant-fail-scan.sh -->
 matches has that kind in `cant-fail-scan.sh`'s findings), `extend.<adapter>.<list field>`
 (validated as the adapter field is), and `rules.<rule>: off | warn | error`, where `<rule>` is
 `testing/audit/rule-<slug>` or `rule-<slug>` and prints as `rules.<slug>`, or is
