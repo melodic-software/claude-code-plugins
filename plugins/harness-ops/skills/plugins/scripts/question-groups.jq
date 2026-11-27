@@ -1,5 +1,6 @@
-# AskUserQuestion limits, recorded in context/sync-install-enable.md:
+# AskUserQuestion per-call limits, from
 # https://code.claude.com/docs/en/agent-sdk/user-input#limitations
+# As of 2026-11-27; recheck when that section changes either number.
 def ask_options_per_question: 4;
 def ask_questions_per_call: 4;
 

@@ -3618,7 +3618,7 @@ record_mismatches() {
 record_case_a
 assert_eq "run record: the first pass writes run.json" "true" "$([[ -f "$run_dir/run.json" ]] && echo true || echo false)"
 assert_eq "run record: the first pass leaves none of the retired re-entry files" "" \
-  "$(env -C "$run_dir" ls flags.json first-pass-run.json first-pass.market1.json other-paths.market1.json install-held.market1 2>/dev/null)"
+  "$(cd "$run_dir" && ls flags.json first-pass-run.json first-pass.market1.json other-paths.market1.json install-held.market1 2>/dev/null)"
 record_echo
 assert_eq "run record: an all-target re-entry restores every declared field" "" \
   "$(record_mismatches "$run_dir/run.json" "$case_dir/echo.json")"

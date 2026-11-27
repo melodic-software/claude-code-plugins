@@ -74,10 +74,9 @@ that render, not this step's prose, is what to branch on:
 - **`none`**: install nothing; list the entries under "Action needed" in the report only
 
 `scripts/question-groups.jq` does the grouping for `install_offer` and for `converge-plan.sh`'s
-`question_calls`. Its two constants copy the tool's per-call limits from
-[Handle approvals and user input: limitations](https://code.claude.com/docs/en/agent-sdk/user-input#limitations):
-at most 4 options per question and 4 questions per call (as of 2026-11-27; recheck when that
-section changes either number, and change the constant there, nowhere else).
+`question_calls`. Its two constants hold the tool's per-call limits, read from
+[Handle approvals and user input: limitations](https://code.claude.com/docs/en/agent-sdk/user-input#limitations);
+a change to those limits changes those constants and nothing else.
 
 **A headless run launched with `--setting-sources` that omits `user` silently reverts this policy to
 `ask`** (the flag: [CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags)).

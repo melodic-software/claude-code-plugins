@@ -792,7 +792,7 @@ across user scope and this repo's in-repo records both, so it covers what Step 2
 as well as Step 3's. What happens to it is the operator's call, not this step's:
 
 - **`--allow-downgrade` was not given.** Do not touch them. Report each under `Action needed` with
-  both versions and the likely cause, per SKILL.md's `downgrade withheld:` row.
+  both versions and the likely cause, as the render's `would withhold:` row prints it.
 - **`--allow-downgrade` was given.** Loop them too, taking `-s <scope>` from field 2 the way Step 2
   takes it off its own line, journaled through the same `tee` plus `PIPESTATUS[0]` shape as every
   other mutating call. Their outcomes render under `downgraded:`, never under `updated:`, whatever
@@ -933,8 +933,8 @@ that could not be produced, never a second pass beside a JSON that was.
 directory removal under Claude Code's own plugin cache, which is outside the boundary the rest of
 this skill keeps: `sync` mutates only through documented `claude plugin` CLI calls, and no CLI verb
 rewrites a cache directory whose version number has not moved. So both actions report the ids and
-the remediation and stop. Emit SKILL.md's `cache content:` row, and omit it entirely when the check
-found nothing.
+the remediation and stop. The render's `cache content:` row carries them, and is absent when the
+check found nothing.
 
 The check compares only installs recorded at the marketplace clone's HEAD. It never fetches a
 commit, since that would be a network mutation and would repair the very condition being reported,
@@ -1054,8 +1054,9 @@ section already counts each of them, and `sync` writes its full per-path list to
 The render names each present path with its record count and its capped ids, marks a linked
 worktree where `converge` cannot act, and counts the absent paths in one entry that points at the
 stale project records section. Three ids per path is a judgment cap (`DIVERGENCE_PATH_IDS` in
-`sync-run.sh`); the number of present paths is not capped, since each is one place the operator
-acts: `converge` from an actionable path or a worktree removal. `count` counts records and `more`
+`sync-run.sh`). The digest keeps every present path in `divergences.by_path`, since each is one
+place the operator acts (`converge` from an actionable path, or a worktree removal); the render
+shows three and then points at the rest. `count` counts records and `more`
 counts distinct ids, so an id with both a project and a local record at one path is counted twice
 and named once.
 

@@ -2127,7 +2127,7 @@ git -C "$case_dir/repo" init -q -b main
 fp_env=(HOME="$case_dir/home" CLAUDE_PROJECT_DIR="$case_dir/repo" CLAUDE_PLUGIN_ROOT="$case_dir/root"
   FLEET_STATE_INSTALLED_JSON="$case_dir/i.json" FLEET_STATE_MARKETPLACES_JSON="$case_dir/m.json"
   FLEET_STATE_USER_SETTINGS="$case_dir/u.json" FLEET_STATE_CATALOG_DIR="$case_dir/catalog")
-fingerprint() { env -C "${FP_CWD:-$case_dir/repo}" "${fp_env[@]}" "$@" bash "$SCRIPT" --fingerprint; }
+fingerprint() { (cd "${FP_CWD:-$case_dir/repo}" && env "${fp_env[@]}" "$@" bash "$SCRIPT" --fingerprint); }
 base_fp=$(fingerprint)
 assert_eq "fingerprint: unchanged inputs give the same fingerprint" "$base_fp" "$(fingerprint)"
 for change in HOME="$case_dir/home2" CLAUDE_PROJECT_DIR="$case_dir/elsewhere" CLAUDE_PLUGIN_ROOT="$case_dir/root2" \

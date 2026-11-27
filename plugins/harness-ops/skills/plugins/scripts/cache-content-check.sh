@@ -173,8 +173,8 @@ fs_args=(--all)
 [[ "$MODE" != "single" ]] || fs_args=(--marketplace "$TARGET")
 fs_rc=0
 fs_report=$(env ${FLEET_STATE_ENV[@]+"${FLEET_STATE_ENV[@]}"} "$FLEET_STATE" "${fs_args[@]}") || fs_rc=$?
-if ((fs_rc == 2)); then
-  echo "ERROR: fleet-state.sh could not read the plugin state (exit 2)" >&2
+if ((fs_rc > 1)) || [[ -z "$fs_report" ]]; then
+  echo "ERROR: fleet-state.sh could not read the plugin state (exit $fs_rc)" >&2
   exit 2
 fi
 FS_LINES=""

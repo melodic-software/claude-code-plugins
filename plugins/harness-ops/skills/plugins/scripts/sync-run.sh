@@ -2247,13 +2247,12 @@ emit_marketplace_block() {
   json_array_of en ${ENABLED_ROWS[@]+"${ENABLED_ROWS[@]}"}
   json_array_of pr ${PROJECT_ROWS[@]+"${PROJECT_ROWS[@]}"}
   json_array_of rec ${RECOVERED_ROWS[@]+"${RECOVERED_ROWS[@]}"}
-  json_strings_of errs ${MP_ERRORS[@]+"${MP_ERRORS[@]}"}
-
   catalog_regression_rows reg_interval reg_rows "$mp"
   divergence_block div "$mp" || {
     div='{"note":"the divergence computation failed"}'
     mp_error "divergence computation failed"
   }
+  json_strings_of errs ${MP_ERRORS[@]+"${MP_ERRORS[@]}"}
   report_extras extras "$mp"
   jq_to checkout -r '.catalog_source // ""' <<<"$extras"
   source_checkout checkout "$checkout"
