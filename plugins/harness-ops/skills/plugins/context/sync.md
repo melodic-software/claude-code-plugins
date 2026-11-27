@@ -64,32 +64,30 @@ What the model still owns, because the script cannot:
   over the digest, printed under `--render` and written to `<run_dir>/report.txt`); the model
   appends the reload guidance SKILL.md's Report section fixes and answers questions.
 
-The digest carries, per marketplace: the refresh result, `project_root`, the marketplace's
-`auto_update` and `catalog_source`, `source_checkout` for a `directory` source (branch, upstream,
-ahead/behind as of the checkout's last fetch, modified tracked files; `null` for any other source
-kind; the script fetches or pulls that checkout only on a `--pull-source` request, because the
-user owns it), `source_pull` (what the run did or would do with a behind checkout: offered,
-skipped, refused, pulled or failed, with the reason, and the commits for a pull; see Step 1's
-"Directory-source fast-forward"), the in-repo and user-scope sweep outcomes with each pair's
-direction, withheld downgrades, the install and enable gaps, what was installed and enabled, the
-installs whose CLI output named userConfig options left unset
-(`installed_with_unset_user_config[]`, one `{id, options_unset, required}` each), the ids whose
-install output said the plugin is disabled by default and that this run did not then enable
-(`installed_disabled[]`), the user-scope
-installs the catalog's names no longer carry (`delisted[]`), the same for installs in the repo the
-run stands in (`delisted_project[]`, one `{id, scope}` each), the effective `true` `enabledPlugins`
-keys with no install record that those names no longer carry (`delisted_settings_only[]`; a
-catalog with an empty `plugins` array produces none of the three), the project-scope enable rows, the normalizer result, the cache-content counts and stale ids with the scope they cover (`cache_content.scope`, always `user`), the catalog regression
-interval, the three-snapshot divergence split, the ids that moved during the run under an update
-call that reported them current (`moved_during_run[]`, with `noop_unverified` counting the
-already-current answers the snapshots could not confirm), whether this plugin itself moved, the
-moved plugins whose installed build declares a monitor (`updated_with_monitors[]`, one
-`{id, scope, monitors}` each, read from the record's own cache directory in the post-sweep
-snapshot), `catalog_last_updated` (the marketplace's `lastUpdated` as Step 2's `pre.<mp>.json` read
-it, after Step 1's refresh, on the first pass and on an `--only-install` re-entry alike; a
-skipped refresh leaves the last refresh's stamp, and a
-background refresh can move the stamp again later in the run, so it dates the catalog as of
-Step 2, not every read), and `timings`: seconds to three decimals for
+`scripts/digest-contract.json` declares every run-level and per-marketplace digest field with its
+default, and the script builds each block and the run object on it, so a field a run did not
+compute carries its default and is never absent. What the fields mean, where it is not plain from
+the name:
+
+- `source_checkout` describes a `directory` source as of the checkout's last fetch and is `null`
+  for any other source kind. The script fetches or pulls that checkout only on a `--pull-source`
+  request, because the user owns it; `source_pull` says what the run did or would do with a behind
+  checkout (see Step 1's "Directory-source fast-forward").
+- `delisted[]`, `delisted_project[]` and `delisted_settings_only[]` name installs and effective
+  `true` `enabledPlugins` keys the catalog no longer carries; a catalog with an empty `plugins`
+  array produces none of them.
+- `installed_disabled[]` holds the ids whose install output said the plugin is disabled by default
+  and that this run did not then enable.
+- `moved_during_run[]` holds ids that moved under an update call that reported them current, and
+  `noop_unverified` counts the already-current answers the snapshots could not confirm.
+- `updated_with_monitors[]` is read from each moved record's own cache directory in the post-sweep
+  snapshot.
+- `catalog_last_updated` is the marketplace's `lastUpdated` as Step 2's `pre.<mp>.json` read it,
+  after Step 1's refresh, on the first pass and on an `--only-install` re-entry alike. A skipped
+  refresh leaves the last refresh's stamp, and a background refresh can move it again later in the
+  run, so it dates the catalog as of Step 2, not every read.
+
+`timings` holds seconds to three decimals for
 `pre_refresh_read`, `marketplace_update`, `in_repo_update`, `other_paths` (Step 3a and the mid
 read that selects its records), `user_sweep`, `pre_install_read` (the
 Steps 4 and 5 gate read, taken on every pass), `install_enable`, `cache_content_check`,

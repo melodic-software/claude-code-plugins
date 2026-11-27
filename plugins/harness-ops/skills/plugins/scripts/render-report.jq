@@ -73,7 +73,7 @@ def block($d):
   | (.in_repo.would_update + (.user_sweep.would_update | map(. + {scope: "user"}))) as $would
   | (.in_repo.failed + (.user_sweep.failed | map(. + {scope: "user"}))) as $failed
   | .user_sweep.withheld_downgrades as $withheld
-  | (.other_paths // {}) as $op
+  | .other_paths as $op
   | ([.installed[] | select(.rc == 0)]) as $installed_ok
   | ([.installed[] | select(.rc != 0)]) as $installed_failed
   | (.install_gap - ($installed_ok | map(.id))) as $install_left
@@ -112,9 +112,9 @@ def block($d):
       | ["project-scope enable gap: \(.id) in \(.project_path)",
          "remedy: (cd \"\(.project_path)\" && claude plugin enable \(.id) -s project)",
          "that writes the repo's committed .claude/settings.json, so review the diff before committing"])] as $enable_pending
-  | [(.installed_disabled // [])[]
+  | [.installed_disabled[]
      | ["\(.): installed but not enabled", "remedy: claude plugin enable \(.) -s user"]] as $disabled_pending
-  | [(if ((.delisted // []) | length) == 0 then empty
+  | [(if (.delisted | length) == 0 then empty
       elif $audit then
         listed("delisted, absent from the unrefreshed catalog (audit prediction)"; .delisted)
         + ["sync names any still absent after its refresh, with the remedy"]
@@ -122,7 +122,7 @@ def block($d):
         listed("delisted, absent from the catalog"; .delisted)
         + ["remedy: uninstall each with `claude plugin uninstall <id> -s user`"]
       end),
-     (if ((.delisted_project // []) | length) == 0 then empty
+     (if (.delisted_project | length) == 0 then empty
       elif $audit then
         listed("delisted in this repo, absent from the unrefreshed catalog (audit prediction)"; .delisted_project | map(scoped))
         + ["sync names any still absent after its refresh, with the remedy"]
@@ -132,7 +132,7 @@ def block($d):
            | ["delisted in this repo, absent from the catalog: \(scoped)",
               "remedy: (cd \"\($root)\" && claude plugin uninstall \(.id) -s \(.scope))"])
       end),
-     (if ((.delisted_settings_only // []) | length) == 0 then empty
+     (if (.delisted_settings_only | length) == 0 then empty
       elif $audit then
         listed("enabled in settings, not installed, and absent from the unrefreshed catalog (audit prediction)"; .delisted_settings_only)
         + ["sync names any still absent after its refresh, with the remedy"]
@@ -153,24 +153,24 @@ def block($d):
   # `needs update`: refresh, update and failure state only. Audit predicts what sync
   # would update, install or enable itself.
   | (if $audit then
-       (($would | length) > 0 or ($would_enable | length) > 0 or (($op.would_update // []) | length) > 0
+       (($would | length) > 0 or ($would_enable | length) > 0 or ($op.would_update | length) > 0
         or ($d.install_new == "all" and (.install_gap | length) > 0 and .install_enable_deferred != true and ($held | not)))
      else
-       (($failed | length) > 0 or .install_enable_deferred == true or (($op.failed // []) | length) > 0
+       (($failed | length) > 0 or .install_enable_deferred == true or ($op.failed | length) > 0
         or ($installed_failed | length) > 0 or ($enabled_failed | length) > 0
         or (.errors | length) > 0)
      end) as $needs
   | .timings as $t
   | .source_checkout as $src
-  | (.source_pull // null) as $pull
+  | .source_pull as $pull
   | (($src.behind // 0) > 0) as $behind
-  | (.name as $n | any(($d.quiet_auto_update // [])[]; . == $n)) as $quiet
+  | (.name as $n | any($d.quiet_auto_update[]; . == $n)) as $quiet
   # What the verdict calls a change: something this run moved, or in audit
   # something sync would move or withhold.
   | (if $audit then ($needs or ($norm | test("^would-normalize")) or ($withheld | length) > 0)
      else
        (($updated | length) > 0 or (.downgraded | length) > 0 or ($installed_ok | length) > 0
-        or (($op.updated // []) | length) > 0
+        or ($op.updated | length) > 0
         or ($enabled_ok | length) > 0 or ($norm | test("^normalized ")) or $pull.status == "pulled")
      end) as $changed
   # Action needed: omitted entirely when nothing needs action.
@@ -198,7 +198,7 @@ def block($d):
       $enable_pending[],
       ($failed[] | if .stopped == true then ["update stopped in \(.path): \(.id) -s \(.scope): \(.reason)"]
                    else ["update failed (exit \(.rc)): \(.id) -s \(.scope): \(reported)"] end),
-      (($op.failed // [])[]
+      ($op.failed[]
        | ["update \(if .stopped then "stopped" else "failed" end) in \(.path): \(.id) -s \(.scope): \(.reason)"]),
       ($installed_failed[] | ["install failed (exit \(.rc)): \(.id): \(reported)"]),
       ($enabled_failed[] | ["enable failed (exit \(.rc)): \(.id) -s \(.scope): \(reported)"]),
@@ -261,7 +261,7 @@ def block($d):
 
       # In-repo: a fixed row with three variants, picked by two digest fields.
       (if .project_root == null then
-         "In-repo: skipped: no project context resolved from \($d.cwd // "the current directory")"
+         "In-repo: skipped: no project context resolved from \($d.cwd)"
        elif .in_repo_records == null then
          "In-repo: unknown: no fleet-state snapshot was read for this marketplace"
        elif .in_repo_records == 0 then
@@ -272,7 +272,7 @@ def block($d):
          "In-repo: \(.in_repo.updated | length) project/local install(s) updated in \(.project_root)"
        end),
 
-      ((.in_repo.live_read // [])[] |
+      (.in_repo.live_read[] |
          "  \(.id) (\(.scope)): read live from \(.path)",
          "    project record pinned at \(.installed), which the CLI will not update",
          "    remedy: remove and re-add the project record if the pin matters"),
@@ -291,24 +291,24 @@ def block($d):
        end),
 
       # The records of every other present path, updated from that path.
-      (if (($op.skipped.records // 0) > 0) then
+      (if $op.skipped.records > 0 then
          "Behind in other paths: \($op.skipped.records) record(s) in \($op.skipped.paths) path(s), not updated",
          "  remedy: /harness-ops:plugins sync --update-other-paths"
        else empty end),
-      (if ($op.catalog_moved // 0) > 0 then
+      (if $op.catalog_moved > 0 then
          "Catalog moved during this run: \($op.catalog_moved) plugin(s), records updated before the move lag it"
        else empty end),
       (if $audit then
-         (if (($op.would_update // []) | length) > 0 then
+         (if ($op.would_update | length) > 0 then
             "Would update in other paths: \($op.would_update | length) record(s)",
             ($op.would_update[] | "  would run: (cd \"\(.path)\" && claude plugin update \(.id) -s \(.scope)) (installed \(.old))")
           else empty end)
        else
-         (if (($op.updated // []) | length) > 0 then
+         (if ($op.updated | length) > 0 then
             "Updated in other paths: \($op.updated | length) record(s)",
             ($op.updated[] | "  - \(scoped) in \(.path): \(.old) -> \(.new)")
           else empty end),
-         (if (($op.not_moved // []) | length) > 0 then
+         (if ($op.not_moved | length) > 0 then
             "Not moved in other paths: \($op.not_moved | length) record(s)",
             ($op.not_moved[] | "  - \(scoped) in \(.path): did not move from \(.version) (\(.label))")
           else empty end)
@@ -323,13 +323,13 @@ def block($d):
       # An id whose update call the CLI answered "already at the latest version" while
       # the run's snapshots show its version differing from the pre-mutation one. Nothing
       # here says what moved it. A backward one is listed under Downgraded: too.
-      ((.moved_during_run // []) as $moved
+      (.moved_during_run as $moved
        | if ($moved | length) > 0 then
            "Moved during this run: \($moved | length) plugin(s), by something other than this run's update calls",
            ($moved[] | "  - \(scoped): \(pair)"
              + (if .direction == "backward" then " (backward, also under Downgraded)" else "" end))
          else empty end),
-      (if (.noop_unverified // 0) > 0 then
+      (if .noop_unverified > 0 then
          "Not verified: \(.noop_unverified) plugin(s) the CLI called already current could not be checked against a snapshot version"
        else empty end),
 
@@ -351,13 +351,13 @@ def block($d):
          (if $d.install_new != "all" then empty
           else
             "  policy install_new: all, so the next sync reinstalls any of these you uninstall",
-            (if (($installed_ok | map(.id)) - (.installed_disabled // []) | length) == 0 then
+            (if (($installed_ok | map(.id)) - .installed_disabled | length) == 0 then
                "  leaving them installed and not enabled keeps them off unless a project or local setting enables them"
              else
                "    remedy: to keep one out, disable it with claude plugin disable <id> -s user instead of uninstalling"
              end)
           end),
-         (if ((.installed_disabled // []) | length) > 0 then
+         (if (.installed_disabled | length) > 0 then
             (listed("  installed but not enabled"; .installed_disabled) | .[0], (.[1:][] | "    \(.)"))
           else empty end)
        else empty end),
@@ -467,7 +467,7 @@ def block($d):
 
       # Why these records are not divergences, and why an absent path is not proof
       # the directory is gone, is context/stale-records-cache-content.md's, not the render's.
-      (if (.stale_project_records.total // 0) > 0 then
+      (if .stale_project_records.total > 0 then
          # The records come from this marketplace's install records only, so the label names it.
          .name as $name | .stale_project_records as $s
          # A digest written before 3.8.1 carries only `by_path`; render it the way it was rendered then.
@@ -477,24 +477,24 @@ def block($d):
            else
              "Stale project records (\($name)): \($s.total) record(s) across \($s.paths) path(s) not present on this machine",
              ($s.by_parent[] | "  - \(.parent): \(.count) record(s) across \(.paths) path(s)"),
-             (if ($s.more_parents // 0) > 0 then "  +\($s.more_parents) more parent director(ies)" else empty end),
+             (if $s.more_parents > 0 then "  +\($s.more_parents) more parent director(ies)" else empty end),
              (if $audit then "  Full per-path list: not kept, the audit scratch directory is removed on exit"
               elif $s.list_file == null then "  Full per-path list: not written this run"
               else "  Full per-path list: \($s.list_file)" end)
            end,
          # Only project-scope records under the source-control worktree root are that audit's to
          # classify, so the pointer needs a project-scope record and says which of them it covers.
-         (if ($s.project // 0) > 0 then
+         (if $s.project > 0 then
             "  \($s.project) project-scope record(s)",
             "    remedy: /source-control:worktree audit (if installed) classifies those left by worktrees removed under the source-control worktree root, and gives the gated reap"
           else empty end),
-         (if ($s["local"] // 0) > 0 then
+         (if $s["local"] > 0 then
             "  \($s["local"]) local-scope record(s), which nothing reaps yet"
           else empty end)
        else empty end),
 
       # Why converge blocks these rows is context/scope-semantics.md's, not the render's.
-      (if (.user_home_records.total // 0) > 0 then
+      (if .user_home_records.total > 0 then
          .user_home_records as $h
          | "User-home project records: \($h.total) record(s) keyed to a user home directory",
            ($h.paths[] | "  - \(.)")
@@ -547,8 +547,8 @@ def block($d):
     (if $d.install_new_invalid != null then
        ["install_new value \"\($d.install_new_invalid)\" is not all, none, or ask", "this run used ask"]
      else empty end),
-    (if ($d.source_pull_invalid // null) != null then
-       ["directory_source_pull value \"\($d.source_pull_invalid)\" is not ask or never", "this run used \($d.source_pull // "ask")"]
+    (if $d.source_pull_invalid != null then
+       ["directory_source_pull value \"\($d.source_pull_invalid)\" is not ask or never", "this run used \($d.source_pull)"]
      else empty end),
     ($d.errors[] | ["error: \(.)"])
   ] as $run_actions

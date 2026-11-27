@@ -1086,6 +1086,17 @@ assert_exit "render clean: exit 0" 0 "$REPORT_RC"
 assert_eq "render clean: stdout still opens with the digest line" "market1" \
   "$(jq -r '.marketplaces[0].name' <<<"$REPORT_DIGEST")"
 assert_golden "render clean: the report matches the golden" clean-current.txt "$REPORT_TEXT"
+contract_keys() {
+  jq -r --slurpfile c "$SCRIPT_DIR/digest-contract.json" -n --argjson d "$1" '
+    def diff($a; $b): ($a | keys) - ($b | keys);
+    "run extra: \(diff($d; $c[0].run)) missing: \(diff($c[0].run; $d))",
+    ($d.marketplaces[] | "block extra: \(diff(.; $c[0].marketplace)) missing: \(diff($c[0].marketplace; .))")'
+}
+assert_eq "digest contract: a sync run's run and block keys are the contract's, both ways" \
+  $'run extra: [] missing: []\nblock extra: [] missing: []' "$(contract_keys "$REPORT_DIGEST")"
+assert_eq "digest contract: an audit run's run and block keys are the contract's, both ways" \
+  $'run extra: [] missing: []\nblock extra: [] missing: []' \
+  "$(contract_keys "$(run_sync "$case_dir" --marketplace market1 --audit --install-new none | head -n 1)")"
 assert_eq "render: report.txt is written into the run directory on every run" "true" \
   "$([[ -s "$(jq -r '.run_dir' <<<"$REPORT_DIGEST")/report.txt" ]] && echo true || echo false)"
 assert_eq "render: report.txt is the same render the flag printed" "$REPORT_TEXT" \
@@ -1573,23 +1584,16 @@ assert_contains "all-target hold audit: the held gap is under Action needed" "$R
 CASE_NUM=$((CASE_NUM + 1))
 needs_policy=none
 needs_digest() {
-  jq -n --arg mode "$1" --arg policy "$needs_policy" --argjson patch "$2" '{
-    mode: $mode, cwd: "/w", run_dir: "/r", install_new: $policy, allow_downgrade: false,
-    timings: {total: 1, resolution: "seconds"}, errors: [],
-    marketplaces: [({
-      name: "m", auto_update: true, project_root: null, in_repo_records: null,
-      refresh: {rc: 0, output: ""}, source_checkout: null, catalog_last_updated: null,
-      in_repo: {updated: [], would_update: [], failed: []},
-      user_sweep: {updated: [], would_update: [], failed: [], withheld_downgrades: []},
-      downgraded: [], catalog_regression: null, installed: [], enabled: [],
-      install_gap: [], enable_gap: [], project_enable_rows: [], user_scope_orphans: [],
-      installed_with_unset_user_config: [], updated_with_monitors: [],
-      install_enable_deferred: false, stopped_before_install: false,
-      normalize: {output: ""}, errors: [], self_updated: false,
-      divergences: {post: 0}, stale_project_records: {total: 0}, cache_content: null,
-      timings: {total: 1, resolution: "seconds"}
-    } * $patch)]
-  }'
+  jq -n --arg mode "$1" --arg policy "$needs_policy" --argjson patch "$2" \
+    --slurpfile contract "$SCRIPT_DIR/digest-contract.json" '
+    $contract[0].run * {
+      mode: $mode, cwd: "/w", run_dir: "/r", install_new: $policy, source_pull: "ask",
+      timings: {total: 1, resolution: "seconds"},
+      marketplaces: [$contract[0].marketplace * {
+        name: "m", auto_update: true, refresh: {rc: 0}, normalize: {output: ""},
+        divergences: {post: 0}, timings: {total: 1, resolution: "seconds"}
+      } * $patch]
+    }'
 }
 needs_check() {
   local label="$1" mode="$2" patch="$3" want="$4" kind="${5:-bullet}" status="${6:-needs update}" text
@@ -1660,7 +1664,7 @@ assert_contains "normalize render: a digest without moved= keeps its old row" \
 stale_unwritten='{"stale_project_records":{"total":1,"paths":1,"by_parent":[{"parent":"/g/","count":1,"paths":1}],"more_parents":0,"list_file":null}}'
 assert_contains "stale render: a sync run with no list file says it was not written" \
   "$(needs_digest sync "$stale_unwritten" | jq -r -f "$SCRIPT_DIR/render-report.jq")" "  Full per-path list: not written this run"
-stale_legacy='{"stale_project_records":{"total":3,"by_path":[{"path":"/g/a","count":2},{"path":"/h/b","count":1}]}}'
+stale_legacy='{"stale_project_records":{"total":3,"by_parent":null,"by_path":[{"path":"/g/a","count":2},{"path":"/h/b","count":1}]}}'
 assert_contains "stale render: a pre-3.8.1 digest still renders its per-path rows" \
   "$(needs_digest sync "$stale_legacy" | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')" \
   $'Stale project records (m): 3 record(s) across 2 path(s) not present on this machine\n  - /g/a: 2 record(s)\n  - /h/b: 1 record(s)'

@@ -8,6 +8,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DIGEST_CONTRACT="$SCRIPT_DIR/digest-contract.json"
 FLEET_STATE="${SYNC_RUN_FLEET_STATE:-$SCRIPT_DIR/fleet-state.sh}"
 CACHE_CHECK="${SYNC_RUN_CACHE_CHECK:-$SCRIPT_DIR/cache-content-check.sh}"
 NORMALIZE="${SYNC_RUN_NORMALIZE:-$SCRIPT_DIR/normalize-enabled-plugins.sh}"
@@ -691,9 +692,7 @@ divergence_block() {
   local __var="$1" mp="$2"
   local pre="$RUN_DIR/pre.$mp.json" mid="$RUN_DIR/mid.$mp.json" post="$RUN_DIR/post.$mp.json"
   if [[ ! -f "$pre" || ! -f "$mid" || ! -f "$post" ]]; then
-    jq_to "$__var" -c -n '{pre: null, mid: null, post: null, new_total: null,
-      new_by_interval: {in_repo: null, user_sweep: null, concurrent: null}, pre_existing: null,
-      note: "a snapshot was missing, so the split could not be computed"}'
+    printf -v "$__var" '%s' '{"note":"a snapshot was missing, so the split could not be computed"}'
     return 0
   fi
   local moved_rows
@@ -1951,11 +1950,7 @@ report_extras() {
     src=""
   done
   if [[ -z "$src" ]]; then
-    jq_to "$__var" -c -n '{auto_update: null, catalog_source: null, user_scope_orphans: [],
-      user_home_records: {total: 0, paths: []},
-      delisted: [], delisted_project: [], delisted_settings_only: [],
-      stale_project_records: {total: null, paths: null, by_parent: [], more_parents: 0, list_file: null},
-      in_repo_records: null, in_repo_ids: [], divergences_here: null}'
+    printf -v "$__var" '%s' '{}'
     return 0
   fi
   local list_file=""
@@ -2238,7 +2233,7 @@ emit_marketplace_block() {
     --arg t_fn_s "$T_FN_S" \
     --arg t_mp_s "$T_MP_S" --arg t_mp_e "$T_MP_E" \
     --argjson cli_calls "$CLI_CALLS" --argjson cli_ms "$CLI_MS" \
-    --arg resolution "$CLOCK_RESOLUTION" '
+    --arg resolution "$CLOCK_RESOLUTION" --slurpfile contract "$DIGEST_CONTRACT" '
     # Seconds to three decimals; an empty stamp pair is a step that did not run.
     # Steps round DOWN and the total rounds UP, so the total is never below the
     # sum of its steps after rounding. Clamped at zero so a wall clock stepped
@@ -2269,7 +2264,7 @@ emit_marketplace_block() {
     | (if $total == null then null
        else [0, ((($total * 1000) - ([$steps[] | select(. != null)] | add // 0) * 1000) | round) / 1000]
             | max end) as $unattributed
-    | $extras + {name: $name,
+    | $contract[0].marketplace * ($extras + {name: $name,
      timings: ($steps + {unattributed: $unattributed, total: $total, resolution: $resolution}),
      cli: {calls: $cli_calls, seconds: ($cli_ms / 1000)},
      catalog_last_updated: (if $lastUpdated == "" then null else $lastUpdated end),
@@ -2304,7 +2299,7 @@ emit_marketplace_block() {
      self_updated: $self_updated,
      self_update: $self_update,
      updated_with_monitors: $monitors,
-     errors: $errors}' "$args_file" 2>"$err_file" || block_rc=$?
+     errors: $errors})' "$args_file" 2>"$err_file" || block_rc=$?
   if ((block_rc == 0)) && [[ -n "$block" ]]; then
     printf '%s\n' "$block" >>"$RUN_DIR/.blocks.jsonl"
     return 0
@@ -2495,7 +2490,7 @@ jq_to DIGEST -c -n \
   --arg t_run_s "$T_RUN_S" --arg t_run_e "$T_RUN_E" \
   --arg resolution "$CLOCK_RESOLUTION" \
   --argjson first "$FIRST_PASS_TIMINGS" \
-  --argjson errors "$RUN_ERRS" '
+  --argjson errors "$RUN_ERRS" --slurpfile contract "$DIGEST_CONTRACT" '
   def ms_sum($a; $b): ((($a * 1000) + ($b * 1000)) | round) / 1000;
   # The combined total is only as fine as the coarser clock that timed it. The
   # rungs run fine to coarse here, not in the ladder'"'"'s try order.
@@ -2524,7 +2519,7 @@ jq_to DIGEST -c -n \
            resolution: coarser($first.resolution; $this.resolution),
            passes: [{pass: "first"} + $first, {pass: "only_install"} + $this]}
      end) as $timings
-  | {run_dir: $run_dir, cwd: $cwd, mode: $mode, allow_downgrade: $allow_downgrade,
+  | $contract[0].run * {run_dir: $run_dir, cwd: $cwd, mode: $mode, allow_downgrade: $allow_downgrade,
      install_new: $install_new,
      install_new_invalid: (if $install_new_invalid == "" then null else $install_new_invalid end),
      source_pull: $source_pull,
