@@ -287,9 +287,8 @@ checks_changed_names() {
     checks_diff --name-only --diff-filter=ACMR -z
     return
   fi
-  local raw rc meta f
+  local raw="$CHECKS_TMP/names" rc meta f
   local -a m
-  raw="$(mktemp "$CHECKS_TMP/names.XXXXXX")" || return 1
   checks_diff --raw --no-abbrev -z --diff-filter=ACMR >"$raw"
   rc=$?
   while IFS= read -r -d '' meta && IFS= read -r -d '' f; do
@@ -300,7 +299,6 @@ checks_changed_names() {
     fi
     printf '%s\0' "$f"
   done <"$raw"
-  rm -f "$raw"
   return "$rc"
 }
 
