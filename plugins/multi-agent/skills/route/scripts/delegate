@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# delegate --user-file <role_map_file> <codex|antigravity> [--use task|investigate] [--model <id>] [--effort <level>] < prompt
-# Runs one auto-delegated run: external-agents run <product> --use task --mode write, or with
-# --use investigate, --use investigate --mode read-only; --prompt-file is a temp file holding
-# stdin. No other external-agents flag can be passed.
-# Refuses unless vendors.auto_delegation resolves true from the user layer, and refuses a
-# --user-file inside a git work tree, so no repository can supply the setting.
 set -euo pipefail
 
 die() {

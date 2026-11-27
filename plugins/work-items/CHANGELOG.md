@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [16.2.6] - 2026-11-27
+
+### Fixed
+
+- `/work-items:triage --ci` follows the repository's form for quoting a recorded decision to the letter, when the repository's rules give one, instead of paraphrasing the decision inline or dropping its first line or link.
+
+## [16.2.5] - 2026-11-27
+
+### Fixed
+
+- `/work-items:triage --ci` quotes a recorded decision and treats what it answers as settled before it looks for what the decision leaves open. A step the decision reserves to a person is stated after the quote with `needs-human`, not listed as an open question, and a point the decision answers is never asked again, even as a recommendation.
+
 ## [16.2.4] - 2026-11-27
 
 ### Fixed

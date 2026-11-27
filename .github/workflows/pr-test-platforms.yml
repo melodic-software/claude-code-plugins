@@ -80,6 +80,9 @@ jobs:
       - name: Test run-guards on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/run-guards.test.sh')
         run: bash plugins/guardrails/hooks/run-guards.test.sh
+      - name: Time the pre-push hook on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'scripts/pre-push-timing.test.sh')
+        run: bash scripts/pre-push-timing.test.sh
 
       - name: Log the API budget at the end
         if: always()

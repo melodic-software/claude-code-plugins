@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "create-routing-enterworktree-last",
-      "prompt": "/worktree create feat/payment-retry — set me up an isolated worktree for this feature.",
+      "prompt": "/worktree create feat/payment-retry — set me up an isolated worktree for this feature. (The worktree root is not one of this session's working directories.)",
       "expected_output": "The create action validates the name against the EnterWorktree schema constraints, explains the setup, routes creation through the shared worktree-create.sh helper (external root, copies .worktreeinclude), and calls EnterWorktree(path: ...) on the helper's printed path as its FINAL action — nothing executes after that call because the working directory and session state transition on it. On a non-zero helper exit it STOPs and never falls back to EnterWorktree(name: ...).",
       "files": [],
       "expectations": [
@@ -291,6 +291,19 @@
         "Removes only the two merged worktrees, each through git -C on its owning repository",
         "Reports both stranded worktrees as stranded, does not propose them, and removes neither",
         "Never runs a bare cd that persists; the caller's working directory is unchanged at the end"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "create-works-by-path-when-root-reachable",
+      "prompt": "/worktree create feat/payment-retry — set me up an isolated worktree for this feature. (The worktree root is one of this session's additional working directories.)",
+      "expected_output": "The create action validates the name, explains the setup and routes creation through the shared worktree-create.sh helper, then does NOT call EnterWorktree: the worktree root is already a working directory of the session, so it reports the helper's printed path and works there by explicit path (git -C <path> for git, absolute paths for file tools).",
+      "files": [],
+      "expectations": [
+        "Routes creation through the shared worktree-create.sh helper, never EnterWorktree(name: ...)",
+        "Makes no EnterWorktree call",
+        "Reports the printed worktree path",
+        "Names git -C <path> or absolute paths as how later work reaches the worktree"
       ]
     }
   ]

@@ -20,6 +20,7 @@ const LANES = new Set(Object.keys(LANE_RULES));
 
 const NOT_LANES = {
   "maintenance-measure-skill-edit-pass": "a workflow_call reusable maintenance-measure-skill-edit calls once per measuring pass",
+  "maintenance-scan-architecture-find": "a workflow_call reusable holding maintenance-scan-architecture's credential legs",
   "pr-run-activity-write": "the workflow_call runner every write activity of a lane runs on",
   "pr-dispatch-feedback": "a scripted dispatcher with no model that starts pr-unblock",
 };

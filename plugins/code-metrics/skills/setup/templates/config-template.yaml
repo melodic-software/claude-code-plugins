@@ -1,21 +1,21 @@
 scope:
-  default: change          # change | all
-  base: auto               # auto (merge-base with the default branch) | <ref>
-  exclude: ["**/node_modules/**", "**/vendor/**", "**/dist/**", "**/build/**"]  # path globs dropped from every measure; a closed list, replaced whole
-  registries: []           # sanctioned-replication registries, one relative path per line; replicas collapse to one row in every audit
+  default: change
+  base: auto
+  exclude: ["**/node_modules/**", "**/vendor/**", "**/dist/**", "**/build/**"]
+  registries: []
 
 complexity:
   cyclomatic:
-    reference: 20          # ISO/IEC 5055:2021 §8.2.117 (normative); 10 (McCabe 1976) and 15 (NIST SP 500-235) are the cited alternatives
+    reference: 20
   cognitive:
-    reference: null        # Campbell, SonarSource; no standard sets a threshold
+    reference: null
   halstead:
-    difficulty: null       # Halstead 1977; no standard sets a threshold
+    difficulty: null
 
 size:
-  mode: file-lines         # file-lines | iso-8.2.115
-  file_lines: 1000         # the plugin's own number, not ISO-backed; 500 is the operator-list figure
-  function_lines_pct: 5    # ISO/IEC 5055:2021 §8.2.115, used when mode is iso-8.2.115
+  mode: file-lines
+  file_lines: 1000
+  function_lines_pct: 5
   check: report
   copies_manifest: null
 
@@ -23,23 +23,23 @@ duplication:
   min_tokens: 50
   min_lines: 5
   ignore: []
-  registries: []           # older name for scope.registries; read only when the scope-level list is empty
-  max_lines: null          # files with more lines are skipped and reported; null (or 0) means no line cap
-  max_size: 1mb            # files larger than this are skipped and reported; upstream guards: reference/collectors.md
-  rollup_depth: 2          # per-directory rollup rows listed to this depth in the markdown report
+  registries: []
+  max_lines: null
+  max_size: 1mb
+  rollup_depth: 2
 
 coverage:
-  artifacts: []            # explicit artifact paths; empty means auto-discover
+  artifacts: []
   path_prefix_strip: []
-  reference: null          # no default bar
+  reference: null
   crap:
-    reference: null        # Savoia and Evans 2007; not a validated predictor
+    reference: null
 
 type_debt:
-  reference: null          # no standard or CWE anchors the measure
+  reference: null
 
 suppressions:
-  correctness_rules: []    # rule ids audit-suppressions marks when a line suppresses one
+  correctness_rules: []
 
 languages:
   typescript:
@@ -51,6 +51,6 @@ languages:
   go:
     enabled: true
   dotnet:
-    enabled: true          # detected; complexity deferred in this version
+    enabled: true
   other:
     enabled: true
