@@ -11,3 +11,4 @@ bump: minor
 - Redacting a secret at the end of a line no longer joins the next line onto the redacted one.
 - An unset `audit_sessions_retention_days` option now applies its documented floor: 180 days raised to the longest `cleanupPeriodDays` of the sources read. A declared default had made the option always read as set.
 - `/session-flow:recall` prints a history-only prompt only when its project is one of the scanned directories; a prompt from another project needs `--scope all`, which the skill passes only at the `all` scope.
+- `/session-flow:audit-sessions` churn findings show a file edited outside the session's working directory at its own path, instead of joining its redacted `~/` form onto the working directory.

@@ -171,7 +171,8 @@ def _churn(records: list[dict]) -> list[tuple[int, dict]]:
         counts, sessions = tickets.setdefault((repo, number), (Counter(), {}))
         for path, n in paths.items():
             if path not in PLACEHOLDERS and isinstance(n, int) and n > 0:
-                path = Path(cwd, path).as_posix() if isinstance(cwd, str) and cwd else path
+                if isinstance(cwd, str) and cwd and not path.startswith(("~", "<")):
+                    path = Path(cwd, path).as_posix()
                 counts[path] += n
                 sessions.setdefault(path, set()).add(r["session_id"])
     return [

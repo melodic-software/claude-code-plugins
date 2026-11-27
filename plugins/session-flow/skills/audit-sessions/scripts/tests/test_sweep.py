@@ -873,6 +873,14 @@ def test_churn_joins_each_path_onto_its_sessions_working_directory(data_dir):
     ]
 
 
+def test_churn_keeps_a_redacted_out_of_cwd_path_whole(data_dir):
+    rec = edited("s1", [("o/r", 12)], {"a.py": 6, "~/worktrees/w/WS-M.md": 6})
+    rec["cwd"] = "~/repos/r"
+    write_store(data_dir, rec)
+    evidence = findings_by_metric(envelope(sweep(data_dir)))["edits.churn_per_pr"]["evidence"]
+    assert sorted(row["path"] for row in evidence) == ["~/repos/r/a.py", "~/worktrees/w/WS-M.md"]
+
+
 def keyed(session_id: str, start: str, end: str, *, title=None, branches=(), cwd=None, prs=(), output=0) -> dict:
     """A store record carrying the fields the ticket rollup reads."""
     rec = record(session_id, start=start, **{"tokens.main": output})
