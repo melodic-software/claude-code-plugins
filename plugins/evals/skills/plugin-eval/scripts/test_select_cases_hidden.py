@@ -133,6 +133,20 @@ class SelectCasesHiddenTest(unittest.TestCase):
         block = self._select(SETUP, "# Prints the fixture.\n", "")
         self.assert_runs(block, "the helper writes its own source")
 
+    def test_helper_capturing_itself_with_printf_v_still_runs(self):
+        for setup in ('printf -v self %s "$0"\ncp "$self" ws/\n', 'printf -v self %s setup.sh\ncp "$self" ws/\n'):
+            with self.subTest(setup=setup):
+                self._base(setup=setup)
+                block = self._select(SETUP, "# Prints the fixture.\n", "")
+                self.assert_runs(block, "printf -v stores the path, it prints nothing")
+
+    def test_helper_naming_itself_in_a_heredoc_it_runs_still_runs(self):
+        self._base(
+            setup='cd "$(dirname "$0")"\ncat >/tmp/gen.sh <<\'EOF\'\ncp setup.sh "$OLDPWD/"\nEOF\nbash /tmp/gen.sh\n'
+        )
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "the heredoc body runs and copies the helper")
+
     def test_helper_reading_itself_by_name_still_runs(self):
         self._base(setup="cat 'setup.sh' >copy.txt\n")
         block = self._select(SETUP, "# Prints the fixture.\n", "")
@@ -338,139 +352,6 @@ class SelectCasesHiddenTest(unittest.TestCase):
         )
         block = self._select(SETUP, "# Prints the fixture.\n", "")
         self.assert_runs(block, "after the pushd, fixtures names the helper's folder")
-
-    def _positional_base(self, calls):
-        _write(
-            self.repo,
-            "plugins/alpha/evals/fixtures/seed.sh",
-            '#!/usr/bin/env bash\nfixtures="$(dirname "${BASH_SOURCE[0]}")"\n'
-            'while [[ $# -ge 2 ]]; do\n  src="$1" dest="$2"\n  shift 2\n  cp "$fixtures/$src" "$dest"\ndone\n',
-        )
-        self._base(scaffold=RUN_SETUP + calls)
-
-    def test_positional_copy_with_literal_arguments_is_no_run(self):
-        self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" \\\n  a.txt out/a \\\n  b.txt out/b\n')
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_free(block, "every call copies a.txt or b.txt")
-
-    def test_positional_copy_in_a_helper_setting_shell_options_is_no_run(self):
-        self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" a.txt out/a\n')
-        seed = self.repo / "plugins/alpha/evals/fixtures/seed.sh"
-        seed.write_text(seed.read_text(encoding="utf-8").replace("while", "set -euo pipefail\nwhile", 1))
-        _commit_all(self.repo, "strict mode")
-        _git(self.repo, "branch", "-f", "base", "HEAD")
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_free(block, "set -euo pipefail sets options, not arguments")
-
-    def test_positional_copy_after_an_unguarded_shift_still_runs(self):
-        for extra in ("shift\n", "shift 3\n"):
-            with self.subTest(extra=extra):
-                self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" a.txt out/a\n')
-                seed = self.repo / "plugins/alpha/evals/fixtures/seed.sh"
-                seed.write_text(seed.read_text(encoding="utf-8").replace("while", extra + "while", 1), encoding="utf-8")
-                _commit_all(self.repo, "shift")
-                _git(self.repo, "branch", "-f", "base", "HEAD")
-                block = self._select(SETUP, "# Prints the fixture.\n", "")
-                self.assert_runs(block, "the extra shift can leave src empty")
-
-    def test_unguarded_positional_copy_called_with_too_few_arguments_still_runs(self):
-        for call in ("", " out/a"):
-            with self.subTest(call=call):
-                self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh"%s\n' % call)
-                seed = self.repo / "plugins/alpha/evals/fixtures/seed.sh"
-                seed.write_text(
-                    '#!/usr/bin/env bash\nfixtures="$(dirname "${BASH_SOURCE[0]}")"\n'
-                    'dest="$1"\nsrc="$2"\ncp -r "$fixtures/$src" "$dest"\n',
-                    encoding="utf-8",
-                )
-                _commit_all(self.repo, "unguarded")
-                _git(self.repo, "branch", "-f", "base", "HEAD")
-                block = self._select(SETUP, "# Prints the fixture.\n", "")
-                self.assert_runs(block, "an empty src copies the whole fixtures folder")
-
-    def test_positional_copy_after_the_guarded_loop_still_runs(self):
-        self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh"\n')
-        seed = self.repo / "plugins/alpha/evals/fixtures/seed.sh"
-        seed.write_text(
-            '#!/usr/bin/env bash\nfixtures="$(dirname "${BASH_SOURCE[0]}")"\n'
-            'while [[ $# -ge 1 ]]; do\n  src="$1"\n  shift 1\ndone\ncp -r "$fixtures/$src" "ws"\n',
-            encoding="utf-8",
-        )
-        _commit_all(self.repo, "copy after loop")
-        _git(self.repo, "branch", "-f", "base", "HEAD")
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_runs(block, "the copy runs after the loop with src empty")
-
-    def test_guarded_positional_copy_called_with_no_arguments_is_no_run(self):
-        self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh"\n')
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_free(block, "the while guard never reads a missing argument")
-
-    def test_positional_copy_naming_the_helper_still_runs(self):
-        self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" setup.sh out/s\n')
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_runs(block, "a call copies setup.sh")
-
-    def test_positional_copy_with_a_variable_argument_still_runs(self):
-        self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" "$1" out/s\n')
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_runs(block, "$1 may name setup.sh")
-
-    def test_positional_copy_with_a_glob_argument_still_runs(self):
-        self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" se*.sh out/s\n')
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_runs(block, "the glob can match setup.sh")
-
-    def test_positional_copy_with_rebound_arguments_still_runs(self):
-        for extra in (
-            'set -e -- "set""up.sh"\n', "set -u setup.sh\n", 'src+=".sh"\n', "src[0]=setup.sh\n",
-            'printf -v "src" setup.sh\n', 'copy() { src="$1"; }\n', '\\set -- "set""up.sh" "$2"\n',
-            '"set" -- "set""up.sh" "$2"\n', 'fixtures="$(dirname "$fixtures")"\n',
-            '[ -n "${src:-}" ] || src="$1"\n',
-        ):
-            with self.subTest(extra=extra):
-                self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" a.txt out/a\n')
-                seed = self.repo / "plugins/alpha/evals/fixtures/seed.sh"
-                text = seed.read_text(encoding="utf-8").replace("while", extra + "while", 1)
-                seed.write_text(text, encoding="utf-8")
-                _commit_all(self.repo, "rebind")
-                _git(self.repo, "branch", "-f", "base", "HEAD")
-                block = self._select(SETUP, "# Prints the fixture.\n", "")
-                self.assert_runs(block, "the copied name is not only the call's argument")
-
-    def test_positional_copy_named_by_a_non_shell_script_still_runs(self):
-        _write(self.repo, "plugins/alpha/scripts/call.py", 'run(["bash", "seed.sh", "setup.sh"])\n')
-        self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" a.txt out/a\n')
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_runs(block, "a Python caller's arguments are not read")
-
-    def test_positional_copy_called_from_a_makefile_or_extensionless_script_still_runs(self):
-        for caller in ("plugins/alpha/evals/one-basic/Makefile", "plugins/alpha/evals/one-basic/more"):
-            with self.subTest(caller=caller):
-                _write(self.repo, caller, "\tbash ../fixtures/seed.sh setup.sh out/s\n")
-                self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" a.txt out/a\n')
-                block = self._select(SETUP, "# Prints the fixture.\n", "")
-                self.assert_runs(block, "the caller passes setup.sh")
-                (self.repo / caller).unlink()
-
-    def test_positional_copy_called_from_another_plugin_still_runs(self):
-        _write(
-            self.repo,
-            "plugins/beta/evals/fixtures/use.sh",
-            'bash "$(dirname "$0")/../../../alpha/evals/fixtures/seed.sh" "$1" out\n',
-        )
-        self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" a.txt out/a\n')
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_runs(block, "the other plugin passes a variable")
-
-    def test_positional_copy_reassigned_still_runs(self):
-        self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" a.txt out/a\n')
-        seed = self.repo / "plugins/alpha/evals/fixtures/seed.sh"
-        seed.write_text(seed.read_text(encoding="utf-8") + "src=setup.sh\n", encoding="utf-8")
-        _commit_all(self.repo, "reassign")
-        _git(self.repo, "branch", "-f", "base", "HEAD")
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_runs(block, "src is not only a positional argument")
 
     def test_quoted_hash_in_a_description_edit_stays_description_only(self):
         _write(

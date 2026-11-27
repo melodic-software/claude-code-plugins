@@ -27,10 +27,6 @@ CD_PWD_RE = re.compile(
     r"""^["']?\$\(\s*cd\s+["']?(?P<arg>[^"'\s)]+)["']?\s*&&\s*pwd(?:\s+-[PL])?\s*\)"""
     r"""(?P<after>[^"'\s]*)["']?$"""
 )
-LITERAL_HEREDOC_RE = re.compile(
-    r"""^\s*(?:cat|tee)(?:\s+(?:>>?\s*)?[^\s<>|;&]+)*\s*<<-?\s*(['"])([A-Za-z_]\w*)\1"""
-    r"""\s*(?:>>?\s*[^\s<>|;&]+\s*)?$"""
-)
 COMMAND_START = (
     r"(?:^|[;&|({`)]|\$\(|<\(|>\(|!|\b(?:if|elif|then|do|else|while|until|coproc)\b"
     r"|\b(?:exec|command|builtin|time|nohup|env|sudo|doas|su|xargs|nice|timeout|stdbuf|setsid"
@@ -44,11 +40,6 @@ RUNS_STRING_RE = re.compile(
     r"|\|\s*(?:bash|zsh|sh)\b|\b(?:bash|zsh|sh)\s+(?:-[A-Za-z]+\s+)*-[A-Za-z]*c\b"
 )
 CD_WORD_RE = re.compile(COMMAND_START + r"(?:cd|pushd|popd)\b")
-SHADOWS_WRITER_RE = re.compile(
-    r"(?:^|[\s;&|({])(?:function\s+)?(?:cat|tee)\s*\(\s*\)|\b(?:function\s+(?:cat|tee)\b|alias\s+(?:cat|tee)=)"
-    r"|(?:^|[\s;&|(])(?:export\s+)?PATH\+?=|\benable\s+-f|\bexport\s+-f|\bBASH_ENV\b|\bENV="
-)
-SOURCES_RE = re.compile(COMMAND_START + r"(?:source|\.)(?=\s)")
 PLUGINS_FIELD_RE = re.compile(r"""^plugins:\s*\[\s*["'][^"']+["']\s*(?:,\s*["'][^"']+["']\s*)*\]\s*$""")
 SCRIPT_RUN_RE = re.compile(
     r"""^(?:\(\s*cd\s+(?P<cd>"[^"]*"|'[^']*'|[^\s;&|]+)\s*&&\s*)?"""
@@ -336,43 +327,6 @@ def runs_strings(lines, inside):
         number not in inside and not line.lstrip().startswith("#") and RUNS_STRING_RE.search(line)
         for number, line in enumerate(lines, 1)
     )
-
-
-def shadows_writers(lines, inside=frozenset()):
-    """Some code line outside `inside` (1-based) sources a file or redefines what `cat`, `tee` or
-    a child shell runs (a `cat` or `tee` function or alias, `PATH`, `BASH_ENV`, `export -f`)."""
-    return any(
-        number not in inside
-        and not line.lstrip().startswith("#")
-        and (SHADOWS_WRITER_RE.search(line) or SOURCES_RE.search(line))
-        for number, line in enumerate(lines, 1)
-    )
-
-
-def literal_heredoc_lines(lines):
-    """0-based numbers of the body lines of each `cat` or `tee` heredoc with a quoted delimiter,
-    which the shell writes out as literal text and never runs; an unterminated one counts none,
-    and none count when the file's strings do not read cleanly, an opener sits in a string, or
-    the file pipes into a shell, evaluates anything, sources any file (which may redefine `cat`),
-    or redefines `cat` or `tee` or the `PATH` that finds them."""
-    inside = no_run_text._string_block_lines(".sh", "\n".join(lines))
-    if inside is None or runs_strings(lines, inside) or shadows_writers(lines, inside):
-        return set()
-    found, body, closer = set(), [], None
-    for number, line in enumerate(lines):
-        if closer is None and number + 1 in inside:
-            continue
-        if closer is not None:
-            if line.lstrip("\t") == closer:
-                found.update(body)
-                closer = None
-            else:
-                body.append(number)
-            continue
-        opener = LITERAL_HEREDOC_RE.match(line)
-        if opener:
-            closer, body = opener.group(2), []
-    return found
 
 
 def binding_lines(fpath, text, target):

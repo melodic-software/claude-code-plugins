@@ -44,9 +44,7 @@ suite, and an `echo`, `printf` or `${1:?message}` message that only prints the n
 runs a string (`eval`, `bash -c`, `trap`, `alias`) or sources a stream (`/dev/stdin`, `<(...)`, a here-string) gets no single-quote
 reading. A case file that `cd`s or `pushd`es into the suite, or finds its own folder any other way than `$(dirname ...)` (`${0%/*}`,
 `realpath "$0"`, `__file__`), makes the script visible, and a case script naming `case.yaml` makes `case.yaml`
-visible. A copy whose source is a
-helper's positional argument (`cp "$dir/$src"` with `src="$1"`) exposes nothing when `$dir` is set once on a line of its own, each `src` assignment is a plain positional one with no read before it, no `set` (quoted or escaped included) rebinds the arguments, and every call site of the helper, in any text file under `plugins/`,
-passes only literal arguments and none names the script or a folder holding it. A trailing comment (a `#` comment
+visible. A trailing comment (a `#` comment
 after code, the code left byte for byte) counts as a comment deletion in a shell file and in a `case.yaml`, there
 only when the file parses the same without it; a `case.yaml` edit that drops one is never a description-only edit.
 A `plugins/*/skills/*/evals/` file is not in the plugin's eval directory, so the agent can read it with the skill

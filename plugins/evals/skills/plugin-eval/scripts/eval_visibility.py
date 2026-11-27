@@ -2,11 +2,9 @@
 Python 3.8+, standard library only.
 """
 
-import functools
 import importlib.util
 import os
 import re
-import shlex
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -30,15 +28,12 @@ WILD_PATH_RE = re.compile(r"[*?[$`{]")
 QUOTED_TOKEN_RE = re.compile(r"""(['"])([^'"\n]+)\1""")
 SELF_REF_RE = re.compile(r"BASH_SOURCE|\$\{?0(?![0-9])")
 PRINT_ONLY_RE = re.compile(
-    r"""^(?:[^\s()]*\)\s*)?(?:echo|printf)\s[^;&|<>`]*?(?:\s*[12]?>&[12])?"""
+    r"""^(?:[^\s()]*\)\s*)?(?:echo|printf(?!\s+-v))\s[^;&|<>`]*?(?:\s*[12]?>&[12])?"""
     r"""\s*(?:;\s*exit(?:\s+\d+)?\s*)?(?:;;)?\s*$"""
 )
 SELF_LOCATE_RE = re.compile(
     r"__file__|__dirname|__filename|import\.meta|PSScriptRoot|PSCommandPath|MyInvocation"
     r"|\$0|BASH_SOURCE|os\.Executable|runtime\.Caller"
-)
-POSITIONAL_COPY_RE = re.compile(
-    r"""^cp\s+(?:-[A-Za-z]+\s+)*"\$\{?(?P<dir>\w+)\}?/\$\{?(?P<var>[A-Za-z_]\w*)\}?"\s+"[^"$`]*(?:\$\{?\w+\}?[^"$`]*)*"\s*$"""
 )
 UNSET_MESSAGE_RE = re.compile(r"\$\{(\w+):?\?[^}$`]*\}")
 TEXT_TOOL_RE = re.compile(r"\b(?:awk|gawk|mawk|sed|grep|jq)\b(?:[^;&|()`$]|\$(?!\())*$")
@@ -56,19 +51,15 @@ def _printed_text_cut(line):
 
 def _code_lines(text):
     """Per line of a shell `text`: the line with each single-quoted program of a text tool (`awk`,
-    `sed`, `grep`, `jq`) blanked, since `$0` there is that tool's record, never the script, or None
-    for a line a literal heredoc writes out. The whole text reads unblanked when it runs code from
-    a string (`suite_refs.runs_strings`) or its quoting does not read cleanly."""
+    `sed`, `grep`, `jq`) blanked, since `$0` there is that tool's record, never the script. The
+    whole text reads unblanked when it runs code from a string (`suite_refs.runs_strings`) or its
+    quoting does not read cleanly."""
     lines = text.splitlines()
-    skipped = suite_refs.literal_heredoc_lines(lines)
     inside = no_run_text._string_block_lines(".sh", text)
     if inside is None or suite_refs.runs_strings(lines, inside):
-        return [None if n in skipped else line for n, line in enumerate(lines)]
+        return list(lines)
     out, quote = [], None
     for number, line in enumerate(lines):
-        if number in skipped:
-            out.append(None)
-            continue
         if quote is None and number + 1 in inside:
             out.append(line)
             continue
@@ -201,137 +192,6 @@ def _reads_deleted_comment(texts, deleted):
     return False
 
 
-@functools.lru_cache(maxsize=None)
-def _scripts_under(root):
-    """((path, text, is_shell), ...) for every text file under `root`: a `Makefile`, an
-    extensionless script or a prompt may call a helper as well as a script can."""
-    found = []
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in ("node_modules", "__pycache__", ".git")]
-        for name in filenames:
-            path = os.path.join(dirpath, name)
-            text = select_mapping._read_text_safe(path)
-            if text is not None:
-                ext = os.path.splitext(name)[1].lower()
-                found.append((path, text, ext in select_mapping.HIDDEN_SCRIPT_EXTS))
-    return tuple(found)
-
-
-@functools.lru_cache(maxsize=None)
-def _call_site_args(helper, eval_norm):
-    """The literal words of each call of the shell script `helper`, one tuple per call, from every
-    text file under the repository's `plugins/`, or None when a file that is not shell names it, or
-    a shell line names it other than as a plain `bash`/`sh`/path run or passes anything but literal
-    words."""
-    plugins_dir = os.path.dirname(os.path.dirname(eval_norm))
-    name_re = _name_re(os.path.basename(helper))
-    calls = []
-    for fpath, text, is_shell in _scripts_under(plugins_dir):
-        if not is_shell:
-            if name_re.search(text):
-                return None
-            continue
-        if not name_re.search(text):
-            continue
-        lines = text.splitlines()
-        var_dirs, _ = suite_refs._shell_var_dirs(lines, os.path.dirname(fpath))
-        for number, line in enumerate(lines):
-            stripped = line.strip()
-            if stripped.startswith("#") or not name_re.search(_printed_text_cut(line)):
-                continue
-            shape = suite_refs.SCRIPT_RUN_RE.match(stripped)
-            if fpath == helper or not shape or stripped.startswith(("source", ". ")) or shape.group("cd"):
-                return None
-            path_refs = suite_refs._line_refs(shape.group("path"), os.path.dirname(fpath), var_dirs, eval_norm)
-            if path_refs != {helper}:
-                return None
-            raw, index = shape.group("rest"), number
-            while raw.rstrip().endswith("\\") and index + 1 < len(lines):
-                index += 1
-                raw = raw.rstrip()[:-1] + " " + lines[index]
-            if re.search(r"[$`*?\[\]{}<>|;&()~#\\]", raw):
-                return None
-            calls.append(tuple(shlex.split(raw)))
-    return tuple(calls)
-
-
-def _sets_positional_args(code):
-    """Some `set` command in `code` sets the positional arguments: a `--`, or a word that is not
-    an option or the name after `-o`/`+o`; unsure (a quote or expansion, or a quoted or escaped
-    `set`) counts as setting them."""
-    if re.search(r"""[\\"']set\b|(?<![\w$.-])set["']""", code):
-        return True
-    for match in re.finditer(r"(?<![\w$./-])set\b(?!-)([^;&|\n]*)", code):
-        words, index = match.group(1).split(), 0
-        while index < len(words):
-            word = words[index]
-            if word == "--" or not word.startswith(("-", "+")) or re.search(r"[\"'$`]", word):
-                return True
-            index += 2 if word.endswith("o") else 1
-    return False
-
-
-def _positional_copy_is_safe(fpath, text, line, target, eval_norm):
-    """`line` of the shell script `fpath` is `cp "$dir/$var" "<dest>"` with `$dir` a resolved
-    folder and `$var` set only from positional arguments, every call of the script passes each
-    argument those assignments read, or the one `shift` is a `while [[ $# -ge N ]]` loop's own
-    `shift N` right after the assignment with the copy inside that loop, and no literal
-    argument names `target` or a folder holding it under that folder."""
-    copy = POSITIONAL_COPY_RE.match(line.strip())
-    if not copy:
-        return False
-    lines = text.splitlines()
-    var_dirs, _ = suite_refs._shell_var_dirs(lines, os.path.dirname(fpath))
-    folder, var = var_dirs.get(copy.group("dir")), re.escape(copy.group("var"))
-    code_lines = [line for line in lines if not line.lstrip().startswith("#")]
-    code = "\n".join(code_lines)
-    sets = re.findall(r"(?<![\w$])%s(\[[^]]*\])?(\+?)=(\S*)" % var, code)
-    if folder is None or not sets or suite_refs.runs_strings(lines, frozenset()):
-        return False
-    if any(
-        index or append or not re.fullmatch(r"""("?)\$\{?[1-9]\}?\1""", value)
-        for index, append, value in sets
-    ):
-        return False
-    dir_var = re.escape(copy.group("dir"))
-    dir_sets = [c for c in code_lines if re.search(r"(?<![\w$])%s(\[[^]]*\])?\+?=" % dir_var, c)]
-    if len(dir_sets) != 1 or not re.match(r"%s=" % dir_var, dir_sets[0]):
-        return False
-    plain = r"""(?:[A-Za-z_]\w*=("?)\$\{?[1-9]\}?\1\s*)+"""
-    var_lines = [n for n, c in enumerate(code_lines) if re.search(r"(?<![\w$])%s=" % var, c)]
-    if any(not re.fullmatch(plain, code_lines[n].strip()) for n in var_lines) or any(
-        re.search(r"\$\{?%s\b" % var, c) for c in code_lines[: var_lines[0]]
-    ):
-        return False
-    if re.search(
-        r"\b(?:read|for|select|local|declare|typeset|mapfile|readarray|getopts|export|let|unset)\b"
-        r"[^;\n]*\b%s\b|printf\s+-v\s*[\"']?%s\b|\(\([^)]*\b%s\b|\$\{%s:?=" % (var, var, var, var)
-        + r"|\w+\s*\(\s*\)\s*\{|\bfunction\s+\w+|\bshopt\b|\bIFS=",
-        code,
-    ) or _sets_positional_args(code):
-        return False
-    calls = _call_site_args(os.path.normpath(fpath), eval_norm)
-    if calls is None:
-        return False
-    read = max(int(n) for c in (code_lines[n] for n in var_lines) for n in re.findall(r"\$\{?([1-9])", c))
-    shifts = re.findall(r"\bshift\b", code)
-    guarded = re.search(
-        r"^\s*while \[\[ \$# -ge %d \]\]; do\n\s*%s\n\s*shift %d\n(?:(?!\s*done\b).*\n)*?\s*%s\s*$"
-        % (read, re.escape(code_lines[var_lines[0]].strip()), read, re.escape(line.strip())),
-        code,
-        re.M,
-    )
-    if shifts and not (len(shifts) == 1 and len(var_lines) == 1 and guarded):
-        return False
-    if not shifts and any(len(call) < read for call in calls):
-        return False
-    for word in (word for call in calls for word in call):
-        named = os.path.normpath(os.path.join(folder, word))
-        if named == target or target.startswith(named + os.sep):
-            return False
-    return True
-
-
 def _case_files(case, eval_norm):
     return select_mapping._case_suite_files(case, eval_norm, visibility=True)
 
@@ -388,8 +248,6 @@ def hidden_from_agent(eval_abs, target_abs, cases, owning_case=None, deleted=())
                 if wide:
                     return False
                 if not _site_covers(refs, narrow, target):
-                    continue
-                if runs is None and _positional_copy_is_safe(fpath, text, line, target, eval_norm):
                     continue
                 if runs != target or any(_covers(ref, target) for ref in rest_refs):
                     return False

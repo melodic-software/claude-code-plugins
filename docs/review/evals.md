@@ -89,10 +89,7 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   plugin, a double-quoted copy whose literal ending neither the script's name nor a folder holding
   it can match, a line that only binds a variable to the script's exact path that is only run, a
   `(cd <dir> && bash <script>)` run whose `<dir>` is outside the suite, a line that only prints the
-  script's name, `$0` inside an `awk`, `sed`, `grep` or `jq` program, and a `cp "$dir/$src"` whose
-  `src` is a positional argument when `$dir` is set once, each `src` assignment is a plain positional
-  one, no `set` rebinds the arguments, and every call of that helper from any text file under
-  `plugins/` passes only literal arguments and none names the script or a folder holding it. A file that pipes into a shell, runs a string or
+  script's name, and `$0` inside an `awk`, `sed`, `grep` or `jq` program. A file that pipes into a shell, runs a string or
   sources a stream gets no quote reading, and a case file that `cd`s or `pushd`es into the suite or
   finds its own folder in an unresolved form keeps the script visible (owner, 2026-11-27, "Go with
   recommendations": extend the tooling so more eval comment deletions are proven hidden, sweep
