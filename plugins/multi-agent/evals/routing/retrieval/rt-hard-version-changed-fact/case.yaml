@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: rt-hard-version-changed-fact
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'default-zstd'
+    type: 'regex'
+    pattern: '^[^\n]*\bdefault_compression\b[^\n:]*:[*`\s]*zstd\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'flag-codec'
+    type: 'regex'
+    pattern: '^[^\n]*\boverride_flag\b[^\n:]*:[*`\s]*--codec(?![A-Za-z0-9_-])'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'version-3-0-0'
+    type: 'regex'
+    pattern: '^[^\n]*\bchanged_in_version\b[^\n:]*:[*`\s]*v?3\.0\.0(?![0-9.])'
+    flags: 'im'
+    target: 'last_message'

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "authoritative_source: docs/contracts/webhook-delivery.md\nmax_backoff_seconds: 90\njitter_mode: decorrelated\n",
+      "why": "plain integer 90"
+    },
+    {
+      "answer": "- **authoritative_source:** `docs/contracts/webhook-delivery.md`\n- **max_backoff_seconds:** `90` (supersedes 300)\n- **jitter_mode:** `decorrelated`\n",
+      "why": "markdown formatted 90 with parenthetical note"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "authoritative_source: docs/contracts/webhook-delivery.md\nmax_backoff_seconds: 300\njitter_mode: equal\n",
+      "why": "stale README/ADR value 300"
+    },
+    {
+      "answer": "authoritative_source: docs/blog/2024-06-retry-tuning.md\nmax_backoff_seconds: 600\njitter_mode: full\n",
+      "why": "non-normative blog value 600"
+    },
+    {
+      "answer": "authoritative_source: docs/contracts/webhook-delivery.md\nmax_backoff_seconds: 300 (or 90 in contract)\njitter_mode: decorrelated\n",
+      "why": "hedges with stale value first"
+    }
+  ]
+}

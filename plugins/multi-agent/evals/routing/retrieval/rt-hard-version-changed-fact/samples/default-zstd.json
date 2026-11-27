@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "default_compression: zstd\noverride_flag: --codec\nchanged_in_version: 3.0.0\n",
+      "why": "plain lines with current v3 default"
+    },
+    {
+      "answer": "- **default_compression:** `zstd` (changed from gzip)\n- **override_flag:** `--codec`\n- **changed_in_version:** `3.0.0`\n",
+      "why": "markdown formatted zstd with trailing note"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "default_compression: gzip\noverride_flag: --compress\nchanged_in_version: 2.0.0\n",
+      "why": "stale README default gzip"
+    },
+    {
+      "answer": "default_compression: lz4\noverride_flag: --compress\nchanged_in_version: 2.4.0\n",
+      "why": "confuses experimental 2.4.0 option with default"
+    },
+    {
+      "answer": "default_compression: gzip (zstd in v3)\noverride_flag: --codec\nchanged_in_version: 3.0.0\n",
+      "why": "lists stale gzip first"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: rt-hard-primary-source-claim
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'correct-outcome'
+    type: 'regex'
+    pattern: '^[^\n]*\boutcome\b[^\n:]*:[*`\s]*denied\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'correct-error-code'
+    type: 'regex'
+    pattern: '^[^\n]*\berror_code\b[^\n:]*:[*`\s]*ERR_EXPORT_SCOPE_REQUIRED\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'names-primary-source'
+    type: 'regex'
+    pattern: '^[^\n]*\bprimary_source\b[^\n:]*:[*`\s]*(?:\./)?src/authz/export_gate\.py\b'
+    flags: 'im'
+    target: 'last_message'
