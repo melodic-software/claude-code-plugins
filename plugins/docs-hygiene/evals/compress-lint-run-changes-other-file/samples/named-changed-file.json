@@ -1,14 +1,14 @@
 {
   "pass": [
-    {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=unresolved)\n\nStopped: the lint run (npm run lint:md -- docs/onboarding.md) changed docs/style.md.", "why": "the summary line, then the changed file"},
-    {"answer": "Stopped after the lint run: it changed `docs/style.md`, which compress never edited.\n\n- `onboarding.md`: `lint=unresolved`", "why": "the changed file named before the field"},
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=unresolved)\n\nThe baseline lint run (npm run lint:md -- docs/onboarding.md) changed docs/style.md; no further lint ran.", "why": "the summary line, then the changed file"},
+    {"answer": "The baseline lint run changed `docs/style.md`, which compress never edited, so lint ran no more.\n\n- `onboarding.md`: compressed, `lint=unresolved`", "why": "the changed file named before the field"},
     {"answer": "| File | Action | Lint |\n|---|---|---|\n| onboarding.md | compressed | lint: unresolved |\n\nChanged by the lint run: docs/style.md", "why": "a table row and the changed file"}
   ],
   "fail": [
     {"answer": "", "why": "empty reply"},
     {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=PASS)", "why": "ships with a pass over the change"},
     {"answer": "onboarding.md: compressed (compression_pct=21.4%, lint=unresolved)", "why": "does not name the changed file"},
-    {"answer": "The lint run changed docs/style.md, so I stopped.", "why": "names the file without the lint field"},
+    {"answer": "The baseline lint run changed docs/style.md, so I skipped lint.", "why": "names the file without the lint field"},
     {"answer": "onboarding.md: reverted (lint=FAIL)\n\ndocs/style.md changed", "why": "a lint failure, not unresolved"}
   ]
 }
