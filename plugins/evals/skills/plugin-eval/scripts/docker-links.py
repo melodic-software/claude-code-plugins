@@ -123,7 +123,8 @@ def locked():
 
 def adopt_legacy():
     """Move a manifest a killed run of the earlier version left in $HOME into
-    the state directory, so its links are still restored."""
+    the state directory, so its links are still restored. A manifest a live
+    run still holds stays put: that run reads only the old path."""
     old = legacy_manifest_path()
     if old.exists():
         if manifest_path().exists():
@@ -131,7 +132,15 @@ def adopt_legacy():
                 f"refused: both {old} and {manifest_path()} exist; restore by hand "
                 "from both, then remove them"
             )
-        save(json.loads(old.read_text(encoding="utf-8")))
+        legacy = json.loads(old.read_text(encoding="utf-8"))
+        live = [h for h in legacy.get("holders", []) if is_live(h)]
+        if live:
+            pids = ", ".join(str(h["pid"]) for h in live)
+            raise Refused(
+                f"refused: an earlier-version run ({pids}) still holds {old}; "
+                "rerun once it exits"
+            )
+        save(legacy)
         old.unlink()
         say(f"moved {old} to {manifest_path()}")
     try:

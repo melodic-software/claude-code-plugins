@@ -327,6 +327,22 @@ class DockerLinksTest(unittest.TestCase):
         self.assertTrue(self.legacy_lock.exists())
         self.assertEqual(self.find_links(), [], "the killed run's copies were touched")
 
+    def test_a_live_legacy_holder_keeps_its_manifest_in_place(self):
+        proc = self.start("a")
+        os.replace(self.manifest, self.legacy_manifest)
+        self.legacy_lock.write_text("", encoding="utf-8")
+        for args in (("restore",), ("run", "--", "sh", "-c", 'touch "$HOME/ran"')):
+            result = self.cli(*args)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("still holds", result.stderr)
+        self.assertFalse((self.home / "ran").exists())
+        self.assertTrue(self.legacy_manifest.is_file())
+        self.assertTrue(self.legacy_lock.exists())
+        os.replace(self.legacy_manifest, self.manifest)
+        self.release(proc, "a")
+        self.legacy_lock.unlink()
+        self.assert_restored()
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
