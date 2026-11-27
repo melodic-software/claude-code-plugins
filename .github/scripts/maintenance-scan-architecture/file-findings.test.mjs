@@ -2,30 +2,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { fileFindings, ISSUE_TYPE, readItems, summary } from "./file-findings.mjs";
+import { fileFindings, ISSUE_TYPE, readItems, summary, withoutSecurityDefects } from "./file-findings.mjs";
+import { forge, ISSUE } from "./forge.fixtures.mjs";
 
 const item = (n) => ({ title: `Deepen module ${n}`, body: `Evidence: \`src/m${n}.mjs:1\`.\n\n## Done when\n\n- [ ] One seam.` });
 const doc = (items) => JSON.stringify({ items });
 
-function forge({ open = 0, existing = [], label = true } = {}) {
-  const posts = [];
-  const call = async (method, path, body) => {
-    if (method === "POST") {
-      posts.push(body);
-      return { number: 100 + posts.length };
-    }
-    if (path.includes("/labels/")) return label ? { name: "source: architecture-improve" } : null;
-    if (path.includes("state=open")) return /&page=1\b/.test(path) ? Array.from({ length: open }, (_, i) => ({ number: i + 1, title: `open ${i}` })) : [];
-    if (path.includes("state=all")) return /&page=1\b/.test(path) ? existing.map((title, i) => ({ number: 50 + i, title })) : [];
-    throw new Error(`unexpected ${method} ${path}`);
-  };
-  return { call, posts };
-}
-
-test("every filing carries exactly one label, source: architecture-improve, and the Task type", async () => {
+test("every filing carries exactly one label, source: architecture-improve, and the Task type, and takes the number the create response names", async () => {
   const { call, posts } = forge();
   const result = await fileFindings({ items: [item(1), item(2)], cap: 5, call, repository: "o/r" });
-  assert.deepEqual(result.filed.map((issue) => issue.number), [101, 102]);
+  assert.deepEqual(result.filed.map((issue) => issue.number), [ISSUE.number + 1, ISSUE.number + 2]);
   assert.equal(posts.length, 2);
   for (const post of posts) {
     assert.deepEqual(post.labels, ["source: architecture-improve"]);
@@ -34,7 +20,7 @@ test("every filing carries exactly one label, source: architecture-improve, and 
   assert.equal(posts[0].title, "Deepen module 1");
 });
 
-test("filing stops at the room left under the cap, counted again at filing time", async () => {
+test("filing stops at the room left under the cap, counted again at filing time past the page's pull requests", async () => {
   const { call, posts } = forge({ open: 4 });
   const result = await fileFindings({ items: [item(1), item(2), item(3)], cap: 5, call, repository: "o/r" });
   assert.equal(posts.length, 1);
@@ -43,7 +29,7 @@ test("filing stops at the room left under the cap, counted again at filing time"
 });
 
 test("an item whose title an issue with the label already holds is skipped, whatever its case or spacing", async () => {
-  const { call, posts } = forge({ existing: ["deepen  MODULE 1"] });
+  const { call, posts } = forge({ filed: ["deepen  MODULE 1"] });
   const result = await fileFindings({ items: [item(1), item(2)], cap: 5, call, repository: "o/r" });
   assert.deepEqual(posts.map((post) => post.title), ["Deepen module 2"]);
   assert.match(result.skipped[0].why, /already carries/);
@@ -56,8 +42,9 @@ test("a missing label files nothing, since the lane never creates one", async ()
 });
 
 test("no items reads nothing and files nothing", async () => {
-  const result = await fileFindings({ items: [], cap: 5, call: async () => assert.fail("no read"), repository: "o/r" });
-  assert.deepEqual(result.filed, []);
+  const { call, calls } = forge();
+  assert.deepEqual((await fileFindings({ items: [], cap: 5, call, repository: "o/r" })).filed, []);
+  assert.deepEqual(calls, []);
 });
 
 test("readItems accepts the schema's shape and refuses anything else", () => {
@@ -76,9 +63,27 @@ test("readItems accepts the schema's shape and refuses anything else", () => {
   }
 });
 
-test("the summary names each filed issue and why each other item was skipped", () => {
-  const text = summary({ filed: [{ number: 7, title: "x" }], skipped: [{ title: "y", why: "a reason" }] });
-  assert.match(text, /Filed 1, skipped 1\./);
-  assert.match(text, /- filed #7/);
-  assert.match(text, /- skipped one item: a reason/);
+test("an item that names a security defect in its title or body is dropped, and the others are kept", () => {
+  const named = [
+    { title: "Security defect in the token path", body: "b" },
+    { title: "t", body: "security-defect: withheld" },
+    { title: "t", body: "A path traversal vulnerability in src/a.mjs:4" },
+    { title: "t", body: "Matches CWE-22." },
+    { title: "Patch CVE-2026-12345", body: "b" },
+  ];
+  const { kept, dropped } = withoutSecurityDefects([item(1), ...named, item(2)]);
+  assert.deepEqual(kept, [item(1), item(2)]);
+  assert.equal(dropped, 5);
+  assert.deepEqual(withoutSecurityDefects([{ title: "Secure the seam", body: "No defect named here." }]).dropped, 0);
+});
+
+test("the summary heads as lane / activity, says the verdict, shows at most five bullets and puts the full list in details", () => {
+  const few = summary({ filed: [{ number: 7, title: "x" }], skipped: [{ title: "y", why: "a reason" }] });
+  assert.match(few, /^### maintenance-scan-architecture \/ file-architecture-findings\n\nFiled: 1 issue\(s\), skipped 1\.\n\n- filed #7\n- skipped one item: a reason\n/);
+  assert.doesNotMatch(few, /<details>/);
+  const many = summary({ filed: Array.from({ length: 7 }, (_, i) => ({ number: i + 1, title: "x" })), skipped: [] });
+  const visible = many.split("<details>")[0];
+  assert.equal(visible.match(/^- /gm).length, 5);
+  assert.equal(many.split("<details>")[1].match(/^- filed #/gm).length, 7);
+  assert.match(summary({ filed: [], skipped: [{ title: "y", why: "r" }] }), /\nFiled nothing: skipped 1\.\n/);
 });

@@ -1,4 +1,4 @@
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
@@ -25,6 +25,13 @@ export function readItems(text) {
     }
   }
   return items.map(({ title, body }) => ({ title: title.trim(), body }));
+}
+
+export const SECURITY_DEFECT = /\bsecurity[-\s]defects?\b|\bvulnerab|\bCWE-\d+|\bCVE-\d{4}-\d+/i;
+
+export function withoutSecurityDefects(items) {
+  const kept = items.filter((item) => !SECURITY_DEFECT.test(item.title) && !SECURITY_DEFECT.test(item.body));
+  return { kept, dropped: items.length - kept.length };
 }
 
 const key = (title) => title.trim().replace(/\s+/g, " ").toLowerCase();
@@ -56,21 +63,28 @@ export async function fileFindings({ items, cap, call, repository }) {
   return { filed, skipped, room, open };
 }
 
+const MAX_BULLETS = 5;
+
 export function summary({ filed, skipped }) {
+  const lines = [...filed.map((issue) => `- filed #${issue.number}`), ...skipped.map((item) => `- skipped one item: ${item.why}`)];
+  const shown = lines.slice(0, MAX_BULLETS);
+  const verdict = filed.length > 0 ? `Filed: ${filed.length} issue(s), skipped ${skipped.length}.` : `Filed nothing: skipped ${skipped.length}.`;
   return [
-    "### Architecture scan filings",
+    "### maintenance-scan-architecture / file-architecture-findings",
     "",
-    `Filed ${filed.length}, skipped ${skipped.length}.`,
+    verdict,
     "",
-    ...filed.map((issue) => `- filed #${issue.number}`),
-    ...skipped.map((item) => `- skipped one item: ${item.why}`),
+    ...shown,
+    ...(lines.length > shown.length ? ["", "<details><summary>Every item</summary>", "", ...lines, "", "</details>"] : []),
     "",
   ].join("\n");
 }
 
 async function main(command, env) {
-  const items = readItems(readFileSync(env.FINDINGS_FILE, "utf8"));
+  const { kept: items, dropped } = withoutSecurityDefects(readItems(readFileSync(env.FINDINGS_FILE, "utf8")));
+  if (dropped > 0) console.log(`::warning::dropped ${dropped} item(s) that name a security defect; run /architecture:improve with a person present to review them privately`);
   if (command === "check") {
+    writeFileSync(env.FINDINGS_FILE, `${JSON.stringify({ items })}\n`);
     console.log(`::notice::the findings hold ${items.length} well-formed item(s)`);
     return;
   }

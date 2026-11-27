@@ -1,0 +1,11 @@
+{
+  "id": 13243172500,
+  "node_id": "LA_kwDOTCGFQM8AAAADFVrGlA",
+  "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/labels/source:%20architecture-improve",
+  "name": "source: architecture-improve",
+  "color": "bfd4f2",
+  "default": false,
+  "description": "Filed by the scheduled architecture scan (/architecture:improve); admission holds it for a person.",
+  "archived_at": null,
+  "archived_by": null
+}

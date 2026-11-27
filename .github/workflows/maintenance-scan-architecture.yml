@@ -942,7 +942,7 @@ jobs:
           sealed-1: ${{ needs.find-candidates-fallback.result != 'skipped' && needs.find-candidates-fallback.outputs.sealed-1 || needs.find-candidates-fallback.result == 'skipped' && needs.find-candidates-subscription.result != 'skipped' && needs.find-candidates-subscription.outputs.sealed-1 || needs.find-candidates-fallback.result == 'skipped' && needs.find-candidates-subscription.result == 'skipped' && needs.find-candidates.outputs.sealed-1 || '' }}
           sealed-2: ${{ needs.find-candidates-fallback.result != 'skipped' && needs.find-candidates-fallback.outputs.sealed-2 || needs.find-candidates-fallback.result == 'skipped' && needs.find-candidates-subscription.result != 'skipped' && needs.find-candidates-subscription.outputs.sealed-2 || needs.find-candidates-fallback.result == 'skipped' && needs.find-candidates-subscription.result == 'skipped' && needs.find-candidates.outputs.sealed-2 || '' }}
 
-      - name: Check the findings' shape
+      - name: Check the findings' shape and drop any that names a security defect
         env:
           FINDINGS_FILE: ${{ runner.temp }}/scan-in/findings.json
         run: node .base/.github/scripts/maintenance-scan-architecture/file-findings.mjs check

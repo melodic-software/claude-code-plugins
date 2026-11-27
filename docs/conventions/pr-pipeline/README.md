@@ -203,17 +203,19 @@ not a lane, such as `maintenance-measure-skill-edit-pass` (a `workflow_call` reu
 | `maintenance-scan-architecture` | its daily schedule, or a dispatch by an account with write access, past its no-model gate job |
 
 A lane section's `enabled: false` turns every slot of the lane off, and `every-days` (default 1) is
-how many days a scheduled lane with a cadence gate waits after its last completed run.
-`maintenance-scan-architecture` ships off. Its gate job
+how many days a scheduled lane with a cadence gate waits, counted from its last run whose `Scan` job
+succeeded. `maintenance-scan-architecture` ships off. Its gate job
 (`.github/scripts/maintenance-scan-architecture/gate.mjs`) reads both keys and `find_open_item_cap`
-from the improvement config cascade (default 5), and stops the run with a named reason when the lane
-is off (`lane-off`), the open `source: architecture-improve` issues are at or above the cap
-(`at-cap`), fewer than `every-days` calendar days passed since the last run whose `Check Findings`
-job succeeded (`not-due`), or nothing merged to main since it (`no-merges`). A dispatch's `force`
+from the improvement config cascade (default 5). Before any API read it stops a run as `lane-off`
+when the lane is off, or `at-cap` when the cap is 0. Then it stops one as `at-cap` when the open
+`source: architecture-improve` issues are at or above the cap, `not-due` when fewer than
+`every-days` calendar days passed since the last run on main whose `Scan` job succeeded (read back
+through the whole run history, so a long stretch of stopped runs never hides it), or `no-merges`
+when nothing merged to main since it; `first-scan` means no such run exists. A dispatch's `force`
 input skips only `lane-off` and `not-due`; a schedule run never reads it. The model job runs
 `/improvement:find` unattended with `/architecture:improve deepening --unattended` inline and holds
-no write token: it returns the candidates find may file, sealed for the scan-carrier job, and
-`File Findings` files them on the lanes App token (`file-architecture-findings`, `mutate-tracker`,
+no write token: it returns the candidates find may file, sealed for the `Scan` job, which drops
+any naming a security defect, and `File Findings` files them on the lanes App token (`file-architecture-findings`, `mutate-tracker`,
 which a disabled lane is not granted), each with exactly one `source: architecture-improve` label.
 Admission's `own-agents.hold-sources` in `admission-rules.json` holds those filings for a listed
 human.

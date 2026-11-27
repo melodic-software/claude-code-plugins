@@ -1063,7 +1063,7 @@
           "type": "integer",
           "minimum": 1,
           "default": 1,
-          "description": "Days a scheduled lane waits after its last completed run before it runs again, read by the lane's gate script; a lane with no cadence gate ignores it (README.md, Lanes)."
+          "description": "Days a scheduled lane waits before it runs again, counted from its last run whose Scan job succeeded, read by the lane's gate script; a lane with no cadence gate ignores it (README.md, Lanes)."
         },
         "slots": { "type": "array", "items": { "$ref": "#/$defs/slot" } }
       }

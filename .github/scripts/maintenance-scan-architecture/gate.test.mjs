@@ -11,7 +11,8 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 import { STANDARDS_FIXTURE } from "../lib/trusted-actors.fixtures.mjs";
 import { runs } from "../lib/model-credential.mjs";
 import { workflowText } from "../lib/workflow-text.mjs";
-import { decide, gate, lastScan, mergesSince, promptText, SCAN_DONE_JOB } from "./gate.mjs";
+import { forge } from "./forge.fixtures.mjs";
+import { decide, gate, lastScan, mergesSince, promptText, statusLine } from "./gate.mjs";
 import { countOpen, openItemCap, SOURCE_LABEL } from "./lane.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
@@ -97,29 +98,37 @@ test("the prompt carries the room and the source label, and refuses no room", ()
   assert.throws(() => promptText(0), /positive integer/);
 });
 
-test("the open count leaves out pull requests and reads pages until it passes the cap", async () => {
-  const pages = [];
-  const call = async (method, path) => {
-    pages.push(path);
-    const page = Number(/&page=(\d+)/.exec(path)[1]);
-    return page === 1 ? [...Array.from({ length: 99 }, (_, i) => ({ number: i })), { number: 99, pull_request: {} }] : [{ number: 200 }];
-  };
-  assert.equal(await countOpen(call, "o/r", SOURCE_LABEL, 200), 100);
-  assert.equal(pages.length, 2);
-  assert.match(pages[0], /labels=source%3A%20architecture-improve/);
-  pages.length = 0;
-  assert.equal(await countOpen(call, "o/r", SOURCE_LABEL, 5), 99, "a count already past the cap reads no more pages");
-  assert.equal(pages.length, 1);
+test("the open count leaves out the captured page's pull requests and reads pages until it passes the cap", async () => {
+  const { call, calls } = forge({ open: 150 });
+  assert.equal(await countOpen(call, "o/r", SOURCE_LABEL, 200), 150);
+  assert.equal(calls.length, 2, "152 items, two of them pull requests, take two pages of 100");
+  assert.match(calls[0], /labels=source%3A%20architecture-improve/);
+  const capped = forge({ open: 150 });
+  assert.equal(await countOpen(capped.call, "o/r", SOURCE_LABEL, 5), 98, "a count already past the cap reads no more pages");
+  assert.equal(capped.calls.length, 1);
 });
 
-test("the last scan is the newest completed main run whose Scan job, which checked the sealed findings, succeeded", async () => {
-  const jobs = { 3: [{ name: SCAN_DONE_JOB, conclusion: "skipped" }], 2: [{ name: "Gate", conclusion: "success" }], 1: [{ name: SCAN_DONE_JOB, conclusion: "success" }] };
-  const call = async (method, path) =>
-    path.includes("/workflows/")
-      ? { workflow_runs: [3, 2, 1].map((id) => ({ id, created_at: `2026-11-2${id}T07:41:00Z`, head_sha: String(id).repeat(40) })) }
-      : { jobs: jobs[/runs\/(\d+)\/jobs/.exec(path)[1]] };
-  assert.deepEqual(await lastScan(call, "o/r"), { at: Date.parse("2026-11-21T07:41:00Z"), sha: "1".repeat(40), run: 1 });
-  assert.equal(await lastScan(async (method, path) => (path.includes("/workflows/") ? { workflow_runs: [] } : null), "o/r"), null);
+const daysBack = (days, sha = "a".repeat(40)) => ({ at: NOW - days * DAY, sha });
+
+test("the last scan is the newest completed main run whose Scan job succeeded; a skipped, failed or absent Scan is no scan", async () => {
+  const runsList = [
+    { ...daysBack(1), scan: "skipped" },
+    { ...daysBack(2), scan: "failure" },
+    { ...daysBack(3), scan: "absent" },
+    { ...daysBack(4, "4".repeat(40)), scan: "success" },
+  ];
+  const found = await lastScan(forge({ runs: runsList }).call, "o/r");
+  assert.deepEqual([found.at, found.sha], [NOW - 4 * DAY, "4".repeat(40)]);
+  assert.equal(await lastScan(forge({ runs: runsList.slice(0, 3) }).call, "o/r"), null, "a history with no successful Scan job is a first scan");
+  assert.equal(await lastScan(forge().call, "o/r"), null);
+});
+
+test("a scan behind more stopped runs than one page holds is still found, and only an exhausted history is a first scan", async () => {
+  const stopped = Array.from({ length: 140 }, (_, i) => ({ ...daysBack(i + 1), scan: "skipped" }));
+  const behind = forge({ runs: [...stopped, { ...daysBack(141, "b".repeat(40)), scan: "success" }] });
+  assert.equal((await lastScan(behind.call, "o/r")).sha, "b".repeat(40));
+  assert.equal(behind.calls.filter((c) => c.includes("/actions/workflows/")).length, 2, "the second runs page was read");
+  assert.equal(await lastScan(forge({ runs: stopped }).call, "o/r"), null);
 });
 
 function repo() {
@@ -173,14 +182,33 @@ function configRoot({ enabled = true, everyDays = 1, cap } = {}) {
   return { dir, sha };
 }
 
-const fakeForge = ({ open, scanAt, sha }) => async (method, path) => {
-  if (path.includes("/issues?")) return /&page=1\b/.test(path) ? Array.from({ length: open }, (_, i) => ({ number: i + 1 })) : [];
-  if (path.includes("/workflows/")) return { workflow_runs: [{ id: 9, created_at: new Date(scanAt).toISOString(), head_sha: sha }] };
-  return { jobs: [{ name: SCAN_DONE_JOB, conclusion: "success" }] };
-};
+const runGate = async (root, { open = 2, scanAt = NOW - 2 * DAY, before = [], env = {}, fake = forge({ open, runs: [...before, { at: scanAt, sha: root.sha }] }) } = {}) =>
+  gate({ root: root.dir, call: fake.call, now: NOW, env: { REPOSITORY: "o/r", STANDARDS_DIR: STANDARDS_FIXTURE, EVENT_NAME: "schedule", ...env } });
 
-const runGate = async (root, { open = 2, scanAt = NOW - 2 * DAY, env = {} } = {}) =>
-  gate({ root: root.dir, call: fakeForge({ open, scanAt, sha: root.sha }), now: NOW, env: { REPOSITORY: "o/r", STANDARDS_DIR: STANDARDS_FIXTURE, EVENT_NAME: "schedule", ...env } });
+test("lane-off and a cap of 0 stop the gate before any API read, and its status line says what was not read", async () => {
+  for (const [config, reason] of [[{ enabled: false }, "lane-off"], [{ cap: 0 }, "at-cap"]]) {
+    const fake = forge();
+    const result = await runGate(configRoot(config), { fake });
+    assert.deepEqual([result.run, result.reason, fake.calls], [false, reason, []], reason);
+    assert.match(statusLine(result), /open n\/a of cap .* merges since the last scan n\/a/);
+  }
+});
+
+test("forty stopped runs before the last scan still leave it not-due or no-merges, never a first scan", async () => {
+  const stopped = Array.from({ length: 40 }, (_, i) => ({ at: NOW - (i + 1) * 3_600_000, sha: "c".repeat(40), scan: "skipped" }));
+  const root = configRoot({ everyDays: 3 });
+  assert.equal((await runGate(root, { before: stopped })).reason, "not-due");
+  const quiet = configRoot();
+  const head = execFileSync("git", ["-C", quiet.dir, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  assert.equal((await runGate({ ...quiet, sha: head }, { before: stopped })).reason, "no-merges");
+});
+
+test("every-days above forty holds until that many days passed since the last scan", async () => {
+  const root = configRoot({ everyDays: 60 });
+  const stopped = Array.from({ length: 50 }, (_, i) => ({ at: NOW - (i + 1) * DAY, sha: root.sha, scan: "skipped" }));
+  assert.equal((await runGate(root, { before: stopped, scanAt: NOW - 55 * DAY })).reason, "not-due");
+  assert.equal((await runGate(root, { before: stopped, scanAt: NOW - 60 * DAY })).reason, "due");
+});
 
 test("the shipped config keeps the lane off, so the gate stops lane-off", async () => {
   const result = await runGate(configRoot({ enabled: false }));
