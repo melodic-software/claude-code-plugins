@@ -306,6 +306,31 @@ function repo() {
   return { dir, git, sha };
 }
 
+test("the prepared working tree is read-only but for .git and .work, so no command can rewrite the scanned source", () => {
+  const { dir, git } = repo();
+  mkdirSync(join(dir, "src"));
+  writeFileSync(join(dir, "src/a.mjs"), "export {};\n");
+  writeFileSync(join(dir, "README.md"), "x\n");
+  git("add", ".");
+  git("commit", "-q", "-m", "source");
+  const stage = tempDir("scan-stage-");
+  mkdirSync(join(stage, "plugins/architecture"), { recursive: true });
+  writeFileSync(join(stage, "plugins/architecture/run.sh"), "true\n");
+  const script = join(REPO_ROOT, ".github/scripts/maintenance-scan-architecture/prepare-working-tree.sh");
+  try {
+    execFileSync("bash", [script], { cwd: dir, env: { PATH: process.env.PATH, MODEL: "m", STAGE: stage, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" }, stdio: "pipe" });
+    for (const path of ["src/a.mjs", "src/new.mjs", "README.md", ".lane/plugins/architecture/run.sh", ".lane/plugins/new.sh"]) {
+      assert.throws(() => writeFileSync(join(dir, path), "overwritten\n"), /EACCES/, path);
+    }
+    assert.equal(readFileSync(join(dir, "src/a.mjs"), "utf8"), "export {};\n");
+    writeFileSync(join(dir, ".work/scratch.md"), "ok\n");
+    mkdirSync(join(dir, ".lane-trusted"));
+    git("status", "--porcelain");
+  } finally {
+    execFileSync("chmod", ["-R", "u+w", dir]);
+  }
+});
+
 test("merges since the last scan count first-parent commits after its head", () => {
   const { dir, git, sha } = repo();
   assert.equal(mergesSince(dir, { sha, at: NOW }), 0);
