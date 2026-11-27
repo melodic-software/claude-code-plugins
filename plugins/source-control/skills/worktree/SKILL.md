@@ -61,6 +61,7 @@ This skill is self-contained: every action runs on plain `git`, plus the forge C
 | `status` | Inventory | List all worktrees with PR status and staleness |
 | `cleanup [<path>...] [--dry-run]` | Remove stale | Prune orphans, detect merged PRs and stale locks, remove with confirmation; named paths limit it to exactly those worktrees |
 | `audit` | Health check | Run status + verify configuration health |
+| `review` | Judge reap review rows | Read the newest reap run file's `review` rows, write a cited verdict per worktree, resolve only by push or `sync-back`; never deletes: [context/review.md](context/review.md) |
 
 ---
 

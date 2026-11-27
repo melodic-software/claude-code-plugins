@@ -4,6 +4,8 @@
 
 Full detail for `/source-control:worktree cleanup [<path>...] [--dry-run]`. SKILL.md carries the headline and the safety invariants; this file carries the full procedure (prune → identify → present → execute → verify), including the Windows file-lock handling and the Step 4b branch deletion.
 
+The nightly reap (`<scripts-dir>/worktree-reap.sh`) records why it kept or removed each worktree in its run file, `${XDG_STATE_HOME:-~/.local/state}/worktree-reap/runs/<utc>.jsonl`. When a worktree you are cleaning up is in the newest run file, read its row first: the facts there are why the reap did not remove it. A row marked `review` goes to the `review` action ([review.md](review.md)), which makes its work durable before a cleanup removes it.
+
 ## Scope: explicit paths or the whole repository
 
 Settle the scope before Step 1. Strip `--dry-run` from the arguments; what remains are worktree paths.
