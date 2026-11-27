@@ -93,7 +93,12 @@ _mg_spawn() {
       _mg_bg_dir=""
       return 0
     }
-    [[ -n "$(trap -p EXIT)" ]] || trap '_mg_bg_reap' EXIT
+    local prev
+    prev="$(trap -p EXIT)"
+    prev="${prev#trap -- \'}"
+    prev="${prev%\' EXIT}"
+    prev="${prev//\'\\\'\'/\'}"
+    trap "_mg_bg_reap${prev:+; $prev}" EXIT
   fi
   (
     "$@"
@@ -120,9 +125,10 @@ _mg_join() {
   "$@"
 }
 _mg_bg_reap() {
-  local v
+  local rc=$? v
   for v in ${!_mg_pid_*}; do kill "${!v}" 2>/dev/null; done
   [[ -n "$_mg_bg_dir" ]] && rm -rf "$_mg_bg_dir"
+  return "$rc"
 }
 
 _mg_urlencode() {
