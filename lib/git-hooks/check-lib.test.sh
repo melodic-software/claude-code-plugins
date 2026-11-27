@@ -60,6 +60,42 @@ expect "filter keeps a finding on a changed line only" \
   'a.txt:4: x' \
   "$(in_repo "$R" pre-commit 'checks_changed_lines; printf "a.txt:1: x\na.txt:4: x\nother:4: x\n" | checks_filter_findings')"
 
+new_repo; V="$REPO"
+printf 'one\ntwo\nthree\nfour\nfive\n' >"$V/moved.md"
+printf 'alpha\nbeta\ngamma\ndelta\nepsilon\n' >"$V/edited.md"
+printf 'x\ny\n' >"$V/chmod.sh"
+printf 'copy me\nplease\n' >"$V/orig.md"
+git -C "$V" add .
+git -C "$V" commit -q -m seed
+git -C "$V" mv moved.md dir-moved.md
+git -C "$V" mv edited.md dir-edited.md
+printf 'zeta\n' >>"$V/dir-edited.md"
+git -C "$V" mv chmod.sh dir-chmod.sh
+chmod +x "$V/dir-chmod.sh"
+git -C "$V" add --chmod=+x dir-chmod.sh
+git -C "$V" add dir-edited.md
+expect "pre-commit files: an exact rename is left out; an edited or mode-changed rename stays" \
+  $'dir-chmod.sh\ndir-edited.md' "$(in_repo "$V" pre-commit 'checks_files' | nul_list | sort)"
+expect "pre-commit ranges: an edited rename counts only its edited line" $'dir-edited.md\t6\t6' \
+  "$(in_repo "$V" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"')"
+expect "worktree files: an exact rename is left out" $'dir-chmod.sh\ndir-edited.md' \
+  "$(in_repo "$V" pre-commit 'checks_files' --worktree | nul_list | sort)"
+git -C "$V" commit -q -m moves
+expect "pre-push files: an exact rename in the pushed range is left out" $'dir-chmod.sh\ndir-edited.md' \
+  "$(printf 'refs/heads/main %s refs/heads/main %s\n' "$(git -C "$V" rev-parse HEAD)" "$(git -C "$V" rev-parse HEAD~1)" |
+    in_repo "$V" pre-push 'checks_files' origin url | nul_list | sort)"
+expect "pre-push ranges: an edited rename counts only its edited line" $'dir-edited.md\t6\t6' \
+  "$(printf 'refs/heads/main %s refs/heads/main %s\n' "$(git -C "$V" rev-parse HEAD)" "$(git -C "$V" rev-parse HEAD~1)" |
+    in_repo "$V" pre-push 'checks_changed_lines; cat "$CHECKS_TMP/ranges"' origin url)"
+cp "$V/orig.md" "$V/copied.md"
+printf 'edited\n' >>"$V/orig.md"
+git -C "$V" add copied.md orig.md
+git -C "$V" config diff.renames copies
+expect "copy fixture: git reports the copy as an exact copy" C100 \
+  "$(git -C "$V" diff --cached --name-status | cut -f1 | grep '^C')"
+expect "pre-commit files: an exact copy is still listed" $'copied.md\norig.md' \
+  "$(in_repo "$V" pre-commit 'checks_files' | nul_list | sort)"
+
 new_repo; H="$REPO"
 printf 'one\ntwo\n-- a/old\nfour\nfive\nsix\n' >"$H/f.txt"
 git -C "$H" add f.txt
@@ -266,7 +302,7 @@ expect "pre-commit files in a merge: only the paths that differ from every paren
   "$(in_repo "$G" pre-commit 'checks_files' | nul_list)"
 expect "pre-commit files in a merge: nothing on stderr" "" \
   "$(in_repo "$G" pre-commit 'checks_files' 2>&1 >/dev/null)"
-MERGE_ALL=$'i.txt\nm.sh\nrr.txt\ns.txt'
+MERGE_ALL=$'i.txt\nm.sh\ns.txt'
 MERGE_FALLBACK='failed while listing the paths this merge changes, so every staged path is checked'
 merge_fallback() {
   local list
