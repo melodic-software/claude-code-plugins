@@ -1,80 +1,100 @@
-# test-scope: plugins/session-flow/.claude-plugin/plugin.json plugins/session-flow/scripts/dispatches.py plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/multi/*
+# test-scope: plugins/session-flow/.claude-plugin/plugin.json plugins/session-flow/scripts/dispatches.py plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/dispatches/*
 
 from __future__ import annotations
 
+import copy
 import json
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
-from conftest import PLUGIN_SCRIPTS, envelope, run_cli
+from conftest import FIXTURES, PLUGIN_SCRIPTS, envelope, run_cli
 from test_collect import collect, records, store_root
 from test_collect_fleet import collect_sources
 
+CAPTURE_PROJ = FIXTURES / "dispatches" / "proj-a"
+CAPTURE_MAIN = [json.loads(line) for line in (CAPTURE_PROJ / "sess-cap.jsonl").read_text(encoding="utf-8").splitlines()]
+CAPTURE_SUB = [
+    json.loads(line)
+    for line in (CAPTURE_PROJ / "sess-cap" / "subagents" / "agent-cap1.jsonl").read_text(encoding="utf-8").splitlines()
+]
+CAPTURE_META = json.loads(
+    (CAPTURE_PROJ / "sess-cap" / "subagents" / "agent-cap1.meta.json").read_text(encoding="utf-8")
+)
 
-def _write_session_with_subagents(projects: Path, proj: str, sid: str, dispatches: list[dict]) -> None:
-    """Create a main session transcript and one subagent transcript per spec in `dispatches`."""
+
+def _split_captured_turns() -> tuple[dict, list[list[dict]], list[dict]]:
+    """Split the sanitized captured subagent transcript into `(prompt, tool_turns, final_turn)`."""
+    prompt = CAPTURE_SUB[0]
+    groups: list[list[dict]] = []
+    cur_id: str | None = None
+    for rec in CAPTURE_SUB[1:]:
+        mid = (rec.get("message") or {}).get("id") if rec.get("type") == "assistant" else None
+        if mid and mid != cur_id:
+            groups.append([rec])
+            cur_id = mid
+        else:
+            groups[-1].append(rec)
+    return prompt, groups[:-1], groups[-1]
+
+
+CAPTURED_PROMPT, CAPTURED_TOOL_TURNS, CAPTURED_FINAL_TURN = _split_captured_turns()
+
+
+def _retag(rec: dict, *, sid: str, agent_id: str, day: str, msg_id: str | None = None, stop_reason: str | None = None) -> dict:
+    cloned = copy.deepcopy(rec)
+    cloned["sessionId"] = sid
+    if "agentId" in cloned:
+        cloned["agentId"] = agent_id
+    if isinstance(cloned.get("timestamp"), str) and len(cloned["timestamp"]) >= 10:
+        cloned["timestamp"] = day + cloned["timestamp"][10:]
+    if cloned.get("type") == "assistant":
+        if msg_id is not None:
+            cloned["message"]["id"] = msg_id
+        if stop_reason is not None:
+            cloned["message"]["stop_reason"] = stop_reason
+    return cloned
+
+
+def _derive_captured_session(projects: Path, proj: str, sid: str, dispatches: list[dict]) -> None:
+    """Materialize a session and subagent transcripts cloned from the sanitized Claude Code capture."""
     proj_dir = projects / proj
     proj_dir.mkdir(parents=True, exist_ok=True)
-    main_lines = [
-        {"type": "user", "uuid": "u0", "timestamp": "2026-09-20T10:00:00Z", "promptSource": "typed", "message": {"role": "user", "content": "run agents"}},
-        {"type": "assistant", "uuid": "a0", "timestamp": "2026-09-20T10:00:05Z", "message": {"id": "main_m0", "role": "assistant", "model": "claude-opus-5-5", "stop_reason": "end_turn", "content": [{"type": "text", "text": "done"}]}},
-    ]
+    main_lines = [_retag(rec, sid=sid, agent_id=sid, day="2026-09-20") for rec in CAPTURE_MAIN]
     (proj_dir / f"{sid}.jsonl").write_text("".join(json.dumps(r) + "\n" for r in main_lines), encoding="utf-8", newline="\n")
     sub_dir = proj_dir / sid / "subagents"
     sub_dir.mkdir(parents=True, exist_ok=True)
+
     for spec in dispatches:
         name = spec["name"]
         day = spec["date"]
-        turns = spec["turns"]
-        stop_final = spec.get("stop_reason", "end_turn")
         if spec.get("agent_type") is not None:
-            (sub_dir / f"agent-{name}.meta.json").write_text(
-                json.dumps({"agentType": spec["agent_type"]}) + "\n", encoding="utf-8", newline="\n"
-            )
-        lines: list[dict] = [
-            {"type": "user", "timestamp": f"{day}T01:00:00Z", "message": {"role": "user", "content": "start"}},
-        ]
-        for i in range(turns):
-            stop = stop_final if i == turns - 1 else "tool_use"
-            for kind in (["thinking", "tool_use"] if spec.get("parallel") else ["tool_use"]):
-                lines.append(
-                    {
-                        "type": "assistant",
-                        "timestamp": f"{day}T01:00:01Z",
-                        "message": {"id": f"m_{i}", "role": "assistant", "stop_reason": stop, "content": [{"type": kind}]},
-                    }
-                )
-            lines.append(
-                {
-                    "type": "user",
-                    "timestamp": f"{day}T01:00:02Z",
-                    "message": {"role": "user", "content": [{"type": "tool_result"}]},
-                }
-            )
-        if spec.get("resumed"):
-            lines.append(
-                {
-                    "type": "user",
-                    "timestamp": f"{day}T02:00:00Z",
-                    "message": {"role": "user", "content": "continue"},
-                }
-            )
-            extra = spec.get("after_resume_turns", 0)
-            for j in range(extra):
-                lines.append(
-                    {
-                        "type": "assistant",
-                        "timestamp": f"{day}T02:00:05Z",
-                        "message": {
-                            "id": f"m_resumed_{j}",
-                            "role": "assistant",
-                            "stop_reason": "end_turn" if j == extra - 1 else "tool_use",
-                            "content": [{"type": "text", "text": "ok"}],
-                        },
-                    }
-                )
+            meta = copy.deepcopy(CAPTURE_META)
+            meta["agentType"] = spec["agent_type"]
+            (sub_dir / f"agent-{name}.meta.json").write_text(json.dumps(meta) + "\n", encoding="utf-8", newline="\n")
+
+        if spec.get("verbatim"):
+            lines = [_retag(rec, sid=sid, agent_id=name, day=day) for rec in CAPTURE_SUB]
+        else:
+            turns = spec["turns"]
+            stop_final = spec.get("stop_reason", "end_turn")
+            lines = [_retag(CAPTURED_PROMPT, sid=sid, agent_id=name, day=day)]
+            for i in range(turns):
+                is_last = i == turns - 1
+                template = CAPTURED_FINAL_TURN if (is_last and stop_final != "tool_use") else CAPTURED_TOOL_TURNS[i % len(CAPTURED_TOOL_TURNS)]
+                stop = stop_final if is_last else "tool_use"
+                for rec in template:
+                    lines.append(_retag(rec, sid=sid, agent_id=name, day=day, msg_id=f"msg_{name}_{i:03d}", stop_reason=stop))
+            if spec.get("resumed"):
+                lines.append(_retag(CAPTURED_PROMPT, sid=sid, agent_id=name, day=day))
+                extra = spec.get("after_resume_turns", 0)
+                for j in range(extra):
+                    is_last = j == extra - 1
+                    template = CAPTURED_FINAL_TURN if is_last else CAPTURED_TOOL_TURNS[j % len(CAPTURED_TOOL_TURNS)]
+                    stop = "end_turn" if is_last else "tool_use"
+                    for rec in template:
+                        lines.append(_retag(rec, sid=sid, agent_id=name, day=day, msg_id=f"msg_{name}_r{j:03d}", stop_reason=stop))
         (sub_dir / f"agent-{name}.jsonl").write_text("".join(json.dumps(r) + "\n" for r in lines), encoding="utf-8", newline="\n")
 
 
@@ -84,12 +104,12 @@ def run_dispatches(data_dir: Path, *extra: str) -> subprocess.CompletedProcess[s
 
 def test_collect_writes_per_dispatch_rows_and_dispatches_script_filters(data_dir, tmp_path):
     projects = tmp_path / "cfg" / "projects"
-    _write_session_with_subagents(
+    _derive_captured_session(
         projects,
         "proj-a",
         "sess-1",
         [
-            {"name": "par", "agent_type": "discovery:researcher", "date": "2026-08-01", "turns": 5, "parallel": True},
+            {"name": "cap1", "agent_type": "discovery:researcher", "date": "2026-08-01", "verbatim": True},
             {"name": "ceil", "agent_type": "discovery:explorer", "date": "2026-08-02", "turns": 40},
             {"name": "resumed", "agent_type": "discovery:researcher", "date": "2026-08-05", "turns": 40, "resumed": True, "after_resume_turns": 2},
             {"name": "maxturns", "agent_type": "discovery:research-verifier", "date": "2026-08-06", "turns": 30, "stop_reason": "max_turns", "resumed": True},
@@ -158,13 +178,13 @@ def test_collect_writes_per_dispatch_rows_and_dispatches_script_filters(data_dir
 def test_fleet_collect_reports_every_host_with_no_unread_source(data_dir, tmp_path):
     host_a = tmp_path / "host-a" / "config"
     host_b = tmp_path / "host-b" / "config"
-    _write_session_with_subagents(
+    _derive_captured_session(
         host_a / "projects",
         "proj-a",
         "sess-a",
         [{"name": "a1", "agent_type": "discovery:researcher", "date": "2026-09-01", "turns": 12}],
     )
-    _write_session_with_subagents(
+    _derive_captured_session(
         host_b / "projects",
         "proj-b",
         "sess-b",
@@ -198,7 +218,7 @@ def test_fleet_collect_reports_every_host_with_no_unread_source(data_dir, tmp_pa
 
 def test_older_records_without_dispatches_stay_readable_and_named_in_header(data_dir, tmp_path):
     projects = tmp_path / "cfg" / "projects"
-    _write_session_with_subagents(
+    _derive_captured_session(
         projects,
         "proj-a",
         "sess-new",

@@ -137,12 +137,72 @@ def _derive_data_dir(plugin_root: Path) -> Path | None:
     return cache_dir.parent / "data" / plugin_id
 
 
-def _enabled_plugins(config_dir: Path) -> tuple[bool, dict[str, bool]]:
-    """Read `enabledPlugins` from user settings files under `config_dir`; `(found, state)`."""
+_SCOPE_RANK = {"user": 0, "project": 1, "local": 2, "managed": 3}
+_MANAGED_DIRS = {
+    "darwin": Path("/Library/Application Support/ClaudeCode"),
+    "linux": Path("/etc/claude-code"),
+    "win32": Path(r"C:\Program Files\ClaudeCode"),
+}
+
+
+def _same_dir(a: str, b: Path | None) -> bool:
+    if not a or b is None:
+        return False
+    try:
+        return os.path.realpath(os.path.expanduser(a)) == os.path.realpath(b)
+    except OSError:
+        return False
+
+
+def _project_dir() -> Path | None:
+    env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
+    if env_dir:
+        return Path(env_dir).expanduser()
+    try:
+        done = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=5,
+        )
+        if done.returncode == 0 and done.stdout.strip():
+            return Path(done.stdout.strip())
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
+        return Path.cwd()
+    except OSError:
+        return None
+
+
+def _managed_settings_files() -> list[Path]:
+    managed_dir = _MANAGED_DIRS.get(sys.platform)
+    if managed_dir is None:
+        return []
+    files = [managed_dir / "managed-settings.json"]
+    dropin = managed_dir / "managed-settings.d"
+    try:
+        names = sorted(n for n in os.listdir(dropin) if n.endswith(".json") and not n.startswith("."))
+    except OSError:
+        names = []
+    files.extend(dropin / name for name in names)
+    return files
+
+
+def _enabled_plugins(config_dir: Path, project_dir: Path | None) -> tuple[bool, dict[str, bool]]:
+    """Read `enabledPlugins` across Claude Code's settings layers; `(found, state)`."""
+    files = [config_dir / "settings.json", config_dir / "settings.local.json"]
+    if project_dir is not None:
+        files.extend([project_dir / ".claude" / "settings.json", project_dir / ".claude" / "settings.local.json"])
+    session_file = os.environ.get("SESSION_SETTINGS_FILE", "").strip()
+    if session_file:
+        files.append(Path(session_file).expanduser().resolve())
+    files.extend(_managed_settings_files())
     found = False
     state: dict[str, bool] = {}
-    for name in ("settings.json", "settings.local.json"):
-        doc = _read_json(config_dir / name)
+    for path in files:
+        doc = _read_json(path)
         if doc is None:
             continue
         plugins = doc.get("enabledPlugins")
@@ -157,6 +217,7 @@ def find_session_flow(
     *,
     script_override: str = "",
     data_dir_override: str = "",
+    project_dir: Path | None = None,
 ) -> tuple[Path, Path] | None:
     """Locate `(scripts/dispatches.py, plugin_data_dir)` for an installed session-flow plugin, else None."""
     if script_override:
@@ -171,7 +232,8 @@ def find_session_flow(
     if not isinstance(plugins, dict):
         return None
 
-    has_enabled, enabled = _enabled_plugins(config_dir)
+    project = project_dir if project_dir is not None else _project_dir()
+    has_enabled, enabled = _enabled_plugins(config_dir, project)
     for plugin_id in sorted(plugins):
         if not isinstance(plugin_id, str):
             continue
@@ -181,18 +243,29 @@ def find_session_flow(
             continue
         raw_entries = plugins[plugin_id]
         entries = raw_entries if isinstance(raw_entries, list) else [raw_entries]
+        best_rank = -1
+        best_script: Path | None = None
         for entry in entries:
             if not isinstance(entry, dict) or not isinstance(entry.get("installPath"), str):
+                continue
+            scope = entry.get("scope", "user")
+            if scope not in _SCOPE_RANK:
+                continue
+            if scope in ("project", "local") and not _same_dir(str(entry.get("projectPath") or ""), project):
                 continue
             script = Path(entry["installPath"]).expanduser() / "scripts" / "dispatches.py"
             if not script.is_file():
                 continue
+            if _SCOPE_RANK[scope] >= best_rank:
+                best_rank = _SCOPE_RANK[scope]
+                best_script = script
+        if best_script is not None:
             data_dir = (
                 Path(data_dir_override).expanduser()
                 if data_dir_override
                 else config_dir / "plugins" / "data" / re.sub(r"[^A-Za-z0-9_-]", "-", plugin_id)
             )
-            return script, data_dir
+            return best_script, data_dir
     return None
 
 

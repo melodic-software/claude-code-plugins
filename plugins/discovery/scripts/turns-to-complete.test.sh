@@ -245,6 +245,38 @@ CLAUDE_CONFIG_DIR="$HOST_A" expect "disabled session-flow falls back to local so
   --sources-file "$FLEET_SOURCES"
 CLAUDE_CONFIG_DIR="$HOST_A" expect_absent "disabled session-flow does not read remote host" \
   '2026-09-02' --sources-file "$FLEET_SOURCES"
+
+PROJ_DIR="$WORK/project-enabled"
+mkdir -p "$PROJ_DIR/.claude"
+printf '{"enabledPlugins":{"other-plugin@test-mp":true}}\n' >"$HOST_A/settings.json"
+printf '{"enabledPlugins":{"session-flow@test-mp":true}}\n' >"$PROJ_DIR/.claude/settings.json"
+CLAUDE_CONFIG_DIR="$HOST_A" CLAUDE_PROJECT_DIR="$PROJ_DIR" expect \
+  "project .claude/settings.json enabling session-flow overrides user enabledPlugins map" 0 \
+  '^- Source: session-flow store$' --sources-file "$FLEET_SOURCES"
+CLAUDE_CONFIG_DIR="$HOST_A" CLAUDE_PROJECT_DIR="$PROJ_DIR" expect \
+  "project-enabled session-flow reads remote host dispatch from fleet store" 0 \
+  '^\| 2026-09-02 \| discovery:explorer \| 25 \| no \| n/a \|' --sources-file "$FLEET_SOURCES"
+
+printf '{"enabledPlugins":{"session-flow@test-mp":false}}\n' >"$PROJ_DIR/.claude/settings.local.json"
+CLAUDE_CONFIG_DIR="$HOST_A" CLAUDE_PROJECT_DIR="$PROJ_DIR" expect \
+  "project .claude/settings.local.json disabling session-flow overrides project settings.json" 0 \
+  '^- Source: local sources \(session-flow not installed\)$' --sources-file "$FLEET_SOURCES"
+
+rm -f "$PROJ_DIR/.claude/settings.local.json"
+printf '{"version":2,"plugins":{"session-flow@test-mp":[{"scope":"project","projectPath":"%s","installPath":"%s"}]}}\n' \
+  "$PROJ_DIR" "$SF_ROOT" >"$HOST_A/plugins/installed_plugins.json"
+CLAUDE_CONFIG_DIR="$HOST_A" CLAUDE_PROJECT_DIR="$PROJ_DIR" expect \
+  "project-scoped installed_plugins entry matches its projectPath" 0 \
+  '^- Source: session-flow store$' --sources-file "$FLEET_SOURCES"
+OTHER_PROJ="$WORK/other-project"
+mkdir -p "$OTHER_PROJ/.claude"
+printf '{"enabledPlugins":{"session-flow@test-mp":true}}\n' >"$OTHER_PROJ/.claude/settings.json"
+CLAUDE_CONFIG_DIR="$HOST_A" CLAUDE_PROJECT_DIR="$OTHER_PROJ" expect \
+  "project-scoped installed_plugins entry is skipped for another project" 0 \
+  '^- Source: local sources \(session-flow not installed\)$' --sources-file "$FLEET_SOURCES"
+
+printf '{"version":2,"plugins":{"session-flow@test-mp":[{"scope":"user","installPath":"%s"}]}}\n' "$SF_ROOT" \
+  >"$HOST_A/plugins/installed_plugins.json"
 printf '{"enabledPlugins":{"session-flow@test-mp":true}}\n' >"$HOST_A/settings.json"
 
 CLAUDE_CONFIG_DIR="$WORK" expect "explicit session-flow flags read the fleet store" 0 \
