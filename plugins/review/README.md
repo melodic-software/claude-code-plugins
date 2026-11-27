@@ -176,10 +176,10 @@ cases and reports a run. Run `list` and `build` from a clone with full history:
    request, whose revert removes no line the original added, or whose original no longer
    reverses cleanly onto the revert's parent, and prints each skip with its reason on stderr.
 2. `bash plugins/review/evals/revert-cases.sh build <original> <revert> <slug>` writes
-   `evals/revert-<pr>-<slug>/` with a regex grader on those lines and `fixtures.tar.gz`: the
-   files holding those lines at the base and the merge, and the original commit message as the
-   pull request context. They are an archive because they are byte copies of history that
-   repository lints must not judge. A verifier agent then checks the lines, matched by their
+   `evals/revert-<pr>-<slug>/` with a regex grader on those lines and `fixtures/`: the files
+   holding those lines at the base (`base/`) and the merge (`head/`), each as `<path>.txt`, and
+   the original commit message as the pull request context (`pr-context.md.txt`). They are byte
+   copies of history, named `.txt` so repository lints skip them. A verifier agent then checks the lines, matched by their
    text, against the revert and drops any that only repeat a reverted line's text. `build` writes
    the lines to two places, and nothing rebuilds one from the other, so the verifier drops each
    line from both: `expected_outcome` in `prompt.md`, and the line alternation in
