@@ -62,6 +62,7 @@ test("a stop with no code, a done or delivered issue, a wait on a pull request a
   assert.equal(stopRoute("already-done"), "close");
   assert.equal(stopRoute("report-delivered"), "close");
   assert.equal(stopRoute("blocked-by-pr"), "wait");
+  assert.equal(stopRoute("closed-by-open-pr"), "wait");
   assert.equal(stopRoute("split-required"), "intake");
   for (const code of ["already-done", "report-delivered", "blocked-by-pr"]) {
     assert.equal(runCode(`${code}: why`), code);
