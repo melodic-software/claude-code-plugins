@@ -48,7 +48,7 @@ Khorikov defines a precise hierarchy of dependency types. Understanding these is
 
 ### Derived Types
 
-- **Value object (value)**: an immutable private dependency, identified solely by its content (no individual identity). Two instances with the same content are interchangeable. Examples: `Product.Shampoo`, the number `5`, any C# enum or struct used as data.
+- **Value object (value)**: an immutable private dependency, identified solely by its content (no individual identity). Two instances with the same content are interchangeable. Examples: `Product.Shampoo`, the number `5`, any C# enum or struct used as data. <!-- portability-ok: R9 source citation - Khorikov value-object definition -->
 - **Collaborator**: a dependency that is either shared or mutable. "A class providing access to the database is a collaborator since the database is a shared dependency. `Store` is a collaborator too, because its state can change over time."
 
 ### The Hierarchy (Figure 2.4)

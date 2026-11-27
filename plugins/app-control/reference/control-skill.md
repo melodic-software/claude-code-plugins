@@ -195,10 +195,10 @@ browser profile of a server-rendered app mostly shows the client runtime. Drive 
 row, one tool per tier, and the artifact name carries the tier. The server tier's rows record the
 app's own process, never a wrapper shell's, through the runtime's diagnostics tools. Its `logs`
 row may name the runtime's counters recorder, which saves counter values (such as CPU use, GC and
-thread pool counts) over the run to a file, launching the app as its child: for .NET 5 or later,
-`dotnet-counters collect --format json -o <file> -- <command>`, where `<command>` starts the app
-itself (a self-contained executable or `dotnet exec <app.dll>`), never `dotnet run`, since the
-tool records the first .NET process that connects to it. A counters file is not a sampled profile.
+thread pool counts) over the run to a file, launching the app as its child: for .NET 5 or later, <!-- portability-ok: R6 kept-adapter operation - dotnet-counters runtime capture -->
+`dotnet-counters collect --format json -o <file> -- <command>`, where `<command>` starts the app <!-- portability-ok: R6 kept-adapter operation - dotnet-counters runtime capture -->
+itself (a self-contained executable or `dotnet exec <app.dll>`), never `dotnet run`, since the <!-- portability-ok: R6 kept-adapter operation - dotnet-counters runtime capture -->
+tool records the first .NET process that connects to it. A counters file is not a sampled profile. <!-- portability-ok: R6 kept-adapter operation - dotnet-counters runtime capture -->
 
 Write a `threads` command, and a `cpu` or `heap` command that targets a running process, with a
 `<pid>` placeholder and no elevation prefix, and with `<file>` where the tool takes an output path;

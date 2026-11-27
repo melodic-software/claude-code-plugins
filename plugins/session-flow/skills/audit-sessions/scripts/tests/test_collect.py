@@ -152,6 +152,17 @@ def test_full_session_record(data_dir, multi):
         "by_type": {"Explore": 1},
         "by_model": {"claude-haiku-4-5-20251001": 1},
         "by_depth": {"1": 1},
+        "dispatches": [
+            {
+                "agent_type": "Explore",
+                "date": "2026-09-20",
+                "turns": 1,
+                "last_stop_reason": None,
+                "hit_max_turns": False,
+                "resumed_after_turn": 1,
+                "resumed_after_max_turns": False,
+            }
+        ],
     }
     assert rec["stop_hooks"] == {
         "runs": 1,

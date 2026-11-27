@@ -32,6 +32,29 @@
     "*.img"
   ],
   "os_temp_recommendation_threshold_bytes": 1073741824,
+  "inventory_bounded_stores": [
+    { "glob": ".npm", "reason": "npm cache directory" },
+    { "glob": "AppData/Local/npm-cache", "reason": "npm cache directory" },
+    { "glob": ".nuget/packages", "reason": "NuGet global packages folder" },
+    { "glob": ".cache/*", "reason": "per-tool cache directory under the XDG cache home" },
+    { "glob": "Library/Caches/*", "reason": "per-app cache directory" },
+    { "glob": ".cargo/registry", "reason": "Cargo registry cache" },
+    { "glob": ".rustup/toolchains/*", "reason": "rustup toolchain install" },
+    { "glob": "go/pkg/mod", "reason": "Go module cache" },
+    { "glob": ".gradle/caches", "reason": "Gradle cache directory" },
+    { "glob": ".m2/repository", "reason": "Maven local repository" },
+    { "glob": ".claude/projects/*", "reason": "Claude Code project transcripts and auto memory" },
+    { "glob": ".claude/file-history", "reason": "Claude Code checkpoint file snapshots" },
+    { "glob": ".claude/plugins/cache/*/*/*", "reason": "Claude Code installed plugin version" },
+    { "glob": ".claude/plugins/cache/temp_git_*", "reason": "Claude Code plugin staging clone" },
+    { "glob": ".claude/plugins/marketplaces/*", "reason": "Claude Code cloned plugin marketplace" },
+    { "glob": ".claude/plugins/data/*", "reason": "Claude Code per-plugin data directory" },
+    { "glob": ".claude/debug", "reason": "Claude Code debug logs" },
+    { "glob": ".claude/paste-cache", "reason": "Claude Code paste cache" },
+    { "glob": ".claude/image-cache", "reason": "Claude Code legacy image cache" },
+    { "glob": ".claude/shell-snapshots", "reason": "Claude Code shell snapshots" },
+    { "glob": ".claude/usage-data", "reason": "Claude Code usage report data" }
+  ],
   "hints": [
     {
       "id": "common-temp-file",

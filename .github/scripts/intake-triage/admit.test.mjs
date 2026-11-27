@@ -290,16 +290,17 @@ describe("decide", () => {
     test("a filing whose source label is on hold-sources is refused for a listed human with the reason, and an unlisted source is admitted", () => {
       const HELD = "source: architecture-improve";
       const HELD_REASON = "its producer's label `source: architecture-improve` is on own-agents.hold-sources, whose filings wait for a listed human to decide them";
+      const rules = { ...RULES, "own-agents": { ...RULES["own-agents"], "hold-sources": [HELD] } };
       const held = ownIssue([{ name: READY }, { name: HELD }]);
       for (const size of ["small", "medium"]) {
-        assert.deepEqual(decide(own({ issue: held, verdict: sized(size) })), { verdict: "refuse", reasons: [HELD_REASON], hold: true, reason: "intent" }, size);
-        assert.deepEqual(decide(own({ verdict: sized(size) })), { verdict: "admit", reasons: [] }, `${SOURCE} at ${size}`);
+        assert.deepEqual(decide(own({ issue: held, rules, verdict: sized(size) })), { verdict: "refuse", reasons: [HELD_REASON], hold: true, reason: "intent" }, size);
+        assert.deepEqual(decide(own({ rules, verdict: sized(size) })), { verdict: "admit", reasons: [] }, `${SOURCE} at ${size}`);
       }
       const shouted = ownIssue([{ name: READY }, { name: "Source: Architecture-Improve" }]);
-      assert.equal(decide(own({ issue: shouted })).verdict, "refuse", "the label matches whatever its case");
+      assert.equal(decide(own({ issue: shouted, rules })).verdict, "refuse", "the label matches whatever its case");
     });
 
-    test("an edit to hold-sources in the rules file alone changes the verdict: emptied or missing admits, listing improvement-find holds it", () => {
+    test("an edit to hold-sources in the rules file alone changes the verdict: shipped, emptied or missing admits, listing a source holds it", () => {
       const dir = tempDir("admit-hold-edit-");
       const shipped = JSON.parse(readFileSync(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)), "utf8"));
       const { "hold-sources": _, ...noKey } = shipped["own-agents"];
@@ -309,8 +310,8 @@ describe("decide", () => {
         return loadRules(path);
       };
       const held = ownIssue([{ name: READY }, { name: "source: architecture-improve" }]);
-      assert.equal(decide(own({ issue: held, rules: rulesWith("shipped", shipped["own-agents"]) })).verdict, "refuse");
-      for (const [name, ownAgents] of [["missing", noKey], ["empty", { ...noKey, "hold-sources": [] }]]) {
+      assert.equal(decide(own({ issue: held, rules: rulesWith("architecture", { ...noKey, "hold-sources": ["source: architecture-improve"] }) })).verdict, "refuse");
+      for (const [name, ownAgents] of [["shipped", shipped["own-agents"]], ["missing", noKey], ["empty", { ...noKey, "hold-sources": [] }]]) {
         assert.deepEqual(decide(own({ issue: held, rules: rulesWith(name, ownAgents) })), { verdict: "admit", reasons: [] }, name);
       }
       const findHeld = rulesWith("find", { ...noKey, "hold-sources": [SOURCE] });
@@ -318,35 +319,40 @@ describe("decide", () => {
       rmSync(dir, { recursive: true, force: true });
     });
 
-    test("loadRules reads a file with no hold-sources key as an empty list, and the shipped rules hold source: architecture-improve", () => {
+    test("loadRules reads a file with no hold-sources key as an empty list, and the shipped rules hold no source", () => {
       const dir = tempDir("admit-hold-");
       const shipped = JSON.parse(readFileSync(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)), "utf8"));
       const { "hold-sources": _, ...ownAgents } = shipped["own-agents"];
       const path = join(dir, "no-hold.json");
       writeFileSync(path, JSON.stringify({ ...shipped, "own-agents": ownAgents }));
       assert.deepEqual(loadRules(path)["own-agents"]["hold-sources"], []);
-      assert.deepEqual(RULES["own-agents"]["hold-sources"], ["source: architecture-improve"]);
+      assert.deepEqual(RULES["own-agents"]["hold-sources"], []);
       assert.match(shipped.description, /`hold-sources`/);
       rmSync(dir, { recursive: true, force: true });
     });
 
-    test("an architecture scan filing by github-actions[bot] is never admitted, even shaped as an upstream-drift issue, and its body is never trusted spec", () => {
+    test("a held source's filing by github-actions[bot] is never admitted, even shaped as an upstream-drift issue, and its body is never trusted spec", () => {
       const ACTIONS_ACTOR = { __typename: "Bot", databaseId: ACTIONS_BOT_ID };
       const HELD = "source: architecture-improve";
       const HELD_REASON = "its producer's label `source: architecture-improve` is on own-agents.hold-sources, whose filings wait for a listed human to decide them";
+      const rules = { ...RULES, "own-agents": { ...RULES["own-agents"], "hold-sources": [HELD] } };
       const modelBody = "## Problem\n\nShallow module at `src/a.mjs:1`.\n\n## Done when\n\n- [ ] Deepen it.";
       const forgedTitle = "Upstream drift: anthropics/claude-code";
       const forgedBody = `Upstream \`anthropics/claude-code\` changed since the pin on its docs/upstream page.\n\n${modelBody}`;
       for (const [name, title, body] of [["plain", "Deepen module a", modelBody], ["drift-shaped", forgedTitle, forgedBody]]) {
         const issue = issueOf({ user: { id: ACTIONS_BOT_ID }, title, body, labels: [{ name: READY }, { name: HELD }] });
         const spec = { ...written(ACTIONS_ACTOR, { body }), title, comments: [] };
-        const result = decide(facts({ issue, spec, sourceOpen: [7] }));
+        const result = decide(facts({ issue, spec, sourceOpen: [7], rules }));
         assert.equal(result.verdict, "refuse", name);
         assert.equal(result.hold, true, name);
         assert.ok(result.reasons.includes(HELD_REASON), `${name}: ${JSON.stringify(result.reasons)}`);
         const texts = trustedSpecTexts(spec, humans, APP, RULES["task-list"], ownAgentIds(RULES, APP));
         assert.ok(!texts.some((text) => text.includes("Shallow module")), `${name}: the model body is no trusted text`);
       }
+      const plain = issueOf({ user: { id: ACTIONS_BOT_ID }, title: "Deepen module a", body: modelBody, labels: [{ name: READY }, { name: HELD }] });
+      const shipped = decide(facts({ issue: plain, spec: { ...written(ACTIONS_ACTOR, { body: modelBody }), title: plain.title, comments: [] }, sourceOpen: [7] }));
+      assert.equal(shipped.verdict, "refuse", "with no hold listed, a github-actions[bot] filing still fails the author check");
+      assert.ok(shipped.reasons.includes("the author is neither a listed human nor the lanes App"), JSON.stringify(shipped.reasons));
     });
 
     test("ownAgentIds never counts github-actions[bot], listed or as the App id", () => {

@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [16.3.1] - 2026-11-27
+
+### Fixed
+
+- Exclude validated `<style>` bodies without raw `<` from the HTML text escaping scan in shared `html-escape.mjs` and `view-builder.mjs` so quoted CSS font stacks, attribute selectors and child combinators pass validation.
+
+## [16.3.0] - 2026-11-27
+
+### Added
+
+- work-item tracker: add feature-detected GitHub Issue Artifacts (`put-artifact`, `list-artifacts`, `get-artifact`) and symmetric `"Relates to"` (`link-relates`, `unlink-relates`, `list-relates`) verbs with graceful exit `6` fallback when unavailable, plus concise artifact/link guidance in `publish-plan`, `edit`, `work`, and `decompose` (Refs #19449).
+
 ## [16.2.7] - 2026-11-27
 
 ### Changed

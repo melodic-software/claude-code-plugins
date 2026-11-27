@@ -45,7 +45,7 @@ are fixed upstream, never in this sweep; filter them out before fixing.
 
 - skill: testing:audit
 - args: .
-- applies-when: repo has tests in JavaScript, TypeScript, Python, or C#
+- applies-when: repo has tests in JavaScript, TypeScript, Python, or C# <!-- portability-ok: R6 kept-adapter language applicability for testing:audit -->
 - prime: false
 - checked: true
 

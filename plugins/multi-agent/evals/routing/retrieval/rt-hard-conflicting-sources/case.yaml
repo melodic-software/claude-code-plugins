@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: rt-hard-conflicting-sources
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'names-source'
+    type: 'regex'
+    pattern: '^[^\n]*\bauthoritative_source\b[^\n:]*:[*`\s]*(?:\./)?docs/contracts/webhook-delivery\.md\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'correct-backoff'
+    type: 'regex'
+    pattern: '^[^\n]*\bmax_backoff_seconds\b[^\n:]*:[*`\s]*90(?![0-9])'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'correct-jitter'
+    type: 'regex'
+    pattern: '^[^\n]*\bjitter_mode\b[^\n:]*:[*`\s]*decorrelated\b'
+    flags: 'im'
+    target: 'last_message'

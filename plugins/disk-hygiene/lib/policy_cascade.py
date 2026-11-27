@@ -62,6 +62,7 @@ class BaselineSnapshot:
     disk_image_name_globs: tuple[str, ...]
     os_temp_recommendation_threshold_bytes: int
     hints_json: str
+    inventory_bounded_stores_json: str = "[]"
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -173,17 +174,25 @@ def consumer_protection_matches(
     return merge_protection_matches(matches)
 
 
-def _validate_protection_glob_entry(entry: Any) -> None:
+def _validate_protection_glob_entry(entry: Any, label: str = "protection glob") -> None:
     if protection_glob_pattern(entry) is None:
         raise PolicyError(
-            "protection globs must be non-empty strings or {glob, reason} objects"
+            f"{label}s must be non-empty strings or {{glob, reason}} objects"
         )
     if not isinstance(entry, dict):
         return
     if not set(entry) <= {"glob", "reason"}:
-        raise PolicyError("protection glob objects may only carry glob and reason")
+        raise PolicyError(f"{label} objects may only carry glob and reason")
     if "reason" in entry and not (isinstance(entry["reason"], str) and entry["reason"]):
-        raise PolicyError("protection glob reason must be a non-empty string")
+        raise PolicyError(f"{label} reason must be a non-empty string")
+
+
+def _bounded_store_entries(entries: Any, source: Path | str) -> list[Any]:
+    if not isinstance(entries, list):
+        raise PolicyError(f"inventory bounded stores must be an array: {source}")
+    for entry in entries:
+        _validate_protection_glob_entry(entry, "inventory bounded store")
+    return entries
 
 
 def _parse_baseline_snapshot(baseline_path: Path) -> BaselineSnapshot:
@@ -207,6 +216,11 @@ def _parse_baseline_snapshot(baseline_path: Path) -> BaselineSnapshot:
         disk_image_name_globs=tuple(baseline.get("disk_image_name_globs", [])),
         os_temp_recommendation_threshold_bytes=threshold,
         hints_json=json.dumps(baseline.get("hints", [])),
+        inventory_bounded_stores_json=json.dumps(
+            _bounded_store_entries(
+                baseline.get("inventory_bounded_stores", []), baseline_path
+            )
+        ),
     )
 
 
@@ -229,6 +243,7 @@ def baseline_policy(baseline_path: Path = BASELINE_POLICY) -> dict[str, Any]:
         ),
         "hints": json.loads(snap.hints_json),
         "additional_protected_path_globs": [],
+        "inventory_bounded_stores": json.loads(snap.inventory_bounded_stores_json),
         "hint_sources": {},
         "rules": [],
         "elevation": "never",
@@ -556,6 +571,7 @@ def apply_policy_overlay(
         "disabled_hint_ids",
         "additional_hints",
         "additional_protected_path_globs",
+        "additional_inventory_bounded_stores",
     }
     if version == 2:
         allowed.update({"rules", "elevation"})
@@ -573,6 +589,9 @@ def apply_policy_overlay(
         raise PolicyError("policy IDs must be non-empty strings")
     for item in protections:
         _validate_protection_glob_entry(item)
+    stores = _bounded_store_entries(
+        overlay.get("additional_inventory_bounded_stores", []), overlay_path
+    )
     if not isinstance(additions, list):
         raise PolicyError("additional_hints must be an array")
     known_ids = {hint.get("id") for hint in result["hints"]}
@@ -606,6 +625,7 @@ def apply_policy_overlay(
     result["hints"].extend(additions)
     result["hint_sources"].update({hint["id"]: str(overlay_path) for hint in additions})
     result["additional_protected_path_globs"].extend(protections)
+    result["inventory_bounded_stores"].extend(stores)
     result["rules"].extend(rules)
     result["elevation"] = elevation
     result["policy_sources"].append(str(overlay_path))

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "outcome: denied\nerror_code: ERR_EXPORT_SCOPE_REQUIRED\nprimary_source: src/authz/export_gate.py\n",
+      "why": "exact error code from export_gate.py"
+    },
+    {
+      "answer": "- **outcome:** `denied`\n- **error_code:** `ERR_EXPORT_SCOPE_REQUIRED` (not `ERR_SCOPE_MISSING`)\n- **primary_source:** `src/authz/export_gate.py`\n",
+      "why": "markdown formatted error code with note"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "outcome: allowed\nerror_code: none\nprimary_source: docs/faq.md\n",
+      "why": "returns none from secondary docs"
+    },
+    {
+      "answer": "outcome: denied\nerror_code: ERR_SCOPE_MISSING\nprimary_source: src/authz/audit_reader.py\n",
+      "why": "guesses generic error code mentioned in FAQ"
+    },
+    {
+      "answer": "outcome: denied\nerror_code: ERR_SCOPE_MISSING (or ERR_EXPORT_SCOPE_REQUIRED)\nprimary_source: src/authz/export_gate.py\n",
+      "why": "hedges with wrong error code first"
+    }
+  ]
+}

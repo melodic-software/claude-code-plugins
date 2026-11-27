@@ -118,7 +118,7 @@ Rung 4 splits on what the content is keyed to. Get this wrong and the rule eithe
 fires constantly.
 
 **Keyed to a file kind → path-scoped rule** (`.claude/rules/<topic>.md` with `paths:`). The content
-governs files identified by extension or filename pattern, wherever they sit: C# conventions, test
+governs files identified by extension or filename pattern, wherever they sit: C# conventions, test <!-- portability-ok: R6 illustrative path-scoped rule example -->
 file conventions, migration file conventions. Cross-cutting by nature.
 
 **Keyed to a place → nested `AGENTS.md` + `CLAUDE.md` shim** in that directory. The content governs

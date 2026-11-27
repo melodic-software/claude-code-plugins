@@ -1314,6 +1314,22 @@ jobs:
           fi
           scripts/check-skill-count-claims.sh --check
 
+      - name: Check the lifecycle map matches marketplace.json and workflows
+        id: lifecycle_map
+        continue-on-error: true
+        env:
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
+        shell: bash scripts/run-hygiene-gate.sh lifecycle-map {0}
+        run: |
+          if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD" -- \
+            .claude-plugin/marketplace.json '.github/workflows' \
+            docs/conventions/lifecycle-map/README.md scripts/check-lifecycle-map.sh \
+            .github/workflows/pr-require-checks.yml) && [ -z "$changed" ]; then
+            echo "::notice::No lifecycle-map input changed since $DIFF_BASE; the scheduled run scans the whole tree."
+            exit 0
+          fi
+          scripts/check-lifecycle-map.sh --check
+
       - name: Report docs-irrelevant checks not applicable to a docs-only diff
         if: needs.select-tests.outputs.run_full == 'false'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, the dependabot and workflow schemas, zizmor, the runner policy) cannot be affected — reporting success for them. Exec-bit, hook-wiring-liveness, purged-em-dashes, next-graph and vocabulary scan the whole repo and stay unconditional."
@@ -1456,6 +1472,7 @@ jobs:
             hook-wiring-liveness=${{ steps.hook_wiring.outcome }}
             next-graph=${{ steps.next_graph.outcome }}
             skill-count-claims=${{ steps.skill_count_claims.outcome }}
+            lifecycle-map=${{ steps.lifecycle_map.outcome }}
             runner-policy=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.runner_policy.outcome }}
         run: scripts/aggregate-hygiene-results.sh
 

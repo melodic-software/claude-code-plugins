@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # test-scope: plugins/planning/skills/*
 # test-scope: plugins/planning/scripts/repin-digests.sh
-# test-scope: plugins/planning/scripts/lib/pin-digests.sh
+# test-scope: plugins/planning/scripts/lib/pin-digests.sh plugins/planning/scripts/lib/check-sweep.sh
 # test-scope: plugins/planning/tests/interview-defenses.test.sh
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

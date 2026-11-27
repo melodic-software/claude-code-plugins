@@ -63,7 +63,7 @@ e.g., `/testing:run-e2e`, `/testing:run-e2e the login flow`, `/testing:run-e2e n
 | UI flows, browser evidence, API + UI orchestration | [context/e2e.md](context/e2e.md) |
 | Non-UI runtime surface (library, MCP server, hooks, scripts, infrastructure) | [context/non-ui.md](context/non-ui.md) |
 
-UI changes (Blazor / Razor / HTML / CSS / JS shipped to browser) take the e2e route, where the UI
+UI changes (Blazor / Razor / HTML / CSS / JS shipped to browser) take the e2e route, where the UI <!-- portability-ok: R6 UI surface routing examples for e2e route -->
 evidence contract applies.
 
 A non-UI run skips Step 1: its rows run test suites and handshakes, which `/app-control:drive` (if enabled) does

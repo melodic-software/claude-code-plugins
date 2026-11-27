@@ -110,7 +110,7 @@ non-source paths are not in the coverage total.
 ### gopls: Go
 
 - **Invocation:** `gopls check -severity=hint`, run with cwd set to the module root, one root per
-  `go.mod`. Go passes the no-build rule while Rust and a .NET build analyzer do not: a gopls run
+  `go.mod`. Go passes the no-build rule while Rust and a .NET build analyzer do not: a gopls run <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh C# grep pass -->
   executes no project code, since Go has no `build.rs` equivalent.
   - **Pointer**: when checking how gopls computes its diagnostics, fetch
     [Gopls: Diagnostics](https://go.dev/gopls/features/diagnostics) live.
@@ -137,6 +137,7 @@ non-source paths are not in the coverage total.
   unused`. Exit **0** while carrying that finding, with the used and exported functions correctly
   left un-hinted.
 
+<!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh C# grep pass -->
 ### grep: shell, PowerShell, C#, and standalone JS/TS
 
 - **The portable floor is `grep -w -F -f <names>`** over the repository's tracked files. `-F` is
@@ -165,7 +166,7 @@ non-source paths are not in the coverage total.
   candidate. Tier 2 follows from the figure. The precision is below the tier 1 shell symbols,
   and an export used only by an outside consumer reads as unreferenced. A symbol used only inside
   its own file counts as referenced and stays unreported.
-- **C# is read as text and nothing is built.** No `dotnet`, MSBuild, restore or analyzer runs. The
+- **C# is read as text and nothing is built.** No `dotnet`, MSBuild, restore or analyzer runs. The <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh C# grep pass -->
   extractor takes `class`, `struct`, `interface`, `enum` and `record` declarations, and members
   whose line opens with `public`, `internal`, `protected` or `private`. The name is the last word
   before the parameter list, initializer, terminator or accessor body. Not extracted: a member with
@@ -173,26 +174,26 @@ non-source paths are not in the coverage total.
   name), a constructor, an indexer and a tuple-typed member. A line yields one name, so
   `int alpha, beta;` yields only `beta`, and `int alpha = 1, beta = 2;` only `alpha`. There is no overload or type resolution, and no unused-parameter or unused-`using`
   detection.
-- **Two C# shapes, one reference rule.** A `private` declaration (not `private protected`) is
+- **Two C# shapes, one reference rule.** A `private` declaration (not `private protected`) is <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh C# grep pass -->
   `cs-unreferenced-private`; any other is `cs-unreferenced-symbol`. Both use the
   referenced-anywhere rule above. A private member is accessible "only within the body of the
   class or the struct where you declare them", and from nested types in that body
-  ([private keyword](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/private)),
+  ([private keyword](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/private)), <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh C# grep pass -->
   but a partial type spreads that body over files: "Any class, struct, or interface members
   declared in a partial definition are available to all the other parts"
-  ([Partial classes and members](https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/classes-and-structs/partial-classes-and-methods)).
+  ([Partial classes and members](https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/classes-and-structs/partial-classes-and-methods)). <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh C# grep pass -->
   The repository-wide search covers both, and a reflection lookup by a string literal in another
   file. The cost is recall: a dead name that matches any other word in the repository is saved.
   No stop list is applied, because a short common name (`Get`, `Name`) costs recall, never
   precision. Both pages read 2026-10-29.
-- **Markup is in the reference corpus.** `.razor` and `.cshtml` files are tracked, so the search
+- **Markup is in the reference corpus.** `.razor` and `.cshtml` files are tracked, so the search <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh C# grep pass -->
   reads them. A component names its handler in markup as `@on{DOM EVENT}="{DELEGATE}"`
-  ([Blazor event handling](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/event-handling),
+  ([Blazor event handling](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/event-handling), <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh C# grep pass -->
   read 2026-10-29), so a code-behind handler `@onclick` names, or a `[Parameter]` property a
   parent sets, is saved. The analyzer extracts nothing from markup, and markup is not in the coverage
   total.
-- **C# figures** come from the trap corpus `cs-orders.cs`, `cs-program.cs`,
-  `OrderCounter.razor.cs`, `OrderCounter.razor` and `OrderPage.razor`: the candidate set
+- **C# figures** come from the trap corpus `cs-orders.cs`, `cs-program.cs`, <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh C# grep pass -->
+  `OrderCounter.razor.cs`, `OrderCounter.razor` and `OrderPage.razor`: the candidate set <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh C# grep pass -->
   `scripts/dead-code-scan.test.sh` asserts, recorded 2026-10-29. `cs-unreferenced-private`: 3
   candidates, 2 true (`_staleCounter`, `FormatLegacyOrder`) and 1 false (`OnAudit`, invoked by
   reflection under a name built at run time), so **66.7% precision**. Of 3 dead private members it
@@ -202,7 +203,7 @@ non-source paths are not in the coverage total.
   **33.3% precision** and **100% recall** (1 of 1). Saved: the interface implementation `Handle`,
   the Razor handler `HandleRefresh`, the parameter `Total` and the used class `QuantityRules`.
   Each shape yields a false dead, so both are tier 2.
-- **How the C# pass fails.** False dead: reflection by a computed name, DI or assembly scanning,
+- **How the C# pass fails.** False dead: reflection by a computed name, DI or assembly scanning, <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh C# grep pass -->
   MediatR-style handler discovery, a property only a serializer reads, a member a source generator
   calls, a <!-- spellchecker:off -->`[JSInvokable("alias")]`<!-- spellchecker:on --> method JavaScript calls by the alias, a component only `@page`
   routing reaches, and an entry-point `Main`. False alive: a dead name shared with any other
@@ -214,8 +215,8 @@ non-source paths are not in the coverage total.
   compiled unit is named by its stem (`new Widget()`, `mod widget;`), never its filename. A hit in
   any other tracked file saves it. That includes CI workflows, settings, manifests, and docs. A hit
   inside the file itself does not. The input set is shell, PowerShell, Python entry points (line-1
-  shebang, a `__name__` guard, or `__main__.py`), JS/TS that no `package.json` root owns, C# (keyed
-  on its stem with every extension dropped, so `Counter.razor.cs` is saved by `<Counter`), and
+  shebang, a `__name__` guard, or `__main__.py`), JS/TS that no `package.json` root owns, C# (keyed <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh C# grep pass -->
+  on its stem with every extension dropped, so `Counter.razor.cs` is saved by `<Counter`), and <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh C# grep pass -->
   source extensions with no analyzer. Go stays on the gopls analyzer. Knip still owns unused TS/JS files
   inside a manifest root. The shape is tier 2: a computed path, a glob, `python -m`, or a build
   file that never spells the path can still load the file, so the candidate is uncertain, not
@@ -224,14 +225,15 @@ non-source paths are not in the coverage total.
 - **`-H -o` attribute each match to its file**, and the analyzer relies on BSD grep taking both flags.
   Pointer: [FreeBSD grep(1)](https://man.freebsd.org/cgi/man.cgi?query=grep&sektion=1).
 
+<!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh C# grep pass -->
 ## Why Rust, a .NET build analyzer, and an LSP scanning analyzer are absent
 
-- **Rust and a .NET build analyzer**: rust-analyzer's dead-code signal comes from `cargo check`, which
+- **Rust and a .NET build analyzer**: rust-analyzer's dead-code signal comes from `cargo check`, which <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh C# grep pass -->
   compiles `build.rs` and proc macros; the Roslyn server signals "project needs to be restored";
   clangd needs `compile_commands.json`; jdtls needs a built classpath. Every one of them builds or
   executes project code. The exclusion trigger is a detector that does neither. That trigger is
-  what admitted Go, and what admits the grep analyzer's C# pass, which reads `.cs` text and runs no
-  .NET tool. A Roslyn or ReSharper analyzer, with unused parameters and unnecessary `using` directives,
+  what admitted Go, and what admits the grep analyzer's C# pass, which reads `.cs` text and runs no <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh C# grep pass -->
+  .NET tool. A Roslyn or ReSharper analyzer, with unused parameters and unnecessary `using` directives, <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh C# grep pass -->
   stays excluded. Source files in the other languages still enter the grep analyzer's
   `unreferenced-file` search, which does not build.
 - **An LSP scanning analyzer**: an analyzer is a detector the scan script runs in one batch. Claude Code's

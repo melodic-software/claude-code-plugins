@@ -133,16 +133,16 @@ style conflicts route to the consuming ecosystem, not a house verdict.
     how the name and description fields are used.
 - Documented, unresolved style conflicts. Route these to the consuming
   ecosystem's guide and do not pick a side:
-  - abbreviation policy: .NET forbids ([dotnet-naming]) vs Go endorses
+  - abbreviation policy: .NET forbids ([dotnet-naming]) vs Go endorses <!-- portability-ok: R9 source citation - published naming guidelines -->
     short scope-local names ([effective-go]);
-  - acronym casing: Go `URL`/`appID` ([go-initialisms]) vs .NET/Java
-    `Xml`/`Html` ([dotnet-naming], [google-style]);
+  - acronym casing: Go `URL`/`appID` ([go-initialisms]) vs .NET/Java <!-- portability-ok: R9 source citation - published naming guidelines -->
+    `Xml`/`Html` ([dotnet-naming], [google-style]); <!-- portability-ok: R9 source citation - published naming guidelines -->
   - camelCase vs snake_case: no settled comprehension verdict. PEP 8
     ([pep8]) and each ecosystem's guide decide it locally.
 
 ## Framework / style-guide naming (supporting)
 
-- .NET naming guidelines (Microsoft): [dotnet-naming]. PRIMARY. Reproduces
+- .NET naming guidelines (Microsoft): [dotnet-naming]. PRIMARY. Reproduces <!-- portability-ok: R9 source citation - published naming guidelines -->
   the 2008 2nd-edition text (self-flagged), so treat the specific DO/DO NOT
   rules as Tier-2. Basis: the 3rd edition (2020) was not freely available.
   Recheck trigger: the 3rd-edition text becoming reachable,
@@ -160,6 +160,7 @@ style conflicts route to the consuming ecosystem, not a house verdict.
 [tk-1974-pdf]: https://www.cs.tufts.edu/comp/150AIH/pdf/TverskyKa74.pdf
 [elim-bracket]: https://en.wikipedia.org/wiki/Double-elimination_tournament
 [condorcet]: https://en.wikipedia.org/wiki/Condorcet_method
+<!-- portability-ok: R9 source citation - published naming guidelines -->
 [dotnet-naming]: https://learn.microsoft.com/en-us/dotnet/standard/design-guidelines/naming-guidelines
 [henney]: https://www.infoq.com/presentations/7-ineffective-coding-habits/
 [google-style]: https://google.github.io/styleguide/
