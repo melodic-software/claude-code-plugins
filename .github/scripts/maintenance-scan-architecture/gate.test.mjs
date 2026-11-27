@@ -90,7 +90,7 @@ const matches = (rule, command) => {
 const HELPERS = ["improvement/lib/state-key.sh", "architecture/lib/resolve-convention-home.sh", "architecture/lib/read-verification.sh", "architecture/skills/improve/scripts/improve-settings.mjs"];
 const permitted = ({ allowed, disallowed }, command) => allowed.some((rule) => matches(rule, command)) && !disallowed.some((rule) => matches(rule, command));
 
-test("the model legs' Bash rules refuse each route to arbitrary code, /proc, ../ or a write outside .work, and still allow the scan's own commands (reads elsewhere wait on the sandbox read block, ci-workflows#1241)", () => {
+test("the model legs' Bash rules admit none of the escape routes and still allow the scan's own commands (Claude Code auto-approves read-only commands, so reads outside the checkout also wait on the sandbox read block, ci-workflows#1241)", () => {
   const ws = "/runner/work/r/r";
   const tools = modelTools(ws);
   for (const command of [
@@ -110,6 +110,15 @@ test("the model legs' Bash rules refuse each route to arbitrary code, /proc, ../
     "uniq notes.txt src/example.mjs",
     `node ${ws}/.lane/plugins/architecture/lib/prerequisites.mjs check .work/p`,
     `bash ${ws}/.lane/plugins/architecture/skills/map-containers/scripts/collect-containers.sh --out src/example.mjs`,
+    "head /home/runner/.claude/.credentials.json",
+    "grep -r KEY /home/runner",
+    "head ~/.claude/.credentials.json",
+    `head "$HOME/.claude/.credentials.json"`,
+    `cut -d= -f2 "/home/runner/work/_temp/settings.json"`,
+    "wc -c < /etc/passwd",
+    "sort /etc/passwd",
+    "head -50 src/a.mjs",
+    "grep -rn KEY .",
     "git log -p",
     "git log --since='90 days ago' --pretty=format: --name-only --output=src/a.mjs",
     `node ${ws}/.lane/plugins/architecture/skills/improve/scripts/improve-settings.mjs --home /home/runner`,
