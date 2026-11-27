@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, lint=PASS)\nThe target already failed lint before the edit (owner-marker); the edit added no failure.", "why": "names the earlier failure after the line"},
+    {"answer": "onboarding.md: compressed (lint=PASS). Note: docs/onboarding.md has a pre-existing owner-marker failure.", "why": "pre-existing wording"},
+    {"answer": "lint=PASS for onboarding.md; it was failing at baseline (owner-marker) and still fails the same way.", "why": "baseline wording"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, lint=PASS)", "why": "does not say the target already failed"},
+    {"answer": "onboarding.md: compressed (lint=PASS). Lint is clean.", "why": "claims the file passes lint"}
+  ]
+}
