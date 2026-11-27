@@ -99,7 +99,7 @@ and when it does not, the turn runs and its usage row reads `matched: false`. Th
 Send hidden and Noted, Dispute, Why and Dismiss working; a refused delivery leaves it unsent and
 records the error. A category in `observer_defer_kinds` (empty by default) found while a main turn
 runs is written to the ledger and band at once but held, and every finding held that turn goes in
-one observer turn when it ends; its `auto_sent` row carries `deferred`, the count sent. `observer_guidance` steers what checks look for; it does not choose what is sent:
+one observer turn when it ends, except one the person disputed, dismissed or sent, or a check marked resolved; its `auto_sent` row carries `deferred`, the count sent. `observer_guidance` steers what checks look for; it does not choose what is sent:
 to stop sending, turn auto-send off.
 
 **Gate.** With `observer_gate_check` on, a Bash command matching `observer_gate_pattern` waits for a

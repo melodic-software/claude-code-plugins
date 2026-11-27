@@ -232,6 +232,8 @@ const answered = (s: State, answer: string, toast?: string): Result => ({
   ],
 })
 
+const undefer = (s: State, card: Card | null): State => (card === null ? s : { ...s, deferred: s.deferred.filter(c => c.id !== card.id) })
+
 const failure = ({ reason, lengths }: ParseFailure): ParseFailure => (lengths ? { reason, lengths } : { reason })
 
 const replied = (s: State, e: Extract<Event, { kind: 'check-replied' }>, o: Options): Result => {
@@ -252,7 +254,7 @@ const replied = (s: State, e: Extract<Event, { kind: 'check-replied' }>, o: Opti
   const effects: Effect[] = []
   if (isCurrent && open !== null && s.card?.id === open.id && isResolved(text)) {
     effects.push({ kind: 'ledger', path: open.ledger, line: 'resolved', finding: open.finding }, { kind: 'record', row: { answer: 'resolved' } }, { kind: 'invalidate' })
-    state = { ...state, card: null }
+    state = { ...undefer(state, open), card: null }
   }
   if (!isCurrent) return finish(state, 'stale', effects, { held: parsed.kind === 'finding' })
   if (parsed.kind === 'none') return finish(state, 'none', effects)
@@ -397,20 +399,20 @@ export const step = (s: State, e: Event, o: Options): Result => {
       return s.card === null ? none() : answered(s, 'noted', e.ok ? 'observer: noted in the running-retro ledger' : `observer: could not write ${s.card.ledger}`)
     case 'send': {
       if (s.card === null) return none()
-      const r = answered(s, 'sent')
+      const r = answered(undefer(s, s.card), 'sent')
       return { state: r.state, effects: [{ kind: 'fill', text: noteFor(s.card.finding, 'person', o.sendNote) }, ...r.effects] }
     }
     case 'dispute': {
       if (s.card === null) return none()
       const { finding, ledger } = s.card
-      const r = answered(s, 'disputed', 'observer: disputed; it will not be reported again')
+      const r = answered(undefer(s, s.card), 'disputed', 'observer: disputed; it will not be reported again')
       return { state: r.state, effects: [{ kind: 'store', key: 'disputed', value: remember(e.disputed, finding.finding, o.listMax) }, { kind: 'ledger', path: ledger, line: 'disputed', finding }, ...r.effects] }
     }
     case 'why':
       return s.card === null ? none() : { state: { ...s, card: { ...s.card, isOpen: !s.card.isOpen } }, effects: [{ kind: 'invalidate' }] }
     case 'dismiss': {
       if (s.card === null) return none()
-      const r = answered({ ...s, dismissed: s.card.finding }, 'dismissed')
+      const r = answered({ ...undefer(s, s.card), dismissed: s.card.finding }, 'dismissed')
       return { state: { ...r.state, asked: true }, effects: [...r.effects, { kind: 'after', ms: o.askedMs, event: { kind: 'asked-expired' } }, { kind: 'invalidate' }] }
     }
     case 'asked-expired':

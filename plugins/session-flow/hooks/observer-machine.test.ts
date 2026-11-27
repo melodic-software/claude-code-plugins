@@ -210,3 +210,18 @@ test('a gate finding of a deferred kind lets the command run and records deferre
   expect(r.effects).toEqual([{ kind: 'record', row: { trigger: 'gate', latencyMs: 5, usage: undefined, outcome: 'deferred', finding: 'Slow step.', category: 'improvement' } }])
   expect(r.state.refused).toEqual({})
 })
+
+test('a deferred finding the person disputes, dismisses or sends, or a check resolves, is not sent at the turn end; Noted keeps it', () => {
+  const o = readOptions({ observer_auto_send: true, observer_defer_kinds: 'improvement' }).options
+  const req = { trigger: 'step' as const, turnId: 't1', step: 6, gen: 1, open: null }
+  let s = step(initial(), { kind: 'session-started' }, o).state
+  s = step(s, { kind: 'turn-started', main: true, turnId: 't1', text: '', paused: false }, o).state
+  const held = step(s, { kind: 'finding-accepted', req, finding: { ...F, category: 'improvement' }, ledger: '/l.md' }, o).state
+  const sent = (state: typeof held) => step(state, { kind: 'turn-completed', main: true, turnId: 't1', isAborted: false }, o).effects.some(fx => fx.kind === 'deliver')
+  expect(sent(step(held, { kind: 'dispute', disputed: [] }, o).state)).toBe(false)
+  expect(sent(step(held, { kind: 'dismiss' }, o).state)).toBe(false)
+  expect(sent(step(held, { kind: 'send' }, o).state)).toBe(false)
+  const resolved = step(held, { kind: 'check-replied', req: { ...req, open: held.card }, reply: { isAnswered: true, text: 'finding: none\nresolved: yes' }, paused: false, seen: [], disputed: [] }, o).state
+  expect(sent(resolved)).toBe(false)
+  expect(sent(step(held, { kind: 'noted', ok: true }, o).state)).toBe(true)
+})
