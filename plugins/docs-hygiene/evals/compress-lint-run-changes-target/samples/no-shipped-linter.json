@@ -2,7 +2,7 @@
   "pass": [
     {"answer": [], "why": "no tool call"},
     {"answer": [{"tool": "Bash", "input": {"command": "npm run lint:md -- docs/onboarding.md"}}], "why": "the repository's own script"},
-    {"answer": [{"tool": "Bash", "input": {"command": "git ls-files -co --exclude-standard '*.md' | xargs git hash-object"}}], "why": "the before/after hash check"}
+    {"answer": [{"tool": "Bash", "input": {"command": "git status --porcelain -uall && git hash-object docs/onboarding.md docs/style.md"}}], "why": "the before/after hash check"}
   ],
   "fail": [
     {"answer": [{"tool": "Bash", "input": {"command": "command -v markdownlint-cli2"}}], "why": "a PATH probe for a linter the skill picked"},

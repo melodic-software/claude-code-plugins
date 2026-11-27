@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/tmp/run/docs/onboarding.md", "old_string": "This page is basically just here to really help you", "new_string": "This page helps you"}}], "why": "an in-session Edit on the target"},
+    {"answer": [{"tool": "Bash", "input": {"command": "npm run lint:md"}}, {"tool": "Edit", "input": {"file_path": "docs/onboarding.md", "old_string": "Honestly, the setup is really quite simple.", "new_string": "The setup is simple."}}], "why": "the baseline run, then the compression Edit"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no tool call"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "docs/style.md", "old_string": "Style notes", "new_string": "# Style notes"}}], "why": "fixes the other file's baseline failure instead of editing the target"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "scripts/lint-md.sh", "old_string": "status=1", "new_string": "status=0"}}], "why": "edits the lint script instead of the target"}
+  ]
+}
