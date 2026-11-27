@@ -11,7 +11,7 @@ graders:
     arm: with-only
   - name: named-changed-file
     type: regex
-    pattern: '(?=[\s\S]*docs/style\.md)[\s\S]*\blint\W{1,4}unresolved\b'
+    pattern: '(?=[\s\S]*docs/style\.md)[\s\S]*\bcompressed\b[^\n]*\blint\W{1,4}unresolved\b'
     target: last_message
     arm: with-only
   - name: no-shipped-linter

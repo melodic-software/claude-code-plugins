@@ -11,7 +11,7 @@ graders:
     arm: with-only
   - name: lint-unresolved
     type: regex
-    pattern: '\blint\W{1,4}unresolved\b'
+    pattern: '\bcompressed\b[^\n]*\blint\W{1,4}unresolved\b'
     target: last_message
     arm: with-only
   - name: no-shipped-linter

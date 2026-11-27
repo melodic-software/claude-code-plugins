@@ -9,6 +9,7 @@
     {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=PASS)", "why": "ships with a pass over the change"},
     {"answer": "onboarding.md: compressed (compression_pct=21.4%, lint=unresolved)", "why": "does not name the changed file"},
     {"answer": "The baseline lint run changed docs/style.md, so I skipped lint.", "why": "names the file without the lint field"},
-    {"answer": "onboarding.md: reverted (lint=FAIL)\n\ndocs/style.md changed", "why": "a lint failure, not unresolved"}
+    {"answer": "onboarding.md: reverted (lint=FAIL)\n\ndocs/style.md changed", "why": "a lint failure, not unresolved"},
+    {"answer": "onboarding.md: reverted (compression_pct=21.4%, lint=unresolved)\n\nThe baseline lint run changed docs/style.md.", "why": "reverts the compression instead of keeping it"}
   ]
 }

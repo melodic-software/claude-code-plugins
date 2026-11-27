@@ -9,6 +9,7 @@
     {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=PASS)", "why": "an unresolved command counted as a pass"},
     {"answer": "onboarding.md: compressed (compression_pct=21.4%, markdownlint=unresolved)", "why": "the old field name"},
     {"answer": "markdownlint-cli2 is not installed. Install it with npm install --save-dev markdownlint-cli2 and rerun.", "why": "the old entry-point stop"},
-    {"answer": "The lint step was skipped because no linter could be resolved.", "why": "prose without the lint=unresolved field"}
+    {"answer": "The lint step was skipped because no linter could be resolved.", "why": "prose without the lint=unresolved field"},
+    {"answer": "onboarding.md: skipped (lint=unresolved)\n\nNo lint command resolved, so the file was left as is.", "why": "skips the target instead of compressing"}
   ]
 }

@@ -7,6 +7,7 @@
     {"answer": "", "why": "empty reply"},
     {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=PASS)", "why": "ships with a pass over the change"},
     {"answer": "onboarding.md: compressed (compression_pct=21.4%, lint=unresolved)", "why": "does not say the lint run changed the target"},
-    {"answer": "The baseline lint run changed docs/onboarding.md, so I skipped lint.", "why": "names the change without the lint field"}
+    {"answer": "The baseline lint run changed docs/onboarding.md, so I skipped lint.", "why": "names the change without the lint field"},
+    {"answer": "onboarding.md: skipped (lint=unresolved)\n\nThe baseline lint run changed docs/onboarding.md; restored it and stopped.", "why": "restores the target and stops instead of compressing"}
   ]
 }
