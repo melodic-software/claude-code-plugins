@@ -47,9 +47,16 @@ RUNNER_RE = re.compile(
     r"|ruby|perl|php|go|cargo|just|task|bats|find|xargs|run-parts|parallel|watch)\b"
 )
 INDIRECT_NAME_RE = re.compile(r"\$\{!|(?<![$\\:])[*?]|\$\w+[.-]|\$\{\w+\}[\w.-]|[\w.-]\$\{?\w")
-HOOKS_RE = re.compile(
-    r"(?<![\w.-])hooks(?![\w.-])|\.git/(?:config|info|hooks|modules)\b"
-    r"|\.git(?:config|attributes|modules)\b"
+GIT_SUBCOMMANDS = (
+    "init|config|add|rm|mv|commit|diff|status|ls-files|log|show|rev-parse|remote|push|fetch|pull"
+    "|clone|checkout|switch|restore|branch|tag|reset|merge|rebase|cherry-pick|stash|worktree|am"
+    "|apply|update-index|update-ref|symbolic-ref|gc"
+)
+GIT_RUNS_RE = re.compile(
+    r"(?<![\w.-])hooks(?![\w.-])|\.git/(?:config|info|hooks|modules)\b|\.git(?:config|attributes|modules)\b"
+    r"|(?<![\w.])git/config\b|\bXDG_CONFIG_HOME\b|\bGIT_DIR\b|\bGIT_CONFIG\w*|--(?:separate-)?git-dir\b"
+    r"|(?:^|[\s;&|(])(?:export\s+)?HOME="
+    r"|(?<![\w.-])git\s+(?:-[cC]\s+\S+\s+)*(?!(?:%s)\b)[a-z]" % GIT_SUBCOMMANDS
 )
 CAT_HEREDOC_RE = re.compile(
     r"""^\s*(?:cat|tee)(?:\s+(?:>>?\s*)?[^\s<>|;&]+)*\s*<<-?\s*([A-Za-z_]\w*)"""
@@ -264,7 +271,7 @@ def _written_files_run(files):
                 hooks_path = re.search(r"hooksPath[=\s]+(\S+)", line)
                 if hooks_path and hooks_path.group(1).strip("\"'") != "/dev/null":
                     return True
-                if RUNNER_RE.search(line) or HOOKS_RE.search(line):
+                if RUNNER_RE.search(line) or GIT_RUNS_RE.search(line):
                     return True
                 if suite_refs.LITERAL_HEREDOC_RE.match(line):
                     continue
