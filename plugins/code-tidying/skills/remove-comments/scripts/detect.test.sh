@@ -910,14 +910,27 @@ printf '#!/usr/bin/perl\n' >"$shared/old"
 printf 'a { }\n' >"$shared/UPPER.CSS"
 printf '<p>x</p>\n' >"$shared/page.html"
 printf 'x\n' >"$shared/legacy.kt"
+printf 'x\n' >"$shared/legacy.cc"
+printf 'x\n' >"$shared/notes.txt"
 kept="$(
   # shellcheck source=lib/comment-shapes.sh
   source "$SCRIPT_DIR/lib/comment-shapes.sh"
-  for f in tool old UPPER.CSS page.html legacy.kt; do cr_is_code_file "$shared/$f" && printf '%s ' "$f"; done
+  for f in tool old UPPER.CSS page.html legacy.kt legacy.cc notes.txt; do cr_is_code_file "$shared/$f" && printf '%s ' "$f"; done
 )"
-assert_contains "cr_is_code_file reads the shared extension list and shebang admission" "$kept" "tool UPPER.CSS page.html "
-assert_not_contains "cr_is_code_file admits no perl script and no unlisted extension" "$kept" "old"
-assert_not_contains "cr_is_code_file drops an extension the shared list lacks" "$kept" "legacy.kt"
+assert_contains "cr_is_code_file reads the shared extension list and shebang admission" "$kept" "tool UPPER.CSS page.html legacy.kt legacy.cc "
+assert_not_contains "cr_is_code_file admits no perl script" "$kept" "old"
+assert_not_contains "cr_is_code_file admits no unlisted extension" "$kept" "notes.txt"
+
+gitdir="$TEST_TMPDIR/gitdir"
+mkdir -p "$gitdir/.git/hooks" "$gitdir/src/.git"
+printf '#!/bin/sh\n# this used to be a list\n' >"$gitdir/.git/hooks/pre-commit"
+printf '#!/bin/sh\n# this used to be a list\n' >"$gitdir/src/.git/pre-push"
+printf '#!/bin/sh\n# this used to be a list\n' >"$gitdir/src/run.sh"
+gitdir_out="$(bash "$DETECT" "$gitdir")"
+assert_contains "a directory target audits its own code files" "$gitdir_out" "Summary file: $gitdir/src/run.sh"
+assert_not_contains "a directory target never reads a file under a .git segment" "$gitdir_out" "/.git/"
+gitfile_out="$(bash "$DETECT" "$gitdir/.git/hooks/pre-commit")"
+assert_not_contains "a file target under a .git segment is not audited" "$gitfile_out" "Summary file:"
 html="$(
   # shellcheck source=lib/comment-shapes.sh
   source "$SCRIPT_DIR/lib/comment-shapes.sh"

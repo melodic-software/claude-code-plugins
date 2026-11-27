@@ -63,7 +63,7 @@ checks behind it.
 - **Code files only.** A `.md` target yields no findings; markdown noise is
   `/docs-hygiene:audit-noise`'s.
 - **Opt-out.** `comment-residue-ignore` on a line, or on the line before it, skips it.
-- **Synced and generated files.** A finding in a file whose first 10 lines hold a comment line matching
+- **Synced and generated files.** A finding in a file whose first 10 lines hold a comment or docstring line matching
   a line of the plugin's `scripts/generated-marker.ere` (`sync-managed`, `@generated`, or a whole-file
   `do not edit` notice) belongs upstream: the script prints
   `Note: upstream (sync-managed or generated file) <path>` before that file's summary and still

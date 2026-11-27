@@ -433,7 +433,7 @@ class Degradation(unittest.TestCase):
 
 UNION = (
     "cs ts tsx mts cts js jsx mjs cjs py pyi sh bash ps1 psm1 go rs java rb lua "
-    "sql c h cpp hpp yaml yml toml awk css scss html htm xml jsonc psd1"
+    "sql c h cpp hpp yaml yml toml awk css scss html htm xml jsonc psd1 kt cc"
 ).split()
 
 
@@ -466,6 +466,7 @@ class SharedExtensionList(unittest.TestCase):
             "tool": "#!/usr/bin/env bash\n",
             "run": "#!/usr/bin/env -S node --no-warnings\n",
             "gen": "#!/usr/bin/python3\n",
+            "dsh": "#!/bin/dash\n",
             "old": "#!/usr/bin/perl\n",
             "NOTES": "x\n",
             "tool.bak": "#!/bin/sh\n",
@@ -473,7 +474,7 @@ class SharedExtensionList(unittest.TestCase):
         for name, text in files.items():
             (tmp / name).write_text(text)
         found = load_census().tracked_files([tmp])
-        self.assertEqual(sorted(p.name for p in found), [".editorconfig", "UPPER.CSS", "gen", "run", "tool"])
+        self.assertEqual(sorted(p.name for p in found), [".editorconfig", "UPPER.CSS", "dsh", "gen", "run", "tool"])
 
     @unittest.skipUnless(pygments_present(), "pygments not installed")
     def test_a_shebang_script_is_counted_with_its_interpreters_lexer(self):

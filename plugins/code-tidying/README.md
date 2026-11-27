@@ -225,9 +225,11 @@ read as JSON, `.psd1` as PowerShell), or for an extensionless script, its sheban
 files whose extension `scripts/code-extensions.txt` lists and extensionless files whose first line
 matches `scripts/code-shebang.ere` (an sh, bash, dash, zsh, node or python3 shebang), skips a file
 whose first 10 lines hold a line matching `scripts/generated-marker.ere`, and judges only the lines
-the change adds. Each of that file's lines starts with a comment token (`#`, `//`, `/*`, `*`, `<!--`,
-`--`, `;` or `%`), so a string or a description that mentions a marker skips nothing. It counts
-`sync-managed` and `@generated` anywhere in the comment, and `do not edit` only as a whole-file notice: at the
+the change adds. A marker counts after a comment token (`#`, `//`, `/*`, `*`, `<!--`, `--`, `;` or
+`%`), or on a line with no token (a docstring or block comment body) only when no `:`, `"`, `'` or
+`=` comes before it, so a string, a YAML or JSON value, or a description that mentions a marker
+skips nothing. It counts `sync-managed` and `@generated` anywhere in the comment, and `do not edit`
+only as a whole-file notice: at the
 end of the line, before punctuation or `this file`, `this copy`, `by hand`, `manually` or
 `directly`, or on a line that also says `generated`. A hand-written `# do not edit the order
 below` is judged. Under

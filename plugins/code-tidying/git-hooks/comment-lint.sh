@@ -29,7 +29,7 @@ runs nothing; auto and aggressive read as necessary.
 
 Judges the files whose extension code-extensions.txt lists (in any letter case), and
 extensionless files whose first line is a code-shebang.ere line (an sh, bash, dash,
-zsh, node or python3 shebang), except one whose first 10 lines hold a comment line
+zsh, node or python3 shebang), except one whose first 10 lines hold a comment or docstring line
 matching a generated-marker.ere line (sync-managed, @generated, or a whole-file
 "do not edit" notice; each skip is named on stderr), through the pygments lexer for
 the file's name or shebang (.jsonc read as JSON, .psd1 as PowerShell), or POSIX and

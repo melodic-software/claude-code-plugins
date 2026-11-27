@@ -35,3 +35,5 @@ xml
 editorconfig
 jsonc
 psd1
+kt
+cc

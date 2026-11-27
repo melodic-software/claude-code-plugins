@@ -64,11 +64,11 @@ revert, never a pass, and so is exit 2: an unmapped extension is an *unproven* e
 tacit pass.
 
 **Exit 2 is the common case on a mixed-language repository, not an edge case.** The shared
-extension list `scripts/code-extensions.txt` admits 37 extensions, and `scripts/code-shebang.ere`
+extension list `scripts/code-extensions.txt` admits 39 extensions, and `scripts/code-shebang.ere`
 admits extensionless sh, bash, dash, zsh, node and python3 scripts; `change-shape.py` proves 18 of
-the extensions and `commented-out-code.py` 14, and their union is 18. The 19 neither backend reads,
-`.awk .c .cpp .css .editorconfig .go .h .hpp .htm .html .java .jsonc .lua .psd1 .rb .rs .scss .sql
-.xml`, and the extensionless scripts, reach triage normally and then
+the extensions and `commented-out-code.py` 14, and their union is 18. The 21 neither backend reads,
+`.awk .c .cc .cpp .css .editorconfig .go .h .hpp .htm .html .java .jsonc .kt .lua .psd1 .rb .rs .scss
+.sql .xml`, and the extensionless scripts, reach triage normally and then
 have **no** applicable tier-0 or tier-1 proof, so every deletion and rename in them is a proposal.
 Say so in the report rather than reporting those files as clean: a file nothing could prove is not
 a file with nothing to fix.

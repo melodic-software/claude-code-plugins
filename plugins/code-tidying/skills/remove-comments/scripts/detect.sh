@@ -41,7 +41,7 @@ it runs in (from git status).
 the merge base of <base> and HEAD (added-lines.sh). With no paths it audits the
 files that gained lines; with paths, only those of them that gained lines.
 
-A file whose first 10 lines hold a comment line matching a line of the plugin's
+A file whose first 10 lines hold a comment or docstring line matching a line of the plugin's
 scripts/generated-marker.ere (sync-managed, @generated, or a whole-file "do not edit"
 notice) gets a
 "Note: upstream" line before its summary. Exit: 0 on audit, 2 on unknown
@@ -185,6 +185,7 @@ cr_excluded_note() {
 }
 
 cr_keep_target() {
+  [[ "/$1/" == */.git/* ]] && return 0
   cr_is_code_file "$1" || return 0
   if cr_is_excluded "$1"; then excluded=$((excluded + 1)); else EXPANDED+=("$1"); fi
 }
@@ -192,7 +193,7 @@ cr_keep_target() {
 EXPANDED=()
 for target in ${TARGETS[@]+"${TARGETS[@]}"}; do
   if [[ -d "$target" ]]; then
-    while IFS= read -r f; do cr_keep_target "$f"; done < <(find "$target" -type f 2>/dev/null)
+    while IFS= read -r f; do cr_keep_target "$f"; done < <(find "$target" -name .git -prune -o -type f -print 2>/dev/null)
   else
     cr_keep_target "$target"
   fi

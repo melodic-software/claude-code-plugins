@@ -113,7 +113,7 @@ assert_equal "output is deterministic" "$a" "$b"
 
 union="$TEST_TMPDIR/union"
 mkrepo "$union"
-for ext in cs ts tsx mts cts js jsx mjs cjs py pyi sh bash ps1 psm1 go rs java rb lua sql c h cpp hpp yaml yml toml awk css scss html htm xml jsonc psd1; do
+for ext in cs ts tsx mts cts js jsx mjs cjs py pyi sh bash ps1 psm1 go rs java rb lua sql c h cpp hpp yaml yml toml awk css scss html htm xml jsonc psd1 kt cc; do
   printf 'x\n' >"$union/f.$ext"
 done
 printf 'x\n' >"$union/notes.txt"
@@ -123,16 +123,17 @@ mkdir -p "$union/bin"
 printf '#!/usr/bin/env bash\nx=1\n' >"$union/bin/tool"
 printf '#!/usr/bin/env -S node --no-warnings\n' >"$union/bin/run"
 printf '#!/usr/bin/perl\n' >"$union/bin/old"
+printf '#!/bin/dash\n' >"$union/bin/dsh"
 printf 'x\n' >"$union/NOTES"
 out=$(cd "$union" && bash "$SCRIPT")
-assert_equal "every listed extension and shebang script is code" "rung=uncommitted base=none files=40" "$(printf '%s\n' "$out" | head -1)"
-for name in .editorconfig UPPER.CSS bin/tool bin/run; do
+assert_equal "every listed extension and shebang script is code" "rung=uncommitted base=none files=43" "$(printf '%s\n' "$out" | head -1)"
+for name in .editorconfig UPPER.CSS bin/tool bin/run bin/dsh; do
   assert_contains "$name is listed" $'\n'"$out"$'\n' $'\n'"$name"$'\n'
 done
 assert_absent "a perl script is excluded" "$out" "bin/old"
 assert_absent "an extensionless file with no shebang is excluded" "$out" "NOTES"
 lines=$'\n'"$out"$'\n'
-for ext in cs ts tsx mts cts js jsx mjs cjs py pyi sh bash ps1 psm1 go rs java rb lua sql c h cpp hpp yaml yml toml awk css scss html htm xml jsonc psd1; do
+for ext in cs ts tsx mts cts js jsx mjs cjs py pyi sh bash ps1 psm1 go rs java rb lua sql c h cpp hpp yaml yml toml awk css scss html htm xml jsonc psd1 kt cc; do
   assert_contains "characterization: f.$ext listed" "$lines" $'\n'"f.$ext"$'\n'
 done
 assert_absent "a .txt file is excluded" "$out" "notes.txt"
