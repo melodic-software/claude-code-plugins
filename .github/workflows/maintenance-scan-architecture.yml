@@ -380,6 +380,26 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ""
 
+      - name: Fail the leg unless it handed off or a limit stopped it
+        if: >-
+          always() && steps.run.outputs.handoff != 'true'
+          && (steps.run.outcome == 'failure' || steps.run.outcome == 'success' && steps.run.outputs.structured-output-file == '')
+        env:
+          OUTCOME: ${{ steps.run.outcome }}
+          FAILURE_CLASS: ${{ steps.run.outputs.lane-class }}
+        run: |
+          case "$OUTCOME:$FAILURE_CLASS" in
+            failure:rate-limit | failure:overloaded)
+              echo "::notice::the scan stopped on class $FAILURE_CLASS; nothing to fix in the lane"
+              exit 0
+              ;;
+            success:*) line="the scan finished without a findings file" ;;
+            *) line="the scan failed with class ${FAILURE_CLASS:-unknown}" ;;
+          esac
+          echo "::error::$line"
+          printf '### maintenance-scan-architecture / %s\n\nFailed: %s.\n' "$GITHUB_JOB" "$line" >>"$GITHUB_STEP_SUMMARY"
+          exit 1
+
       - name: Seal the findings
         id: seal
         if: always() && steps.run.outcome == 'success' && steps.run.outputs.structured-output-file != ''
@@ -616,6 +636,26 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
+      - name: Fail the leg unless it handed off or a limit stopped it
+        if: >-
+          always() && steps.run.outputs.handoff != 'true'
+          && (steps.run.outcome == 'failure' || steps.run.outcome == 'success' && steps.run.outputs.structured-output-file == '')
+        env:
+          OUTCOME: ${{ steps.run.outcome }}
+          FAILURE_CLASS: ${{ steps.run.outputs.lane-class }}
+        run: |
+          case "$OUTCOME:$FAILURE_CLASS" in
+            failure:rate-limit | failure:overloaded)
+              echo "::notice::the scan stopped on class $FAILURE_CLASS; nothing to fix in the lane"
+              exit 0
+              ;;
+            success:*) line="the scan finished without a findings file" ;;
+            *) line="the scan failed with class ${FAILURE_CLASS:-unknown}" ;;
+          esac
+          echo "::error::$line"
+          printf '### maintenance-scan-architecture / %s\n\nFailed: %s.\n' "$GITHUB_JOB" "$line" >>"$GITHUB_STEP_SUMMARY"
+          exit 1
+
       - name: Seal the findings
         id: seal
         if: always() && steps.run.outcome == 'success' && steps.run.outputs.structured-output-file != ''
@@ -835,6 +875,26 @@ jobs:
           known-failure-class: ${{ steps.run.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
+
+      - name: Fail the leg unless it handed off or a limit stopped it
+        if: >-
+          always() && steps.run.outputs.handoff != 'true'
+          && (steps.run.outcome == 'failure' || steps.run.outcome == 'success' && steps.run.outputs.structured-output-file == '')
+        env:
+          OUTCOME: ${{ steps.run.outcome }}
+          FAILURE_CLASS: ${{ steps.run.outputs.lane-class }}
+        run: |
+          case "$OUTCOME:$FAILURE_CLASS" in
+            failure:rate-limit | failure:overloaded)
+              echo "::notice::the scan stopped on class $FAILURE_CLASS; nothing to fix in the lane"
+              exit 0
+              ;;
+            success:*) line="the scan finished without a findings file" ;;
+            *) line="the scan failed with class ${FAILURE_CLASS:-unknown}" ;;
+          esac
+          echo "::error::$line"
+          printf '### maintenance-scan-architecture / %s\n\nFailed: %s.\n' "$GITHUB_JOB" "$line" >>"$GITHUB_STEP_SUMMARY"
+          exit 1
 
       - name: Seal the findings
         id: seal

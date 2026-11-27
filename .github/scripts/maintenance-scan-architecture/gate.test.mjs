@@ -143,7 +143,45 @@ test("every workflow step that writes the step summary heads it as maintenance-s
   const writers = Object.values(parse(WORKFLOW_TEXT).jobs).flatMap((job) => (job.steps ?? []).filter((step) => /GITHUB_STEP_SUMMARY/.test(step.run ?? "")));
   assert.ok(writers.length >= 2, "the key and subscription handoffs write a summary");
   for (const step of writers) {
-    assert.match(step.run, /printf '### maintenance-scan-architecture \/ %s\\n\\nHanded off: %s\.\\n' "\$GITHUB_JOB" "\$line" >>"\$GITHUB_STEP_SUMMARY"/, step.name);
+    assert.match(step.run, /printf '### maintenance-scan-architecture \/ %s\\n\\n(Handed off|Failed): %s\.\\n' "\$GITHUB_JOB" "\$line" >>"\$GITHUB_STEP_SUMMARY"/, step.name);
+  }
+});
+
+const FAIL_STEP = "Fail the leg unless it handed off or a limit stopped it";
+
+test("a model leg goes red when its scan failed without a handoff or finished with no findings file; a handoff or a limit stop stays green", () => {
+  const wf = workflowText(WORKFLOW_TEXT);
+  const jobs = parse(WORKFLOW_TEXT).jobs;
+  const dir = tempDir("scan-architecture-fail-leg-");
+  for (const leg of LEGS) {
+    const { if: condition } = wf.stepNamed(leg, FAIL_STEP);
+    const ctx = (outcome, handoff, file) => ({ "steps.run.outcome": outcome, "steps.run.outputs.handoff": handoff, "steps.run.outputs.structured-output-file": file });
+    assert.equal(runs(condition, ctx("failure", "", "")), true, `${leg}: a failed scan with no handoff`);
+    assert.equal(runs(condition, ctx("failure", "true", "")), false, `${leg}: a handoff hands the scan to the next leg`);
+    assert.equal(runs(condition, ctx("success", "", "")), true, `${leg}: a finished scan with no findings file`);
+    assert.equal(runs(condition, ctx("success", "", "/tmp/findings.json")), false, `${leg}: a finished scan with findings`);
+    assert.equal(runs(condition, ctx("skipped", "", "")), false, `${leg}: a scan that never started`);
+
+    const names = jobs[leg].steps.map((step) => step.name);
+    assert.ok(names.indexOf(FAIL_STEP) < names.indexOf("Seal the findings"), `${leg}: the check runs before the seal`);
+    const script = jobs[leg].steps.find((step) => step.name === FAIL_STEP).run;
+    const exitOf = (OUTCOME, FAILURE_CLASS) => {
+      const GITHUB_STEP_SUMMARY = join(dir, `${leg}-${OUTCOME}-${FAILURE_CLASS}.md`);
+      writeFileSync(GITHUB_STEP_SUMMARY, "");
+      try {
+        execFileSync("bash", ["-c", script], { env: { PATH: process.env.PATH, OUTCOME, FAILURE_CLASS, GITHUB_JOB: leg, GITHUB_STEP_SUMMARY }, stdio: "pipe" });
+        return { code: 0, summary: readFileSync(GITHUB_STEP_SUMMARY, "utf8") };
+      } catch (error) {
+        return { code: error.status, summary: readFileSync(GITHUB_STEP_SUMMARY, "utf8") };
+      }
+    };
+    for (const limit of ["rate-limit", "overloaded"]) assert.equal(exitOf("failure", limit).code, 0, `${leg}: ${limit} is a limit stop`);
+    const failed = exitOf("failure", "other");
+    assert.equal(failed.code, 1, `${leg}: class other fails the leg`);
+    assert.equal(failed.summary, `### maintenance-scan-architecture / ${leg}\n\nFailed: the scan failed with class other.\n`);
+    const empty = exitOf("success", "");
+    assert.equal(empty.code, 1, `${leg}: no findings file fails the leg`);
+    assert.match(empty.summary, /Failed: the scan finished without a findings file\.\n$/);
   }
 });
 
