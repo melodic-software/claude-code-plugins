@@ -672,7 +672,7 @@ PASS3_PROGRAM="$VERSION_TRIPLE_DEF"'
                 projectPath: (.projectPath // null),
                 currentProject: (
                   if (.scope == "project" or .scope == "local") and (.projectPath // "" | length) > 0 and ($cur | length) > 0 then
-                    $path_facts[.projectPath].current
+                    .projectPath | if type == "string" then $path_facts[.].current else gsub("\\\\"; "/") end
                   else null end
                 ),
                 projectPathPresent: (
