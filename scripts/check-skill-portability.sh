@@ -82,7 +82,7 @@ scan_file() {
   local scope_lines ecosystem_scoped=0
   scope_lines="$(grep -E '^[[:space:]]*(#|((>|[-*+]|[0-9]+[.)])[[:space:]]+)*<!--)[[:space:]]*portability-scope:' -- "$file" || true)"
   if [[ -n "$scope_lines" ]]; then
-    if printf '%s\n' "$scope_lines" | grep -qvE 'portability-scope:[[:space:]]*ecosystem([[:space:]=:-]|$)'; then
+    if grep -qvE 'portability-scope:[[:space:]]*ecosystem([[:space:]=:-]|$)' <<<"$scope_lines"; then
       return 0
     fi
     ecosystem_scoped=1
