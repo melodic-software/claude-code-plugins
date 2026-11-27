@@ -1,4 +1,4 @@
-// test-scope: plugins/architecture plugins/improvement .github/actions/resolve-config/package.json .github/workflows/maintenance-scan-architecture.yml docs/conventions/pr-pipeline.yaml docs/conventions/pr-pipeline/pr-pipeline.schema.json .github/scripts/maintenance-scan-architecture/model-tools.json
+// test-scope: plugins/architecture/** plugins/improvement/** .github/actions/resolve-config/package.json .github/workflows/maintenance-scan-architecture.yml docs/conventions/pr-pipeline.yaml docs/conventions/pr-pipeline/pr-pipeline.schema.json .github/scripts/maintenance-scan-architecture/model-tools.json
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
