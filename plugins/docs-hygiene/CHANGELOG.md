@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [5.0.2] - 2026-11-27
+
+### Fixed
+
+- **`/docs-hygiene:compress` runs each lint-gate step as its own plain command.** Each copy, status read, hash, lint run, restore and delete is a separate Bash call, with no command chains, shell functions or multi-line scripts and no `cd` (a `--repo` pass runs its lint command from the worktree it edited with `env -C <repository root>`), so a permission system that refuses compound calls no longer leaves the lint gate unrun. Each pre-lint copy is kept until the check after that lint run and any restore it calls for are done. The lint baseline is now named as the step before the snapshot and the first edit, and compress never probes for a linter the repository's command does not name ([#19128](https://github.com/melodic-software/claude-code-plugins/pull/19128) post-merge suite).
+
 ## [5.0.1] - 2026-11-27
 
 ### Changed
