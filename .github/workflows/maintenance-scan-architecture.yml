@@ -191,6 +191,7 @@ jobs:
       - name: Check the findings' shape and drop any that names a security defect
         env:
           FINDINGS_FILE: ${{ runner.temp }}/scan-in/findings.json
+          CHECKED_FILE: ${{ runner.temp }}/scan-checked/findings.json
         run: node .base/.github/scripts/maintenance-scan-architecture/file-findings.mjs check
 
       - name: Scan the findings for credentials
@@ -198,12 +199,12 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
-          path: ${{ runner.temp }}/scan-in/findings.json
+          path: ${{ runner.temp }}/scan-checked/findings.json
 
       - name: Hash the findings
         id: hash
         env:
-          FILE: ${{ runner.temp }}/scan-in/findings.json
+          FILE: ${{ runner.temp }}/scan-checked/findings.json
           CLEAN: ${{ steps.scan-findings.outputs.clean }}
         run: |
           [ "$CLEAN" = true ] || { echo "::error::the findings hold a credential-shaped value, so nothing is uploaded or filed and this run is no scan"; exit 1; }
@@ -216,7 +217,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: maintenance-scan-architecture-findings-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/scan-in/findings.json
+          path: ${{ runner.temp }}/scan-checked/findings.json
           retention-days: 1
           if-no-files-found: error
 

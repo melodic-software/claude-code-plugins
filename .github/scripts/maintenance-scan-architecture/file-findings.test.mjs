@@ -1,12 +1,29 @@
 // test-scope: .github/actions/resolve-config/package.json
 import assert from "node:assert/strict";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
 
-import { fileFindings, ISSUE_TYPE, readItems, summary, trustedShape, withoutSecurityDefects, withoutTrustedShapes } from "./file-findings.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
+import { fileFindings, ISSUE_TYPE, main, readItems, summary, trustedShape, withoutSecurityDefects, withoutTrustedShapes } from "./file-findings.mjs";
 import { forge, ISSUE } from "./forge.fixtures.mjs";
 
 const item = (n) => ({ title: `Deepen module ${n}`, body: `Evidence: \`src/m${n}.mjs:1\`.\n\n## Done when\n\n- [ ] One seam.` });
 const doc = (items) => JSON.stringify({ items });
+
+test("check reads the opened findings, which open-lane-output writes read-only, and writes the kept items to CHECKED_FILE", async () => {
+  const dir = tempDir("scan-architecture-check-");
+  const opened = join(dir, "scan-in", "findings.json");
+  const source = doc([item(1), { title: "t", body: "<!-- monitor-signal key=1 -->" }]);
+  mkdirSync(join(dir, "scan-in"), { mode: 0o700 });
+  writeFileSync(opened, source, { mode: 0o444 });
+  const checked = join(dir, "scan-checked", "findings.json");
+  await main("check", { FINDINGS_FILE: opened, CHECKED_FILE: checked });
+  assert.deepEqual(JSON.parse(readFileSync(checked, "utf8")).items.map((i) => i.title), ["Deepen module 1"]);
+  assert.equal(readFileSync(opened, "utf8"), source, "the opened file is left as it was");
+  await assert.rejects(() => main("check", { FINDINGS_FILE: opened, CHECKED_FILE: checked }), /EEXIST/, "a second check never overwrites the checked file");
+  await assert.rejects(() => main("check", { FINDINGS_FILE: opened }), /CHECKED_FILE/);
+});
 
 test("every filing carries exactly one label, source: architecture-improve, and the Task type, and takes the number the create response names", async () => {
   const { call, posts } = forge();

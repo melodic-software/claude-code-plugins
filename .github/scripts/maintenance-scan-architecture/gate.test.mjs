@@ -276,6 +276,18 @@ test("the Scan job goes red when the findings fail the credential scan, so that 
   assert.equal(steps.find((step) => step.name === "Upload the findings").if, "steps.hash.outcome == 'success'");
 });
 
+test("the Scan job's check writes the kept findings apart from open-lane-output's read-only file, and every later step reads that copy", () => {
+  const steps = parse(WORKFLOW_TEXT).jobs.scan.steps;
+  const opened = steps.find((step) => step.id === "open").with.directory;
+  const check = steps.find((step) => /file-findings\.mjs check$/.test(step.run ?? ""));
+  assert.equal(check.env.FINDINGS_FILE, `${opened}/findings.json`);
+  const checked = check.env.CHECKED_FILE;
+  assert.ok(checked && !checked.startsWith(`${opened}/`), "the check writes outside the opened directory");
+  assert.equal(steps.find((step) => step.id === "scan-findings").with.path, checked);
+  assert.equal(steps.find((step) => step.id === "hash").env.FILE, checked);
+  assert.equal(steps.find((step) => step.id === "upload").with.path, checked);
+});
+
 test("a model leg goes red when its scan failed without a handoff or finished with no findings file; a handoff or a limit stop stays green", () => {
   const wf = workflowText(FIND_TEXT);
   const jobs = parse(FIND_TEXT).jobs;
