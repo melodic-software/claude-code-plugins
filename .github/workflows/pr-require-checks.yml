@@ -5494,7 +5494,7 @@ jobs:
               const rows = readFileSync(comments, "utf8").split("\n").filter((line) => line.trim()).map((line) => fromRest(JSON.parse(line)));
               const github = async (method, path, body) =>
                 JSON.parse(execFileSync("gh", ["api", "graphql", "-f", `query=${body.query}`, "-f", `id=${body.variables.id}`], { encoding: "utf8" }));
-              const held = pinHold(await withPinEdit(github, rows), head);
+              const held = pinHold(await withPinEdit(github, rows, { unpins: true }), head, { unpins: true });
               if (held !== null && (typeof held !== "string" || !held)) {
                 throw new Error("no pin verdict");
               }

@@ -178,8 +178,8 @@ export const UNPIN_RE = /^<!-- babysit-merge-unpin sha=([0-9a-f]{40}) -->$/;
 const APPROVAL_LIFTS = "an approving review of this head by a person on the trusted-actor list lifts it";
 const APPROVAL_CARRIES = `${APPROVAL_LIFTS}, and the approval carries over later merges that bring only the base's changes; then re-run ci-status`;
 
-export function pinHold(items, head) {
-  const pin = newestPin(items);
+export function pinHold(items, head, { unpins = false } = {}) {
+  const pin = newestPin(items, unpins);
   if (pin === undefined) {
     return null;
   }
@@ -196,14 +196,14 @@ export function pinHold(items, head) {
 }
 
 const pinLine = (item) => item.body.split("\n", 1)[0].replace(/\r$/, "");
-const newestPin = (items) =>
+const newestPin = (items, unpins) =>
   items
-    .filter((item) => item.login === LANES_APP_LOGIN && (PIN_RE.test(pinLine(item)) || UNPIN_RE.test(pinLine(item))))
+    .filter((item) => item.login === LANES_APP_LOGIN && (PIN_RE.test(pinLine(item)) || (unpins && UNPIN_RE.test(pinLine(item)))))
     .sort((a, b) => a.at.localeCompare(b.at))
     .at(-1);
 
-export async function withPinEdit(github, items) {
-  const pin = newestPin(items);
+export async function withPinEdit(github, items, { unpins = false } = {}) {
+  const pin = newestPin(items, unpins);
   if (pin === undefined || typeof pin.nodeId !== "string" || !pin.nodeId) {
     return items;
   }
@@ -1301,7 +1301,7 @@ export function switchHold(pull, { appId, disabled, repoDisabled, items = null }
     return null;
   }
   const app = pull?.user?.type === "Bot" && pull?.user?.id === id;
-  const pin = app || !Array.isArray(items) ? undefined : newestPin(items);
+  const pin = app || !Array.isArray(items) ? undefined : newestPin(items, true);
   if (!app && (pin === undefined || !PIN_RE.test(pinLine(pin)))) {
     return null;
   }

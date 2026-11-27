@@ -2365,7 +2365,10 @@ decides whether pr-review-main's findings at a head are settled: none does today
 score holds only a CRITICAL security finding, `diff_risk.py`), so a person merges it. Any read that
 fails refuses, with the reason on the run's `left:` line, with one exception: an armed pull request
 whose comments do not read stays armed, its pin unchecked this run, and the merge queue's `pinHold`
-still holds it if its pin went stale. Just before the arm it posts the lanes
+still holds it if its pin went stale. Each arm counts against the lane room the lanes path reads
+(`lane-room`): a rung or post-merge refusal, a room that does not read, or `merge.max-in-flight`
+reached refuses it with that reason and posts no pin, and each arm sent in a sweep counts as in
+flight for the next. Just before the arm it posts the lanes
 App's `<!-- babysit-merge-pin sha=... -->` comment for that head, unless its newest pin already
 names it, and posts no label or status. GitHub keeps the arm through a push by
 someone with write access, so the merge queue's `ci-status` holds any pull request whose newest
@@ -2390,7 +2393,9 @@ pin, so the queue's `pinHold` ejects the moved head. As the newest record, an un
 to `pinMoved`, `pinned`, `pinHold` and `babysit_postmerge.py`'s pin read, so the sweep judges the
 new head as unpinned and pins it before any arm. A session arm after an unpin is gated in the queue
 only by a recorded pr-verify FAIL at its head, the gate of a pull request the lanes App never
-pinned; the queue's other holds still apply. An unpin counts only from the lanes App, unedited: one
+pinned; the queue's other holds still apply. An unpin counts only on a pull request the lanes App
+did not open: on the lanes App's own, every one of those readers skips it, so its newest pin still
+holds a moved head until a newer pin. An unpin counts only from the lanes App, unedited: one
 a person wrote is ignored, and an edited one, or one whose edit time does not read, holds and
 disarms as an edited pin does. A pin posted after an unpin holds again. One a session armed, with
 no lanes App pin, is left armed.

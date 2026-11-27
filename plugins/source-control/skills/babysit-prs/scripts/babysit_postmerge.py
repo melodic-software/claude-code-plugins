@@ -3430,13 +3430,15 @@ PIN_RECORD_RE = re.compile(
 )
 PIN_QUERY = (
     "query PostMergePin($o:String!,$r:String!,$n:Int!,$c:String){repository(owner:$o,name:$r){"
-    "pullRequest(number:$n){reviews(last:1){nodes{author{__typename login} submittedAt}} "
+    "pullRequest(number:$n){author{__typename login} "
+    "reviews(last:1){nodes{author{__typename login} submittedAt}} "
     "comments(first:100,after:$c){pageInfo{hasNextPage endCursor} nodes{"
     "author{__typename login} body createdAt lastEditedAt}}}}}"
 )
 PIN_PAGE_LIMIT = 30
 PIN_BATCH = 20
 PIN_COMMENTS = (
+    "author{__typename login} "
     "comments(first:100){pageInfo{hasNextPage endCursor} nodes{"
     "author{__typename login} body lastEditedAt}}"
 )
@@ -3521,10 +3523,10 @@ def read_pins(
 
 def _pin_threads(
     repo: str, numbers: Iterable[int]
-) -> dict[int, tuple[list[dict[str, Any]], Any] | None]:
+) -> dict[int, tuple[list[dict[str, Any]], Any, Any] | None]:
     owner, name = _split_repo(repo)
     wanted = list(dict.fromkeys(numbers))
-    threads: dict[int, tuple[list[dict[str, Any]], Any] | None] = {}
+    threads: dict[int, tuple[list[dict[str, Any]], Any, Any] | None] = {}
     for start in range(0, len(wanted), PIN_BATCH):
         chunk = wanted[start : start + PIN_BATCH]
         aliases = " ".join(f"p{n}:pullRequest(number:{n}){{...c}}" for n in chunk)
@@ -3545,9 +3547,12 @@ def _pin_threads(
 
 def _pin_thread(
     owner: str, name: str, number: int, first: dict[str, Any] | None = None
-) -> tuple[list[dict[str, Any]], Any] | None:
+) -> tuple[list[dict[str, Any]], Any, Any] | None:
+    """The pull request's comments, its newest review and its author, read
+    from the first page."""
     comments: list[dict[str, Any]] = []
     reviews: Any = None
+    author: Any = None
     cursor: str | None = None
     for _ in range(PIN_PAGE_LIMIT):
         if first is not None:
@@ -3572,9 +3577,10 @@ def _pin_thread(
         comments += map(json_object, nodes)
         if reviews is None:
             reviews = json_object(pull.get("reviews")).get("nodes")
+            author = pull.get("author")
         cursor = info.get("endCursor")
         if not info["hasNextPage"]:
-            return comments, reviews
+            return comments, reviews, author
         if not isinstance(cursor, str) or not cursor:
             raise PostMergeReadError(f"#{number} pin: a next page with no cursor")
     return None
@@ -3585,11 +3591,17 @@ def _pin_sha(
     identity: str,
     comments: list[dict[str, Any]],
     reviews: Any,
+    author: Any = None,
     *,
     alone: bool = False,
 ) -> str | None:
+    """The identity's unpin record ends its pin only on a pull request another
+    author opened, whose author read: enable-auto-merge's trusted-author arm
+    posts it there, and only a newer pin ends a pin on the identity's own."""
     key = _login_key(identity)
-    pins = _identity_marks(comments, identity, PIN_RECORD_RE)
+    opener = _actor_key(author) if is_json_object(author) else ""
+    records = PIN_RECORD_RE if opener and opener != key else PIN_RE
+    pins = _identity_marks(comments, identity, records)
     if not pins or _edited(comments[pins[-1]]):
         return None
     newest = comments[pins[-1]]

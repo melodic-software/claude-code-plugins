@@ -227,6 +227,7 @@ class FakeGh:
         self.pin_comments: list[dict[str, Any]] = []
         self.pin_pages: list[dict[str, Any]] = []
         self.pin_reviews: Any = []
+        self.pin_author: Any = APP_ACTOR
         self.pin_missing: set[int] = set()
         self.artifacts: dict[str, list[dict[str, Any]]] = {}
         self.artifact_pages: dict[str, list[list[dict[str, Any]]]] = {}
@@ -440,7 +441,11 @@ class FakeGh:
                         "nodes": self.pin_comments,
                     }
                 )
-                return {"comments": comments, "reviews": {"nodes": self.pin_reviews}}
+                return {
+                    "author": self.pin_author,
+                    "comments": comments,
+                    "reviews": {"nodes": self.pin_reviews},
+                }
 
             if "PostMergePin" in joined:
                 return completed({"data": {"repository": {"pullRequest": pull()}}})
@@ -4657,7 +4662,9 @@ class PinnedHead(CheckCase):
         ]
         self.assertIsNone(pm.read_pin(REPO, 7001, IDENTITY))
 
-    def test_a_newest_unpin_is_no_pin_and_a_newer_pin_stands_again(self) -> None:
+    def test_a_newest_unpin_ends_the_pin_only_on_another_authors_pull_request(
+        self,
+    ) -> None:
         unpin = {
             "author": APP_ACTOR,
             "body": f"<!-- babysit-merge-unpin sha={HEAD_SHA} -->\nretired",
@@ -4665,15 +4672,20 @@ class PinnedHead(CheckCase):
             "lastEditedAt": None,
         }
         cases = (
-            ("unpin newest", [pin(OTHER_SHA), unpin], None),
-            ("pin after unpin", [pin(OTHER_SHA), unpin, pin(HEAD_SHA)], HEAD_SHA),
-            ("a person's unpin", [pin(OTHER_SHA), {**unpin, "author": HUMAN}], OTHER_SHA),
+            ("unpin newest", [pin(OTHER_SHA), unpin], HUMAN, None),
+            ("pin after unpin", [pin(OTHER_SHA), unpin, pin(HEAD_SHA)], HUMAN, HEAD_SHA),
+            ("a person's unpin", [pin(OTHER_SHA), {**unpin, "author": HUMAN}], HUMAN, OTHER_SHA),
+            ("the identity's own pull request", [pin(OTHER_SHA), unpin], APP_ACTOR, OTHER_SHA),
+            ("an author that did not read", [pin(OTHER_SHA), unpin], None, OTHER_SHA),
         )
-        for label, comments, want in cases:
+        for label, comments, author, want in cases:
             with self.subTest(label):
-                self.assertEqual(pm._pin_sha(7001, IDENTITY, comments, []), want)
-                self.gh.pin_comments = comments
+                self.assertEqual(
+                    pm._pin_sha(7001, IDENTITY, comments, [], author), want
+                )
+                self.gh.pin_comments, self.gh.pin_author = comments, author
                 self.assertEqual(pm.read_pin(REPO, 7001, IDENTITY), want)
+                self.assertEqual(pm.read_pins(REPO, [7001], IDENTITY), {7001: want})
 
     def test_alone_keeps_a_pin_only_the_identity_followed(self) -> None:
         self.gh.pin_comments = [

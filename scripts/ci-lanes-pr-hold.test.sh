@@ -841,6 +841,8 @@ expect "in the merge queue, a lifted veto passes" 0 3
 STUB_ISSUE='' STUB_FILES='[["docs/held/x.md"]]'
 expect "in the merge queue, a hold path fails the group" 1 3 "it changes docs/held/x.md, a hold path"
 STUB_FILES='[["docs/guide.md"]]'
+STUB_ISSUE="[$(pin "$OLD"),$(unpin "$SHA")]" expect "in the merge queue, the lanes App's own pull request ignores a lanes App unpin and judges its older pin, whose edit time this stub cannot read, so it holds" 1 3 \
+  "::error::#7: the lanes App's newest pin comment was edited, or its edit time did not read"
 export REF="refs/heads/main"
 expect "a merge-group ref with no pull request fails closed without a call" 1 0 "::error::cannot read a pull request number"
 export STUB_ISSUE='[]' REF="$QUEUE" GROUP_BASE_SHA=main

@@ -5,12 +5,15 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-import { ARM_MUTATION, AUTO_MERGE_STATE_QUERY, DETAIL_QUERY, DISARM_MUTATION, PULLS_QUERY, WAKE_OUTPUT, decideTrusted, main, pinBody, pythonLaneSource, pythonVerify } from "./enable-auto-merge.mjs";
+import { ARM_MUTATION, AUTO_MERGE_STATE_QUERY, DETAIL_QUERY, DISARM_MUTATION, PULLS_QUERY, WAKE_OUTPUT, decideTrusted, main, pinBody, pinMoved, pinned, pythonLaneSource, pythonVerify } from "./enable-auto-merge.mjs";
 import { COMMENT_EDITED_QUERY, LANES_APP_LOGIN, PULL_OPENED_QUERY, pinHold } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RECORDED = JSON.parse(readFileSync(join(HERE, "fixtures/trusted-arm-pulls.json"), "utf8"));
+const RECORDED_DETAIL = JSON.parse(readFileSync(join(HERE, "fixtures/trusted-arm-detail.json"), "utf8"));
+const DETAIL_PULL = RECORDED_DETAIL.answer.data.repository.pullRequest;
+const RECORDED_PIN = DETAIL_PULL.comments.nodes.find((node) => node.body.startsWith("<!-- babysit-merge-pin "));
 const REPO = "melodic-software/claude-code-plugins";
 const VERIFY_EVIDENCE_SCRIPT = join(HERE, "../../../plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py");
 const ENV = {
@@ -89,7 +92,9 @@ const costReads = (method, path, body) => {
 const pass = (head) => ({ refusal: null, needsHuman: false, head, atHead: ["pass"], earlierFails: [], ignored: 0, detail: null, supersededAtHead: false });
 const refused = (head, refusal) => ({ ...pass(head), refusal, atHead: refusal === "verify:fail" ? ["fail"] : [] });
 
-async function run(pulls, { env = {}, verdicts = {}, laneSource, fail = {} } = {}) {
+const ROOM = { refusal: null, unreadable: null, count: 0, cap: 5, queued: [], rung: "C2" };
+
+async function run(pulls, { env = {}, verdicts = {}, laneSource, fail = {}, room = ROOM } = {}) {
   const calls = [];
   const verified = [];
   const disarmed = new Set();
@@ -121,9 +126,9 @@ async function run(pulls, { env = {}, verdicts = {}, laneSource, fail = {} } = {
       if (found.commentsError) {
         throw new Error("POST /graphql failed with status 502");
       }
-      const none = { totalCount: 0, nodes: [] };
       const comments = found.comments ?? [];
-      return { data: { repository: { pullRequest: { comments: { totalCount: comments.length, nodes: comments }, reviews: none, reviewThreads: none, timelineItems: { nodes: [] }, files: none } } } };
+      const totalCount = found.commentsTotal ?? comments.length;
+      return { data: { repository: { pullRequest: { ...DETAIL_PULL, comments: { ...DETAIL_PULL.comments, totalCount, nodes: comments } } } } };
     }
     if (method === "POST" && /^\/repos\/melodic-software\/claude-code-plugins\/issues\/[0-9]+\/comments$/.test(path)) {
       if ((fail.pin && body.body.startsWith("<!-- babysit-merge-pin ")) || (fail.unpin && body.body.startsWith("<!-- babysit-merge-unpin "))) {
@@ -163,7 +168,7 @@ async function run(pulls, { env = {}, verdicts = {}, laneSource, fail = {} } = {
       verify: laneVerify,
       trustedVerify,
       laneSource,
-      room: async () => ({ refusal: null, unreadable: null, count: 0, cap: 5, queued: [], rung: "C2" }),
+      room: async () => room,
       whole,
       sleep: async () => {},
       now: () => Date.parse("2026-11-27T15:00:00Z"),
@@ -187,6 +192,29 @@ test("a clean trusted-author pull request with a pr-verify PASS at its head is a
   assert.match(leftLine(result, 500), new RegExp(`armed at ${CLEAN_HEAD}`));
 });
 
+const six = () => Array.from({ length: 6 }, (_, i) => clean({ number: 501 + i, id: `PR_${501 + i}` }));
+
+test("the trusted arm counts against merge.max-in-flight: none at 5 of 5 in flight, two at 3 of 5, each arm counted as it is sent", async () => {
+  const full = await run(six(), { room: { ...ROOM, count: 5, cap: 5 } });
+  assert.equal(armedHeads(full), 0, full.lines.join("\n"));
+  assert.equal(full.calls.filter(({ body }) => String(body).startsWith("<!-- babysit-merge-pin ")).length, 0, "a refused arm posts no pin");
+  assert.match(leftLine(full, 501), /trusted author: left: merge\.max-in-flight is 5 and 5 merges are in flight$/);
+  const room = await run(six(), { room: { ...ROOM, count: 3, cap: 5 } });
+  assert.equal(armedHeads(room), 2, room.lines.join("\n"));
+  assert.equal(room.lines.filter((line) => / trusted author: left: merge\.max-in-flight is 5 and 5 merges are in flight$/.test(line)).length, 4, "the four after the cap are refused with its reason");
+});
+
+test("a rung or post-merge refusal, or a room that does not read, arms no trusted pull request", async () => {
+  for (const [label, answer, why] of [
+    ["rung off", { ...ROOM, refusal: "rung-off:merge.rung" }, /left: pr-merge's gate holds its lane off \(rung-off:merge\.rung\)$/],
+    ["unreadable", { ...ROOM, unreadable: "config: boom" }, /left: the lane's room could not be read \(config: boom\)$/],
+  ]) {
+    const result = await run([clean()], { room: answer });
+    assert.equal(armedHeads(result), 0, label);
+    assert.match(leftLine(result, 500), why, label);
+  }
+});
+
 test("a trusted pull request changing infra/main.tf is refused without a recorded cost decision, and armed once its body links one", async () => {
   const unrecorded = await run([clean({ files: ["infra/main.tf"] })]);
   assert.equal(armedHeads(unrecorded), 0, unrecorded.lines.join("\n"));
@@ -205,7 +233,7 @@ test("a member's 'Please do not merge this yet.' after the PASS refuses the trus
 });
 
 const OLD_HEAD = "a".repeat(40);
-const lanesComment = (body, at = "2026-11-27T14:00:00Z", lastEditedAt = null) => ({ author: { __typename: "Bot", login: "melodic-automation-lanes" }, body, createdAt: at, lastEditedAt });
+const lanesComment = (body, at = "2026-11-27T14:00:00Z", lastEditedAt = null) => ({ ...RECORDED_PIN, body, createdAt: at, updatedAt: lastEditedAt ?? at, lastEditedAt });
 const pinPosts = (result) => result.calls.filter(({ method, path, body }) => method === "POST" && path.endsWith("/issues/500/comments") && String(body).startsWith("<!-- babysit-merge-pin "));
 const disarms = (result) => result.calls.filter(({ query }) => query === DISARM_MUTATION);
 
@@ -218,6 +246,20 @@ test("the arm posts the lanes App pin at the head pr-verify passed, then sends t
   assert.deepEqual(result.calls.filter(({ query }) => query === ARM_MUTATION).map(({ variables }) => variables), [{ id: "PR_500", head: CLEAN_HEAD }]);
   const order = result.calls.map(({ path, query, body }) => (query === ARM_MUTATION ? "arm" : String(body).startsWith("<!-- babysit-merge-pin ") ? "pin" : path));
   assert.ok(order.indexOf("pin") < order.indexOf("arm"), order.join(" "));
+});
+
+test("#19412's recorded discussion, its lanes App pin at its own head, reads whole: the trusted arm pins that head without the lanes rung and arms it", async () => {
+  const head = /sha=([0-9a-f]{40})/.exec(RECORDED_PIN.body)[1];
+  const result = await run([clean({ headRefOid: head, comments: DETAIL_PULL.comments.nodes })], { verdicts: { 500: pass(head) } });
+  assert.deepEqual(pinPosts(result).map(({ body }) => body.split("\n")[0]), [`<!-- babysit-merge-pin sha=${head} -->`], "a rung=C2 pin is the lanes path's, so the trusted arm posts its own");
+  assert.equal(armedHeads(result), 1, result.lines.join("\n"));
+});
+
+test("a recorded discussion whose comment count runs past the nodes it returned, and whose next page fails, is refused unarmed", async () => {
+  const result = await run([clean({ comments: DETAIL_PULL.comments.nodes, commentsTotal: DETAIL_PULL.comments.totalCount + 100 })]);
+  assert.equal(armedHeads(result), 0, result.lines.join("\n"));
+  assert.equal(pinPosts(result).length, 0);
+  assert.match(leftLine(result, 500), /trusted author: left: its comments could not be read/);
 });
 
 test("a pin already at the head is not posted again", async () => {
@@ -286,6 +328,16 @@ test("an unpin a person wrote is ignored, and an edited lanes App unpin disarms"
   const edited = await run([clean({ autoMergeRequest: armed, comments: [lanesComment(pinBody(OLD_HEAD)), lanesComment(`<!-- babysit-merge-unpin sha=${CLEAN_HEAD} -->`, "2026-11-27T14:30:00Z", "2026-11-27T14:40:00Z")] })]);
   assert.equal(disarms(edited).length, 1);
   assert.match(leftLine(edited, 500), /its newest unpin comment was edited/);
+});
+
+test("on the lanes App's own pull request a lanes App unpin is no record: the older pin still names the head its arm judged", () => {
+  const bot = "melodic-automation-lanes";
+  const records = [lanesComment(pinBody(OLD_HEAD)), lanesComment(`<!-- babysit-merge-unpin sha=${CLEAN_HEAD} -->`, "2026-11-27T14:30:00Z")];
+  assert.equal(pinMoved(records, bot, CLEAN_HEAD), `its head moved from ${OLD_HEAD}, the head its arm judged, to ${CLEAN_HEAD}`, "the lanes path disarms the moved head");
+  assert.equal(pinMoved(records, bot, CLEAN_HEAD, true), null, "the trusted path reads the unpin as no pin");
+  const atHead = [lanesComment(pinBody(CLEAN_HEAD)), lanesComment(`<!-- babysit-merge-unpin sha=${CLEAN_HEAD} -->`, "2026-11-27T14:30:00Z")];
+  assert.equal(pinned(atHead, bot, CLEAN_HEAD), true, "the lanes path keeps its pin at the head and posts none");
+  assert.equal(pinned(atHead, bot, CLEAN_HEAD, undefined, true), false, "the trusted path pins the head again over its unpin");
 });
 
 test("an unpin that does not post after the disarm fails the run, and the disarm stands", async () => {

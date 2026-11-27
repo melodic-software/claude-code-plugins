@@ -630,17 +630,17 @@ export const unpinBody = (sha, disarmed = true) =>
     "- The merge queue now reads this pull request as one the lanes App never pinned, until the path pins a head again.",
   ].join("\n");
 
-const newestPin = (comments, bot) => newestAppComment(comments, bot, (c) => PIN_RE.test(firstLine(c.body)) || UNPIN_RE.test(firstLine(c.body)));
+const newestPin = (comments, bot, unpins) => newestAppComment(comments, bot, (c) => PIN_RE.test(firstLine(c.body)) || (unpins && UNPIN_RE.test(firstLine(c.body))));
 
-export function pinned(comments, bot, head, rung) {
-  const pin = newestPin(comments, bot);
+export function pinned(comments, bot, head, rung, unpins = false) {
+  const pin = newestPin(comments, bot, unpins);
   if (pin === undefined || pin.lastEditedAt || UNPIN_RE.test(firstLine(pin.body))) return false;
   const [, sha, pinRung = null] = PIN_RE.exec(firstLine(pin.body));
   return sha === head && pinRung === (rung === "C2" || rung === "C3" ? rung : null);
 }
 
-export function pinMoved(comments, bot, head) {
-  const pin = newestPin(comments, bot);
+export function pinMoved(comments, bot, head, unpins = false) {
+  const pin = newestPin(comments, bot, unpins);
   if (pin === undefined) return null;
   const unpin = UNPIN_RE.test(firstLine(pin.body));
   if (pin.lastEditedAt) return `its newest ${unpin ? "unpin" : "pin"} comment was edited, so the head its arm judged does not read`;
@@ -964,11 +964,11 @@ export function decideTrusted(pull, humanGated, facts = {}, bot = undefined) {
     if (!Array.isArray(facts.comments)) {
       return none("already armed; its comments could not be read, so its pin is not checked");
     }
-    const moved = pinMoved(facts.comments, bot, pull.headRefOid);
+    const moved = pinMoved(facts.comments, bot, pull.headRefOid, true);
     if (moved !== null) {
       return { action: "disarm", reason: moved };
     }
-    if (!pinned(facts.comments, bot, pull.headRefOid)) {
+    if (!pinned(facts.comments, bot, pull.headRefOid, undefined, true)) {
       return none("already armed");
     }
     const held = trustedHoldReason(pull, humanGated) ?? discussionHold(facts.discussion);
@@ -1005,7 +1005,7 @@ export function decideTrusted(pull, humanGated, facts = {}, bot = undefined) {
   if (!("comments" in facts)) {
     return { action: "comments", reason: `${judged.reason}; its comments are not read yet, so a stale pin is not checked` };
   }
-  const moved = Array.isArray(facts.comments) ? pinMoved(facts.comments, bot, pull.headRefOid) : null;
+  const moved = Array.isArray(facts.comments) ? pinMoved(facts.comments, bot, pull.headRefOid, true) : null;
   return moved === null ? judged : { action: "unpin", reason: `${judged.reason}; ${moved}` };
 }
 
@@ -1058,7 +1058,7 @@ function judgeUnheld(pull, facts, bot) {
   if (vetoed !== null) {
     return none(vetoed);
   }
-  return { action: "arm", reason: "pr-verify passed its head and no hold stands", pin: !pinned(facts.comments, bot, pull.headRefOid) };
+  return { action: "arm", reason: "pr-verify passed its head and no hold stands", pin: !pinned(facts.comments, bot, pull.headRefOid, undefined, true) };
 }
 
 export function readRoom(answer) {
@@ -1458,8 +1458,24 @@ export async function main({ env = process.env, github, actions, laneReads, veri
     const lanes = (pull) => pull.author?.__typename === "Bot" && pull.author.login === slug;
     const outcomes = new Map();
     const leave = (pull, text) => outcomes.set(pull.number, text);
+    let trustedPersons;
+    const trustedAuthor = (pull) => {
+      const id = pull.author?.databaseId;
+      if (pull.author?.__typename !== "User" || !Number.isSafeInteger(id)) {
+        return false;
+      }
+      if (trustedPersons === undefined) {
+        try {
+          trustedPersons = loadTrustedList(trustedListPath(env, env.TRUSTED_ACTORS)).humans;
+        } catch (error) {
+          trustedPersons = null;
+          console.log(`enable-auto-merge: the trusted-actor list did not read, so no trusted person's pull request is armed this run: ${describe(error)}`);
+        }
+      }
+      return trustedPersons?.has(id) === true;
+    };
     let lane = null;
-    if (reads && !(wake && !pulls.some(lanes))) {
+    if (reads && !(wake && !pulls.some((pull) => lanes(pull) || trustedAuthor(pull)))) {
       try {
         lane = readRoom(await (room ?? pythonRoom(env))());
       } catch (error) {
@@ -1477,7 +1493,7 @@ export async function main({ env = process.env, github, actions, laneReads, veri
     let laneHeld =
       lane?.refusal != null ? `pr-merge's gate holds its lane off (${lane.refusal})` : lane?.unreadable != null ? `the lane's room could not be read (${lane.unreadable})` : null;
     const roomHold = (pull) => {
-      if (lane === null || !lanes(pull)) {
+      if (lane === null || !(lanes(pull) || trustedAuthor(pull))) {
         return null;
       }
       if (laneHeld !== null) {
@@ -1729,22 +1745,6 @@ export async function main({ env = process.env, github, actions, laneReads, veri
     }
     const humans = trustedHumans(env);
     const judging = { bot: slug, humanGated, holdPaths, pathHolds };
-    let trustedPersons;
-    const trustedAuthor = (pull) => {
-      const id = pull.author?.databaseId;
-      if (pull.author?.__typename !== "User" || !Number.isSafeInteger(id)) {
-        return false;
-      }
-      if (trustedPersons === undefined) {
-        try {
-          trustedPersons = loadTrustedList(trustedListPath(env, env.TRUSTED_ACTORS)).humans;
-        } catch (error) {
-          trustedPersons = null;
-          console.log(`enable-auto-merge: the trusted-actor list did not read, so no trusted person's pull request is armed this run: ${describe(error)}`);
-        }
-      }
-      return trustedPersons?.has(id) === true;
-    };
     trustedVerify ??= pythonVerify(env, { lane: false });
     laneSource ??= pythonLaneSource(env);
     const unpinRefused = async (pull) => {
@@ -1804,6 +1804,14 @@ export async function main({ env = process.env, github, actions, laneReads, veri
           }
         }
         ({ action, reason, pin } = decideTrusted(pull, humanGated, facts, slug));
+      }
+      if (action === "arm") {
+        const full = lane === null ? { reason: "the lane's room was not read" } : roomHold(pull);
+        if (full !== null) {
+          ({ action, reason } = { action: "none", reason: full.reason });
+        } else {
+          inFlight += 1;
+        }
       }
       if (action === "none") {
         console.log(`enable-auto-merge: #${pull.number} trusted author: left: ${escapeCommand(reason)}`);
@@ -1877,7 +1885,11 @@ export async function main({ env = process.env, github, actions, laneReads, veri
       } catch (error) {
         const body = answer === null ? { said: "", runWide: false } : await answerBody(answer.text);
         const shown = describe(body.said ? new Error(`${error.message}: ${body.said}`) : error);
-        if (refused(error, answer?.limited || body.runWide) || transient(error)) {
+        const declined = refused(error, answer?.limited || body.runWide);
+        if (declined && (error.attempts ?? 1) === 1) {
+          inFlight -= 1;
+        }
+        if (declined || transient(error)) {
           console.log(`::warning title=enable-auto-merge::#${pull.number} trusted author: arm not made, skipped this run: ${shown}`);
         } else {
           failed += 1;

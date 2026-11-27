@@ -1157,6 +1157,25 @@ test("pinHold reads the lanes App's newest pin", async () => {
   assert.equal(PIN_RE.exec(`<!-- babysit-merge-pin sha=${HEAD} -->`)[1], HEAD);
 });
 
+test("a lanes App unpin ends the pin only on a pull request that is not the lanes App's", async () => {
+  const unpinRow = { ...pinRow(HEAD, "2026-10-23T10:00:00Z"), node_id: "IC_8", body: `<!-- babysit-merge-unpin sha=${HEAD} -->\nUnpinned.` };
+  const items = [pinRow(OLD, "2026-10-23T09:00:00Z"), unpinRow].map((row) => ({ ...fromRest(row), lastEditedAt: null }));
+  assert.match(pinHold(items, HEAD) ?? "", /^its head is not fedcba98/, "on the lanes App's own pull request the unpin is ignored and the old pin holds the moved head");
+  assert.equal(pinHold(items, HEAD, { unpins: true }), null, "on a trusted person's pull request the newest unpin ends the pin");
+  const asked = [];
+  const github = async (method, path, body) => {
+    asked.push(body.variables.id);
+    return { data: { node: { lastEditedAt: null } } };
+  };
+  const unread = items.map(({ lastEditedAt, ...item }) => item);
+  assert.match(pinHold(await withPinEdit(github, unread), HEAD) ?? "", /^its head is not fedcba98/, "the lanes App path reads the edit time of the pin it judges");
+  assert.equal(pinHold(await withPinEdit(github, unread, { unpins: true }), HEAD, { unpins: true }), null, "the trusted path reads the edit time of the unpin it judges");
+  assert.deepEqual(asked, ["IC_7", "IC_8"], "each path reads the edit time of the record it judges");
+  const queuedRun = await queued(report(null), [pinRow(OLD, "2026-10-23T09:00:00Z"), unpinRow]);
+  assert.equal(queuedRun.code, 1, queuedRun.out);
+  assert.match(queuedRun.out, PIN_HELD, "the lanes App's queued pull request with a newer unpin is still held on its older pin");
+});
+
 test("in the merge queue, a reader with no FAIL hold lets a passed head through", async () => {
   const { code, out } = await queued(report(null));
   assert.equal(code, 0, out);
