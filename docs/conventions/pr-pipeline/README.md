@@ -207,10 +207,12 @@ how many days a scheduled lane with a cadence gate waits, counted from its last 
 succeeded. `maintenance-scan-architecture` ships off. Its gate job
 (`.github/scripts/maintenance-scan-architecture/gate.mjs`) reads both keys and `find_open_item_cap`
 from the improvement config cascade (default 5). Before any API read it stops a run as `lane-off`
-when the lane is off, or `at-cap` when the cap is 0. Then it stops one as `at-cap` when the open
-`source: architecture-improve` issues are at or above the cap, `not-due` when fewer than
+when the lane is off, `reads-unconfined` unless the gate step sets `READS_CONFINED=true` (it does
+not yet: the legs cannot block reads outside the checkout until melodic-software/ci-workflows#1241,
+so every run stops here today), or `at-cap` when the cap is 0. Then it stops one as `at-cap` when
+the open `source: architecture-improve` issues are at or above the cap, `not-due` when fewer than
 `every-days` calendar days passed since the last run on main whose `Scan` job succeeded (read back
-through the whole run history, so a long stretch of stopped runs never hides it), or `no-merges`
+through the newest 400 runs; none found there is a first scan), or `no-merges`
 when nothing merged to main since it; `first-scan` means no such run exists. A dispatch's `force`
 input skips only `lane-off` and `not-due`; a schedule run never reads it. The model legs run
 sandboxed (`sandbox: "true"`), with the Bash commands and deny rules in

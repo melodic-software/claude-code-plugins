@@ -29,10 +29,9 @@ export function readItems(text) {
 }
 
 export const SECURITY_DEFECT = /\bsecurity[-\s]defects?\b|\bvulnerab|\bCWE-\d+|\bCVE-\d{4}-\d+|\bexploit|\binjection\b|\bbypass|\bexfiltrat|\bcredentials?\b|\bsecrets?\b|\btokens?\b|\bprivilege[-\s]escalation\b|\bauth(?:entication|orization)?\b|\btravers|\bXSS\b|\bSSRF\b|\bRCE\b|\bescape|\bleak|\bunsaniti|\bTOCTOU\b/i;
-const prose = (text) => text.replace(/`[^`]*`/g, " ").replace(/\S*[/\\]\S*/g, " ");
 
 export function withoutSecurityDefects(items) {
-  const kept = items.filter((item) => !SECURITY_DEFECT.test(prose(item.title)) && !SECURITY_DEFECT.test(prose(item.body)));
+  const kept = items.filter((item) => !SECURITY_DEFECT.test(item.title) && !SECURITY_DEFECT.test(item.body));
   return { kept, dropped: items.length - kept.length };
 }
 

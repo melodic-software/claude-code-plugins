@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
@@ -11,6 +12,7 @@ export const SCAN_DONE_JOB = "Scan";
 export const DEFAULT_EVERY_DAYS = 1;
 const RUNS_PAGE = 100;
 const CALL_BUDGET = 1000;
+const MAX_RUNS = 400;
 const DAY_MS = 86_400_000;
 const PROMPT_TEMPLATE = fileURLToPath(new URL("./prompt.md", import.meta.url));
 
@@ -38,8 +40,8 @@ export function configStop({ enabled, cap, force = false, readsConfined = false 
   return null;
 }
 
-export async function lastScan(call, repository, { workflow = WORKFLOW, perPage = RUNS_PAGE } = {}) {
-  for (let page = 1; ; page += 1) {
+export async function lastScan(call, repository, { workflow = WORKFLOW, perPage = RUNS_PAGE, maxRuns = MAX_RUNS } = {}) {
+  for (let page = 1; (page - 1) * perPage < maxRuns; page += 1) {
     const listing = await call("GET", `/repos/${repository}/actions/workflows/${workflow}/runs?branch=main&status=completed&per_page=${perPage}&page=${page}`);
     const runs = listing?.workflow_runs ?? [];
     for (const run of runs) {
@@ -50,6 +52,7 @@ export async function lastScan(call, repository, { workflow = WORKFLOW, perPage 
     }
     if (runs.length < perPage) return null;
   }
+  return null;
 }
 
 const git = (root, args) => execFileSync("git", ["-C", root, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
@@ -106,6 +109,22 @@ export function modelTools(workspace) {
   return { allowed: fill(allowed), disallowed: fill(disallowed) };
 }
 
+export function stagedGrants(stage) {
+  const root = join(stage, "plugins");
+  const found = [];
+  for (const plugin of readdirSync(root)) {
+    if (existsSync(join(root, plugin, "hooks"))) found.push(`plugins/${plugin}/hooks`);
+    const manifest = JSON.parse(readFileSync(join(root, plugin, ".claude-plugin/plugin.json"), "utf8"));
+    for (const key of ["hooks", "mcpServers"]) if (key in manifest) found.push(`plugins/${plugin}/.claude-plugin/plugin.json ${key}`);
+    for (const file of readdirSync(join(root, plugin), { recursive: true })) {
+      if (!/(^|\/)SKILL\.md$/.test(file)) continue;
+      const frontmatter = /^---\n([\s\S]*?)\n---/.exec(readFileSync(join(root, plugin, file), "utf8"))?.[1] ?? "";
+      if (/^allowed-tools:/m.test(frontmatter)) found.push(`plugins/${plugin}/${file} allowed-tools`);
+    }
+  }
+  return found;
+}
+
 const multiline = (name, lines) => `${name}<<TOOLS_EOF\n${lines.join("\n")}\nTOOLS_EOF\n`;
 
 export function statusLine(result) {
@@ -128,6 +147,11 @@ export function gateSummary(result) {
 async function main(argv, env) {
   const [command] = argv;
   if (command === "prompt") {
+    const grants = stagedGrants(env.STAGE);
+    if (grants.length > 0) {
+      for (const grant of grants) console.log(`::error::${grant} widens what the unattended scan may run; the stage refuses it`);
+      return 1;
+    }
     writeFileSync(env.PROMPT_FILE, promptText(Number(env.ROOM)));
     const { allowed, disallowed } = modelTools(env.GITHUB_WORKSPACE);
     appendFileSync(env.GITHUB_OUTPUT, multiline("allowed-tools", allowed) + multiline("disallowed-tools", disallowed));

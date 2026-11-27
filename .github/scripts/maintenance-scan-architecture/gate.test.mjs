@@ -12,7 +12,7 @@ import { STANDARDS_FIXTURE } from "../lib/trusted-actors.fixtures.mjs";
 import { runs } from "../lib/model-credential.mjs";
 import { workflowText } from "../lib/workflow-text.mjs";
 import { forge } from "./forge.fixtures.mjs";
-import { decide, gate, gateSummary, lastScan, mergesSince, modelTools, promptText, statusLine } from "./gate.mjs";
+import { decide, gate, gateSummary, lastScan, mergesSince, modelTools, promptText, stagedGrants, statusLine } from "./gate.mjs";
 import { countOpen, openItemCap, SOURCE_LABEL } from "./lane.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
@@ -422,6 +422,34 @@ test("the prepared working tree is read-only but for .git and .work, so no comma
   } finally {
     execFileSync("chmod", ["-R", "u+w", planted.dir]);
   }
+});
+
+test("the stage refuses a staged plugin that ships hooks, declares hooks or MCP servers, or has a skill that grants tools", () => {
+  const stage = (mutate) => {
+    const dir = tempDir("scan-architecture-stage-");
+    for (const plugin of ["improvement", "architecture"]) {
+      mkdirSync(join(dir, "plugins", plugin, ".claude-plugin"), { recursive: true });
+      mkdirSync(join(dir, "plugins", plugin, "skills/find"), { recursive: true });
+      writeFileSync(join(dir, "plugins", plugin, ".claude-plugin/plugin.json"), '{"name":"p"}\n');
+      writeFileSync(join(dir, "plugins", plugin, "skills/find/SKILL.md"), "---\nname: find\n---\nbody\n");
+    }
+    mutate?.(join(dir, "plugins/architecture"));
+    return stagedGrants(dir);
+  };
+  assert.deepEqual(stage(), []);
+  assert.deepEqual(stage((p) => mkdirSync(join(p, "hooks"))), ["plugins/architecture/hooks"]);
+  assert.deepEqual(stage((p) => writeFileSync(join(p, ".claude-plugin/plugin.json"), '{"name":"p","hooks":{}}\n')), ["plugins/architecture/.claude-plugin/plugin.json hooks"]);
+  assert.deepEqual(stage((p) => writeFileSync(join(p, "skills/find/SKILL.md"), "---\nname: find\nallowed-tools: Bash\n---\n")), ["plugins/architecture/skills/find/SKILL.md allowed-tools"]);
+  const stageStep = parse(WORKFLOW_TEXT).jobs["find-candidates"].steps.find((step) => step.id === "stage");
+  assert.match(stageStep.run, /gate\.mjs prompt/);
+  assert.equal(stageStep.env.STAGE, "${{ runner.temp }}/scan-stage");
+});
+
+test("the run-history walk stops after a bounded window, below the runs API's 1000-result cap and the call budget", async () => {
+  const stopped = Array.from({ length: 450 }, (_, i) => ({ at: NOW - (i + 1) * 3_600_000, sha: "c".repeat(40), scan: "skipped" }));
+  const fake = forge({ runs: [...stopped, { at: NOW - 500 * 3_600_000, sha: "d".repeat(40), scan: "success" }] });
+  assert.equal(await lastScan(fake.call, "o/r"), null, "a scan past the window reads as a first scan");
+  assert.ok(fake.calls.length <= 405, `${fake.calls.length} calls`);
 });
 
 test("merges since the last scan count first-parent commits after its head", () => {

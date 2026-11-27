@@ -95,8 +95,8 @@ test("an item that names a security defect in its title or body is dropped, and 
     { title: "Deepen the leg generator", body: "Evidence: `scripts/credential-legs/maintenance-scan-architecture.mjs:1`" },
     { title: "Merge the credential helpers", body: "Evidence: .github/scripts/lib/model-credential.mjs:12 and `select-model-credential`" },
   ];
-  assert.equal(withoutSecurityDefects(cited).dropped, 1, "a term in a cited path or code span is not a named defect; the same term in prose still is");
-  assert.equal(withoutSecurityDefects([cited[0]]).dropped, 0);
+  assert.equal(withoutSecurityDefects(cited).dropped, 2, "a term in a cited path or code span still drops the item: the screen errs toward keeping a security detail out of a public issue");
+  assert.equal(withoutSecurityDefects([{ title: "t", body: "Evidence: `token/secret` in src/a.mjs:4" }]).dropped, 1);
 });
 
 test("an item shaped like an issue another script trusts is dropped: an Upstream drift: title or any HTML comment marker", () => {
