@@ -38,3 +38,11 @@ comment_lint_exclude:
   - plugins/user-interface/tests/fixtures/review/all-rules.css
   # Unedited vendored copy from Claude Code's built-in plugin-authoring skill: https://github.com/melodic-software/claude-code-plugins/issues/18772
   - plugins/themes/hooks/make-colors.js
+comment_lint_keep_opening:
+  # Eval scaffolds and the fixture helpers they run open with the summary a person reads before approving the run: https://github.com/melodic-software/claude-code-plugins/issues/18772
+  - plugins/*/evals/*/scaffold.sh
+  - plugins/*/evals/routing/*/*/scaffold.sh
+  - plugins/*/skills/*/evals/*/scaffold.sh
+  - plugins/*/evals/**/fixtures/**/*.sh
+  - plugins/*/evals/fixtures/**/*.py
+  - plugins/review/evals/revert-cases.sh
