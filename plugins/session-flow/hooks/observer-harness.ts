@@ -1,4 +1,4 @@
-import type { Finding, Fix } from './observer-live.ts'
+import { type Finding, type Fix, keyOf } from './observer-live.ts'
 
 export type HarnessOptions = {
   harnessCheck: boolean
@@ -16,7 +16,7 @@ export type HarnessOptions = {
 export type Platform = 'macos' | 'windows' | 'wsl' | 'linux' | 'unknown'
 export type Where = { repo: string; platform: Platform }
 
-export type HarnessCheck = 'hook-latency' | 'cache-miss' | 'slow-tool' | 'loop' | 'context' | 'rate-limit'
+export type HarnessCheck = 'hook-latency' | 'cache-miss' | 'slow-tool' | 'loop' | 'context' | 'rate-limit' | 'codify'
 
 type Usage = { cache_read_input_tokens?: number; cache_creation_input_tokens?: number; ephemeral_1h_input_tokens?: number; model?: string }
 export type RateLimit = { kind: string; percentUsed: number; resetsAt?: string }
@@ -248,6 +248,23 @@ export const harness = (s: HarnessState, e: HarnessEvent, o: HarnessOptions, whe
     case 'measured':
       return measured(s, e, o, where)
   }
+}
+
+export type RuleRow = { sid: string; outcome?: string; rule?: string }
+
+export const codify = (rows: readonly RuleRow[], rule: string, threshold: number, where: Where): HarnessFinding | undefined => {
+  if (threshold < 1) return undefined
+  const key = keyOf(rule)
+  const hits = rows.filter(r => r.outcome === 'shown' && r.rule !== undefined && keyOf(r.rule) === key)
+  const sessions = new Set(hits.map(r => r.sid)).size
+  if (hits.length < threshold || sessions < 2) return undefined
+  return finding(
+    'codify',
+    `A rule was broken in ${hits.length} observer findings across ${sessions} sessions: ${rule.slice(0, 100)}`,
+    `observer_codify_threshold: a rule the observer reports ${threshold} or more times across sessions is turned into a check`,
+    `${hits.length} findings in ${sessions} sessions cite: ${rule}`,
+    session(where, `codify-${rule}`, 'codify it into a check in a dedicated session', `/corrections:codify ${rule}`),
+  )
 }
 
 export const hookRunsFrom = (text: string) =>
