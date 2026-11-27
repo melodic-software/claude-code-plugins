@@ -1,5 +1,38 @@
 # Changelog: session-flow plugin
 
+## [10.11.0] - 2026-11-27
+
+### Added
+
+- A `transcript_sources_file` option names a JSON file of transcript sources: Claude Code configuration directories on this host and on hosts reached over ssh. Unset, only this host's configuration directory is read. `scripts/transcript_sources.py check FILE` validates a file, exiting 2 with the file named when it is malformed.
+
+### Changed
+
+- `/session-flow:audit-sessions` collects every source the `transcript_sources_file` lists, each read by its own host, into one store partitioned by source (`store/v2/<source>/`). Each record carries the source name and the reading host's host, platform, configuration directory and Claude Code version, and a status that marks a session whose transcript is gone. A source that cannot be read becomes a named gap with the command that re-collects it, and each run writes a diagnostics record. Prompts in `history.jsonl` whose session has no transcript are kept, pasted text restored, for the excerpt reader only.
+- `collect.py collect` takes `--sources-file` and `--source <name>` in place of `--projects-root`, and waits for another local collector's lock instead of reading beside it.
+- `/session-flow:audit-friction`'s `--source <dir>` collects into the one store as its own source instead of a separate store.
+- The old store is carried over: sessions whose transcripts remain are rebuilt into the new store, and old records whose transcript is gone are kept, marked carried-over. Once a host's own collect has done both with no gap, the old store moves to a quarantine folder that nothing reads and that is deleted after the store retention. Another host's old store is only read. `collect.py migrate --dry-run` reports what would be carried over and quarantined.
+- `collect.py collect` and `migrate` without `--retention-days` now apply the `audit_sessions_retention_days` default (180 days), raised to the longest `cleanupPeriodDays` of the sources read; before, an unset `--retention-days` was 0 and kept every record. A value you pass, 180 included, is kept and warns when it is below a source's `cleanupPeriodDays`. With no readable default in plugin.json, an unset value is an error. A source that cannot be read is judged by the `cleanupPeriodDays` it last reported.
+- `/session-flow:audit-sessions` markdown reports (`sweep.py --format md` and the written report), `/session-flow:audit-friction` markdown (`friction.py --format md`) and `/session-flow:recall` snippets and file paths now pass through a publish redactor over the `transcript_sources_file` sources: host names, ssh destinations, source names and configuration directories become stable per-run `<host-N>` placeholders, and usernames, IP addresses, emails, home paths and secrets typed ones. A new `redact_identifiers` option adds comma-separated names and paths to replace with `<identifier>`. Each script takes `--sources-file` and `--redact-identifiers`; a sources file that is missing or unusable, or secret rules that do not load, stop the output with exit 2 and nothing published. Stored records are unchanged.
+- The `/session-flow:audit-sessions`, `/session-flow:audit-friction`, `/session-flow:recall` and `/session-flow:find-handoff` reports open with a header naming each collection gap with the command that retries it, and each source that has gone past half its `cleanupPeriodDays` without a collection free of gaps. The JSON keeps each retry command as it runs; the markdown shows hosts by placeholder.
+- `/session-flow:recall` lists the projects directories of every local source in the `transcript_sources_file`, holds the per-host reader lock for its scan (another reader holding it past `lock_timeout_s` is a gap, exit 1, nothing read), and also searches the prompts the store kept from `history.jsonl` whose session has no transcript. Its publish redactor failing closed exits 2, as before.
+- `scripts/transcript_dirs.sh` takes `--sources-file` and lists every local source's projects directory; `/session-flow:retro` finds the session's transcript the same way.
+- `/session-flow:audit-friction` no longer probes for the other platform's projects tree, and `AUDIT_FRICTION_SIBLING_GLOBS` is gone: list that configuration directory in the `transcript_sources_file` instead, and the header names it while it is uncollected.
+- `sweep.py --excerpts` and `--correction-candidates` pass every string through the publish redactor, so `/corrections:codify preferences` quotes only redacted text. `scripts/publish.py` also runs as a command that redacts its input, which `/session-flow:retro` uses before a codified learning lands in a shared file.
+- `/session-flow:audit-sessions` passes `--retention-days` only when `audit_sessions_retention_days` is set, so an unset option keeps the 180-day default raised to the longest source `cleanupPeriodDays`.
+- `collect.py` takes `--lock-name` for the per-host reader lock; the test-only environment variable that renamed it is gone.
+- A `transcript_sources_file` path, and a local source's `config_dir` in it, starting with `~` are read from the home directory; a missing sources file prints its warning once per run.
+
+### Fixed
+
+- Redacting a secret at the end of a line no longer joins the next line onto the redacted one.
+- An unset `audit_sessions_retention_days` option now applies its documented floor: 180 days raised to the longest `cleanupPeriodDays` of the sources read. A declared default had made the option always read as set.
+- `/session-flow:recall` prints a history-only prompt only when its project is one of the scanned directories; a prompt from another project needs `--scope all`, which the skill passes only at the `all` scope.
+- `/session-flow:audit-sessions` churn findings show a file edited outside the session's working directory at its own path, instead of joining its redacted `~/` form onto the working directory.
+- `/session-flow:audit-sessions` published reports keep its metric names and drift canary keys, such as `cache.missed_input_tokens`, instead of replacing them with `<redacted:generic-api-key>`; a secret beside them is still redacted.
+- A secret whose gitleaks rule marks only part of it, such as a base64 JWT, a Teams webhook URL or a Kubernetes Secret's later data values, is redacted whole; only line breaks and a trailing quote, space or semicolon are kept.
+- `/session-flow:recall` matches a history-only prompt from a project under a home directory to its scanned directory again: the session store now keeps each prompt's project slug beside its redacted project. A home-directory prompt stored earlier is matched once the next collect rewrites it.
+
 ## [10.10.2] - 2026-11-27
 
 ### Changed
