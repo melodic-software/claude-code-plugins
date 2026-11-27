@@ -22,7 +22,7 @@ metadata:
 
 Wraps Microsoft's [`@playwright/cli`](https://github.com/microsoft/playwright-cli) for token-efficient browser automation. Snapshots and screenshots write to disk; only paths come back into context, a substantial token reduction versus Playwright MCP's in-context payloads.
 
-Requires `playwright-cli` on PATH (`npm install -g @playwright/cli`). If it is missing, tell the user to install it rather than substituting a different automation surface.
+Requires `playwright-cli` on PATH (`npm install -g @playwright/cli`; for the current command, upstream's [Installation](https://github.com/microsoft/playwright-cli#installation)). If it is missing, tell the user to install it rather than substituting a different automation surface.
 
 Latest release, checked at most once a day: !`node "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs" latest "${CLAUDE_PLUGIN_ROOT}" --for skill:playwright --data-dir "${CLAUDE_PLUGIN_DATA}" || echo "not checked (node did not run)"`
 
@@ -31,7 +31,7 @@ When that line names a newer release or a missing CLI, tell the user once. Add t
 ## Quick start (90% of use)
 
 ```bash
-playwright-cli -s=<flow> open <url>                  # named session, headless by default
+playwright-cli -s=<flow> open <url>                  # named session
 playwright-cli -s=<flow> snapshot                    # writes YAML with element refs (e1, e2, ...)
 playwright-cli -s=<flow> click e42                   # interact by ref
 playwright-cli -s=<flow> fill e37 "input" --submit   # fill + press Enter
@@ -76,7 +76,7 @@ It reads the named variable, refuses an unset or empty one, discards `playwright
 ## Conventions
 
 - **Always use named sessions** (`-s=<flow>`) for multi-step work, with a name unique to this run. Default (unnamed) sessions are hard to isolate when things go sideways, and a shared name collides with another agent driving the same machine
-- **`close` each session the run opened at the end**, by name. Don't leave zombie browsers, and don't close sessions the run did not open. `close-all` and `kill-all` act on every playwright-cli browser on the machine, including other agents' sessions, so keep them for recovering from a stuck daemon or socket error ([reference/sessions.md](reference/sessions.md))
+- **`close` each session the run opened at the end**, by name. Don't leave zombie browsers, and don't close sessions the run did not open. `close-all` and `kill-all` reach past this run's own sessions, other agents' included (each one's scope: upstream's [Sessions](https://github.com/microsoft/playwright-cli#sessions)), so keep them for recovering from a stuck daemon or socket error ([reference/sessions.md](reference/sessions.md))
 - **`--headed` only when the user explicitly wants to observe.** On Windows, headed browsers spawn in the background and don't auto-focus. See [reference/windows-quirks.md](reference/windows-quirks.md)
 - **Artifacts land in `.playwright-cli/` relative to CWD at command time.** Add `.playwright-cli/` to the project's `.gitignore` if it isn't already. For meaningful artifacts (evidence for PRs, regression baselines), pass `--filename=<descriptive>.png`; let timestamp-named snapshots pile up as throwaway intermediate state
 - **Use element refs from snapshots** (`e15`, `e37`), not CSS selectors. Snapshots use accessibility roles, which survive cosmetic UI changes
@@ -85,9 +85,9 @@ It reads the named variable, refuses an unset or empty one, discards `playwright
 
 ### Recover from stale sessions
 
-`playwright-cli kill-all` force-stops every playwright-cli daemon this user runs on the machine,
-including sessions another run, worktree or person still has open. It is a recovery step, never a
-way to begin a run:
+We treat `playwright-cli kill-all` as stopping sessions another run, worktree or person still has
+open (what it kills: upstream's [Sessions](https://github.com/microsoft/playwright-cli#sessions)).
+It is a recovery step, never a way to begin a run:
 
 1. Reach for it only when a command fails with a socket error or `playwright-cli list` shows a
    daemon that no longer responds.
