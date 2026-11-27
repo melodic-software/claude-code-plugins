@@ -21,20 +21,83 @@ def _load_module(name, path):
 
 
 select_mapping = _load_module("evals_select_mapping", os.path.join(HERE, "select_mapping.py"))
+suite_refs = select_mapping.suite_refs
+no_run_text = select_mapping.no_run_text
 
 WILD_PATH_RE = re.compile(r"[*?[$`{]")
 QUOTED_TOKEN_RE = re.compile(r"""(['"])([^'"\n]+)\1""")
 SELF_REF_RE = re.compile(r"BASH_SOURCE|\$\{?0(?![0-9])")
+RUNS_CODE_RE = re.compile(r"\beval\b|\b(?:ba|z)?sh\s+(?:-[A-Za-z]+\s+)*-[A-Za-z]*c\b")
+PRINT_ONLY_RE = re.compile(
+    r"""^(?:[^\s()]*\)\s*)?(?:echo|printf)\s[^;&|<>`]*?(?:\s*[12]?>&[12])?"""
+    r"""\s*(?:;\s*exit(?:\s+\d+)?\s*)?(?:;;)?\s*$"""
+)
+UNSET_MESSAGE_RE = re.compile(r"\$\{\w+:?\?[^}$`]*\}")
+
+
+def _printed_text_cut(line):
+    """`line` without what it only prints: nothing for an `echo` or `printf` line with no command
+    substitution or redirect into a file, and no `${name:?message}` message. A script naming
+    itself there prints its name, never its source."""
+    stripped = UNSET_MESSAGE_RE.sub("", line.strip())
+    shape = re.sub(r"""'[^']*'|"(?:[^"\\$`]|\\.)*\"""", "''", stripped)
+    printed = PRINT_ONLY_RE.match(shape) and "$(" not in stripped and "`" not in stripped
+    return "" if printed else stripped
+
+
+def _code_lines(text):
+    """Per line of a shell `text`: the line with each single-quoted run blanked, since `$0` and
+    `BASH_SOURCE` there are literal (awk's `$0`), or None for a line a literal heredoc writes
+    out. The whole text reads unblanked when it runs code from a string (`eval`, `bash -c`) or
+    its quoting does not read cleanly."""
+    lines = text.splitlines()
+    skipped = suite_refs.literal_heredoc_lines(lines)
+    inside = no_run_text._string_block_lines(".sh", text)
+    if RUNS_CODE_RE.search(text) or inside is None:
+        return [None if n in skipped else line for n, line in enumerate(lines)]
+    out, quote = [], None
+    for number, line in enumerate(lines):
+        if number in skipped:
+            out.append(None)
+            continue
+        if quote is None and number + 1 in inside:
+            out.append(line)
+            continue
+        kept = []
+        index = 0
+        while index < len(line):
+            char = line[index]
+            if quote == "'":
+                quote = None if char == "'" else quote
+                kept.append(" ")
+            elif char == "\\":
+                kept.append(line[index : index + 2])
+                index += 1
+            elif quote in ('"', "$'"):
+                quote = None if char == quote[-1] else quote
+                kept.append(char)
+            elif char == "#" and (index == 0 or line[index - 1] in " \t"):
+                break
+            elif line.startswith("$'", index):
+                quote = "$'"
+                kept.append("$'")
+                index += 1
+            else:
+                quote = char if char in "'\"" else None
+                kept.append(" " if char == "'" else char)
+            index += 1
+        out.append("".join(kept))
+    return out
 
 
 def _reads_own_source(path, text):
     name_re = _name_re(os.path.basename(path))
-    for line in text.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
+    for raw, code in zip(text.splitlines(), _code_lines(text)):
+        if code is None or not raw.strip() or raw.strip().startswith("#"):
             continue
-        rest = select_mapping.DIRNAME_INNER_RE.sub("", stripped)
-        if SELF_REF_RE.search(rest) or name_re.search(rest):
+        if SELF_REF_RE.search(_printed_text_cut(select_mapping.DIRNAME_INNER_RE.sub("", code))):
+            return True
+        if name_re.search(_printed_text_cut(raw)):
             return True
     return False
 
@@ -52,6 +115,16 @@ def _covers(ref, target):
     wild = next((i for i, part in enumerate(parts) if WILD_PATH_RE.search(part)), None)
     prefix = os.sep.join(parts[:wild]) if wild else ""
     return bool(prefix) and target.startswith(prefix + os.sep)
+
+
+def _site_covers(refs, narrow, target):
+    """Some ref covers `target`, a ref in `narrow` only when `target` ends with one of its
+    tails."""
+    name = os.path.basename(target)
+    return any(
+        _covers(ref, target) and (ref not in narrow or any(name.endswith(t) for t in narrow[ref]))
+        for ref in refs
+    )
 
 
 def deleted_lines(repo_root, merge_base, rel_path):
@@ -78,9 +151,12 @@ def _comment_reader_texts(eval_norm, files):
 
 def _reads_deleted_comment(texts, deleted):
     """Some text naming `case.yaml` holds a deleted comment's words, or a quoted pattern that
-    matches the deleted line."""
-    comments = [line.strip() for line in deleted if line.strip().startswith("#")]
-    bodies = [line.lstrip("#").strip() for line in comments]
+    matches a deleted line; a comment after code counts from its ` #`."""
+    bodies = []
+    for line in deleted:
+        stripped = line.strip()
+        cut = stripped if stripped.startswith("#") else line[line.find(" #") + 1 :] if " #" in line else ""
+        bodies.append(cut.lstrip("#").strip())
     for text in texts:
         if "case.yaml" not in text:
             continue
@@ -93,7 +169,7 @@ def _reads_deleted_comment(texts, deleted):
                 pattern = re.compile(token)
             except re.error:
                 continue
-            if any(pattern.search(line) for line in comments):
+            if any(pattern.search(line) or pattern.search(line.strip()) for line in deleted):
                 return True
     return False
 
@@ -103,10 +179,10 @@ def _case_yaml_hidden(target, cases, eval_norm, deleted):
         return False
     files = {}
     for case in cases:
-        files.update(select_mapping._case_suite_files(case, eval_norm))
+        files.update(select_mapping._case_suite_files(case, eval_norm, visibility=True))
     for _, sites in files.values():
-        for _, refs, _, _, _, wide in sites:
-            if wide or any(_covers(ref, target) for ref in refs):
+        for _, refs, _, _, _, wide, narrow in sites:
+            if wide or _site_covers(refs, narrow, target):
                 return False
     return not _reads_deleted_comment(_comment_reader_texts(eval_norm, files.values()), deleted)
 
@@ -116,7 +192,9 @@ def hidden_from_agent(eval_abs, target_abs, cases, owning_case=None, deleted=())
     is hidden when no case file names its folder, the evals folder or one above, and no script
     naming `case.yaml` reads a `deleted` comment. A shell script is hidden when some case's
     scaffold runs it, no case's files copy, print, read, pass on or name it, or a folder holding
-    it, in any other form, and it never reads its own source. Unsure is visible."""
+    it, in any other form, and it never reads its own source. Text a literal heredoc writes out,
+    a print-only line, a binding of a variable to the script's exact path, and a `plugins` entry
+    naming the suite's own plugin are not such forms. Unsure is visible."""
     target = os.path.normpath(target_abs)
     eval_norm = os.path.normpath(eval_abs)
     if owning_case is not None and target == os.path.normpath(
@@ -131,12 +209,13 @@ def hidden_from_agent(eval_abs, target_abs, cases, owning_case=None, deleted=())
     name_re = _name_re(os.path.basename(target))
     run = False
     for case in cases:
-        for fpath, (text, sites) in select_mapping._case_suite_files(case, eval_norm).items():
-            run_lines = set()
-            for line, refs, runs, rest, rest_refs, wide in sites:
+        files = select_mapping._case_suite_files(case, eval_norm, visibility=True)
+        for fpath, (text, sites) in files.items():
+            run_lines = suite_refs.binding_lines(fpath, text or "", target)
+            for line, refs, runs, rest, rest_refs, wide, narrow in sites:
                 if wide:
                     return False
-                if not any(_covers(ref, target) for ref in refs):
+                if not _site_covers(refs, narrow, target):
                     continue
                 if runs != target or any(_covers(ref, target) for ref in rest_refs):
                     return False
@@ -153,6 +232,6 @@ def hidden_from_agent(eval_abs, target_abs, cases, owning_case=None, deleted=())
                 stripped = line.strip()
                 if line in run_lines or not stripped or stripped.startswith("#"):
                     continue
-                if name_re.search(line):
+                if name_re.search(_printed_text_cut(line)):
                     return False
     return run

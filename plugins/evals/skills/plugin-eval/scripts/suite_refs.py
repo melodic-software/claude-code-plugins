@@ -23,8 +23,18 @@ DIRNAME_INNER_RE = re.compile(
 )
 PWD_TAIL_RE = re.compile(r"""["']?\s*&&\s*pwd(?:\s+-[PL])?\s*\)""")
 HIDDEN_SCRIPT_EXTS = frozenset([".sh", ".bash"])
+CD_PWD_RE = re.compile(
+    r"""^["']?\$\(\s*cd\s+["']?(?P<arg>[^"'\s)]+)["']?\s*&&\s*pwd(?:\s+-[PL])?\s*\)"""
+    r"""(?P<after>[^"'\s]*)["']?$"""
+)
+LITERAL_HEREDOC_RE = re.compile(
+    r"""^\s*(?:cat|tee)(?:\s+(?:>>?\s*)?[^\s<>|;&]+)*\s*<<-?\s*(['"])([A-Za-z_]\w*)\1"""
+    r"""\s*(?:>>?\s*[^\s<>|;&]+\s*)?$"""
+)
+PLUGINS_FIELD_RE = re.compile(r"""^plugins:\s*\[\s*["'][^"']+["']\s*(?:,\s*["'][^"']+["']\s*)*\]\s*$""")
 SCRIPT_RUN_RE = re.compile(
-    r"""^(?:(?:exec|command|then|do|else|!)\s+)*(?:(?:bash|sh|source|\.)\s+(?:-(?!c\b)[A-Za-z]+\s+)*)?"""
+    r"""^(?:\(\s*)?(?:cd\s+(?:"[^"]*"|'[^']*'|[^\s;&|]+)\s*&&\s*)?"""
+    r"""(?:(?:exec|command|then|do|else|!)\s+)*(?:(?:bash|sh|source|\.)\s+(?:-(?!c\b)[A-Za-z]+\s+)*)?"""
     r"""(?P<path>"(?:\$\([^)]*\)|[^"])*"|'[^']*'|(?:\$\([^)]*\)|\$\{[^}]*\}|[^\s;&|<>"'(){}])+)"""
     r"""(?P<rest>(?:\s.*)?)$"""
 )
@@ -46,6 +56,7 @@ def _load_module(name, path):
 
 
 validate_cases = _load_module("evals_validate_cases", VALIDATE_CASES_PY)
+no_run_text = _load_module("evals_no_run_text", os.path.join(HERE, "no_run_text.py"))
 
 
 def _parse_case_yaml_text(text):
@@ -142,6 +153,17 @@ def _shell_var_dirs(lines, base_dir):
             var_dirs[var_name] = _dirname_resolved(rhs, dn_match, base_dir)
             assign_lines.add(line_no)
             continue
+        cd_pwd = CD_PWD_RE.match(rhs)
+        if cd_pwd:
+            arg = cd_pwd.group("arg")
+            for known_var, known_dir in list(var_dirs.items()):
+                use = re.match(r"\$\{?" + re.escape(known_var) + r"\}?(?![A-Za-z0-9_])", arg)
+                if use:
+                    resolved = _resolve_shell_subpath(known_dir, arg[use.end() :])
+                    var_dirs[var_name] = _resolve_shell_subpath(resolved, cd_pwd.group("after"))
+                    assign_lines.add(line_no)
+                    break
+            continue
         for known_var, known_dir in list(var_dirs.items()):
             var_use = re.match(
                 r"""^["']?(?:\$\{"""
@@ -164,14 +186,70 @@ def _holds_suite(path, eval_norm):
     return path == eval_norm or eval_norm.startswith(path + os.sep)
 
 
-def _line_refs(line, base_dir, var_dirs, eval_norm, wide=None):
+def _match_close(line, index, opener, closer):
+    """Index of the `closer` that balances an `opener` already open before `index`, skipping
+    quoted text; None when the line ends first."""
+    depth, quote = 1, None
+    while index < len(line):
+        char = line[index]
+        if char == "\\" and quote != "'":
+            index += 2
+            continue
+        if quote:
+            quote = None if char == quote else quote
+        elif char in "'\"":
+            quote = char
+        elif char in (opener, closer):
+            depth += 1 if char == opener else -1
+            if not depth:
+                return index
+        index += 1
+    return None
+
+
+def _quoted_tail(line, start):
+    """The literal text that ends the double-quoted word whose expansion starts at `start`, after
+    its last expansion and with no `/` in it, such as `.txt` in `"$dir/$1.txt"`: whatever the
+    expansions hold, the path the word names ends with it. None when there is no such text, or the
+    word is not one whole double-quoted word or does not read cleanly."""
+    if start == 0 or line[start - 1] != '"':
+        return None
+    index, last = start, None
+    while index < len(line) and line[index] != '"':
+        char = line[index]
+        if char == "\\":
+            index += 2
+            continue
+        if char == "`":
+            return None
+        if line.startswith(("$(", "${"), index):
+            close = _match_close(line, index + 2, line[index + 1], ")" if line[index + 1] == "(" else "}")
+            if close is None:
+                return None
+            index = last = close + 1
+            continue
+        name = re.match(r"\$(?:[A-Za-z_]\w*|[0-9@*#?$!-])", line[index:])
+        if name:
+            index = last = index + name.end()
+            continue
+        index += 1
+    if index >= len(line) or line[index + 1 : index + 2] not in ("", " ", "\t", ";", "&", "|", ")", "<", ">"):
+        return None
+    tail = line[last:index] if last is not None else ""
+    return tail if tail and "/" not in tail else None
+
+
+def _line_refs(line, base_dir, var_dirs, eval_norm, wide=None, tails=None):
     """The suite paths `line` names; one naming the suite folder or a folder above it goes into
-    `wide` when given."""
+    `wide` when given. `tails` maps each path to the `_quoted_tail` of each occurrence naming it,
+    None for an occurrence without one."""
     refs = set()
 
-    def keep(resolved):
+    def keep(resolved, tail=None):
         if _in_eval_suite(resolved, eval_norm):
             refs.add(resolved)
+            if tails is not None:
+                tails.setdefault(resolved, set()).add(tail)
         elif wide is not None and _holds_suite(resolved, eval_norm):
             wide.add(resolved)
 
@@ -185,29 +263,88 @@ def _line_refs(line, base_dir, var_dirs, eval_norm, wide=None):
         )
         for match in var_re.finditer(line):
             suffix = _suffix_after(line, match.start(), match.end())
-            keep(_resolve_shell_subpath(var_dir, suffix))
+            keep(_resolve_shell_subpath(var_dir, suffix), _quoted_tail(line, match.start()))
     return refs
 
 
-def _suite_ref_sites(fpath, text, eval_norm):
-    """Each reference `fpath` makes into the suite: (line, refs, runs, rest, rest_refs, wide),
-    where `runs` is the one script a shell line or a `scaffold_script` value executes, `rest` the
-    line after that script's path, and `wide` whether it names the suite folder or one above."""
+def literal_heredoc_lines(lines):
+    """0-based numbers of the body lines of each `cat` or `tee` heredoc with a quoted delimiter,
+    which the shell writes out as literal text and never runs; an unterminated one counts none,
+    and none count when the file's strings do not read cleanly or an opener sits in a string."""
+    inside = no_run_text._string_block_lines(".sh", "\n".join(lines))
+    if inside is None:
+        return set()
+    found, body, closer = set(), [], None
+    for number, line in enumerate(lines):
+        if closer is None and number + 1 in inside:
+            continue
+        if closer is not None:
+            if line.lstrip("\t") == closer:
+                found.update(body)
+                closer = None
+            else:
+                body.append(number)
+            continue
+        opener = LITERAL_HEREDOC_RE.match(line)
+        if opener:
+            closer, body = opener.group(2), []
+    return found
+
+
+def binding_lines(fpath, text, target):
+    """Lines of `fpath` that only bind a variable to exactly `target`, for a variable every use
+    of which `_line_refs` resolves: never exported, renamed, indirected or expanded with an
+    operator, in a file with no `eval`."""
+    lines = text.splitlines()
+    var_dirs, assign_lines = _shell_var_dirs(lines, os.path.dirname(fpath))
+    code = "\n".join(line for line in lines if not line.lstrip().startswith("#"))
+    if re.search(r"\beval\b|\$\{!|\b(?:declare|local|typeset)\s+-[a-zA-Z]*[nx]", code):
+        return set()
+    found = set()
+    for line_no in assign_lines:
+        name = re.escape(SHELL_ASSIGN_RE.match(lines[line_no]).group(1))
+        if var_dirs.get(SHELL_ASSIGN_RE.match(lines[line_no]).group(1)) != target:
+            continue
+        if re.search(r"\bexport\b.*\b%s\b|\$\{#?%s(?!\w)[^}]|\$\{#%s\}" % (name, name, name), code):
+            continue
+        found.add(lines[line_no])
+    return found
+
+
+def _suite_ref_sites(fpath, text, eval_norm, visibility=False):
+    """Each reference `fpath` makes into the suite: (line, refs, runs, rest, rest_refs, wide,
+    narrow), where `runs` is the one script a shell line or a `scaffold_script` value executes,
+    `rest` the line after that script's path, `wide` whether it names the suite folder or one
+    above, and `narrow` maps each ref every occurrence of which names only paths ending in one of
+    its tails (`_quoted_tail`) to those tails. With `visibility`, the body of a literal `cat` or
+    `tee` heredoc is skipped, and so is a top-level `plugins: [...]` line of a `case.yaml` or
+    `prompt.md` naming the plugin the suite belongs to, which is the plugin loaded by default."""
     base_dir = os.path.dirname(fpath)
     lines = text.splitlines()
     var_dirs, assign_lines = _shell_var_dirs(lines, base_dir)
     is_shell = os.path.splitext(fpath)[1].lower() in HIDDEN_SCRIPT_EXTS
+    skipped = literal_heredoc_lines(lines) if visibility and is_shell else set()
+    own_plugin = os.path.basename(fpath) in ("case.yaml", "prompt.md") and visibility
     sites = []
     for line_no, line in enumerate(lines):
-        if line_no in assign_lines:
+        if line_no in assign_lines or line_no in skipped:
             continue
         stripped = line.lstrip()
         if not stripped or stripped.startswith("#"):
             continue
-        wide = set()
-        refs = _line_refs(line, base_dir, var_dirs, eval_norm, wide)
+        wide, tails = set(), {}
+        refs = _line_refs(line, base_dir, var_dirs, eval_norm, wide, tails)
+        if own_plugin and PLUGINS_FIELD_RE.match(line):
+            entries = [
+                os.path.normpath(os.path.join(base_dir, entry))
+                for entry in re.findall(r"""["']([^"']+)["']""", line)
+            ]
+            if all(e == os.path.dirname(eval_norm) or not _holds_suite(e, eval_norm) for e in entries):
+                wide = set()
+            refs.update(e for e in entries if _in_eval_suite(e, eval_norm))
         if not refs and not wide:
             continue
+        narrow = {ref: found for ref, found in tails.items() if None not in found}
         runs, rest, rest_refs = None, line, refs
         shape = SCRIPT_RUN_RE.match(stripped) if is_shell else None
         if shape:
@@ -216,7 +353,7 @@ def _suite_ref_sites(fpath, text, eval_norm):
                 runs = next(iter(path_refs))
                 rest = shape.group("rest")
                 rest_refs = _line_refs(rest, base_dir, var_dirs, eval_norm)
-        sites.append((line, refs, runs, rest, rest_refs, bool(wide)))
+        sites.append((line, refs, runs, rest, rest_refs, bool(wide), narrow))
 
     if os.path.basename(fpath) == "case.yaml":
         try:
@@ -233,9 +370,9 @@ def _suite_ref_sites(fpath, text, eval_norm):
                         resolved = os.path.normpath(os.path.join(base_dir, entry))
                         if _in_eval_suite(resolved, eval_norm):
                             runs = resolved if field == "scaffold_script" else None
-                            sites.append((None, {resolved}, runs, "", set(), False))
+                            sites.append((None, {resolved}, runs, "", set(), False, {}))
                         elif _holds_suite(resolved, eval_norm):
-                            sites.append((None, set(), None, "", set(), True))
+                            sites.append((None, set(), None, "", set(), True, {}))
     return sites
 
 
@@ -243,8 +380,9 @@ def _extract_suite_refs(fpath, text, eval_norm):
     return {ref for site in _suite_ref_sites(fpath, text, eval_norm) for ref in site[1]}
 
 
-def _case_suite_files(case, eval_norm):
-    """{path: (text, sites)} for every file of `case` and every suite file they reach."""
+def _case_suite_files(case, eval_norm, visibility=False):
+    """{path: (text, sites)} for every file of `case` and every suite file they reach, with
+    `visibility` passed to `_suite_ref_sites`."""
     queue = collections.deque()
     for dirpath, dirnames, filenames in os.walk(case.abs_dir):
         dirnames[:] = sorted(
@@ -264,7 +402,7 @@ def _case_suite_files(case, eval_norm):
         if fpath in files:
             continue
         text = _read_text_safe(fpath)
-        sites = _suite_ref_sites(fpath, text, eval_norm) if text else []
+        sites = _suite_ref_sites(fpath, text, eval_norm, visibility) if text else []
         files[fpath] = (text, sites)
         for site in sites:
             for ref_path in site[1]:

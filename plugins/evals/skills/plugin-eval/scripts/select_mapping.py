@@ -390,7 +390,7 @@ def is_no_run_file_change(repo_root, merge_base, old_path, new_path, hidden=Fals
         return False
     hunks = no_run_text._raw_hunks(done.stdout)
     style = no_run_text.comment_style(
-        new_path, git_show(repo_root, merge_base, old_path) or "", hidden
+        new_path, git_show(repo_root, merge_base, old_path) or "", hidden, _parse_case_yaml_text
     )
     return bool(hunks) and all(
         no_run_text._hunk_is_no_run(old, new, pairs, style, start) for start, old, new in hunks
@@ -495,7 +495,10 @@ def classify_skill_md(repo_root, diff_base, merge_base, rel_path):
 
 
 def _comment_lines(text):
-    return [line.strip() for line in text.splitlines() if line.strip().startswith("#")]
+    """Every comment-shaped run in `text`, whole-line or after code, each with its line."""
+    return [
+        line.strip() for line in text.splitlines() if re.search(r"(?:^|[ \t])#", line)
+    ]
 
 
 def is_description_only_case_edit(repo_root, merge_base, rel_path, filename):
