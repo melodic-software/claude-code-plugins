@@ -647,12 +647,14 @@ PASS3_PROGRAM="$VERSION_TRIPLE_DEF"'
          | select(.scope == "project" or .scope == "local") | .projectPath | strings]
       | unique
       | map({key: .,
-             value: ((gsub("\\\\"; "/") | sub("/+$"; "")) as $p
-               | ($p | test("^/home/[^/]+$"))
-                 or ($p | test("^(/Users/[^/]+|/mnt/[a-z]/Users/[^/]+|[a-z]:/Users/[^/]+)$"; "i"))
-                 or ($home_n != "" and $home_n != "/"
-                     and (if $cib then ($p | ascii_downcase) == ($home_n | ascii_downcase) else $p == $home_n end)))})
-      | from_entries) as $path_is_home
+             value: (gsub("\\\\"; "/") as $s
+               | {current: (if $cib then ($s | ascii_downcase) == ($cur | ascii_downcase) else $s == $cur end),
+                  home: (($s | sub("/+$"; "")) as $p
+                    | ($p | test("^/home/[^/]+$"))
+                      or ($p | test("^(/Users/[^/]+|/mnt/[a-z]/Users/[^/]+|[a-z]:/Users/[^/]+)$"; "i"))
+                      or ($home_n != "" and $home_n != "/"
+                          and (if $cib then ($p | ascii_downcase) == ($home_n | ascii_downcase) else $p == $home_n end)))})})
+      | from_entries) as $path_facts
   # Every install record for ids in this marketplace, flattened, with the
   # currentProject flag Windows-normalized on both sides.
   | ($inst[0].plugins | to_entries
@@ -670,8 +672,7 @@ PASS3_PROGRAM="$VERSION_TRIPLE_DEF"'
                 projectPath: (.projectPath // null),
                 currentProject: (
                   if (.scope == "project" or .scope == "local") and (.projectPath // "" | length) > 0 and ($cur | length) > 0 then
-                    (.projectPath | gsub("\\\\"; "/")) as $p |
-                    if $cib then ($p | ascii_downcase) == ($cur | ascii_downcase) else $p == $cur end
+                    $path_facts[.projectPath].current
                   else null end
                 ),
                 projectPathPresent: (
@@ -685,7 +686,7 @@ PASS3_PROGRAM="$VERSION_TRIPLE_DEF"'
                 ),
                 projectPathIsHome: (
                   if (.scope == "project" or .scope == "local") and (.projectPath // "" | length) > 0 then
-                    $path_is_home[.projectPath]
+                    $path_facts[.projectPath].home
                   else null end
                 ),
                 linkedWorktree: (
