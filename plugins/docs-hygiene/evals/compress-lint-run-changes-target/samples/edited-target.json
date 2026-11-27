@@ -5,7 +5,7 @@
   ],
   "fail": [
     {"answer": [], "why": "no tool call"},
-    {"answer": [{"tool": "Edit", "input": {"file_path": "docs/style.md", "old_string": "Use sentence case", "new_string": "Use sentence-case"}}], "why": "an Edit on another file"},
-    {"answer": [{"tool": "Edit", "input": {"file_path": "scripts/lib/summary.sh", "old_string": ">>docs/style.md", "new_string": ">/dev/null"}}], "why": "edits the lint helper instead of the target"}
+    {"answer": [{"tool": "Edit", "input": {"file_path": "package.json", "old_string": "bash scripts/lint-md.sh", "new_string": "true"}}], "why": "an Edit on another file"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "scripts/lib/summary.sh", "old_string": "printf '\\nLast checked by lint-md.\\n' >>\"$f\"", "new_string": ":"}}], "why": "edits the lint helper instead of the target"}
   ]
 }
