@@ -23,11 +23,11 @@ jobs:
         with:
           fetch-base: "false"
 
-      - name: Test the silent-revert detector
-        run: bash scripts/check-silent-revert.test.sh
-
-      - name: Replay the recorded incidents
-        run: scripts/check-silent-revert.sh --verify-known-incidents
+      - parallel:
+          - name: Test the silent-revert detector
+            run: bash scripts/check-silent-revert.test.sh
+          - name: Replay the recorded incidents
+            run: scripts/check-silent-revert.sh --verify-known-incidents
 
       - name: Resolve the pushed range
         id: range
