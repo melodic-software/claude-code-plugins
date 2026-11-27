@@ -92,7 +92,13 @@ REPORT_JQ='
       | map("\(.[0].reason)=\(length)") | join(" ")) as $sk
   | ($w | group_by(.verdict) | map("\(.[0].verdict)=\(length)") | join(" ")) as $vc
   | ($w | map(select(.outcome == "remove-failed" or .outcome == "husk")) | length) as $fl
+  | ($r.memory_cgroup // "unknown") as $cg
+  | ($r.stale_work // []) as $sw
   | "verdicts: \(if $vc == "" then "none" else $vc end)",
+    "phases: \(($r.phases_ms // {}) | to_entries | map("\(.key)=\(.value)ms") | join(" "))",
+    "memory peak: \($r.memory_peak // "unknown") bytes\(if $cg == "unknown" then "" elif ($cg | endswith(".service")) then " (cgroup \($cg))" else " (cgroup \($cg), not the reap service own scope)" end)",
+    "stale .work: \($sw | length) item(s), \($sw | map(.kib) | add // 0) KiB",
+    ($sw[] | "  \(.kib) KiB \(.path)"),
     (if $r.mode == "dry-run" then
       "\($r.end) total: would remove \($r.would) worktrees, \($r.would_kib) KiB (\($r.would_kib / 1048576 | floor) GiB); gh calls \($r.gh_calls); skipped: \(if $sk == "" then "none" else $sk end)"
     else
@@ -112,6 +118,13 @@ def counts(rows, key):
 sk = counts([x for x in w if x["outcome"] == "kept"], "reason")
 fl = sum(1 for x in w if x["outcome"] in ("remove-failed", "husk"))
 print("verdicts: " + counts(w, "verdict"))
+print("phases: " + " ".join("%s=%sms" % kv for kv in (r.get("phases_ms") or {}).items()))
+cg = r.get("memory_cgroup") or "unknown"
+scope = "" if cg == "unknown" else " (cgroup %s)" % cg if cg.endswith(".service") else " (cgroup %s, not the reap service own scope)" % cg
+print("memory peak: %s bytes%s" % (r.get("memory_peak", "unknown"), scope))
+sw = r.get("stale_work") or []
+print("stale .work: %d item(s), %d KiB" % (len(sw), sum(x["kib"] for x in sw)))
+for x in sw: print("  %s KiB %s" % (x["kib"], x["path"]))
 if r.get("mode") == "dry-run":
     print("%s total: would remove %s worktrees, %s KiB (%d GiB); gh calls %s; skipped: %s" % (r.get("end"), r.get("would"), r.get("would_kib"), r.get("would_kib", 0) // 1048576, r.get("gh_calls"), sk))
 else:
@@ -576,20 +589,29 @@ lw_stats="$(mktemp)"
 trap 'rm -f "$lw_err" "$lw_stats"' EXIT
 branch_ok() { [[ "$1" =~ ^[A-Za-z0-9._/-]+$ && "$1" != -* && "$1" != *..* ]]; }
 
+declare -A PHASE_US=([fetch]=0 [landed-work]=0 [carried]=0 [stale]=0 [remove]=0)
+phase_add() {
+  local now_us="${EPOCHREALTIME/[.,]/}"
+  PHASE_US[$1]=$((PHASE_US[$1] + now_us - $2))
+}
+
 mapfile -t repo_list < <(printf '%s\n' "${!repos[@]}" | sort)
 for repo in "${repo_list[@]}"; do
   [[ -n "$repo" ]] || continue
   printf '%s repo %s\n' "$(date -Is)" "$repo"
+  t0="${EPOCHREALTIME/[.,]/}"
   if $dry_run; then
     git -C "$repo" worktree prune --dry-run --verbose
   else
     git -C "$repo" worktree prune --verbose
   fi
   if ! timeout 180 git -C "$repo" fetch --prune --no-tags --quiet origin; then
+    phase_add fetch "$t0"
     printf '  skip repo: fetch from origin failed or timed out; its worktrees are left alone\n'
     repo_keep "$repo" fetch-failed
     continue
   fi
+  phase_add fetch "$t0"
   base=''
   for ref in refs/remotes/origin/HEAD refs/remotes/origin/main refs/remotes/origin/master; do
     git -C "$repo" rev-parse -q --verify "$ref^{commit}" >/dev/null && {
@@ -689,7 +711,9 @@ for repo in "${repo_list[@]}"; do
   done
   rc=0
   : >"$lw_stats"
+  t0="${EPOCHREALTIME/[.,]/}"
   record="$(bash "$scripts/landed-work.sh" "${args[@]}" 2>"$lw_err")" || rc=$?
+  phase_add landed-work "$t0"
   if ((rc)); then
     printf '  skip repo: landed-work.sh failed (exit %s); %s candidates left alone\n' "$rc" "${#cand[@]}"
     sed -n '1,5s/^/    landed-work.sh: /p' "$lw_err"
@@ -736,7 +760,9 @@ for repo in "${repo_list[@]}"; do
       continue
     fi
     inc_rc=0
+    t0="${EPOCHREALTIME/[.,]/}"
     inc_out="$(bash "$scripts/worktree-include.sh" diff "$path" --main-root "$repo" --worktree-only 2>/dev/null)" || inc_rc=$?
+    phase_add carried "$t0"
     set_fact "$path" worktree-include carried_rc "$inc_rc"
     if ((inc_rc == 1)); then
       set_fact "$path" worktree-include carried_status "$(printf '%s\n' "$inc_out" | head -n 1 | cut -f1)"
@@ -767,8 +793,10 @@ for repo in "${repo_list[@]}"; do
   declare -A stale_note=()
   if ((${#locked_cands[@]} > 0)); then
     batch_rc=0
+    t0="${EPOCHREALTIME/[.,]/}"
     batch_out="$(printf '%s\0' "${locked_cands[@]}" |
       bash "$scripts/worktree-claim.sh" stale --batch --repo-dir "$repo" --idle-minutes "$idle_minutes" 2>/dev/null)" || batch_rc=$?
+    phase_add stale "$t0"
     if ((batch_rc == 0)); then
       while IFS=$'\t' read -r s_rc s_path s_note; do
         [[ -n "$s_path" && -n "${cand_branch[$s_path]+x}" ]] || continue
@@ -781,6 +809,7 @@ for repo in "${repo_list[@]}"; do
     done
   fi
 
+  t_remove="${EPOCHREALTIME/[.,]/}"
   for path in "${eligible[@]}"; do
     branch="${cand_branch[$path]}"
     head="${cand_head[$path]}"
@@ -876,15 +905,41 @@ for repo in "${repo_list[@]}"; do
     removed_kib=$((removed_kib + kib))
     emit_record "$path" "$repo" "$branch" "$head" remove landed "$outcome"
   done
+  phase_add remove "$t_remove"
 
   $dry_run || git -C "$repo" worktree prune
   unset cand_branch cand_locked cand_reason cand_head stale_note
 done
 
+stale_work=""
+for repo in "${repo_list[@]}"; do
+  [[ -d "$repo/.work" ]] || continue
+  for item in "$repo"/.work/*; do
+    [[ -e "$item" ]] || continue
+    [[ -z "$(find "$item" -type f -mtime -30 -print -quit 2>/dev/null)" ]] || continue
+    kib="$(du -sk -- "$item" 2>/dev/null | cut -f1)"
+    json_str "$item"
+    stale_work+="${stale_work:+,}{\"path\":$REPLY,\"kib\":${kib:-0}}"
+  done
+done
+
+mem_peak=unknown mem_cgroup=unknown
+cgroup="$(sed -n 's/^0:://p' /proc/self/cgroup 2>/dev/null)"
+if [[ -n "$cgroup" && -r "/sys/fs/cgroup$cgroup/memory.peak" ]]; then
+  mem_peak="$(<"/sys/fs/cgroup$cgroup/memory.peak")"
+  mem_cgroup="$cgroup"
+fi
+phases=""
+for ph in fetch landed-work carried stale remove; do
+  phases+="${phases:+,}\"$ph\":$((PHASE_US[$ph] / 1000))"
+done
+
 avail_after=$(df -Pk -- "${roots[0]}" | awk 'NR==2 {print $4}')
 json_str "${roots[0]}"
-printf '{"type":"run","mode":"%s","end":"%s","removed":%d,"removed_kib":%d,"would":%d,"would_kib":%d,"failed":%d,"gh_calls":%d,"root":%s,"avail_before":"%s","avail_after":"%s"}\n' \
-  "$mode" "$(date -Is)" "$removed" "$removed_kib" "$would" "$would_kib" "$failed" "$gh_calls" "$REPLY" \
-  "$avail_before" "$avail_after" >>"$run_file"
+root_json="$REPLY"
+json_str "$mem_cgroup"
+printf '{"type":"run","mode":"%s","end":"%s","removed":%d,"removed_kib":%d,"would":%d,"would_kib":%d,"failed":%d,"gh_calls":%d,"root":%s,"avail_before":"%s","avail_after":"%s","phases_ms":{%s},"memory_peak":"%s","memory_cgroup":%s,"stale_work":[%s]}\n' \
+  "$mode" "$(date -Is)" "$removed" "$removed_kib" "$would" "$would_kib" "$failed" "$gh_calls" "$root_json" \
+  "$avail_before" "$avail_after" "$phases" "$mem_peak" "$REPLY" "$stale_work" >>"$run_file"
 report "$run_file"
 ((failed == 0))

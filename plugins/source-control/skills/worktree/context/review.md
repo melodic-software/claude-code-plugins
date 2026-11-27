@@ -58,14 +58,16 @@ is `owner`.
 
 | Reason | Evidence that settles it | Verdict |
 |---|---|---|
-| Stranded work (commits no remote holds) | The branch is not the default branch and HEAD is not detached | `push` |
-| Stranded work, on a detached HEAD or the default branch | No branch to push without choosing one | `owner` |
-| Unknown work (landedness unproven) | Re-read with `<scripts-dir>/landed-work.sh`; a definite `landed` row | `keep`, cited to the row; the next reap re-judges |
-| Unknown work, still unproven | | `owner` |
-| A carried file edited in the worktree (`MODIFIED`) | The edit belongs in main and `sync-back` accepts it | `sync-back` |
-| A carried file edited in the worktree, main changed since the copy | `sync-back` exits 2 | `owner`: show both versions |
-| `NO-MANIFEST` (no `carried.index`) | Timestamp evidence, below | `owner` until the user answers |
-| A PR closed unmerged | Commits pushed and the closing issue's state read | `owner`: the user decides whether the work is abandoned |
+| `stranded` (commits no remote holds) | The branch is not the default branch and HEAD is not detached | `push` |
+| `stranded`, on a detached HEAD or the default branch | No branch to push without choosing one | `owner` |
+| `unknown-work` (landedness unproven) | Re-read with `<scripts-dir>/landed-work.sh`; a definite `landed` row | `keep`, cited to the row; the next reap re-judges |
+| `unknown-work`, still unproven | | `owner` |
+| `carried-edited` (a carried file edited in the worktree) | The edit belongs in main and `sync-back` accepts it | `sync-back` |
+| `carried-edited`, main changed since the copy | `sync-back` exits 2 | `owner`: show both versions |
+| `no-manifest` (no `carried.index`, a copy differs from main) | Timestamp evidence, below | `owner` until the user answers |
+
+A `stranded` or `unknown-work` row whose pull request (Step 1) closed unmerged is `owner`: the user
+decides whether the work is abandoned.
 
 A verdict cites what settled it: the command and the line it printed, or the PR, issue or commit URL.
 A verdict with no citation is `owner`.

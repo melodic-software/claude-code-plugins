@@ -505,4 +505,25 @@ assert_eq "record: report verdict counts equal the record's" \
   "$(printf '%s\n' "$REPORT_OUT" | head -n 1)"
 assert_contains "record: report keeps the closing total wording" "$REPORT_OUT" "would remove 4 worktrees"
 
+mkdir -p "$REPO_MISS/.work/old-item" "$REPO_MISS/.work/fresh-item"
+printf 'old\n' >"$REPO_MISS/.work/old-item/notes.md"
+printf 'new\n' >"$REPO_MISS/.work/fresh-item/notes.md"
+touch -d '31 days ago' "$REPO_MISS/.work/old-item/notes.md" "$REPO_MISS/.work/old-item"
+RUN_WORK="$(run_reap --root "$ROOT_MISS" --dry-run)"
+STALE_WORK="$(tail -n 1 "$RUN_WORK" | jq -r '.stale_work[].path')"
+assert_contains "report: a .work item with no file modified in 30 days is listed" "$STALE_WORK" "/.work/old-item"
+assert_not_contains "report: a .work item with a fresh file is not listed" "$STALE_WORK" "fresh-item"
+assert_eq "report: the run line names every phase" "carried,fetch,landed-work,remove,stale" \
+  "$(tail -n 1 "$RUN_WORK" | jq -r '.phases_ms | keys | join(",")')"
+assert_eq "report: phase times are integers" "true" \
+  "$(tail -n 1 "$RUN_WORK" | jq '[.phases_ms[] | type == "number" and . == floor] | all')"
+if locale -a 2>/dev/null | grep -qix 'de_DE.utf8'; then
+  RUN_DE="$(LC_ALL=de_DE.UTF-8 run_reap --root "$ROOT_MISS" --dry-run)"
+  assert_eq "report: phase times stay integers under a comma-decimal locale" "true" \
+    "$(tail -n 1 "$RUN_DE" | jq '[.phases_ms[] | type == "number" and . == floor] | all')"
+fi
+REPORT_WORK="$(bash "$REAP" --report "$RUN_WORK" 2>&1)"
+assert_contains "report: prints the stale .work items" "$REPORT_WORK" "stale .work: 1 item(s)"
+assert_contains "report: prints the phase times" "$REPORT_WORK" "phases: fetch="
+
 [[ $FAILED -eq 0 ]] || exit 1
