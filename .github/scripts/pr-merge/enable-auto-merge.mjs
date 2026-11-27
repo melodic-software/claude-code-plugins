@@ -621,9 +621,14 @@ export const pinBody = (sha, rung, stacked = false) =>
   }`;
 
 export const unpinBody = (sha, disarmed = true) =>
-  `<!-- babysit-merge-unpin sha=${sha} -->\nThe unattended merge path ${
-    disarmed ? `disarmed native auto-merge at head \`${sha}\`, which its arm never judged,` : `found head \`${sha}\` unarmed, out of the merge queue and not the head its earlier pin names,`
-  } and retires that pin: the merge queue reads this pull request as one the lanes App never pinned until the path pins a head again.`;
+  [
+    `<!-- babysit-merge-unpin sha=${sha} -->`,
+    "### pr-merge / enable-auto-merge",
+    disarmed
+      ? `Disarmed and unpinned: native auto-merge is off at head \`${sha}\`, a head its arm never judged.`
+      : `Unpinned: head \`${sha}\` is unarmed, out of the merge queue and not the head the earlier pin names.`,
+    "- The merge queue now reads this pull request as one the lanes App never pinned, until the path pins a head again.",
+  ].join("\n");
 
 const newestPin = (comments, bot) => newestAppComment(comments, bot, (c) => PIN_RE.test(firstLine(c.body)) || UNPIN_RE.test(firstLine(c.body)));
 
