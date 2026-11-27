@@ -446,6 +446,14 @@ test("the prepared working tree is read-only but for .git and .work, so no comma
   }
 });
 
+test("every leg names the scanned branch from the gate-pinned ref, which the schedule payload cannot leave empty", () => {
+  const prepares = FIND_TEXT.match(/run: bash \.github\/scripts\/maintenance-scan-architecture\/prepare-working-tree\.sh/g) ?? [];
+  const branches = FIND_TEXT.match(/^ {10}BRANCH: \$\{\{ github\.ref_name \}\}$/gm) ?? [];
+  assert.ok(prepares.length >= 3);
+  assert.equal(branches.length, prepares.length);
+  assert.match(WORKFLOW_TEXT, /if: github\.ref == 'refs\/heads\/main'/);
+});
+
 test("the stage refuses any plugin part, manifest key or skill frontmatter key outside its allow list", () => {
   const stage = (mutate) => {
     const dir = tempDir("scan-architecture-stage-");

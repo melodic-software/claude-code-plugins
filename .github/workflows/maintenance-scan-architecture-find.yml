@@ -192,7 +192,7 @@ jobs:
         env:
           STAGE: ${{ runner.temp }}/scan-stage
           MODEL: ${{ steps.models.outputs.model }}
-          BRANCH: ${{ github.event.repository.default_branch }}
+          BRANCH: ${{ github.ref_name }}
         run: bash .github/scripts/maintenance-scan-architecture/prepare-working-tree.sh
 
       - name: Scan the architecture
@@ -491,7 +491,7 @@ jobs:
         env:
           STAGE: ${{ runner.temp }}/scan-stage
           MODEL: ${{ steps.models.outputs.model }}
-          BRANCH: ${{ github.event.repository.default_branch }}
+          BRANCH: ${{ github.ref_name }}
         run: bash .github/scripts/maintenance-scan-architecture/prepare-working-tree.sh
 
       - name: Scan the architecture
@@ -752,7 +752,7 @@ jobs:
         env:
           STAGE: ${{ runner.temp }}/scan-stage
           MODEL: ${{ steps.models.outputs.model }}
-          BRANCH: ${{ github.event.repository.default_branch }}
+          BRANCH: ${{ github.ref_name }}
         run: bash .github/scripts/maintenance-scan-architecture/prepare-working-tree.sh
 
       - name: Scan the architecture
