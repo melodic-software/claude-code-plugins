@@ -284,4 +284,13 @@ git -C "$REPO_CE" worktree add -q -b feat/ce "$WT_CE" main >/dev/null 2>&1
 run_inc diff "$WT_CE" --main-root "$REPO_CE" --worktree-only
 assert_exit "carried manifest: no manifest and no included file in the worktree is clean" 0 "$?"
 
+printf 'same\n' >"$REPO_CE/app.env"
+cp -p "$REPO_CE/app.env" "$WT_CE/app.env"
+run_inc diff "$WT_CE" --main-root "$REPO_CE" --worktree-only
+assert_exit "carried manifest: no manifest and copies matching main is clean" 0 "$?"
+printf 'changed\n' >"$WT_CE/app.env"
+run_inc diff "$WT_CE" --main-root "$REPO_CE" --worktree-only
+assert_exit "carried manifest: no manifest and a copy differing from main exits 1" 1 "$?"
+assert_eq "carried manifest: a differing copy without a manifest gives one NO-MANIFEST row" "NO-MANIFEST" "$(printf '%s\n' "$OUT" | cut -f1 | sort -u)"
+
 [[ $FAILED -eq 0 ]] || exit 1

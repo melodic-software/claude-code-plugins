@@ -2,7 +2,7 @@
 # Exit codes:
 #   0  copy/sync-back succeeded; diff found no differences (or no .worktreeinclude)
 #   1  diff found one or more differences (--worktree-only: MODIFIED or NEW against the
-#      worktree's carried.index, or one NO-MANIFEST row when the worktree has none)
+#      worktree's carried.index; with none, one NO-MANIFEST row when a copy differs from main)
 #   2  usage error, or sync-back rejected a path outside the intersection or one main
 #      changed since the copy
 #   3  fail-closed unreadable (missing/unreadable worktree, main root, .worktreeinclude,
@@ -145,12 +145,6 @@ manifest_rows() {
   local wt_top="$1" wt_list="$2" manifest="$3" rel out i
   local -A carried_oid=()
   local -a dirty=() oids=()
-  if [[ ! -e "$manifest" ]]; then
-    [[ -s "$wt_list" ]] || return 0
-    diff_status+=("NO-MANIFEST")
-    diff_rel+=("")
-    return 0
-  fi
   load_manifest "$manifest" "$wt_top" || die "diff: unreadable manifest: $manifest" 3
   out="$(mktemp)" || die "diff: cannot create temp file" 3
   if ! manifest_git "$manifest" "$wt_top" diff-files -z --name-only --diff-filter=MT >"$out" 2>/dev/null; then
@@ -176,6 +170,31 @@ manifest_rows() {
     [[ "$rel" != *$'\t'* && "$rel" != *$'\n'* ]] || die "diff: carried file path holds a tab or newline: $rel" 3
     diff_status+=("NEW")
     diff_rel+=("$rel")
+  done <"$wt_list"
+}
+
+main_rows() {
+  local wt_top="$1" main_root="$2" wt_list="$3" rel cmp_rc
+  while IFS= read -r -d '' rel; do
+    [[ -n "$rel" ]] || continue
+    wt_seen["$rel"]=1
+    [[ "$rel" != *$'\t'* && "$rel" != *$'\n'* ]] || die "diff: carried file path holds a tab or newline: $rel" 3
+    [[ -f "$wt_top/$rel" ]] || continue
+    [[ -r "$wt_top/$rel" ]] || die "diff: unreadable worktree file: $wt_top/$rel" 3
+    if [[ -e "$main_root/$rel" ]]; then
+      [[ -f "$main_root/$rel" && -r "$main_root/$rel" ]] || die "diff: unreadable main file: $main_root/$rel" 3
+      cmp -s -- "$wt_top/$rel" "$main_root/$rel"
+      cmp_rc=$?
+      if ((cmp_rc == 1)); then
+        diff_status+=("MODIFIED")
+        diff_rel+=("$rel")
+      elif ((cmp_rc > 1)); then
+        die "diff: failed comparing $rel" 3
+      fi
+    else
+      diff_status+=("NEW")
+      diff_rel+=("$rel")
+    fi
   done <"$wt_list"
 }
 
@@ -328,38 +347,21 @@ do_diff() {
 
   local -A wt_seen=()
   local -a diff_status=() diff_rel=()
-  local rel cmp_rc manifest=""
+  local rel manifest=""
 
   if ((worktree_only)); then
     manifest="$(carried_index_path "$wt_top")" || die "diff: cannot resolve the git dir of $wt_top" 3
-    manifest_rows "$wt_top" "$wt_list" "$manifest"
+    if [[ -e "$manifest" ]]; then
+      manifest_rows "$wt_top" "$wt_list" "$manifest"
+    else
+      main_rows "$wt_top" "$main_root" "$wt_list"
+      if ((${#diff_rel[@]} > 0)); then
+        diff_status=("NO-MANIFEST")
+        diff_rel=("")
+      fi
+    fi
   else
-    while IFS= read -r -d '' rel; do
-      [[ -n "$rel" ]] || continue
-      wt_seen["$rel"]=1
-      if [[ "$rel" == *$'\t'* || "$rel" == *$'\n'* ]]; then
-        die "diff: carried file path holds a tab or newline: $rel" 3
-      fi
-      if [[ ! -f "$wt_top/$rel" ]]; then
-        continue
-      fi
-      [[ -r "$wt_top/$rel" ]] || die "diff: unreadable worktree file: $wt_top/$rel" 3
-      if [[ -e "$main_root/$rel" ]]; then
-        [[ -f "$main_root/$rel" && -r "$main_root/$rel" ]] || die "diff: unreadable main file: $main_root/$rel" 3
-        cmp -s -- "$wt_top/$rel" "$main_root/$rel"
-        cmp_rc=$?
-        if ((cmp_rc == 1)); then
-          diff_status+=("MODIFIED")
-          diff_rel+=("$rel")
-        elif ((cmp_rc > 1)); then
-          die "diff: failed comparing $rel" 3
-        fi
-      else
-        diff_status+=("NEW")
-        diff_rel+=("$rel")
-      fi
-    done <"$wt_list"
-
+    main_rows "$wt_top" "$main_root" "$wt_list"
     while IFS= read -r -d '' rel; do
       [[ -n "$rel" ]] || continue
       if [[ -n "${wt_seen[$rel]+x}" || -e "$wt_top/$rel" ]]; then
