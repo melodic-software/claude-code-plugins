@@ -105,7 +105,7 @@ read that finds no file fires it. Delegation therefore resets the trigger instea
 match: an agent that edits a file and was never told to read the rule for that kind of file first acts without it. This is why
 every accepted move regenerates an **always-loaded index** of deferred surfaces, which the main
 session and every subagent that loads the CLAUDE.md hierarchy receive, and that turns an unnamed
-rule into one an ordinary `Read` can fetch. Explore, Plan, and an agent whose definition sets
+rule into one an ordinary `Read` can fetch. Explore, Plan, `web-fetch`, and an agent whose definition sets
 `omitClaudeMd` skip the project CLAUDE.md files, so the index does not reach them; a fork inherits the
 parent conversation instead.
 

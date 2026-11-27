@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [10.10.2] - 2026-11-27
+
+### Changed
+
+- The shared transcript reader drops its record-type label comments.
+
 ## [10.10.1] - 2026-11-26
 
 ### Changed
