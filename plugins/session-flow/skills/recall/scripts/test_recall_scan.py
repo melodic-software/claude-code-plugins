@@ -1,4 +1,4 @@
-# test-scope: plugins/session-flow/scripts/*.py
+# test-scope: plugins/session-flow/scripts/*.py plugins/session-flow/lib/claude_projects.py
 from __future__ import annotations
 
 import json
@@ -283,6 +283,8 @@ class RecallScanTest(unittest.TestCase):
         shutil.copy(SCAN, copy / "skills" / "recall" / "scripts" / "recall_scan.py")
         for module in (PLUGIN_ROOT / "scripts").glob("*.py"):
             shutil.copy(module, copy / "scripts")
+        (copy / "lib").mkdir()
+        shutil.copy(PLUGIN_ROOT / "lib" / "claude_projects.py", copy / "lib")
         (rules / "gitleaks-rules.json").write_text(
             '{"rules": [{"id": "broken", "regex": "("}]}', encoding="utf-8"
         )
@@ -345,15 +347,17 @@ class RecallScanTest(unittest.TestCase):
             f"Diagnostics: {record}",
         ])
 
-    def test_history_only_prompts_match_from_the_store(self) -> None:
-        store = self.make_store()
-        prompt = store / "host-a-wsl" / "history" / "aaaabbbbaaaabbbb.json"
-        prompt.parent.mkdir(parents=True)
+    def write_history(self, store: Path, key: str, session: str, project: str) -> None:
+        prompt = store / "host-a-wsl" / "history" / f"{key}.json"
+        prompt.parent.mkdir(parents=True, exist_ok=True)
         prompt.write_text(json.dumps({
-            "schema": "history-prompt/v1", "key": "aaaabbbbaaaabbbb", "session_id": "s-gone", "project": "/work/orders",
+            "schema": "history-prompt/v1", "key": key, "session_id": session, "project": project,
             "time": {"start": "2026-08-01T09:00:00Z", "end": "2026-08-01T09:00:00Z"},
             "excerpt": "what retry budget did we settle on", "pastes": {"restored": 0, "missing": 0},
         }), encoding="utf-8")
+
+    def test_history_only_prompts_match_from_the_store(self) -> None:
+        self.write_history(self.make_store(), "aaaabbbbaaaabbbb", "s-gone", "/work/orders/api")
         self.alpha.mkdir(parents=True)
 
         result = self.run_scan("--dir", str(self.alpha), "--term", "retry budget", "--data-dir", str(self.tmp / "data"))
@@ -363,6 +367,18 @@ class RecallScanTest(unittest.TestCase):
             "session": "s-gone", "file": "history.jsonl", "time": "2026-08-01T09:00:00Z", "role": "user",
             "term": "retry budget", "snippet": "what retry budget did we settle on", "history": True,
         }])
+
+    def test_a_history_prompt_from_another_project_is_kept_only_under_the_all_scope(self) -> None:
+        self.write_history(self.make_store(), "ccccddddccccdddd", "s-elsewhere", "/elsewhere/other-repo")
+        self.alpha.mkdir(parents=True)
+        args = ("--dir", str(self.alpha), "--term", "retry budget", "--data-dir", str(self.tmp / "data"))
+
+        worktree = self.run_scan(*args)
+        everything = self.run_scan(*args, "--scope", "all")
+
+        self.assertEqual((worktree.returncode, everything.returncode), (0, 0), worktree.stderr + everything.stderr)
+        self.assertEqual(self.lines(worktree), [], "a worktree scan reads no other project's prompts")
+        self.assertEqual([line["session"] for line in self.lines(everything)], ["s-elsewhere"])
 
     def test_a_held_host_lock_is_a_gap_and_reads_nothing(self) -> None:
         self.make_store()

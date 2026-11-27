@@ -3,7 +3,7 @@
 
     recall_scan.py --dir <dir> [--dir <dir> ...] --term <text> [--term <text> ...]
                    [--skip-session <id>] [--sources-file <file>] [--redact-identifiers <list>]
-                   [--data-dir <dir>] [--lock-name <name>]
+                   [--data-dir <dir>] [--scope worktree|repo|all] [--lock-name <name>]
 
 Reads the `*.jsonl` transcripts directly inside each `--dir`, newest first, through the plugin's
 `scripts/transcript_reader.py`, holding the per-host reader lock (`transcript_run.host_locks`,
@@ -11,7 +11,9 @@ named by `--lock-name`) for the whole read. A lock another reader holds is waite
 local host's `lock_timeout_s` (`--sources-file` limits); past it nothing is read, the gap is
 printed and, with `--data-dir` holding a store, written as a `lookup` diagnostics record, and the exit is 1.
 With `--data-dir` (the plugin data directory audit-sessions collects into) it then reads the
-store's history-only prompts (`history-prompt/v1`: prompts whose session has no transcript), and
+store's history-only prompts (`history-prompt/v1`: prompts whose session has no transcript), only
+those whose project maps to one of the `--dir` directories (Claude Code's project-slug rule)
+unless `--scope` is `all`, and
 its header (`transcript_sources.report_header`) names the gaps and stale sources the store's last
 collections left. Each header line goes to stderr before the `scanned:` line, as it is, so its
 retry command runs verbatim; it is local output, not published text.
@@ -42,10 +44,12 @@ import sys
 from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[3]
-if str(PLUGIN_ROOT / "scripts") not in sys.path:
-    sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
+for _beside in (PLUGIN_ROOT / "scripts", PLUGIN_ROOT / "lib"):
+    if str(_beside) not in sys.path:
+        sys.path.insert(0, str(_beside))
 
 import census  # noqa: E402  (scripts/census.py)
+import claude_projects  # noqa: E402  (lib/claude_projects.py)
 import publish  # noqa: E402  (scripts/publish.py)
 import transcript_reader  # noqa: E402  (scripts/transcript_reader.py)
 import transcript_run  # noqa: E402  (scripts/transcript_run.py)
@@ -111,6 +115,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--data-dir", type=Path, help="the audit-sessions data dir: history prompts and header"
     )
     parser.add_argument(
+        "--scope",
+        choices=("worktree", "repo", "all"),
+        default="worktree",
+        help="the scope the --dir directories came from; history prompts outside them are kept only for all",
+    )
+    parser.add_argument(
         "--lock-name",
         type=transcript_run.checked_lock_name,
         default=transcript_run.LOCK_NAME,
@@ -145,8 +155,11 @@ def header_lines(args: argparse.Namespace, sources: transcript_sources.Sources, 
     return [] if store is None else transcript_sources.store_header(store, sources)
 
 
-def history_matches(data_dir: Path | None, terms: list[str], skip: set[str]) -> list[tuple[dict, str]]:
-    """Each stored history-only prompt holding a term, with that term, newest first."""
+def history_matches(
+    data_dir: Path | None, terms: list[str], skip: set[str], projects: set[str] | None = None
+) -> list[tuple[dict, str]]:
+    """Each stored history-only prompt holding a term, with that term, newest first; with `projects`,
+    only a prompt whose project's slug is one of those project directory names."""
     if data_dir is None:
         return []
     try:
@@ -157,6 +170,9 @@ def history_matches(data_dir: Path | None, terms: list[str], skip: set[str]) -> 
     for prompt in prompts:
         text = prompt.get("excerpt")
         if not isinstance(text, str) or prompt.get("session_id") in skip:
+            continue
+        project = prompt.get("project")
+        if projects is not None and not (isinstance(project, str) and claude_projects.encode_project_slug(project) in projects):
             continue
         term = next((t for t in terms if t.lower() in text.lower()), None)
         if term is not None:
@@ -252,7 +268,8 @@ def scan(args: argparse.Namespace, publisher, sources: transcript_sources.Source
             break
 
     history = 0
-    for prompt, term in history_matches(args.data_dir, terms, skip):
+    projects = None if args.scope == "all" else {d.name for d in args.dir}
+    for prompt, term in history_matches(args.data_dir, terms, skip, projects):
         if printed >= MAX_MATCHES:
             stopped_early = True
             break

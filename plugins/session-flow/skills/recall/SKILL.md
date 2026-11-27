@@ -79,7 +79,7 @@ script, Python 3.10 or newer (with none, say so and continue with Step 5's sourc
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/recall/scripts/recall_scan.py" \
   --dir '<directory>' --dir '<directory>' \
-  --term '<term>' --term '<term>' \
+  --term '<term>' --term '<term>' --scope <worktree|repo|all> \
   --skip-session "${CLAUDE_CODE_SESSION_ID}" --data-dir "${CLAUDE_PLUGIN_DATA}" \
   --sources-file '${user_config.transcript_sources_file}' --redact-identifiers '${user_config.redact_identifiers}'
 ```
@@ -89,7 +89,9 @@ An option still reading `${user_config.…}`, and running outside the Bash sandb
 its whole read. Another reader holding it is waited for up to the host's
 `lock_timeout_s`; then the scan reads nothing, prints that `busy` or `lock_timeout` gap with its
 retry command and exits 1. `--data-dir` adds the prompts the audit-sessions store holds from
-`history.jsonl` whose session has no transcript (`"history": true`, `file` `history.jsonl`), and
+`history.jsonl` whose session has no transcript (`"history": true`, `file` `history.jsonl`): only a
+prompt whose project is one of the `--dir` directories, every one with `--scope all`, so pass
+the scope those directories came from. It also adds
 the store's header: each collection gap with its retry command and each source past half its
 `cleanupPeriodDays` without a collection free of gaps. With no store yet it adds neither.
 
