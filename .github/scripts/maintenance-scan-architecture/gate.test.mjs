@@ -1,4 +1,4 @@
-// test-scope: .github/actions/resolve-config/package.json .github/workflows/maintenance-scan-architecture.yml docs/conventions/pr-pipeline.yaml docs/conventions/pr-pipeline/pr-pipeline.schema.json .github/scripts/maintenance-scan-architecture/model-tools.json
+// test-scope: plugins/architecture plugins/improvement .github/actions/resolve-config/package.json .github/workflows/maintenance-scan-architecture.yml docs/conventions/pr-pipeline.yaml docs/conventions/pr-pipeline/pr-pipeline.schema.json .github/scripts/maintenance-scan-architecture/model-tools.json
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -185,6 +185,12 @@ test("every model leg runs sandboxed, and its Bash rules allow no network-capabl
   for (const skill of skills) {
     const frontmatter = /^---\n([\s\S]*?)\n---/.exec(readFileSync(join(REPO_ROOT, skill), "utf8"))?.[1] ?? "";
     assert.doesNotMatch(frontmatter, /^allowed-tools:/m, `${skill} grants no tools while it runs, so the Skill rule widens nothing`);
+  }
+  for (const plugin of ["improvement", "architecture"]) {
+    const hooks = execFileSync("git", ["-C", REPO_ROOT, "ls-files", `plugins/${plugin}/hooks`], { encoding: "utf8" }).trim();
+    assert.equal(hooks, "", `${plugin} ships no hooks, which would run commands outside model-tools.json`);
+    const manifest = JSON.parse(readFileSync(join(REPO_ROOT, `plugins/${plugin}/.claude-plugin/plugin.json`), "utf8"));
+    assert.ok(!("hooks" in manifest) && !("mcpServers" in manifest), `${plugin}'s manifest declares no hooks or MCP servers`);
   }
   for (const helper of HELPERS) {
     const text = readFileSync(join(REPO_ROOT, "plugins", helper), "utf8");
@@ -453,7 +459,20 @@ function configRoot({ enabled = true, everyDays = 1, cap } = {}) {
 }
 
 const runGate = async (root, { open = 2, scanAt = NOW - 2 * DAY, before = [], env = {}, fake = forge({ open, runs: [...before, { at: scanAt, sha: root.sha }] }) } = {}) =>
-  gate({ root: root.dir, call: fake.call, now: NOW, env: { REPOSITORY: "o/r", STANDARDS_DIR: STANDARDS_FIXTURE, EVENT_NAME: "schedule", ...env } });
+  gate({ root: root.dir, call: fake.call, now: NOW, env: { REPOSITORY: "o/r", STANDARDS_DIR: STANDARDS_FIXTURE, EVENT_NAME: "schedule", READS_CONFINED: "true", ...env } });
+
+test("until the legs can block reads outside the checkout, no scheduled or forced run starts a leg, and nothing is read from the API", async () => {
+  const gateStep = parse(WORKFLOW_TEXT).jobs.gate.steps.find((step) => /gate\.mjs gate$/.test(step.run ?? ""));
+  assert.notEqual(gateStep.env.READS_CONFINED, "true", "the shipped workflow does not claim confined reads");
+  for (const env of [{}, { EVENT_NAME: "workflow_dispatch", FORCE: "true" }]) {
+    const fake = forge();
+    const result = await runGate(configRoot({ enabled: true }), { fake, env: { ...env, READS_CONFINED: gateStep.env.READS_CONFINED } });
+    assert.deepEqual([result.run, result.reason, fake.calls], [false, "reads-unconfined", []], JSON.stringify(env));
+  }
+  const forced = await runGate(configRoot({ enabled: false }), { env: { EVENT_NAME: "workflow_dispatch", FORCE: "true", READS_CONFINED: "false" } });
+  assert.equal(forced.reason, "reads-unconfined", "force skips lane-off but not the read stop");
+  assert.equal((await runGate(configRoot({ enabled: false }), { env: { READS_CONFINED: "false" } })).reason, "lane-off");
+});
 
 test("lane-off and a cap of 0 stop the gate before any API read, and its status line says what was not read", async () => {
   for (const [config, reason] of [[{ enabled: false }, "lane-off"], [{ cap: 0 }, "at-cap"]]) {

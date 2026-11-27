@@ -70,11 +70,18 @@ test("an item that names a security defect in its title or body is dropped, and 
     { title: "t", body: "A path traversal vulnerability in src/a.mjs:4" },
     { title: "t", body: "Matches CWE-22." },
     { title: "Patch CVE-2026-12345", body: "b" },
+    { title: "t", body: "The lanes token is passed through an unvalidated path, an injection route" },
+    { title: "Auth check bypassed in seam X", body: "b" },
+    { title: "t", body: "A secret reaches the step summary" },
+    { title: "t", body: "Credentials are read from the runner home" },
+    { title: "t", body: "This lets a caller exfiltrate the key" },
+    { title: "t", body: "A privilege escalation through the helper" },
+    { title: "t", body: "An exploitable parse of the record" },
   ];
   const { kept, dropped } = withoutSecurityDefects([item(1), ...named, item(2)]);
   assert.deepEqual(kept, [item(1), item(2)]);
-  assert.equal(dropped, 5);
-  assert.deepEqual(withoutSecurityDefects([{ title: "Secure the seam", body: "No defect named here." }]).dropped, 0);
+  assert.equal(dropped, named.length);
+  assert.deepEqual(withoutSecurityDefects([{ title: "Secure the seam", body: "No defect named here; the author module stays shallow." }]).dropped, 0);
 });
 
 test("an item shaped like an issue another script trusts is dropped: an Upstream drift: title or any HTML comment marker", () => {

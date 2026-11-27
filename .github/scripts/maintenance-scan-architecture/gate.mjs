@@ -31,8 +31,9 @@ export function decide({ enabled, everyDays, cap, open, lastScan, merges, now, f
   return { run: true, reason: lastScan === null ? "first-scan" : "due", room: cap - open };
 }
 
-export function configStop({ enabled, cap, force = false }) {
+export function configStop({ enabled, cap, force = false, readsConfined = false }) {
   if (!enabled && !force) return "lane-off";
+  if (!readsConfined) return "reads-unconfined";
   if (cap === 0) return "at-cap";
   return null;
 }
@@ -63,6 +64,7 @@ export function mergesSince(root, scan) {
 
 const REASONS = {
   "lane-off": `the lane is off (lanes.${LANE}.enabled in docs/conventions/pr-pipeline.yaml)`,
+  "reads-unconfined": "the model legs cannot yet block reads outside the checkout (READS_CONFINED, melodic-software/ci-workflows#1241), so no leg starts",
   "at-cap": `the open \`${SOURCE_LABEL}\` issues are at or above find_open_item_cap`,
   "not-due": `fewer days than lanes.${LANE}.every-days passed since the last scan`,
   "no-merges": "nothing merged to main since the last scan",
@@ -81,7 +83,7 @@ export async function gate({ root, env, call, now = Date.now() }) {
   const capping = openItemCap(root);
   const force = env.EVENT_NAME === "workflow_dispatch" && env.FORCE === "true";
   const unread = { force, open: null, cap: capping.cap, capSource: capping.source, warnings: capping.warnings, ...settings, lastScan: null, merges: null };
-  const early = configStop({ ...settings, cap: capping.cap, force });
+  const early = configStop({ ...settings, cap: capping.cap, force, readsConfined: env.READS_CONFINED === "true" });
   if (early !== null) return { run: false, reason: early, room: 0, ...unread };
   const open = await countOpen(call, env.REPOSITORY, SOURCE_LABEL, capping.cap);
   if (open >= capping.cap) return { run: false, reason: "at-cap", room: 0, ...unread, open };

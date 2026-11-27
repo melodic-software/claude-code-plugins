@@ -28,7 +28,7 @@ export function readItems(text) {
   return items.map(({ title, body }) => ({ title: title.trim(), body }));
 }
 
-export const SECURITY_DEFECT = /\bsecurity[-\s]defects?\b|\bvulnerab|\bCWE-\d+|\bCVE-\d{4}-\d+/i;
+export const SECURITY_DEFECT = /\bsecurity[-\s]defects?\b|\bvulnerab|\bCWE-\d+|\bCVE-\d{4}-\d+|\bexploit|\binjection\b|\bbypass|\bexfiltrat|\bcredentials?\b|\bsecrets?\b|\bprivilege[-\s]escalation\b|\bauth(?:entication|orization)?\b/i;
 
 export function withoutSecurityDefects(items) {
   const kept = items.filter((item) => !SECURITY_DEFECT.test(item.title) && !SECURITY_DEFECT.test(item.body));
