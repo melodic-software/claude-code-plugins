@@ -31,9 +31,14 @@ LITERAL_HEREDOC_RE = re.compile(
     r"""^\s*(?:cat|tee)(?:\s+(?:>>?\s*)?[^\s<>|;&]+)*\s*<<-?\s*(['"])([A-Za-z_]\w*)\1"""
     r"""\s*(?:>>?\s*[^\s<>|;&]+\s*)?$"""
 )
+RUNS_STRING_RE = re.compile(
+    r"(?:^\s*|[;&|({]\s*|\b(?:then|do|else|exec|command|!)\s+)(?:eval|source|export|trap|alias|\.)\s"
+    r"|\|\s*(?:ba|z)?sh\b|\b(?:ba|z)?sh\s+(?:-[A-Za-z]+\s+)*-[A-Za-z]*c\b"
+)
+CD_WORD_RE = re.compile(r"(?:^|[;&|({]\s*|\b(?:then|do|else)\s+)cd\b")
 PLUGINS_FIELD_RE = re.compile(r"""^plugins:\s*\[\s*["'][^"']+["']\s*(?:,\s*["'][^"']+["']\s*)*\]\s*$""")
 SCRIPT_RUN_RE = re.compile(
-    r"""^(?:\(\s*)?(?:cd\s+(?:"[^"]*"|'[^']*'|[^\s;&|]+)\s*&&\s*)?"""
+    r"""^(?:\(\s*cd\s+(?P<cd>"[^"]*"|'[^']*'|[^\s;&|]+)\s*&&\s*)?"""
     r"""(?:(?:exec|command|then|do|else|!)\s+)*(?:(?:bash|sh|source|\.)\s+(?:-(?!c\b)[A-Za-z]+\s+)*)?"""
     r"""(?P<path>"(?:\$\([^)]*\)|[^"])*"|'[^']*'|(?:\$\([^)]*\)|\$\{[^}]*\}|[^\s;&|<>"'(){}])+)"""
     r"""(?P<rest>(?:\s.*)?)$"""
@@ -137,7 +142,47 @@ def _in_eval_suite(path, eval_norm):
     return path != eval_norm and path.startswith(eval_norm + os.sep)
 
 
+def _top_level_text(text):
+    """`text` with every quoted run, `$(...)` and `${...}` cut, or None when it does not read
+    cleanly (a backtick, an unbalanced bracket or an open quote)."""
+    out, index, quote = [], 0, None
+    while index < len(text):
+        char = text[index]
+        if char == "\\" and quote != "'":
+            index += 2
+            continue
+        if quote == "'":
+            quote = None if char == "'" else quote
+        elif text.startswith(("$(", "${"), index):
+            opener = text[index + 1]
+            close = _match_close(text, index + 2, opener, ")" if opener == "(" else "}")
+            if close is None:
+                return None
+            index = close + 1
+            continue
+        elif quote == '"':
+            quote = None if char == '"' else quote
+        elif char == "`":
+            return None
+        elif char in "'\"":
+            quote = char
+        else:
+            out.append(char)
+        index += 1
+    return None if quote else "".join(out)
+
+
+def _is_lone_assignment(line):
+    """`line` (its trailing comment cut) only assigns one word: nothing runs after or with it."""
+    start = no_run_text.shell_comment_start(line)
+    rhs = SHELL_ASSIGN_RE.match(line[:start] if start is not None else line).group(2).strip()
+    top = _top_level_text(rhs)
+    return top is not None and not re.search(r"[\s;&|<>()]", top)
+
+
 def _shell_var_dirs(lines, base_dir):
+    """{variable: the path it holds} for assignments `_line_refs` can resolve, and the 0-based
+    numbers of the lines that do nothing but such an assignment."""
     var_dirs = {}
     assign_lines = set()
     for line_no, line in enumerate(lines):
@@ -148,6 +193,8 @@ def _shell_var_dirs(lines, base_dir):
         if not assign:
             continue
         var_name, rhs = assign.group(1), assign.group(2).strip()
+        if not _is_lone_assignment(line):
+            line_no = None
         dn_match = DIRNAME_INNER_RE.search(rhs)
         if dn_match:
             var_dirs[var_name] = _dirname_resolved(rhs, dn_match, base_dir)
@@ -179,6 +226,7 @@ def _shell_var_dirs(lines, base_dir):
                 var_dirs[var_name] = _resolve_shell_subpath(known_dir, suffix)
                 assign_lines.add(line_no)
                 break
+    assign_lines.discard(None)
     return var_dirs, assign_lines
 
 
@@ -267,12 +315,23 @@ def _line_refs(line, base_dir, var_dirs, eval_norm, wide=None, tails=None):
     return refs
 
 
+def runs_strings(lines, inside):
+    """Some code line outside the heredoc and string lines `inside` (1-based) pipes into a shell,
+    runs a string (`eval`, `bash -c`, `trap`, `alias`), sources a file or exports a variable, so
+    text this reading takes as literal may run."""
+    return any(
+        number not in inside and not line.lstrip().startswith("#") and RUNS_STRING_RE.search(line)
+        for number, line in enumerate(lines, 1)
+    )
+
+
 def literal_heredoc_lines(lines):
     """0-based numbers of the body lines of each `cat` or `tee` heredoc with a quoted delimiter,
     which the shell writes out as literal text and never runs; an unterminated one counts none,
-    and none count when the file's strings do not read cleanly or an opener sits in a string."""
+    and none count when the file's strings do not read cleanly, an opener sits in a string, or
+    the file pipes into a shell, sources, evaluates or exports anything."""
     inside = no_run_text._string_block_lines(".sh", "\n".join(lines))
-    if inside is None:
+    if inside is None or runs_strings(lines, inside):
         return set()
     found, body, closer = set(), [], None
     for number, line in enumerate(lines):
@@ -309,6 +368,20 @@ def binding_lines(fpath, text, target):
             continue
         found.add(lines[line_no])
     return found
+
+
+def _plain_cd_run(shape, base_dir, var_dirs, eval_norm):
+    """A run line with no `(cd <dir> && ` prefix, or one whose `<dir>` names nothing in or above
+    the suite and after whose script nothing else runs, so no argument is read relative to a
+    suite folder."""
+    if shape.group("cd") is None:
+        return True
+    wide = set()
+    if _line_refs(shape.group("cd"), base_dir, var_dirs, eval_norm, wide) or wide:
+        return False
+    rest = shape.group("rest").rstrip()
+    top = _top_level_text(rest[:-1] if rest.endswith(")") else rest)
+    return top is not None and not re.search(r"[;&|()]", top)
 
 
 def _suite_ref_sites(fpath, text, eval_norm, visibility=False):
@@ -349,10 +422,14 @@ def _suite_ref_sites(fpath, text, eval_norm, visibility=False):
         shape = SCRIPT_RUN_RE.match(stripped) if is_shell else None
         if shape:
             path_refs = _line_refs(shape.group("path"), base_dir, var_dirs, eval_norm)
-            if len(path_refs) == 1:
+            if len(path_refs) == 1 and _plain_cd_run(shape, base_dir, var_dirs, eval_norm):
                 runs = next(iter(path_refs))
                 rest = shape.group("rest")
                 rest_refs = _line_refs(rest, base_dir, var_dirs, eval_norm)
+        if visibility and is_shell and runs is None:
+            top = _top_level_text(stripped)
+            if CD_WORD_RE.search(stripped if top is None else top):
+                wide = wide or refs
         sites.append((line, refs, runs, rest, rest_refs, bool(wide), narrow))
 
     if os.path.basename(fpath) == "case.yaml":

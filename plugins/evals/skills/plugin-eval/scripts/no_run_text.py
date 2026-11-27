@@ -275,7 +275,7 @@ def _string_block_lines(ext, text):
 
 def shell_comment_start(line):
     """Index of the `#` that starts a comment after code on a shell `line` (unquoted, after an
-    unescaped blank, outside every quote, `$(`, `${`, `(`, `((` and backtick), or None when the
+    unescaped blank, outside every quote, `$(`, `${`, `$[`, `[[`, `(`, `((` and backtick), or None when the
     line has none or this reading is unsure (a comment-shaped `#` inside one of those, or a quote
     left open)."""
     stack = []
@@ -302,9 +302,14 @@ def shell_comment_start(line):
                 index += 1 if char == "$" else 0
         elif char == "#" and blank:
             return index if not stack else None
-        elif pair in ("$(", "${", "$'"):
+        elif pair in ("$(", "${", "$'", "$[", "[["):
             stack.append(pair)
             index += 1
+        elif pair == "]]" and top == "[[":
+            stack.pop()
+            index += 1
+        elif char == "]" and top == "$[":
+            stack.pop()
         elif char in "\"'`(":
             stack.append(char)
         elif char == ")" and top in ("$(", "("):
@@ -342,6 +347,8 @@ def _trailing_comments(path, text, inside, parse):
         if start is None or DIRECTIVE_RE.match(line[start:]):
             continue
         code = line[:start].rstrip(" \t")
+        if (len(code) - len(code.rstrip("\\"))) % 2:
+            continue
         if is_yaml:
             try:
                 same = parse(text) == parse("\n".join(lines[: number - 1] + [code] + lines[number:]))

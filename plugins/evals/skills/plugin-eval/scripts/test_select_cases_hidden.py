@@ -257,6 +257,76 @@ class SelectCasesHiddenTest(unittest.TestCase):
         block = self._select(SETUP, "# Prints the fixture.\n", "")
         self.assert_runs(block, "the plugin root holds the evals folder")
 
+    def test_path_binding_with_a_copy_on_its_line_still_runs(self):
+        self._base(
+            scaffold='fixture="$(cd "$(dirname "${BASH_SOURCE[0]}")/../fixtures" && pwd -P)/setup.sh"'
+            ' && cp "$fixture" copy.sh\nbash "$fixture"\n'
+        )
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "the copy after the binding writes the helper")
+
+    def test_dirname_binding_with_a_folder_copy_on_its_line_still_runs(self):
+        self._base(scaffold=RUN_SETUP + 'dir="$(dirname "$0")"; cp -r "$dir/.." all/\n')
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "the copy takes the whole evals folder")
+
+    def test_cd_prefix_then_a_relative_copy_still_runs(self):
+        self._copy_base('(cd "$fixtures" && bash "$fixtures/setup.sh" && cp -r . ../ws/)\n')
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "cp -r . copies the fixtures folder")
+
+    def test_cd_into_the_suite_then_a_bare_name_still_runs(self):
+        self._base(scaffold=RUN_SETUP + 'cd "$(dirname "${BASH_SOURCE[0]}")"\ncd ..\ntar c fixtures | tar x -C ws\n')
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "after the cd, fixtures names the helper's folder")
+
+    def test_unresolved_self_path_in_the_scaffold_still_runs(self):
+        self._base(scaffold=RUN_SETUP + 'cp -r "${0%/*}"/.. ws/\n')
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "${0%/*} is the case folder")
+
+    def test_unset_check_on_dollar_zero_still_runs(self):
+        self._base(setup='cat "${0:?}" >copy.txt\n')
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "only the message of ${0:?} is printed text")
+
+    def test_dollar_zero_in_a_trap_string_still_runs(self):
+        self._base(setup="trap 'cp \"$0\" ./copy.sh' EXIT\n")
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "the trap runs the string with the script as $0")
+
+    def test_dollar_zero_in_a_sourced_here_string_still_runs(self):
+        self._base(setup="source /dev/stdin <<<'cp \"$0\" ./copy.sh'\n")
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "source runs the string with the script as $0")
+
+    def test_literal_heredoc_in_a_file_that_pipes_to_bash_still_runs(self):
+        self._base(
+            scaffold=RUN_SETUP + "body() {\n  cat <<'EOF'\ncp \"$(dirname \"$0\")\"/../fixtures/setup.sh ws/\nEOF\n}\n"
+            "body | bash\n"
+        )
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "the heredoc body runs once piped to bash")
+
+    def test_quoted_copy_whose_tail_matches_a_holding_folder_still_runs(self):
+        _write(self.repo, "plugins/alpha/evals/fixtures/hooks.d/setup.sh", "#!/usr/bin/env bash\n# Hook.\n")
+        self._copy_base('bash "$fixtures/hooks.d/setup.sh"\ncp -r "$fixtures/$1.d" ws/\n')
+        block = self._select("plugins/alpha/evals/fixtures/hooks.d/setup.sh", "# Hook.\n", "")
+        self.assert_runs(block, "$1.d can name hooks.d, which holds the helper")
+
+    def test_trailing_comment_after_an_escaped_blank_still_runs(self):
+        self._base(scaffold=RUN_SETUP + "echo a\\  # c\nmkdir out\n")
+        block = self._select(SCAFFOLD, "echo a\\  # c", "echo a\\")
+        self.assert_runs(block, "the cut leaves a line continuation")
+
+    def test_case_yaml_comments_a_case_script_greps_still_run(self):
+        self._base(
+            scaffold=RUN_SETUP + 'grep "#" "$(dirname "${BASH_SOURCE[0]}")/case.yaml" >notes.txt\n',
+            case_extra="runs: 2 # two are enough\n",
+        )
+        block = self._select(CASE, " # two are enough", "")
+        self.assert_runs(block, "the scaffold writes case.yaml's comments into the workspace")
+
     def test_ansi_c_string_reads_and_keeps_the_exemption(self):
         self._base(setup="printf $'a\\tb\\'c\\n' >data.txt\n")
         block = self._select(SETUP, "# Prints the fixture.\n", "")
@@ -291,6 +361,8 @@ class ShellCommentStartTest(unittest.TestCase):
             "echo `a # b`",
             "echo $'a\\' # b'",
             'echo "open # b',
+            "echo $[1 #2]",
+            "[[ a =~ b #c ]]",
         ):
             self.assertIsNone(self.start(line), line)
 

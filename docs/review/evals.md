@@ -84,12 +84,15 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   history). A trailing comment (code, then ` # ...`, the code left byte for byte) in a shell file
   or a `case.yaml` counts like a whole comment line under that rule, in `case.yaml` only when the
   file parses the same without it, and a `case.yaml` edit that drops one is never a
-  description-only edit. The static check proves a script hidden through patterns that cannot
-  expose it, and no others: the body of a `cat` or `tee` heredoc with a quoted delimiter, a
-  `plugins: [...]` entry naming the suite's own plugin, a double-quoted copy whose literal ending
-  the script's name cannot match, a variable bound to the script's exact path and only run, and a
-  line that only prints the script's name; `$0` inside single quotes is literal unless the file
-  runs a string (`eval`, `bash -c`) (owner, 2026-11-27, "Go with recommendations": extend the
+  description-only edit. The static check sets aside only these reference forms: the body of a
+  `cat` or `tee` heredoc with a quoted delimiter, a `plugins: [...]` entry naming the suite's own
+  plugin, a double-quoted copy whose literal ending neither the script's name nor a folder holding
+  it can match, a line that only binds a variable to the script's exact path that is only run, a
+  `(cd <dir> && bash <script>)` run whose `<dir>` is outside the suite, a line that only prints the
+  script's name, and `$0` inside an `awk`, `sed`, `grep` or `jq` program; a file that pipes into a
+  shell, runs a string, sources or exports gets none of the heredoc or quote readings, and a case
+  file that `cd`s into the suite or finds its own folder in an unresolved form keeps the script
+  visible (owner, 2026-11-27, "Go with recommendations": extend the
   tooling so more eval comment deletions are proven hidden, sweep what it proves, and bring back
   the rest with an exact case and run count). A `plugins/*/skills/*/evals/` file is not in the
   plugin's eval directory, the only one a run hides

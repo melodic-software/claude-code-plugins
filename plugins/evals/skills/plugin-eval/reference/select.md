@@ -32,12 +32,17 @@ above, and no script under the evals folder that names `case.yaml` holds the del
 or a quoted pattern matching it; or a `.sh` or `.bash` script a case's scaffold runs (`bash`, `sh`, `source` or `.`
 with the script's path, optionally after `(cd <dir> &&`, or its `context.scaffold_script`) that no file of a case reaching it names,
 or names any folder holding it (the evals folder and those above included) or a glob or unresolved path that could match it, in any other form, and that never reads its own source (`$0`, `BASH_SOURCE`
-outside `$(dirname ...)` and outside single quotes, or its own name). These are not such forms: the body of a `cat` or `tee`
-heredoc with a quoted delimiter, a top-level `plugins: [...]` entry of `case.yaml` or `prompt.md` naming the suite's
-own plugin, a double-quoted path whose literal ending after its last expansion (`.txt` in `"$dir/$1.txt"`)
-the script's name does not end with, a line binding a variable to the script's exact path (never exported or
-expanded with an operator, in a file with no `eval`), and an `echo`, `printf` or `${1:?message}` that only prints
-the name. A file that runs a string (`eval`, `bash -c`) gets no single-quote reading. A trailing comment (code, then
+outside `$(dirname ...)` and outside an `awk`, `sed`, `grep` or `jq` program in single quotes, or its own name). Only these
+forms are set aside: the body of a `cat` or `tee` heredoc with a quoted delimiter, a top-level `plugins: [...]` entry
+of `case.yaml` or `prompt.md` naming the suite's own plugin, a double-quoted path whose literal ending after its
+last expansion (`.txt` in `"$dir/$1.txt"`) neither the script's name nor a folder holding it below that path ends
+with, a line that only binds a variable to the script's exact path (never exported or expanded with an operator,
+in a file with no `eval`), a `(cd <dir> && bash <script> <args>)` run whose `<dir>` names nothing in or above the
+suite, and an `echo`, `printf` or `${1:?message}` message that only prints the name. A file that pipes into a shell,
+runs a string (`eval`, `bash -c`, `trap`, `alias`), sources or exports gets neither the heredoc nor the single-quote
+reading. A case file that `cd`s into the suite, or finds its own folder any other way than `$(dirname ...)` (`${0%/*}`,
+`realpath "$0"`, `__file__`), makes the script visible, and a case script naming `case.yaml` makes `case.yaml`
+visible. A trailing comment (code, then
 ` # ...`, the code left byte for byte) counts as a comment deletion in a shell file and in a `case.yaml`, there
 only when the file parses the same without it; a `case.yaml` edit that drops one is never a description-only edit.
 A `plugins/*/skills/*/evals/` file is not in the plugin's eval directory, so the agent can read it with the skill

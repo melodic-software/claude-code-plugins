@@ -27,33 +27,37 @@ no_run_text = select_mapping.no_run_text
 WILD_PATH_RE = re.compile(r"[*?[$`{]")
 QUOTED_TOKEN_RE = re.compile(r"""(['"])([^'"\n]+)\1""")
 SELF_REF_RE = re.compile(r"BASH_SOURCE|\$\{?0(?![0-9])")
-RUNS_CODE_RE = re.compile(r"\beval\b|\b(?:ba|z)?sh\s+(?:-[A-Za-z]+\s+)*-[A-Za-z]*c\b")
 PRINT_ONLY_RE = re.compile(
     r"""^(?:[^\s()]*\)\s*)?(?:echo|printf)\s[^;&|<>`]*?(?:\s*[12]?>&[12])?"""
     r"""\s*(?:;\s*exit(?:\s+\d+)?\s*)?(?:;;)?\s*$"""
 )
-UNSET_MESSAGE_RE = re.compile(r"\$\{\w+:?\?[^}$`]*\}")
+SELF_LOCATE_RE = re.compile(
+    r"__file__|__dirname|__filename|import\.meta|PSScriptRoot|PSCommandPath|MyInvocation"
+    r"|\$0|BASH_SOURCE|os\.Executable|runtime\.Caller"
+)
+UNSET_MESSAGE_RE = re.compile(r"\$\{(\w+):?\?[^}$`]*\}")
+TEXT_TOOL_RE = re.compile(r"\b(?:awk|gawk|mawk|sed|grep|jq)\b(?:[^;&|()`$]|\$(?!\())*$")
 
 
 def _printed_text_cut(line):
     """`line` without what it only prints: nothing for an `echo` or `printf` line with no command
     substitution or redirect into a file, and no `${name:?message}` message. A script naming
     itself there prints its name, never its source."""
-    stripped = UNSET_MESSAGE_RE.sub("", line.strip())
+    stripped = UNSET_MESSAGE_RE.sub(r"${\1}", line.strip())
     shape = re.sub(r"""'[^']*'|"(?:[^"\\$`]|\\.)*\"""", "''", stripped)
     printed = PRINT_ONLY_RE.match(shape) and "$(" not in stripped and "`" not in stripped
     return "" if printed else stripped
 
 
 def _code_lines(text):
-    """Per line of a shell `text`: the line with each single-quoted run blanked, since `$0` and
-    `BASH_SOURCE` there are literal (awk's `$0`), or None for a line a literal heredoc writes
-    out. The whole text reads unblanked when it runs code from a string (`eval`, `bash -c`) or
-    its quoting does not read cleanly."""
+    """Per line of a shell `text`: the line with each single-quoted program of a text tool (`awk`,
+    `sed`, `grep`, `jq`) blanked, since `$0` there is that tool's record, never the script, or None
+    for a line a literal heredoc writes out. The whole text reads unblanked when it runs code from
+    a string (`suite_refs.runs_strings`) or its quoting does not read cleanly."""
     lines = text.splitlines()
     skipped = suite_refs.literal_heredoc_lines(lines)
     inside = no_run_text._string_block_lines(".sh", text)
-    if RUNS_CODE_RE.search(text) or inside is None:
+    if inside is None or suite_refs.runs_strings(lines, inside):
         return [None if n in skipped else line for n, line in enumerate(lines)]
     out, quote = [], None
     for number, line in enumerate(lines):
@@ -67,9 +71,12 @@ def _code_lines(text):
         index = 0
         while index < len(line):
             char = line[index]
-            if quote == "'":
+            if quote in ("'", "'kept"):
+                kept.append(char if quote == "'kept" or char == "'" else " ")
                 quote = None if char == "'" else quote
-                kept.append(" ")
+            elif char == "'" and quote is None:
+                quote = "'" if TEXT_TOOL_RE.search("".join(kept)) else "'kept"
+                kept.append(char)
             elif char == "\\":
                 kept.append(line[index : index + 2])
                 index += 1
@@ -83,23 +90,38 @@ def _code_lines(text):
                 kept.append("$'")
                 index += 1
             else:
-                quote = char if char in "'\"" else None
-                kept.append(" " if char == "'" else char)
+                quote = '"' if char == '"' else None
+                kept.append(char)
             index += 1
         out.append("".join(kept))
     return out
 
 
-def _reads_own_source(path, text):
-    name_re = _name_re(os.path.basename(path))
+def _names_in_code(text, name_re=None):
+    """Some code line of a shell `text` uses `$0` or `BASH_SOURCE` outside `$(dirname ...)`, a
+    text tool's program and a print-only line, or matches `name_re` outside a print-only line."""
     for raw, code in zip(text.splitlines(), _code_lines(text)):
         if code is None or not raw.strip() or raw.strip().startswith("#"):
             continue
         if SELF_REF_RE.search(_printed_text_cut(select_mapping.DIRNAME_INNER_RE.sub("", code))):
             return True
-        if name_re.search(_printed_text_cut(raw)):
+        if name_re is not None and name_re.search(_printed_text_cut(raw)):
             return True
     return False
+
+
+def _reads_own_source(path, text):
+    return _names_in_code(text, _name_re(os.path.basename(path)))
+
+
+def _locates_itself(fpath, text):
+    """A case file that finds its own folder in a form the reference reading does not resolve:
+    a shell `$0` or `BASH_SOURCE` other than `$(dirname ...)`, or another script's own-path
+    variable."""
+    ext = os.path.splitext(fpath)[1].lower()
+    if ext in select_mapping.HIDDEN_SCRIPT_EXTS:
+        return _names_in_code(text)
+    return ext in select_mapping.SCRIPT_EXTENSIONS and bool(SELF_LOCATE_RE.search(text))
 
 
 def _name_re(name):
@@ -118,13 +140,14 @@ def _covers(ref, target):
 
 
 def _site_covers(refs, narrow, target):
-    """Some ref covers `target`, a ref in `narrow` only when `target` ends with one of its
-    tails."""
-    name = os.path.basename(target)
-    return any(
-        _covers(ref, target) and (ref not in narrow or any(name.endswith(t) for t in narrow[ref]))
-        for ref in refs
-    )
+    """Some ref covers `target`, a ref in `narrow` only when `target` or a folder holding it below
+    the ref ends with one of its tails."""
+
+    def tail_hits(ref):
+        parts = os.path.relpath(target, ref).split(os.sep)
+        return any(part.endswith(tail) for part in parts for tail in narrow[ref])
+
+    return any(_covers(ref, target) and (ref not in narrow or tail_hits(ref)) for ref in refs)
 
 
 def deleted_lines(repo_root, merge_base, rel_path):
@@ -151,12 +174,11 @@ def _comment_reader_texts(eval_norm, files):
 
 def _reads_deleted_comment(texts, deleted):
     """Some text naming `case.yaml` holds a deleted comment's words, or a quoted pattern that
-    matches a deleted line; a comment after code counts from its ` #`."""
+    matches a deleted line; a comment after code counts from its first blank-led `#`."""
     bodies = []
     for line in deleted:
-        stripped = line.strip()
-        cut = stripped if stripped.startswith("#") else line[line.find(" #") + 1 :] if " #" in line else ""
-        bodies.append(cut.lstrip("#").strip())
+        mark = re.search(r"(?:^|[ \t])#", line)
+        bodies.append(line[mark.end() :].lstrip("#").strip() if mark else "")
     for text in texts:
         if "case.yaml" not in text:
             continue
@@ -180,10 +202,19 @@ def _case_yaml_hidden(target, cases, eval_norm, deleted):
     files = {}
     for case in cases:
         files.update(select_mapping._case_suite_files(case, eval_norm, visibility=True))
-    for _, sites in files.values():
+    case_yaml_re = _name_re("case.yaml")
+    for fpath, (text, sites) in files.items():
         for _, refs, _, _, _, wide, narrow in sites:
             if wide or _site_covers(refs, narrow, target):
                 return False
+        if fpath != target and _locates_itself(fpath, text or ""):
+            return False
+        if os.path.splitext(fpath)[1].lower() in select_mapping.SCRIPT_EXTENSIONS and any(
+            case_yaml_re.search(_printed_text_cut(line))
+            for line in (text or "").splitlines()
+            if not line.lstrip().startswith("#")
+        ):
+            return False
     return not _reads_deleted_comment(_comment_reader_texts(eval_norm, files.values()), deleted)
 
 
@@ -211,6 +242,8 @@ def hidden_from_agent(eval_abs, target_abs, cases, owning_case=None, deleted=())
     for case in cases:
         files = select_mapping._case_suite_files(case, eval_norm, visibility=True)
         for fpath, (text, sites) in files.items():
+            if fpath != target and _locates_itself(fpath, text or ""):
+                return False
             run_lines = suite_refs.binding_lines(fpath, text or "", target)
             for line, refs, runs, rest, rest_refs, wide, narrow in sites:
                 if wide:
