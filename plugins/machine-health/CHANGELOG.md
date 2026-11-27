@@ -3,6 +3,14 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.1] - 2026-11-27
+
+### Changed
+
+- Extracted a builder spawn helper in the checkup-view test so its CLI cases share one call.
+
+- `/machine-health:setup` points at the Desktop scheduled tasks page's permissions section for whether the owner's allow rules apply in a scheduled run, instead of stating it ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
 ## [0.28.0] - 2026-11-26
 
 ### Changed

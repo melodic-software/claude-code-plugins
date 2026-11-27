@@ -3,6 +3,12 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.44] - 2026-11-27
+
+### Changed
+
+- `/repo-fleet-hygiene:audit` points at GitHub's GraphQL `Repository` reference and the "Search by branch name" section for how `headRefName` and the `head:` qualifier match a branch name, instead of stating it ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
 ## [0.28.43] - 2026-11-26
 
 ### Changed
