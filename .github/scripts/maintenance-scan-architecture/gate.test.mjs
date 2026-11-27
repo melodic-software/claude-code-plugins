@@ -87,7 +87,7 @@ const matches = (rule, command) => {
   const body = /^Bash\((.*)\)$/.exec(rule)?.[1];
   return body !== undefined && new RegExp(`^${body.split("*").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`, "s").test(command);
 };
-const HELPERS = ["improvement/lib/state-key.sh", "architecture/lib/read-verification.sh", "architecture/skills/improve/scripts/improve-settings.mjs", "architecture/scripts/build-view.mjs"];
+const HELPERS = ["improvement/lib/state-key.sh", "architecture/lib/resolve-convention-home.sh", "architecture/lib/read-verification.sh", "architecture/skills/improve/scripts/improve-settings.mjs"];
 const permitted = ({ allowed, disallowed }, command) => allowed.some((rule) => matches(rule, command)) && !disallowed.some((rule) => matches(rule, command));
 
 test("the model legs' Bash rules refuse each route to arbitrary code, the environment or a write outside .work, and still allow the scan's own commands", () => {
@@ -117,24 +117,34 @@ test("the model legs' Bash rules refuse each route to arbitrary code, the enviro
     `cut -d= -f2 "/home/runner/work/_temp/settings.json"`,
     "wc -c < /etc/passwd",
     "sort /etc/passwd",
+    "head -50 src/a.mjs",
+    "grep -rn KEY .",
+    "git log -p",
+    "git log --since='90 days ago' --pretty=format: --name-only --output=src/a.mjs",
+    `node ${ws}/.lane/plugins/architecture/skills/improve/scripts/improve-settings.mjs --home /home/runner`,
+    `node ${ws}/.lane/plugins/architecture/scripts/build-view.mjs deepening --record .work/../../../etc/passwd`,
+    `node "${ws}/.lane/plugins/architecture/scripts/build-view.mjs" deepening --record .work/x\t--record\t/etc/passwd`,
+    `bash ${ws}/.lane/plugins/improvement/lib/state-key.sh /etc/passwd`,
   ]) {
     assert.equal(permitted(tools, command), false, command);
   }
   for (const command of [
-    "git log --oneline HEAD~20..HEAD",
-    "git rev-list --count main...HEAD",
-    "sort -u",
-    "sort -rn",
+    "git rev-parse --is-shallow-repository",
+    "git log --reverse --format=%cs",
+    "head -n 1",
+    "git log --since='90 days ago' --pretty=format: --name-only",
+    "grep -v '^$'",
+    "sort",
     "uniq -c",
-    "git log --name-only --format=%H HEAD~50..HEAD",
-    "grep -rn deepening plugins/architecture",
-    "head -50 src/a.mjs",
-    "wc -l src/a.mjs",
+    "sort -rn",
+    "head -50",
+    "git ls-files",
+    "wc -l",
     `bash ${ws}/.lane/plugins/architecture/lib/read-verification.sh --plugin architecture --skill improve`,
-    `node ${ws}/.lane/plugins/architecture/skills/improve/scripts/improve-settings.mjs --home .work`,
     `bash "${ws}/.lane/plugins/architecture/lib/read-verification.sh" --plugin architecture --skill improve`,
-    `node "${ws}/.lane/plugins/architecture/skills/improve/scripts/improve-settings.mjs" --home .work`,
-    `node "${ws}/.lane/plugins/architecture/scripts/build-view.mjs" deepening --record .work/deepening-report-20261127T070000Z.json`,
+    `bash "${ws}/.lane/plugins/architecture/lib/resolve-convention-home.sh"`,
+    `node "${ws}/.lane/plugins/architecture/skills/improve/scripts/improve-settings.mjs" --home docs/conventions`,
+    `node "${ws}/.lane/plugins/architecture/skills/improve/scripts/improve-settings.mjs" --no-config`,
     `bash "${ws}/.lane/plugins/improvement/lib/state-key.sh"`,
   ]) {
     assert.equal(permitted(tools, command), true, command);
@@ -153,12 +163,15 @@ test("every model leg runs sandboxed, and its Bash rules allow no network-capabl
     assert.equal(launch.with["disallowed-tools"], "${{ steps.stage.outputs.disallowed-tools }}", leg);
     assert.ok(steps.some((step) => step.id === "stage" && /gate\.mjs prompt/.test(step.run ?? "")), `${leg} stages the tool rules from model-tools.json`);
   }
-  assert.ok(!allowed.includes("Bash") && !allowed.includes("Write"), "no unscoped Bash or Write");
+  assert.ok(!allowed.includes("Bash") && !allowed.includes("Write") && !allowed.includes("Edit"), "no unscoped Bash, Write or Edit");
+  assert.ok(allowed.includes("Edit(./.work/**)"), "writes go through an Edit rule, the rule Claude Code checks a Write against");
+  assert.ok(![...allowed, ...disallowed].some((rule) => /^(Write|Grep|Glob)\(/.test(rule)), "no Write, Grep or Glob path rule, which Claude Code accepts but never matches");
   for (const rule of allowed.filter((r) => r.startsWith("Bash("))) {
     const command = /^Bash\((.*)\)$/.exec(rule)[1];
     assert.doesNotMatch(command, NETWORK, rule);
+    assert.ok(!command.includes("*"), `${rule} is one exact command shape, with no wildcard`);
     if (!/^(bash|node) /.test(command)) continue;
-    const script = /^(?:bash|node) "?\/runner\/work\/r\/r\/\.lane\/plugins\/([^"* ]+)"?(?: \*)?$/.exec(command)?.[1];
+    const script = /^(?:bash|node) "?\/runner\/work\/r\/r\/\.lane\/plugins\/([^"* ]+)"?/.exec(command)?.[1];
     assert.ok(HELPERS.includes(script), `${rule} runs one named helper, never a plugin wildcard`);
   }
   const skills = execFileSync("git", ["-C", REPO_ROOT, "ls-files", "plugins/improvement/skills/**/SKILL.md", "plugins/architecture/skills/**/SKILL.md"], { encoding: "utf8" }).trim().split("\n");
@@ -356,6 +369,16 @@ test("the prepared working tree is read-only but for .git and .work, so no comma
     git("status", "--porcelain");
   } finally {
     execFileSync("chmod", ["-R", "u+w", dir]);
+  }
+  const planted = repo();
+  mkdirSync(join(planted.dir, ".work"));
+  execFileSync("ln", ["-s", "/etc/passwd", join(planted.dir, ".work/record.json")]);
+  planted.git("add", "-f", ".work/record.json");
+  planted.git("commit", "-q", "-m", "planted");
+  try {
+    assert.throws(() => execFileSync("bash", [script], { cwd: planted.dir, env: { PATH: process.env.PATH, MODEL: "m", STAGE: stage, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" }, stdio: "pipe" }), "a .work already in the checkout, such as a committed symlink, fails the step");
+  } finally {
+    execFileSync("chmod", ["-R", "u+w", planted.dir]);
   }
 });
 

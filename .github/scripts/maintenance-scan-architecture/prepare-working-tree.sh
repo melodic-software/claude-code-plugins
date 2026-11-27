@@ -15,5 +15,5 @@ if [[ -n "${listed}" ]]; then
 fi
 mkdir .lane
 cp -R "${STAGE}/plugins" .lane/plugins
-mkdir -p .work
+mkdir .work
 find . -mindepth 1 \( -path ./.git -o -path ./.work \) -prune -o ! -type l -exec chmod a-w {} +
