@@ -18305,5 +18305,58 @@ class ApplyPerCandidateProbeTests(unittest.TestCase):
                 self.assertTrue((self.batch / "file-0.tmp").exists())
 
 
+    def test_the_apply_command_spawns_two_lsof_for_one_candidate(self) -> None:
+        snapshot, plan = self.fixture(50)
+        data_root = self.target.parent / "plugin-data"
+        data_root.mkdir()
+        snapshot_path = data_root / "snapshot.json"
+        plan_path = data_root / "plan.json"
+        snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+        plan_path.write_text(json.dumps(plan), encoding="utf-8")
+        arguments = [
+            "--snapshot",
+            str(snapshot_path),
+            "--plan",
+            str(plan_path),
+            "--data-root",
+            str(data_root),
+        ]
+
+        def run(command, *args, **kwargs):
+            tool = Path(command[0]).name
+            self.calls.append(tool)
+            if tool == "lsof":
+                return subprocess.CompletedProcess(command, 1, "", "")
+            return subprocess.CompletedProcess(
+                command, 128, "", "fatal: not a git repository\n"
+            )
+
+        with (
+            mock.patch.object(
+                hygiene.shutil, "which", side_effect=lambda name: f"/usr/bin/{name}"
+            ),
+            mock.patch.object(hygiene.subprocess, "run", side_effect=run),
+            redirect_stdout(io.StringIO()) as output,
+        ):
+            self.assertEqual(0, hygiene.main(["preview", *arguments]))
+            token = json.loads(output.getvalue())["approval_token"]
+            self.calls.clear()
+            code = hygiene.main(
+                [
+                    "apply",
+                    "--execute",
+                    *arguments,
+                    "--confirm-tier",
+                    "high",
+                    "--approval-token",
+                    token,
+                    "--report",
+                    str(data_root / "report.json"),
+                ]
+            )
+        self.assertEqual(0, code)
+        self.assertFalse(self.batch.exists())
+        self.assertEqual(2, self.calls.count("lsof"), "token preview + apply")
+
 if __name__ == "__main__":
     unittest.main()

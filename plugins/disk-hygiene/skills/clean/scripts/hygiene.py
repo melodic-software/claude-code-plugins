@@ -4362,7 +4362,11 @@ def apply_nothing_removed_report(
     }
 
 
-def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
+def apply_plan(
+    snapshot: dict[str, Any],
+    plan: dict[str, Any],
+    fresh_preview: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     target = Path(snapshot["target"]).absolute()
     entries = entry_map(snapshot)
     candidates = validate_plan(plan, entries)
@@ -4374,7 +4378,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
             target,
             [protected_skip(item["path"], detail) for item in candidates],
         )
-    checked = preview(snapshot, plan)
+    checked = fresh_preview or preview(snapshot, plan)
     if checked["status"] != "ready-for-explicit-approval":
         by_path = {item["path"]: item for item in checked["candidates"]}
         return apply_nothing_removed_report(
@@ -5798,7 +5802,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.approval_token != checked["approval_token"]:
             raise HygieneError("approval token does not match the fresh preview")
         report_path = model_output_path(args.report)
-        report = apply_plan(snapshot, plan)
+        report = apply_plan(snapshot, plan, checked)
         write_json(report_path, report)
         close_clean_runs(report_path)
         return emit(report, 4 if report["skipped"] else 0)
