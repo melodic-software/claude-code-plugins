@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.0.5] - 2026-11-27
+
+### Fixed
+
+- `/source-control:worktree create` and entering an existing worktree now work by explicit path, with no `EnterWorktree` call, when the worktree root is one of the session's working directories, so the person is not asked to approve a move the session does not need. A session that cannot reach the root still enters with `EnterWorktree(path:)`.
+
+## [15.0.4] - 2026-11-27
+
+### Fixed
+
+- `worktree-create.sh` refuses (exit 4) when the main checkout's `.git` directory holds a `commondir` file, and creates nothing. That file makes `EnterWorktree(path:)` fail with `fatal: not a git repository: '/dev/null/not-a-git-repository'`. The refusal names the file and the fix. The worktree `audit` checklist reports the file, and `create` says an `EnterWorktree(path:)` failure in an attended session is diagnosed, never worked around by explicit paths.
+
 ## [15.0.3] - 2026-11-27
 
 ### Changed

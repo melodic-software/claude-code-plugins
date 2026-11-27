@@ -15,7 +15,6 @@ version() {
     echo $((${major:-0} * 1000000 + ${minor:-0} * 1000 + ${patch:-0}))
   }
 }
-# start KIND FILE ARGS...: exec FILE when its version is supported, else return.
 start() {
   kind=$1
   runtime=$2

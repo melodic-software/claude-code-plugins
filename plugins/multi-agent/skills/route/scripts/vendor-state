@@ -198,9 +198,6 @@ function readJsonRetry(filePath) {
   return null
 }
 
-// A concurrent record can recreate dir and write a trial into it while it is being removed, so the
-// removal walks a unique name no writer opens rather than the live path. Windows refuses the rename
-// while a writer holds a file open inside dir, so EPERM, EACCES and EBUSY are retried briefly.
 function removeTrialDir(dir) {
   const tombstone = `${dir}.${process.pid}-${crypto.randomBytes(6).toString('hex')}.removing`
   for (let attempt = 0; ; attempt++) {
@@ -379,9 +376,6 @@ function cmdRecord(argv) {
   )
 }
 
-// A proven pair keeps its newest reviewed results (at least trials_fail of them, so a send-back
-// stays reachable) and goes back to trial when trials_fail of them are rejected. A concurrent
-// record may send the pair back and remove dir mid-read; that record's result stands.
 function recheckProven(dir, outcomePath, outcome, doc, settings) {
   const windowSize = Math.max(settings.trials_prove, settings.trials_fail)
   const report = (fields) => process.stdout.write(`${JSON.stringify({ recorded: true, ...fields }, null, 2)}

@@ -1,3 +1,4 @@
 # yaml-language-server: $schema=../../plugins/planning/schemas/planning.schema.json
 
 unattended_finish_check: CI Status
+verification: standard

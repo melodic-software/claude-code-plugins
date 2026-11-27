@@ -21,7 +21,8 @@
         "aliases: review",
         "native description: Review the current diff, or a PR number/branch/path target, for correctness bugs (plus broken CLAUDE.md rules and cleanups where the model's recipe covers them; see /simplify) at the effort level given first, before any target (…: from few high-confidence findings to many, some uncertain); with no level given, it reuses the level you typed last. Pass --comment to post findings as inline PR comments, or --fix to apply them to the working tree after the review. Pass --max-findings <n> to report up to n findings, or --max-findings all for every finding. The choice stays until you pass --max-findings default.",
         "our description: CI code-review lane for a GitHub pull request. High-signal correctness and maintainability findings only, scoped out of security when a security lane exists",
-        "the review plugin already documents this overlap organically in plugins/review/skills/quality-gate/context/pr.md's Boundary section, naming the bundled command, the marketplace plugin, and the managed service as three distinct surfaces"
+        "the review plugin already documents this overlap organically in plugins/review/skills/quality-gate/context/pr.md's Boundary section, naming the bundled command, the marketplace plugin, and the managed service as three distinct surfaces",
+        "`ship:review` alias added in Claude Code 2.1.332; direction: docs/adr/0137-rule-native-surface-overlaps-by-five-ordered-tests.md"
       ],
       "observation": {
         "class": "extraction",
@@ -3073,6 +3074,84 @@
         "suggest_sentence": false
       },
       "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "ship-local",
+        "class": "bundled-skill",
+        "markers": [
+          "gated",
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "source-control",
+        "skill": "pull-request",
+        "kind": "skill"
+      },
+      "verdict": "defer",
+      "integration": "route",
+      "reason": "Undetermined until the owner trials it on a pull request: opening, reviewing and watching a pull request overlaps the pull-request skill's monitor and watch-handoff routing, but the five ordered tests of ADR 0137 cannot be run from docs alone, and the surface registers only behind a feature gate. Its alias is `ship`.",
+      "evidence": [
+        "`ship-local` registered as a bundled skill behind a feature gate, off under CLAUDE_CODE_DISABLE_SHIP and never under CLAUDE_CODE_REMOTE (Claude Code 2.1.332 binary)",
+        "user-typed only: the skill text says \"Never call it yourself: only a line that the user types starts it\"",
+        "verdict direction: docs/adr/0137-rule-native-surface-overlaps-by-five-ordered-tests.md"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.332 on 2026-11-27 (feature-gated bundled-skill registrations)",
+        "date": "2026-11-27"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release changes the `ship-local` roster entry, its `ship` alias or its feature gate, or the /steward and /ship trial issue records a result",
+        "verified": "2026-11-27"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": false,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": false
+    },
+    {
+      "native": {
+        "name": "steward",
+        "class": "bundled-skill",
+        "markers": [
+          "gated",
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "source-control",
+        "skill": "pull-request",
+        "kind": "skill"
+      },
+      "verdict": "defer",
+      "integration": "route",
+      "reason": "Undetermined until the owner trials it on a pull request: watching an open pull request for checks, conflicts and comments overlaps the pull-request skill's monitor and watch-handoff routing, but the five ordered tests of ADR 0137 cannot be run from docs alone, and the surface registers only behind a feature gate. Its alias is `ship:steward`.",
+      "evidence": [
+        "`steward` registered as a bundled skill behind a feature gate, off under CLAUDE_CODE_DISABLE_SHIP and never under CLAUDE_CODE_REMOTE (Claude Code 2.1.332 binary)",
+        "user-typed only: the skill text says \"Never call it yourself: only a line that the user types starts it\"",
+        "verdict direction: docs/adr/0137-rule-native-surface-overlaps-by-five-ordered-tests.md"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.332 on 2026-11-27 (feature-gated bundled-skill registrations)",
+        "date": "2026-11-27"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release changes the `steward` roster entry, its `ship:steward` alias or its feature gate, or the /steward and /ship trial issue records a result",
+        "verified": "2026-11-27"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": false,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": false
     }
   ],
   "dismissals": [

@@ -19,7 +19,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
 | Lane | Rows | Baked | Integration | Verdicts |
 |---|---|---|---|---|
 | Built-in CLI commands | 26 | 25 | route 4, suggest 22 | complementary 25, defer 1 |
-| Bundled skills | 30 | 24 | route 19, suggest 9, wrap 2 | complementary 25, defer 5 |
+| Bundled skills | 32 | 24 | route 21, suggest 9, wrap 2 | complementary 25, defer 7 |
 | Bundled workflows | 1 | 1 | suggest 1 | complementary 1 |
 | Plugin-backed built-ins | 5 | 3 | route 5 | complementary 4, defer 1 |
 | Built-in subagents | 3 | 2 | route 3 | complementary 3 |
@@ -647,6 +647,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - native description: Review the current diff, or a PR number/branch/path target, for correctness bugs (plus broken CLAUDE.md rules and cleanups where the model's recipe covers them; see /simplify) at the effort level given first, before any target (…: from few high-confidence findings to many, some uncertain); with no level given, it reuses the level you typed last. Pass --comment to post findings as inline PR comments, or --fix to apply them to the working tree after the review. Pass --max-findings <n> to report up to n findings, or --max-findings all for every finding. The choice stays until you pass --max-findings default.
   - our description: CI code-review lane for a GitHub pull request. High-signal correctness and maintainability findings only, scoped out of security when a security lane exists
   - the review plugin already documents this overlap organically in plugins/review/skills/quality-gate/context/pr.md's Boundary section, naming the bundled command, the marketplace plugin, and the managed service as three distinct surfaces
+  - `ship:review` alias added in Claude Code 2.1.332; direction: docs/adr/0137-rule-native-surface-overlaps-by-five-ordered-tests.md
 - **Observation:** extraction: extracted from binary v2.1.330 on 2026-11-22 (the /harness-ops:inventory extraction of the installed native build; integrity degraded: the bundled_skills, builtin_tools and builtin_plugins lanes are floors) (2026-11-22)
 - **Recheck trigger:** a Claude Code release changes the bundled `code-review` skill's roster entry, its `review` alias, or its invocation mode. The alias was re-pointed at 2.1.220 and the alias-under-shadowing fix landed at 2.1.233, so this pair has moved twice in one quarter (verified 2026-11-22)
 - **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
@@ -971,6 +972,20 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
 - **Baked:** description phrase yes · Boundary section yes · Native step yes · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
+### `ship-local` → `source-control:pull-request`
+
+- **Verdict:** `defer`: Undetermined until the owner trials it on a pull request: opening, reviewing and watching a pull request overlaps the pull-request skill's monitor and watch-handoff routing, but the five ordered tests of ADR 0137 cannot be run from docs alone, and the surface registers only behind a feature gate. Its alias is `ship`.
+- **Integration:** `route`
+- **Native surface:** `ship-local` (bundled skill; markers: gated, model-invocation-disabled)
+- **Our component:** `source-control:pull-request` (skill)
+- **Evidence:**
+  - `ship-local` registered as a bundled skill behind a feature gate, off under CLAUDE_CODE_DISABLE_SHIP and never under CLAUDE_CODE_REMOTE (Claude Code 2.1.332 binary)
+  - user-typed only: the skill text says "Never call it yourself: only a line that the user types starts it"
+  - verdict direction: docs/adr/0137-rule-native-surface-overlaps-by-five-ordered-tests.md
+- **Observation:** extraction: extracted from binary v2.1.332 on 2026-11-27 (feature-gated bundled-skill registrations) (2026-11-27)
+- **Recheck trigger:** a Claude Code release changes the `ship-local` roster entry, its `ship` alias or its feature gate, or the /steward and /ship trial issue records a result (verified 2026-11-27)
+- **Baked:** description phrase no · Boundary section no · Native step no · suggest sentence no
+
 ### `simplify` → `code-tidying:batch-simplify`
 
 - **Verdict:** `complementary`: Scale is the whole difference. The bundled skill handles the change in front of it; batch-simplify fans the same job across a time- or branch-scoped window of changed files, grouped by ecosystem and dependency order, for the catch-up case after a multi-session sprint. Its description already sends single-file cleanup to the native surface.
@@ -1003,6 +1018,20 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
 - **Recheck trigger:** a Claude Code release adds, removes, or changes the invocation mode of the bundled `simplify` skill, or the skill gains a lane-scoped mode that overlaps tidy's proactive hunt (verified 2026-09-11)
 - **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `steward` → `source-control:pull-request`
+
+- **Verdict:** `defer`: Undetermined until the owner trials it on a pull request: watching an open pull request for checks, conflicts and comments overlaps the pull-request skill's monitor and watch-handoff routing, but the five ordered tests of ADR 0137 cannot be run from docs alone, and the surface registers only behind a feature gate. Its alias is `ship:steward`.
+- **Integration:** `route`
+- **Native surface:** `steward` (bundled skill; markers: gated, model-invocation-disabled)
+- **Our component:** `source-control:pull-request` (skill)
+- **Evidence:**
+  - `steward` registered as a bundled skill behind a feature gate, off under CLAUDE_CODE_DISABLE_SHIP and never under CLAUDE_CODE_REMOTE (Claude Code 2.1.332 binary)
+  - user-typed only: the skill text says "Never call it yourself: only a line that the user types starts it"
+  - verdict direction: docs/adr/0137-rule-native-surface-overlaps-by-five-ordered-tests.md
+- **Observation:** extraction: extracted from binary v2.1.332 on 2026-11-27 (feature-gated bundled-skill registrations) (2026-11-27)
+- **Recheck trigger:** a Claude Code release changes the `steward` roster entry, its `ship:steward` alias or its feature gate, or the /steward and /ship trial issue records a result (verified 2026-11-27)
+- **Baked:** description phrase no · Boundary section no · Native step no · suggest sentence no
 
 ### `update-config` → `harness-config:audit`
 

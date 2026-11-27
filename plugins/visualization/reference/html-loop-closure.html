@@ -212,8 +212,6 @@
 <script>
 "use strict";
 
-/* ---- the four shared helpers ---- */
-
 function esc(value) {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -287,8 +285,6 @@ function downloadText(name, text, mime) {
   link.remove();
   setTimeout(function () { URL.revokeObjectURL(url); }, 0);
 }
-
-/* ---- pattern snippets, printed into their pre blocks as text ---- */
 
 var SNIPPETS = {
   "src-p1": [

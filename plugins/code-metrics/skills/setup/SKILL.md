@@ -82,9 +82,9 @@ Exit 0 with no FAIL row, 1 with one, 2 on a usage or environment error.
 
 1. Run `check` and read its table.
 2. **Resolve the values.** With complete `<key>=<value>` arguments, use them directly. Otherwise
-   interview one key at a time, recommendation first, walking the annotated template
-   `${CLAUDE_SKILL_DIR}/templates/config-template.yaml` (every key with its default and
-   provenance, in the subset; the key reference is `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
+   interview one key at a time, recommendation first, walking the key reference
+   `${CLAUDE_PLUGIN_ROOT}/reference/config.md` (every key with its default and provenance;
+   `${CLAUDE_SKILL_DIR}/templates/config-template.yaml` holds the defaults in the subset):
    the cyclomatic reference (20, ISO/IEC 5055 §8.2.117; 10 and 15 are the cited alternatives),
    the file-length reference (1000, the plugin's own number; 500 selectable) and `size.mode`,
    scope exclusions, coverage artifact paths, per-language opt-outs and collector order, duplication
