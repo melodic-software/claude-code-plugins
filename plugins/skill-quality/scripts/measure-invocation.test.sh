@@ -596,6 +596,44 @@ else
   fail "score should skip dmi:true competitor (rc=$rc train_tr=$dmi_tr) err=$(cat "$TMP/dmi-score.err")"
 fi
 
+mkdir -p "$TMP/plugins/derived-dmi/skills/setup" "$TMP/dmi-only/probes" "$TMP/dmi-emit-out"
+printf '%s\n' '---
+description: "Skill-authoring QA setup. Use when: '\''check this skill'\''."
+disable-model-invocation: true
+---
+
+# Derived dmi:true rival
+' >"$TMP/plugins/derived-dmi/skills/setup/SKILL.md"
+jq '.competitors = ["derived-dmi:setup"] | del(.competitor_dirs)' \
+  "$TMP/probes/target.json" >"$TMP/dmi-only/probes/target.json"
+dmi_only_score="$(run score "$TMP/dmi-only/probes" 2>"$TMP/dmi-only.err")"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q "INFO: fixture:target: skipping competitor 'derived-dmi:setup' (disable-model-invocation: true" "$TMP/dmi-only.err" &&
+  jq -e '.skills[0].splits.train.trigger_rate == 1' <<<"$dmi_only_score" >/dev/null; then
+  pass "score handles derived-path dmi:true competitors and empty remaining rival sets cleanly"
+else
+  fail "score should handle all-dmi derived competitor cleanly (rc=$rc) err=$(cat "$TMP/dmi-only.err")"
+fi
+run emit-plugin-eval "$TMP/dmi-only/probes" "$TMP/dmi-emit-out" >/dev/null 2>&1
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q '^plugins:' "$TMP/dmi-emit-out/fixture-target-pos-train-01/prompt.md"; then
+  pass "emit-plugin-eval omits plugins: for cross-plugin competitors whose SKILL.md sets disable-model-invocation: true"
+else
+  fail "emit-plugin-eval should skip dmi:true cross-plugin rival (rc=$rc)"
+fi
+
+mkdir -p "$TMP/trav/probes"
+jq '.competitors = ["a:../../skills/rival"] | del(.competitor_dirs)' \
+  "$TMP/probes/target.json" >"$TMP/trav/probes/target.json"
+out="$(run score "$TMP/trav/probes" 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "is not a plugin:skill id and has no competitor_dirs entry" <<<"$out"; then
+  pass "score rejects path-traversal competitor ids rather than deriving plugins/.../.."
+else
+  fail "score should reject traversal competitor id (rc=$rc): $out"
+fi
+
 if [[ $fails -gt 0 ]]; then
   printf 'measure-invocation.test.sh: %s failed\n' "$fails" >&2
   exit 1

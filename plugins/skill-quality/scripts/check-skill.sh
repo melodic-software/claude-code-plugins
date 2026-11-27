@@ -237,6 +237,7 @@ POCOCK_DESC_MEDIAN=130
 POCOCK_BODY_MEDIAN=70
 DESC_TARGET_DEFAULT=250
 DESC_WARN_DEFAULT=$POCOCK_DESC_MAX
+DMI_DESC_WARN_CAP=150
 ROUTER_TOKEN_CAP=5000
 ROUTER_CHARS_PER_TOKEN=4
 
@@ -312,21 +313,36 @@ base_ref_fm() {
 
 phrase_lexically_covered() {
   local phrase="$1" listing="$2"
-  awk -v p="$phrase" -v text="$listing" '
+  PHRASE="$phrase" LISTING="$listing" awk '
     BEGIN {
+      stop_str = "the and for with when use this that from into not your our are was were has have had its but nor any all can may per via than then also just only each both same such over under after before about to of in on at by an as is be or if do it my me we us so no up"
+      sn = split(stop_str, sw, " ")
+      for (i = 1; i <= sn; i++) stop[sw[i]] = 1
+
+      p = tolower(ENVIRON["PHRASE"])
       gsub(/^\047|\047$/, "", p)
-      p = tolower(p)
-      text = tolower(text)
+      gsub(/\047/, "", p)
+
+      text = tolower(ENVIRON["LISTING"])
+      sub(/(^|[.!?][[:space:]]+)(not for|skip when)([^a-z0-9]|$).*$/, "", text)
+      gsub(/\047/, "", text)
       gsub(/[^a-z0-9-]+/, " ", text)
       n = split(text, tw, " ")
-      for (i = 1; i <= n; i++) if (length(tw[i]) >= 3) have[tw[i]] = 1
+      for (i = 1; i <= n; i++) {
+        tok = tw[i]
+        gsub(/^-+|-+$/, "", tok)
+        if (length(tok) >= 2 && !(tok in stop)) have[tok] = 1
+      }
+
       gsub(/[^a-z0-9-]+/, " ", p)
       m = split(p, pw, " ")
       checked = 0
       for (i = 1; i <= m; i++) {
-        if (length(pw[i]) < 3) continue
+        tok = pw[i]
+        gsub(/^-+|-+$/, "", tok)
+        if (length(tok) < 2 || (tok in stop)) continue
         checked++
-        if (!(pw[i] in have)) exit 1
+        if (!(tok in have)) exit 1
       }
       exit (checked > 0 ? 0 : 1)
     }
@@ -889,16 +905,17 @@ fi
 
 if [[ -n "$CUR_DESC" ]]; then
   if [[ "$DMI_BOOL" == "true" ]]; then
-    if grep -qi 'use when' <<<"$CUR_DESC$CUR_WTU" ||
-      [[ -n "$(printf '%s\n' "$CUR_DESC$CUR_WTU" | skill_frontmatter::extract_triggers)" ]]; then
-      warn "disable-model-invocation: true skill carries trigger phrasing ('Use when' or quoted triggers) — user-invoked skills need only a one-line summary (/playbooks:skill-authoring, Descriptions)"
+    if [[ -n "$CUR_WTU" ]] ||
+      grep -qiE '(^|[^[:alpha:]])use when([^[:alpha:]]|$)' <<<"$CUR_DESC" ||
+      [[ -n "$(printf '%s\n' "$CUR_DESC" | skill_frontmatter::extract_triggers)" ]]; then
+      warn "disable-model-invocation: true skill carries trigger phrasing ('Use when', quoted triggers, or when_to_use) — user-invoked skills need only a one-line summary (/playbooks:skill-authoring, Descriptions)"
     else
       note "disable-model-invocation: true — 'Use when:' trigger phrasing not required (check 12)"
     fi
-    if ((DESC_CP_LEN > 150)); then
-      warn "disable-model-invocation: true description is $DESC_CP_LEN chars (target <= 150 chars for a one-line human summary)"
+    if ((DESC_CP_LEN > DMI_DESC_WARN_CAP)); then
+      warn "disable-model-invocation: true description is $DESC_CP_LEN chars (target <= $DMI_DESC_WARN_CAP chars for a one-line human summary)"
     fi
-  elif ! grep -qi 'use when' <<<"$CUR_DESC$CUR_WTU" &&
+  elif ! grep -qi 'use when' <<<"$CUR_DESC $CUR_WTU" &&
     [[ -z "$(printf '%s\n' "$CUR_WTU" | skill_frontmatter::extract_triggers)" ]]; then
     warn "description has no 'Use when:' trigger phrasing — a description is a trigger spec, not a summary"
   fi

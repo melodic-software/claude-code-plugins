@@ -89,6 +89,15 @@ is_dmi_true() {
   esac
 }
 
+derived_competitor_dir() {
+  local comp="$1"
+  if [[ "$comp" =~ ^[a-z0-9-]+:[a-z0-9-]+$ ]]; then
+    printf 'plugins/%s/skills/%s\n' "${comp%%:*}" "${comp#*:}"
+    return 0
+  fi
+  return 1
+}
+
 listing_tokens() {
   local text="$1"
   printf '%s\n' "$text" | skill_frontmatter::extract_triggers | sed "s/^'//;s/'$//" | tr '[:upper:]' '[:lower:]'
@@ -282,8 +291,8 @@ cmd_validate() {
     while IFS= read -r vcomp; do
       [[ -z "$vcomp" ]] && continue
       vcomp_dir="$(jq -r --arg c "$vcomp" '.competitor_dirs[$c] // empty' "$f")"
-      if [[ -z "$vcomp_dir" && "$vcomp" == *:* ]]; then
-        vcomp_dir="plugins/${vcomp%%:*}/skills/${vcomp#*:}"
+      if [[ -z "$vcomp_dir" ]]; then
+        vcomp_dir="$(derived_competitor_dir "$vcomp" || true)"
       fi
       if [[ -n "$vcomp_dir" ]] && vcmd="$(resolve_skill_md "$root" "$vcomp_dir")" && is_dmi_true "$vcmd"; then
         warn "$f ($skill): competitor '$vcomp' sets disable-model-invocation: true and never competes in model auto-invocation"
@@ -342,7 +351,7 @@ cmd_score() {
     exit 2
   fi
   local skill_idx=0
-  local -A comp_listing
+  local -A comp_listing=()
   for f in "${files[@]}"; do
     local skill plugin rel
     skill="$(jq -r '.skill' "$f")"
@@ -355,16 +364,13 @@ cmd_score() {
     fi
     local listing
     listing="$(load_listing "$md")"
-    for k in "${!comp_listing[@]}"; do
-      unset "comp_listing[$k]"
-    done
+    comp_listing=()
     local comp
     while IFS= read -r comp; do
       [[ -z "$comp" ]] && continue
       local comp_dir derived=""
       comp_dir="$(jq -r --arg c "$comp" '.competitor_dirs[$c] // empty' "$f")"
-      if [[ -z "$comp_dir" && "$comp" == *:* ]]; then
-        comp_dir="plugins/${comp%%:*}/skills/${comp#*:}"
+      if [[ -z "$comp_dir" ]] && comp_dir="$(derived_competitor_dir "$comp")"; then
         derived=1
       fi
       if [[ -z "$comp_dir" ]]; then
@@ -403,18 +409,20 @@ cmd_score() {
         best=0
       fi
       local cname
-      for cname in $(printf '%s\n' "${!comp_listing[@]}" | sort); do
-        local cscore
-        cscore="$(score_request "$request" "${comp_listing[$cname]}")"
-        if ((cscore > best)); then
-          best="$cscore"
-          winner="$cname"
-          predicted=false
-        elif ((cscore == best)) && [[ "$winner" == "$skill" ]] && ((cscore > 0)); then
-          predicted=false
-          winner="$skill+$cname"
-        fi
-      done
+      if ((${#comp_listing[@]} > 0)); then
+        for cname in $(printf '%s\n' "${!comp_listing[@]}" | sort); do
+          local cscore
+          cscore="$(score_request "$request" "${comp_listing[$cname]}")"
+          if ((cscore > best)); then
+            best="$cscore"
+            winner="$cname"
+            predicted=false
+          elif ((cscore == best)) && [[ "$winner" == "$skill" ]] && ((cscore > 0)); then
+            predicted=false
+            winner="$skill+$cname"
+          fi
+        done
+      fi
       local correct=false
       if [[ "$expect" == "$predicted" ]]; then
         correct=true
@@ -533,9 +541,27 @@ cmd_compare() {
 }
 
 rival_plugins() {
-  jq -r '(.plugin // "") as $own
-    | [.competitors[]? | select(type == "string" and contains(":")) | split(":")[0] | select(. != $own)]
-    | unique[]' "$1"
+  local f="$1" root="${2:-}" own comp cdir cmd
+  own="$(jq -r '.plugin // ""' "$f")"
+  local -a plugins=()
+  while IFS= read -r comp; do
+    [[ -z "$comp" || "$comp" != *:* ]] && continue
+    local p="${comp%%:*}"
+    [[ "$p" == "$own" ]] && continue
+    if [[ -n "$root" ]]; then
+      cdir="$(jq -r --arg c "$comp" '.competitor_dirs[$c] // empty' "$f")"
+      if [[ -z "$cdir" ]]; then
+        cdir="$(derived_competitor_dir "$comp" || true)"
+      fi
+      if [[ -n "$cdir" ]] && cmd="$(resolve_skill_md "$root" "$cdir")" && is_dmi_true "$cmd"; then
+        continue
+      fi
+    fi
+    plugins+=("$p")
+  done < <(jq -r '.competitors[]? | select(type == "string")' "$f")
+  if ((${#plugins[@]} > 0)); then
+    printf '%s\n' "${plugins[@]}" | sort -u
+  fi
 }
 
 rel_path() {
@@ -612,7 +638,7 @@ cmd_emit() {
   for f in "${files[@]}"; do
     local p
     local -a need
-    mapfile -t need < <(rival_plugins "$f")
+    mapfile -t need < <(rival_plugins "$f" "$root")
     ((${#need[@]})) && need+=("$(jq -r '.plugin // empty' "$f")")
     for p in "${need[@]}"; do
       if [[ ! -d "$root/plugins/$p" ]]; then
@@ -629,7 +655,7 @@ cmd_emit() {
   out_abs="$(cd "$out" && pwd -P)" || return 2
   root_abs="$(cd "$root" && pwd -P)" || return 2
   for f in "${files[@]}"; do
-    if [[ -n "$(rival_plugins "$f")" && "$out_abs" != "$root_abs"/* ]]; then
+    if [[ -n "$(rival_plugins "$f" "$root")" && "$out_abs" != "$root_abs"/* ]]; then
       printf 'Error: emit-plugin-eval: %s lists cross-plugin rivals, so <out-dir> must sit inside %s; the CLI loads a case'"'"'s plugins only from inside the run target\n' "$f" "$root_abs" >&2
       ((made)) && rmdir "$out" 2>/dev/null
       exit 2
@@ -641,7 +667,7 @@ cmd_emit() {
     plugin="$(jq -r '.plugin // empty' "$f")"
     leaf="${skill#*:}"
     local -a rivals
-    mapfile -t rivals < <(rival_plugins "$f")
+    mapfile -t rivals < <(rival_plugins "$f" "$root")
     if ((${#rivals[@]})); then
       local -a paths
       paths=("$(rel_path "$out_abs/_" "$(cd "$root/plugins/$plugin" && pwd -P)")") || return 2
