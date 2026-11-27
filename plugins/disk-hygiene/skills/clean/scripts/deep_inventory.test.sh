@@ -27,6 +27,8 @@ test_wrapper::floor_check_to FLOOR_CHECK "$FLOOR"
   echo "SKIP: Python ${FLOOR}+ required" >&2
   exit 0
 }
-PYFILE=""
-test_wrapper::python_file_to PYFILE "$SCRIPT_DIR/test_deep_inventory.py"
-"$PYTHON" -m unittest -v "$PYFILE"
+for TEST_FILE in test_deep_inventory.py test_deep_inventory_bounded_stores.py; do
+  PYFILE=""
+  test_wrapper::python_file_to PYFILE "$SCRIPT_DIR/$TEST_FILE"
+  "$PYTHON" -m unittest -v "$PYFILE"
+done

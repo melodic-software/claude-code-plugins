@@ -65,10 +65,9 @@ validator rejects an empty reason, and a bare category phrase unless it names a 
 shows that tool still references the entry. A rejected row fails the report with exit 5.
 
 A known-large store the policy names is one bounded row, summed under an entry budget and never
-listed, so a home inventory finishes in bounded time. Fail closed holds: the summary's
-`fully_inventoried` is false while any bounded or not-walked row exists, and a budget-cut or
-partly unreadable store reports its size as a lower bound
-([scan-flags.md](scan-flags.md#--deep)).
+listed, so a home inventory finishes in bounded time. Fail closed: `fully_inventoried` is false
+while any bounded or not-walked row exists, and a budget-cut or partly unreadable store's size is
+a lower bound ([scan-flags.md](scan-flags.md#--deep)).
 
 `--execute`, the low-signal rule (Low is kept unless the human separately reviews exact paths), and
 every confirmation gate apply in full. Removing anything the inventory lists goes through

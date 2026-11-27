@@ -163,8 +163,7 @@ naming what the question never presented cannot be met.
 ## Deep inventory
 
 A home-directory target, or any target with `--deep`, starts with the read-only `inventory` subcommand (`hygiene.py inventory --target <target> --data-root <data-root> [--deep]`, plus the same policy flags §1's `scan` takes).
-A bare `/disk-hygiene:clean ~` runs it before any `scan`. It asks no question and passes no confirmation-gate row. Present its report grouped by category, `CANDIDATE` rows first and `UNKNOWN` rows as coverage gaps.
-Known-large tool stores (package caches, Claude Code transcripts) come back as one bounded row each, summed under an entry budget instead of listed: name every `bounded_rows` entry as not fully inventoried, a `size_is_lower_bound` one as a lower bound, and never call the report complete while `fully_inventoried` is false ([scan-flags.md](reference/scan-flags.md#--deep)).
+A bare `/disk-hygiene:clean ~` runs it before any `scan`. It asks no question and passes no confirmation-gate row. Present its report grouped by category, `CANDIDATE` rows first; report `UNKNOWN` rows and each `bounded_rows` entry (a known-large store summed under an entry budget, not listed) as coverage gaps, a `size_is_lower_bound` size as a lower bound, and never call the report complete while `fully_inventoried` is false ([scan-flags.md](reference/scan-flags.md#--deep)).
 It only reports: removing a listed entry still takes `scan`, a fresh `preview` and the removal approval, and every `KEEP` row needs a specific reason ([safety-model.md](reference/safety-model.md#deep-inventory-is-report-only), [scan-flags.md](reference/scan-flags.md#--deep)).
 
 ## 1. Create a read-only snapshot
