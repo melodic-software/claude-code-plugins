@@ -1,5 +1,5 @@
 ---
-description: "When the built-in EnterWorktree or ExitWorktree tool resolves in this session, prefer ExitWorktree with action keep to leave a worktree; this skill to create one, to enter an existing one (claim check, then EnterWorktree by path), and to inventory, clean up, or audit worktrees. Manage git worktree lifecycle for parallel-session isolation: create (external root, then work by path or enter), status (PR + staleness inventory), cleanup (file-lock-aware removal), audit (infrastructure health). Use when: 'create worktree', 'worktree status', 'clean up worktrees', 'orphaned worktrees', or proactively when on main before writing code, not for PR lifecycle (use /pull-request)."
+description: "When the built-in EnterWorktree or ExitWorktree tool resolves in this session, prefer ExitWorktree with action keep to leave a worktree; this skill to create one, to enter an existing one (claim check, then work by path or EnterWorktree by path), and to inventory, clean up, or audit worktrees. Manage git worktree lifecycle for parallel-session isolation: create (external root, then work by path or enter), status (PR + staleness inventory), cleanup (file-lock-aware removal), audit (infrastructure health). Use when: 'create worktree', 'worktree status', 'clean up worktrees', 'orphaned worktrees', or proactively when on main before writing code, not for PR lifecycle (use /pull-request)."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[create|status|cleanup|audit] [args]"
@@ -57,7 +57,7 @@ This skill is self-contained: every action runs on plain `git`, plus the forge C
 | Action | Entry point | Use case |
 |--------|-------------|----------|
 | *(empty)* | Smart default | Detect current state, suggest appropriate action |
-| `create [name]` | Create worktree | Validate name, explain setup, call EnterWorktree |
+| `create [name]` | Create worktree | Validate name, explain setup, work by path or call EnterWorktree |
 | `status` | Inventory | List all worktrees with PR status and staleness |
 | `cleanup [<path>...] [--dry-run]` | Remove stale | Prune orphans, detect merged PRs and stale locks, remove with confirmation; named paths limit it to exactly those worktrees |
 | `audit` | Health check | Run status + verify configuration health |

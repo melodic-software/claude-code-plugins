@@ -101,7 +101,7 @@ Optional renames after creation:
 
 ## Create the worktree
 
-Two steps: the helper creates and places the worktree; `EnterWorktree(path:)` enters it.
+Two steps: the helper creates and places the worktree; the session then works in it by explicit path, or `EnterWorktree(path:)` enters it (step 4).
 
 1. **Run the shared helper** (it computes the external path, runs `git worktree add`, arms the `git worktree lock` liveness guard with a reason naming the helper, host, and start time, so a cleanup sweep sees the worktree as claimed and plain `git worktree remove` refuses it, copies `.worktreeinclude` files, and runs the provisioning step, `scripts/provision-prerequisites.sh`, the one install path: for each lockfile an ecosystem record's `requires` entry declares with an `install` object, it runs `npm ci --ignore-scripts --no-audit --no-fund` in that lockfile's directory, so no install script runs, hard-linking `node_modules` from a shared seed for that lockfile where it can. Until the ecosystem-commands contract's next major version, a tree whose records declare no lockfile still gets its root `npm-shrinkwrap.json` or `package-lock.json` installed the same way, with a stderr notice to declare it; any other undeclared lockfile is not installed. A missing npm, a failed install, or the 45-second cap (`WORKTREE_CREATE_DEPS_CAP_SECONDS`) only warns on stderr and leaves the exit code alone). Add `--base-ref head` only when the effective Claude `worktree.baseRef` setting is `head` (see [Base branch](#base-branch)); otherwise omit it.
 
