@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.0] - 2026-11-27
+
+### Added
+
+- `comment_lint_keep_opening`, a team-file list of repository-relative path globs in `comment_lint_exclude`'s syntax: for a matching file the comment lint passes its opening comment block (the comment lines after an optional shebang and any blank or `set -` lines, up to the first other line) and judges every other comment as before. The plugin ships no entries.
+
 ## [2.1.0] - 2026-11-27
 
 ### Added
