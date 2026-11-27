@@ -66,6 +66,23 @@ expect "a partly staged file is refused with the contract line" "1||a.md: partly
 expect "a refused file is left byte for byte" "$(printf '# T\n\ntext\n\nmore unstaged')" "$(cat "$REPO/a.md")"
 expect "a refused file's index entry is left byte for byte" "# T" "$(git -C "$REPO" show :a.md | sed -n 1p)"
 
+new_repo
+printf '# T\n\n#1761 note\n' >"$REPO/old.md"
+printf '# T\n\ntext' >"$REPO/edit.md"
+git -C "$REPO" add old.md edit.md
+git -C "$REPO" commit -q -m unformatted --no-verify
+git -C "$REPO" mv old.md new.md
+expect "an exact rename of an unformatted file is not rewritten" "0||" "$(check "$REPO")"
+expect "the renamed file keeps its bytes in the index" "$(printf '# T\n\n#1761 note')" "$(git -C "$REPO" show :new.md)"
+expect "lint after the format entry passes the exact rename" 0 "$(
+  cd "$REPO" && bash "$LINT" >/dev/null 2>&1
+  echo $?
+)"
+git -C "$REPO" mv edit.md edited.md
+printf '\n\n\n\nmore\n' >>"$REPO/edited.md"
+git -C "$REPO" add edited.md
+expect "a rename with an edit is still formatted" "0|edited.md|" "$(check "$REPO")"
+
 DRIFT='config differs between the index and the work tree; stage it or restore it, then commit'
 new_repo
 printf '# T\n\ntext' >"$REPO/a.md"

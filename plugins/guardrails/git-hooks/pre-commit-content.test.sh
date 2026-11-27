@@ -250,6 +250,14 @@ rm "$REPO/loose.md"
 expect "--worktree: no uncommitted change passes" "0|" "$(check "$REPO" --worktree)"
 
 new_repo
+printf 'token=%s\n\0' "$FAKE_GHP" >"$REPO/held.bin"
+git -C "$REPO" add held.bin
+git -C "$REPO" commit -q -m held --no-verify
+git -C "$REPO" mv held.bin moved.bin
+expect "--worktree: an exact rename of a file holding a token is still scanned" "1|moved.bin:1: secret or credential pattern: GitHub PAT
+$HINT" "$(check "$REPO" --worktree)"
+
+new_repo
 BS="\\"
 FAKE_WIN="C:${BS}Users${BS}alice${BS}build.log"
 printf 'token=%s\n' "$FAKE_GHP" >"$REPO/a.md"
