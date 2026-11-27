@@ -19,3 +19,5 @@ Timing: <elided>
 
 Run: audit scratch directory, removed on exit
 Timing: <elided>
+Reload: after sync applies these, run /reload-plugins
+  if it warns, rerun it as /reload-plugins --force

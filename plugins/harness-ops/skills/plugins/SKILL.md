@@ -47,7 +47,7 @@ which CLI calls write that file.
 
 **For `sync` and the audit, the script computes every number and the model reports it.** Steps 1
 through 5b and the Step 6 render are one `sync-run.sh` call; the digest and the rendered report
-are the record, and the model adds the reload guidance and answers questions. Nothing in the
+are the record, and the model answers questions. Nothing in the
 report is retyped, recounted, or re-derived by the model. `converge` follows the same rule for
 its plan: `converge-plan.sh` computes every row's strategy, command and class, grouped by path, and
 the model presents it and runs only what the user confirms.
@@ -165,8 +165,7 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
    before install it skipped the cache-content check, and this re-entry runs that check after the
    installs; otherwise the re-entry reuses the finding the first pass wrote.
 
-5. **Report.** Paste the rendered report and append the one model-owned line; see the Report
-   section below.
+5. **Report.** Paste the rendered report; see the Report section below.
 
 Load [context/sync.md](context/sync.md) when a digest carries errors, a non-empty gap, a catalog
 regression, a cache-content finding, a `source_pull` that was refused or failed, or a nonzero `moved_during_run` or `noop_unverified` count
@@ -263,17 +262,10 @@ initial report may add one caveat line when something in the run suggests more t
 what the report cannot establish, never a cause. Follow-up answers from the run directory stay
 allowed.
 
-**The one line the model owns is the reload guidance**, appended after the render as a two-step
-rather than as a prediction about which case will trigger it: recommend bare `/reload-plugins`,
-and `/reload-plugins --force` only when the bare command warns. Do not present any one cause as the
-sole trigger of that warning, and do not tell the user `--force` would be wrong when the bare
-command has already warned them. Never recommend `--force` pre-emptively alongside every reload: we
-treat it as opting into a real token cost the bare command declines to pay on its own.
-[context/scope-semantics.md](context/scope-semantics.md) "`/reload-plugins`: bare by default,
-`--force` for the MCP-cache-invalidation case" holds the pointers and dates. Monitors are already
-covered: the render's `Action needed` names each updated plugin whose installed build declares one.
-[context/sync.md](context/sync.md) "Name the monitors" holds what that bullet says and where it was
-read, so the reload line does not restate it. After the line, answer follow-up questions from the digest
+The render ends with the reload guidance whenever the run changed what this session loads; add no
+reload advice of your own. [context/scope-semantics.md](context/scope-semantics.md)
+"`/reload-plugins`: bare by default, `--force` for the MCP-cache-invalidation case" holds why.
+Answer follow-up questions from the digest
 (its `verdict` objects hold the report's status, pending, changed and `Action needed` facts; see
 [context/sync.md](context/sync.md)) and the run directory it names; load [context/sync.md](context/sync.md) when a question is about
 why a step behaved the way it did.

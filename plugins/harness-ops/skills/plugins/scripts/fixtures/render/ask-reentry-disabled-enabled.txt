@@ -8,3 +8,5 @@ Timing: <elided>
 
 Run journal: <run_dir>
 Timing: <elided>
+Reload: run /reload-plugins to load these changes into this session
+  if it warns, rerun it as /reload-plugins --force

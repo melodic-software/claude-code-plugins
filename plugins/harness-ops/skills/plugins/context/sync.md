@@ -60,9 +60,10 @@ What the model still owns, because the script cannot:
   "Directory-source fast-forward".
 - **The journal root.** `${CLAUDE_PLUGIN_DATA}` substitutes in SKILL.md and not here, so SKILL.md
   passes the substituted path as `--journal-root`.
-- **The reload guidance.** Step 6's report is rendered by the script too (`render-report.jq`
-  over the digest, printed under `--render` and written to `<run_dir>/report.txt`); the model
-  appends the reload guidance SKILL.md's Report section fixes and answers questions.
+
+Step 6's report is rendered by the script too (`render-report.jq` over the digest, printed under
+`--render` and written to `<run_dir>/report.txt`), reload guidance included; the model pastes it
+and answers questions.
 
 `scripts/digest-contract.json` declares every run-level and per-marketplace digest field with its
 default, and the script builds each block and the run object on it, so a field a run did not
@@ -83,10 +84,10 @@ the name:
 - Each block's and the run's `verdict` holds the report's classified facts, from
   `scripts/verdict.jq`, the classify step `render-report.jq` formats. A block's: `status`
   (`needs_update`, `source_behind` or `current`), `pending` and one `pending_kinds[]` entry per
-  pending action, `changed`, `actions[]` (each `Action needed` item as `{kind, lines}`), the
+  pending action, `changed`, `reload` (see Step 6), `actions[]` (each `Action needed` item as `{kind, lines}`), the
   `installed` and `enabled` outcomes, and `installed_disabled[]`, the ids whose install output said
   the plugin is disabled by default and that this run did not then enable. The run's: `result` (the
-  `Result:` line's kind), `action_count` and its own `actions[]`.
+  `Result:` line's kind), `action_count`, `reload` and its own `actions[]`.
 - `moved_during_run[]` holds ids that moved under an update call that reported them current, and
   `noop_unverified` counts the already-current answers the snapshots could not confirm.
 - `updated_with_monitors[]` is read from each moved record's own cache directory in the post-sweep
@@ -943,8 +944,7 @@ The script renders the report from the digest (`render-report.jq`), filling each
 digest carries them, resolved from the run journal rather than from memory of the run, and the run
 directory it names holds every snapshot behind them. The paragraphs below state which field each
 row reads and why the row exists; the exact text of every row and variant is the goldens' under
-`scripts/fixtures/render/`, and the model's one addition is the reload guidance at the end. The
-reasons behind a row stay in these files and out of the render, so a clean run prints none of them.
+`scripts/fixtures/render/`, and the model adds nothing. The reasons behind a row stay in these files and out of the render, so a clean run prints none of them.
 
 **Every `<old> -> <new>` pair reaches the report already classified by direction.** Apply the same triple
 compare the guard uses, reading each numeric segment in base 10: a pair whose new version is higher, or whose direction the compare cannot
@@ -1081,6 +1081,10 @@ updated plugin's monitors.
   [Which marketplaces and plugins auto-update](https://code.claude.com/docs/en/plugins/loading#which-marketplaces-and-plugins-auto-update)
   live.
 
-End with the reload guidance per SKILL.md's Report section: recommend bare `/reload-plugins`, and
-state the recovery step rather than pre-judging which case will trigger it. That line is the
-model's; everything above it is the render's.
+**End with the reload guidance when the session needs it.** Each block's `verdict.reload` is true
+when the run updated, downgraded, installed or enabled a plugin (in audit, would), and the run's is
+true when any block's is; the render then closes with a bare `/reload-plugins` and the `--force`
+rerun for when it warns, the two-step
+[scope-semantics.md](scope-semantics.md#reload-plugins-bare-by-default---force-for-the-mcp-cache-invalidation-case)
+explains. A normalize, a source pull or an other-path update alone changes nothing this session
+loads, so it prints none.

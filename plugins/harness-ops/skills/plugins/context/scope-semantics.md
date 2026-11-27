@@ -405,7 +405,9 @@ So follow this two-step rather than predicting the cause:
 
 Never recommend `--force` pre-emptively alongside every reload. It exists specifically to opt into a
 real token cost the bare command declines to pay automatically. Recommend bare; escalate on the
-warning.
+warning. The `sync` and audit render closes with the bare reload and its `--force` rerun when the
+run changed what the session loads (`render-report.jq`); the install-summary check is for a user's
+own `/plugin` install.
 
 - **Pointer**: for the cache warning and `--force`, see
   [Reloads that change MCP tools](https://code.claude.com/docs/en/plugins/cli-reference#reloads-that-change-mcp-tools)

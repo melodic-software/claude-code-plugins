@@ -24,9 +24,6 @@
 # a remedy gets its own `remedy:` line under the fact it fixes. No line is
 # wrapped by hand, and every character is ASCII except text the digest carries.
 #
-# The one report line this program does not carry is the reload guidance,
-# which the caller appends after the render.
-#
 # verdict.jq classifies the digest (status, pending and changed, the install and
 # enable outcomes, every `Action needed` item); this program lays those facts
 # and the digest's rows out as lines.
@@ -408,6 +405,13 @@ def format_block($d; $v):
      else "  outside the marketplace blocks: \($d.timings.outside_marketplaces)s" end),
     "  clock resolution: \($d.timings.resolution)",
     (if ($v.run.actions | length) == 0 then empty
-     else "Action needed:", ($v.run.actions[].lines | bullet) end)
+     else "Action needed:", ($v.run.actions[].lines | bullet) end),
+    # A two-step, not a guess at which change makes the bare reload warn.
+    (if $v.run.reload | not then empty
+     else
+       (if $audit then "Reload: after sync applies these, run /reload-plugins"
+        else "Reload: run /reload-plugins to load these changes into this session" end),
+       "  if it warns, rerun it as /reload-plugins --force"
+     end)
   ]
 | join("\n")

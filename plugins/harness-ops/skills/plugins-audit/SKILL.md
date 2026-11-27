@@ -97,11 +97,6 @@ that record each shape.
 prediction is computed against an unrefreshed catalog and carries that catalog's `lastUpdated`. An
 audit that predicts zero updates has not established that the fleet is current.
 
-**The one line you own is the reload guidance**, appended after the render: recommend bare
-`/reload-plugins`, and `/reload-plugins --force` only when the bare command warns. Never recommend
-`--force` up front; what it opts into is read live from
-[plugins CLI reference: reloads that change MCP tools](https://code.claude.com/docs/en/plugins/cli-reference#reloads-that-change-mcp-tools).
-
 To act on a prediction, the user runs `/harness-ops:plugins sync` (or `converge` for a divergence)
 themselves.
 

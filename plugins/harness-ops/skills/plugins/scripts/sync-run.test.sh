@@ -1156,6 +1156,8 @@ assert_eq "render: the run Timing row names the run total, its remainder and the
     grep -c -E '^(Timing: [0-9.]+s run total|  outside the marketplace blocks: [0-9.]+s|  clock resolution: (microseconds|nanoseconds|seconds))$')"
 assert_eq "render: a clean run opens with its verdict" "Result: clean, nothing changed and nothing under Action needed" \
   "$(printf '%s\n' "$out" | sed -n 3p)"
+assert_eq "reload: a clean run's verdict needs no reload and its report prints no reload line" "false 0" \
+  "$(jq -r '.verdict.reload' <<<"$(head -n 1 <<<"$out")") $(grep -c '/reload-plugins' <<<"$out")"
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -1164,6 +1166,8 @@ EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CC_STUB_CLEAN=1)
 report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
 assert_exit "render withheld: exit 0" 0 "$REPORT_RC"
 assert_golden "render withheld: the report matches the golden" withheld-downgrade.txt "$REPORT_TEXT"
+assert_eq "reload: a withheld downgrade loads nothing new, so no reload line" "false 0" \
+  "$(jq -r '.verdict.reload' <<<"$REPORT_DIGEST") $(grep -c '/reload-plugins' <<<"$REPORT_TEXT")"
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -1222,6 +1226,11 @@ assert_eq "render self-update: the digest names this plugin's own row" \
   '{"id":"zeta@market1","scope":"user","old":"0.1.0","new":"0.2.0"}' \
   "$(jq -c '.marketplaces[0].self_update' <<<"$REPORT_DIGEST")"
 assert_golden "render self-update: the note names this plugin" self-update-not-first.txt "$REPORT_TEXT"
+assert_eq "reload: a run that updated plugins needs a reload" "true true" \
+  "$(jq -r '"\(.verdict.reload) \(.marketplaces[0].verdict.reload)"' <<<"$REPORT_DIGEST")"
+assert_eq "reload: a changed run's report ends with the bare reload, then --force only on a warning" \
+  $'Reload: run /reload-plugins to load these changes into this session\n  if it warns, rerun it as /reload-plugins --force' \
+  "$(tail -n 2 <<<"$REPORT_TEXT")"
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)

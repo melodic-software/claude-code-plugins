@@ -12,7 +12,7 @@
     "timings": null,
     "marketplaces": [],
     "errors": [],
-    "verdict": {"result": null, "action_count": 0, "actions": []}
+    "verdict": {"result": null, "action_count": 0, "reload": false, "actions": []}
   },
   "marketplace": {
     "name": null,
@@ -69,7 +69,7 @@
     "updated_with_monitors": [],
     "errors": [],
     "verdict": {
-      "status": null, "needs_update": false, "changed": false, "pending": 0, "pending_kinds": [],
+      "status": null, "needs_update": false, "changed": false, "reload": false, "pending": 0, "pending_kinds": [],
       "actions": [],
       "installed": {"ok": [], "failed": [], "predicted": [], "left": []},
       "enabled": {"ok": [], "failed": [], "predicted": [], "unfilled": []},

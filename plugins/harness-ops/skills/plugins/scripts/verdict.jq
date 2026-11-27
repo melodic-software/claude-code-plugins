@@ -153,6 +153,12 @@ def classify_block($d):
         or ($op.updated | length) > 0
         or ($enabled_ok | length) > 0 or $norm.status == "normalized" or $pull.status == "pulled")
      end) as $changed
+  # A change this session only picks up on a reload: a plugin it loads was
+  # updated, downgraded, installed or enabled (in audit, would be).
+  | (if $audit then ($would | length) > 0 or ($would_install | length) > 0 or ($would_enable | length) > 0
+     else ($updated | length) > 0 or (.downgraded | length) > 0 or ($installed_ok | length) > 0
+          or ($enabled_ok | length) > 0
+     end) as $reload
   | [
       (if $behind then
          ["source checkout \($src.path) is \($src.behind) commit(s) behind \($src.upstream), and the catalog is read from it as it is",
@@ -215,7 +221,8 @@ def classify_block($d):
   | {status: (if $needs then "needs_update" elif $behind then "source_behind" else "current" end),
      needs_update: $needs,
      changed: $changed,
-     pending: ($pending | length),
+     reload: $reload,
+     pending:($pending | length),
      pending_kinds: [$pending[].kind],
      actions: $actions,
      installed: {ok: [$installed_ok[].id], failed: [$installed_failed[].id],
@@ -248,6 +255,7 @@ def classify:
                     elif any($blocks[]; .changed) then "changed"
                     else "clean" end),
            action_count: $count,
+           reload: any($blocks[]; .reload),
            actions: $actions}};
 
 # The digest with each block's and the run's `verdict` filled in.
