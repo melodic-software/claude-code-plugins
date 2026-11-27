@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.3.1] - 2026-11-27
+
+### Fixed
+
+- `/harness-ops:inventory` opens every reply built from a report with a lookup gap with that gap and its retry command, before any count or list, short answers included.
+
 ## [11.3.0] - 2026-11-27
 
 ### Added
