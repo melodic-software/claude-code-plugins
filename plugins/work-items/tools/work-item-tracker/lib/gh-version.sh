@@ -37,3 +37,10 @@ wit_gh_has_native_surface() {
   ((major > WIT_GH_NATIVE_SURFACE_MAJOR ||
     (major == WIT_GH_NATIVE_SURFACE_MAJOR && minor >= WIT_GH_NATIVE_SURFACE_MINOR)))
 }
+
+wit_gh_has_issue_artifact() {
+  local out
+  command -v gh >/dev/null 2>&1 || return 1
+  out="$(gh issue artifact --help 2>/dev/null)" || return 1
+  [[ "$out" == *"gh issue artifact"* ]]
+}

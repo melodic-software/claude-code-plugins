@@ -14,7 +14,7 @@ SHEBANG='#!/usr/bin/env bash'
 readonly ADAPTER_VERBS=(
   create-item get-item claim renew-lease release reclaim link-blocks
   add-sub-item list-items list-sub-items label-provenance set-fields get-field-options get-statuses
-  change-link add-recurrence capabilities
+  change-link add-recurrence put-artifact list-artifacts get-artifact link-relates unlink-relates list-relates capabilities
 )
 readonly FEATURE_KEYS=(cross_repo_edges sub_items leases labels)
 readonly LIMIT_KEYS=(sub_items_per_parent sub_item_depth dependencies_per_type list_items_max)
@@ -357,6 +357,11 @@ usage_args_for() {
   list-sub-items) printf -- '<parent-id> [--state open|closed|all]' ;;
   change-link) printf -- '(<id> | --branch-ref <ref>) [--repo <o>/<r>]' ;;
   add-recurrence) printf -- '<id> --source-link <url> --note <text>' ;;
+  put-artifact) printf -- '<id> (--body-file <path> | --body <text> | --url <url>) [--name <name>] [--type generic|plan|embedded_html] [--artifact <number>]' ;;
+  list-artifacts) printf -- '<id> [--type generic|plan|link|embedded_html] [--limit <n>]' ;;
+  get-artifact) printf -- '<id> (--artifact <number> | --name <name>) [--version <n>] [--versions]' ;;
+  link-relates | unlink-relates) printf -- '<id> --related-to <id>' ;;
+  list-relates) printf -- '<id>' ;;
   *) printf -- '' ;;
   esac
 }

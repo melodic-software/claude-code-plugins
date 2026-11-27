@@ -274,7 +274,8 @@ adapter-tasker | adapter-redmine)
     "release": false, "reclaim": false, "link-blocks": true, "add-sub-item": false,
     "list-items": true, "list-sub-items": false, "label-provenance": false,
     "set-fields": false, "get-field-options": false, "get-statuses": false, "change-link": true,
-    "add-recurrence": false, "capabilities": true
+    "add-recurrence": false, "put-artifact": false, "list-artifacts": false, "get-artifact": false,
+    "link-relates": false, "unlink-relates": false, "list-relates": false, "capabilities": true
   },
   "features": {
     "cross_repo_edges": false, "sub_items": false, "leases": false, "labels": true

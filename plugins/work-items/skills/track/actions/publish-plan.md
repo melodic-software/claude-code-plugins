@@ -33,13 +33,24 @@ this layout (marker line, blank line, plan text); a different layout takes a new
    line: this action publishes approved plans only. The plan text is the body as written; do not
    summarize or reformat it.
 
-1. **Write the body to a temporary file**: the marker line, a blank line, the plan text. Hand it to
-   the adapter as a file, never as text placed on a command line, since a plan can hold quotes,
-   backticks and `$(...)`. Remove the file when the action ends.
-
 1. **Check the adapter.** When the bound adapter's operations reference has no "List item comments"
    or no "Comment on item / edit a comment" section, stop and report that this tracker cannot hold
    the plan comment; the caller keeps the plan local.
+
+1. **Attach a companion Issue Artifact when supported.** After step 3 confirms the adapter can hold
+   the plan comment, attempt to upload a companion copy via the seam
+   (`"$TRACKER" put-artifact <id> --body-file <path-to-PLAN.md> --name PLAN.md --type plan`).
+   - On exit `0`: keep the returned `artifact.url` to link alongside the full plan in step 5.
+   - On exit `6` (adapter or host lacks Issue Artifacts): continue with the comment alone.
+   - Any other non-zero exit: stop and report the error.
+
+1. **Write the body to a temporary file**: the marker line, a blank line, and the full plan text
+   unchanged (so `<!-- planning:plan v1 -->` readers such as `/verification:confirm` (if enabled) and
+   `check-intent` continue reading the trusted comment body without relying on unverified artifact
+   revisions). When step 4 stored a companion artifact, append a single `Artifact: [PLAN.md](<artifact.url>)`
+   line after the plan text. Hand the file to the adapter as a file, never as text placed on a
+   command line, since a plan can hold quotes, backticks and `$(...)`. Remove the file when the
+   action ends.
 
 1. **Find an earlier plan comment.** Get the publishing login by running `gh api user --jq .login`
    under the identity the write goes out as (the bot wrapper when the repository provides one,
@@ -67,7 +78,7 @@ this layout (marker line, blank line, plan text); a different layout takes a new
    comments.
 
 1. **Confirm:** "Published the plan to `<id>` (created comment `<cid>`)" or "(updated comment
-   `<cid>`)".
+   `<cid>`)", including the companion `artifact.url` when step 4 stored one.
 
 ## Notes
 
