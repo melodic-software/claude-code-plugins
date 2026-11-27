@@ -1,5 +1,5 @@
 ---
-description: "Analyze a captured Chrome trace, V8 .cpuprofile, or .heapsnapshot in SQLite for the file:line hot path or memory retainer (no fix). Use when a profile, trace, or heap snapshot is in hand ('read this heap snapshot', 'what is holding this memory'). Not reproducible bugs (`/debugging:debug`) or recording (`/app-control:drive capture`)."
+description: "Analyze a captured Chrome trace, V8 .cpuprofile, or .heapsnapshot in SQLite for the file:line hot path or memory retainer (no fix). Use when a profile, trace, or heap snapshot is in hand ('analyze this trace', 'what is holding this memory'). Not for reproducible bugs (`/debugging:debug`) or recording new captures (`/app-control:drive capture`)."
 argument-hint: "[<artifact path>]"
 user-invocable: true
 disable-model-invocation: false
