@@ -50,7 +50,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py" --deps-dir
 `${user_config.…}`): the configuration directory read is its first local source's, else
 `$CLAUDE_CONFIG_DIR`, else `~/.claude`. The report's `header` lists a local source whose projects
 directory cannot be listed as a gap, with its retry command, and `--diagnostics-dir` keeps it as a
-lookup diagnostics record; name each gap at the top of the report.
+lookup diagnostics record. Every reply built from a report with a gap opens with each gap and its
+retry command, before any count or list, a short answer included.
 
 Python 3.11+ is the only requirement of the default bundle reader (`--reader regex`). No
 `strings`, no `jq`, no PowerShell. The run takes about twenty seconds, dominated by reading and
