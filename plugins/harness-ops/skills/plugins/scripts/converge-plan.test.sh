@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: .gitattributes
+# test-scope: .gitattributes plugins/harness-ops/skills/plugins/scripts/question-groups.jq
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG

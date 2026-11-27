@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: .claude/settings.json plugins/harness-ops/.claude-plugin/plugin.json
+# test-scope: plugins/harness-ops/skills/plugins/scripts/question-groups.jq plugins/harness-ops/skills/plugins/scripts/verdict.jq
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -3108,7 +3109,7 @@ write "$case_dir/installed_plugins.json" "$(jq -n --arg a "$(norm_path "$case_di
     "epin@market1": [u, p($h; "3.0.0"), p($a; "1.0.0")],
     "fpin@market1": [u, p($a; "1.0.0")]}}')"
 write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
-write "$case_dir/catalog/market1.json" "$(jq -cn '{plugins: [("apin", "bpin", "cpin", "dpin", "epin") | {name: .}] + [{name: "fpin", source: "fpin"}]}')"
+write "$case_dir/catalog/market1.json" "$(jq -cn '{plugins: ([("apin", "bpin", "cpin", "dpin", "epin") | {name: .}] + [{name: "fpin", source: "fpin"}])}')"
 setup_case "$case_dir"
 EXTRA_ENV=(HOME="$case_dir/home" CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NEW_VERSION=2.0.0 CC_STUB_CLEAN=1)
 out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
@@ -3173,6 +3174,7 @@ assert_eq "snapshot ledger: a sync pass with no enable gap saves every declared 
 ledger_dir="$TEST_TMPDIR/ledger"
 ledger_of() {
   (
+    # shellcheck disable=SC2034
     RUN_DIR="$ledger_dir"
     rm -rf "${ledger_dir:?}"
     mkdir -p "$ledger_dir"
