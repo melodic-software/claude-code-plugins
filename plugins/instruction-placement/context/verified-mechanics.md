@@ -34,7 +34,7 @@ whether a move is safe.
 
 | Surface | Enters context when | Survives compaction | Visible to a subagent |
 |---|---|---|---|
-| Root `CLAUDE.md` (cwd + ancestors) | Session start, in full *(doc MS-1, MS-29)* | Re-read from disk and re-injected *(doc MS-6, MS-8)* | **Yes** for general-purpose and custom subagents *(doc MS-12, measured 2.1.238)*; **No** for Explore, Plan, and an agent whose definition sets `omitClaudeMd`, which keeps only managed policy files, or none when its definition comes from managed settings *(doc MS-13)*; a fork inherits the parent conversation *(doc MS-14)* |
+| Root `CLAUDE.md` (cwd + ancestors) | Session start, in full *(doc MS-1, MS-29)* | Re-read from disk and re-injected *(doc MS-6, MS-8)* | **Yes** for general-purpose and custom subagents *(doc MS-12, measured 2.1.238)*; **No** for Explore, Plan, `web-fetch`, and an agent whose definition sets `omitClaudeMd`, which keeps only managed policy files, or none when its definition comes from managed settings *(doc MS-13)*; a fork inherits the parent conversation *(doc MS-14)* |
 | `@import` from root `CLAUDE.md` | Session start, inlined *(doc MS-3)* | With its parent *(inferred)* | With its parent, so as the row above *(doc MS-3, MS-12, measured 2.1.238)* |
 | Unscoped `.claude/rules/*.md` | Session start, priced as `.claude/CLAUDE.md` *(doc MS-4)* | Re-injected *(doc MS-8)* | **Yes**, with the same exceptions as root `CLAUDE.md` *(doc MS-12, MS-13)*; supersedes the **No** measured on 2.1.238 |
 | Path-scoped rule (`paths:`) | When Read, Write or Edit targets a matching file, on 2.1.288 and later *(doc MS-5)*; on Read only before 2.1.288 *(changelog 2.1.288, measured 2.1.268)* | Reloads when a match recurs; compaction summarizes the earlier load away *(doc MS-7, MS-9)* | **Yes, on a matching read inside the subagent itself** *(measured 2.1.268)*, Explore, Plan and `omitClaudeMd` agents included *(doc MS-16)*, and on a matching Write or Edit there, after the tool runs *(measured 2.1.312)* |
@@ -99,7 +99,7 @@ This table holds what each record decides and when to recheck it.
 | MS-10 | Invoked skill bodies come back after compaction within a per-skill and a total cap | That row changes a cap or the drop order |
 | MS-11 | A skill body enters on invocation and stays for the session | The skill-content-lifecycle section changes how a body persists |
 | MS-12 | A non-fork subagent loads the main conversation's CLAUDE.md hierarchy, project rules and `AGENTS.md` included | The sub-agents page changes what that list carries |
-| MS-13 | Explore, Plan and an `omitClaudeMd` agent skip it, keeping managed policy files at most, and none for a definition from managed settings | That page adds or removes an agent that skips the hierarchy, or changes what an `omitClaudeMd` agent keeps |
+| MS-13 | Explore, Plan, `web-fetch` and an `omitClaudeMd` agent skip it, keeping managed policy files at most, and none for a definition from managed settings | That page adds or removes an agent that skips the hierarchy, or changes what an `omitClaudeMd` agent keeps |
 | MS-14 | A fork inherits the parent conversation | That page changes fork context |
 | MS-15 | A subagent inherits none of the parent's invoked skills or read files | That page changes what a subagent inherits |
 | MS-16 | A subagent that skips the hierarchy still loads deferred surfaces on its own file work | That sentence changes |
@@ -284,8 +284,8 @@ been told to read first can act before the governing rule ever fires; and any ag
 or in the main session, that never touches a covered path is never told the rule exists at all.
 *Closed by:* the always-loaded generated index, which every subagent that loads the CLAUDE.md
 hierarchy receives (it is part of the root pair, finding 4) and which names every deferred surface,
-so an ordinary `Read` reaches its content from those contexts. Explore, Plan, and an agent whose
-definition sets `omitClaudeMd` skip the project CLAUDE.md files and so never see the index
+so an ordinary `Read` reaches its content from those contexts. Explore, Plan, `web-fetch`, and an
+agent whose definition sets `omitClaudeMd` skip the project CLAUDE.md files and so never see the index
 *(doc MS-13)*, though a deferred surface still reaches them on their own file work *(doc MS-16)*;
 for them the gap stays open. The index guarantees **availability**, not
 attention: injection is automatic and a pointer is discretionary. It therefore mitigates rather
