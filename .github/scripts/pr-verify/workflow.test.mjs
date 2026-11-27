@@ -1156,6 +1156,10 @@ const wake = (env) => {
   return { status: run.status, readStatus: read.status, stdout: read.stdout + run.stdout, outputs, downloaded, gh: readFileSync(args, "utf8").split("\n").filter(Boolean) };
 };
 
+const WAKE_READ = `api repos/${REPO}/pulls/41 --jq "\\(.user.id) \\(.user.type) \\(.auto_merge != null) \\([.labels[].name] | index("do-not-merge") != null) \\(.draft) \\((.body // "") | test("(^|[\\\\r\\\\n])[ \\\\t]*hold:"; "i"))"`;
+const WAKE_DISPATCH = `workflow run pr-merge.yml -R ${REPO} --ref main -f pr=41`;
+const WAKE_PASS = { KEY_PR: "41", KEY_VERDICT: "pass", LANES_APP_ID: "7" };
+
 test("wake-pr-merge dispatches pr-merge on main for the passing job's pull request", () => {
   for (const [env, pr] of [
     [{ KEY_PR: "41", KEY_VERDICT: "pass", LANES_APP_ID: "7", GH_AUTHOR: "7 Bot false false false false" }, "41"],
@@ -1164,7 +1168,10 @@ test("wake-pr-merge dispatches pr-merge on main for the passing job's pull reque
   ]) {
     const run = wake(env);
     assert.equal(run.status, 0);
-    assert.equal(run.gh.at(-1), `workflow run pr-merge.yml -R ${REPO} --ref main -f pr=${pr}`);
+    assert.deepEqual(run.gh, [
+      WAKE_READ.replace("/pulls/41 ", `/pulls/${pr} `),
+      `workflow run pr-merge.yml -R ${REPO} --ref main -f pr=${pr}`,
+    ]);
     assert.match(run.stdout, new RegExp(`::notice title=pr-verify wake::pr=${pr} `));
   }
 });
@@ -1176,10 +1183,6 @@ test("wake-pr-merge dispatches nothing on a fail, no verdict or a pull request n
     assert.deepEqual(run.gh, [], JSON.stringify(env));
   }
 });
-
-const WAKE_READ = `api repos/${REPO}/pulls/41 --jq "\\(.user.id) \\(.user.type) \\(.auto_merge != null) \\([.labels[].name] | index("do-not-merge") != null) \\(.draft) \\((.body // "") | test("(^|[\\\\r\\\\n])[ \\\\t]*hold:"; "i"))"`;
-const WAKE_DISPATCH = `workflow run pr-merge.yml -R ${REPO} --ref main -f pr=41`;
-const WAKE_PASS = { KEY_PR: "41", KEY_VERDICT: "pass", LANES_APP_ID: "7" };
 
 test("the wake reads its pull request once, and downloads the trusted-actor list only for a User's", () => {
   const user = wake({ ...WAKE_PASS, GH_AUTHOR: "5 User false false false false" });
