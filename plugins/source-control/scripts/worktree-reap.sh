@@ -460,6 +460,7 @@ decide() {
       DECISION="keep ${FACT["$p|repo"]}"
       return
       ;;
+    *) ;;
   esac
   [[ "${FACT["$p|missing"]:-}" == yes ]] && {
     DECISION="keep missing"
@@ -496,6 +497,7 @@ decide() {
       DECISION="keep no-landed-work-row"
       return
       ;;
+    *) ;;
   esac
   risk="${FACT["$p|risk"]:-}"
   case "$risk" in
