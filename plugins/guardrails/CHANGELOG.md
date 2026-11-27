@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.5.3] - 2026-11-27
+
+### Changed
+
+- The merge guard reads the reviews, check runs, commit statuses, review threads and pr-verify settings in parallel once the pull request itself is read, so a merge on a ready PR waits about 4.5 s instead of 6.5 s. What it checks and how it reports a failed read are unchanged.
+
 ## [5.5.2] - 2026-11-26
 
 ### Changed
