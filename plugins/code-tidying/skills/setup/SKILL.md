@@ -217,9 +217,10 @@ so installing it changes no commit until the team file sets a level.
 6. **Verify.** Run `verify` and report its lines as `check` step 8 does.
 
 A remote entry stays in the committed `lefthook.yml`, so stop it in one clone by skipping its job,
-`code-tidying-remote-<entry>`, in the clone's untracked `lefthook-local.yml`; a failing remote job prints
-that skip, and the [adoption
-path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md#when-a-remote-job-breaks)
+`code-tidying-remote-<entry>`, in the clone's gitignored lefthook local config, written as lefthook's
+docs say at the time (pointer: [lefthook-local](https://lefthook.dev/examples/lefthook-local/) and
+[skip](https://lefthook.dev/configuration/skip/)); a failing remote job prints that skip, and the
+[adoption path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md#when-a-remote-job-breaks)
 says when to use it and how to drop it.
 
 When the user does not want the entry in this clone, run

@@ -259,8 +259,7 @@ an earlier run that paused).
    none of them. Loop-level deltas only:
    - **Worker-side provisioning, owned by `/work-items:work`.** The dispatched subagent
      materializes its own out-of-tree worktree first and works against it via `git -C` without
-     entering it; the orchestrator never invokes `/source-control:worktree create` (if enabled), whose
-     `EnterWorktree` terminal would transition this long-lived loop session. `/work-items:work` and
+     entering it; the orchestrator never invokes `/source-control:worktree create` (if enabled), so `EnterWorktree` does not run in this long-lived loop session ([EnterWorktree tool behavior](https://code.claude.com/docs/en/tools-reference#enterworktree-tool-behavior)). `/work-items:work` and
      `/implementation:implement-dispatch` (if enabled) own that behavior; this loop inherits it and restates
      nothing beyond this caution.
    - **Dispatch discipline.** Worker briefs enumerate the required skills per phase and carry the
@@ -298,14 +297,15 @@ an earlier run that paused).
    **Background-job launch mode.** Launch a background lane from inside an isolated linked git
    worktree of the repository (`git worktree add`, then `claude --bg -n <name> --permission-mode auto` from there, the form
    `/harness-ops:lanes` (if enabled) launches) to keep the record Write in place: from a linked worktree outside
-   `.claude/worktrees` the record Write lands with no refusal (probed with `claude --bg` on Claude Code 2.1.285),
-   and from a checkout that is not a linked worktree it can be refused (evidence: the issue the pointer below names).
+   `.claude/worktrees` the record Write lands with no refusal, and from a checkout that is not a linked
+   worktree it can be refused (probe record and evidence on the issue the pointer below names).
    The launching session first invokes
    `/plugin-profiles:profile launch [<profile>] --unattended --json` (if enabled); otherwise it runs the command as written.
    When the `plugin-profiles` plugin is enabled, it invokes that skill from that worktree via the Skill tool and runs its `argv` followed by
    `--bg -n <name> --permission-mode auto`; on exit 1 it launches nothing and reports the reason the tool printed.
    Either way the tracker marker comment is the escalation of record, and a refused record Write does not stop
-   the cycle. This lane must not call `EnterWorktree` (it would end the long-lived orchestrator), so
+   the cycle. This lane must not call `EnterWorktree`
+   ([EnterWorktree tool behavior](https://code.claude.com/docs/en/tools-reference#enterworktree-tool-behavior)), so
    isolation comes from where the operator launches it. Foreground on the default-branch checkout
    is the known-good mode.
 
@@ -350,8 +350,8 @@ a candidate it has already excluded, a second query with the adapter's reporting
 the PR number, draft state, and age from `createdAt`.
 
 The exclusion is bounded by age. Read `${user_config.work_loop_in_flight_stale_days}` (default 14;
-a surviving literal `${user_config.…}` placeholder means the key is unset, so apply the manifest
-default). A PR open longer than that stops silently excluding its item: it is still not dispatched,
+when the key is unset, apply the manifest default; pointer:
+[Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)). A PR open longer than that stops silently excluding its item: it is still not dispatched,
 and step 5 escalates it as `kind=escalated`, whose one-line question names the PR
 number, draft or ready state, and age, and asks the human to land, close, or unlink it. Step 5's
 marker read suppresses duplicates only while the item is still held for a person; an item
@@ -420,8 +420,8 @@ Hard gates:
 ## Adaptive item cap
 
 The per-cycle item cap adapts between the configured floor and ceiling; bounds come from
-`userConfig`, and a surviving literal `${user_config.…}` placeholder means the key is unset,
-apply the manifest default:
+`userConfig` (when a key is unset, apply the manifest default; pointer:
+[Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)):
 
 - Start at `${user_config.work_loop_item_cap_start}` (default 2).
 - **+1** after 3 consecutive **clean** items, up to `${user_config.work_loop_item_cap_ceiling}`

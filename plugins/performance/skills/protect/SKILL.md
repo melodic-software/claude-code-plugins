@@ -180,9 +180,9 @@ repository; the PR's `opened` event then creates workflow runs in an approval-re
 human approves the checks as well as the merge. To have the checks start without that approval,
 open the PR with a GitHub App installation token or a personal access token stored as a secret
 instead of `GITHUB_TOKEN`. Verified 2026-09-24 against
-`https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository`,
-`https://docs.github.com/en/actions/concepts/security/github_token`, and
-`https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow`.
+`https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository#preventing-github-actions-from-creating-or-approving-pull-requests`,
+`https://docs.github.com/en/actions/concepts/security/github_token#when-github_token-triggers-workflow-runs`, and
+`https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow`.
 Recheck when any of them stops naming that setting or changes what a `GITHUB_TOKEN`-created pull
 request event triggers.
 
