@@ -1,10 +1,30 @@
 #!/usr/bin/env node
 import { chmodSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { applyBranding } from "../lib/html-branding.mjs";
+import { managedSettingsFiles, readOperatorOptions, resolveInstall } from "../lib/plugin-options.mjs";
 import { buildView, ViewBuildError } from "../lib/view-builder.mjs";
+import { brandingReportLines, findRoot, resolveBranding } from "../lib/view-settings.mjs";
 import { DeepeningRecordError, parseDeepening, renderDeepening, validateDeepeningPage } from "./deepening-report.mjs";
+
+const PLUGIN_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
+
+const readBrandingOption = (flagValue) => {
+  if (flagValue !== undefined) return flagValue;
+  try {
+    const install = resolveInstall(PLUGIN_ROOT);
+    const configDir = process.env.CLAUDE_CONFIG_DIR;
+    const managed = configDir ? [] : managedSettingsFiles();
+    const userSettings = install.userSettings ?? (configDir ? join(configDir, "settings.json") : null);
+    const opts = readOperatorOptions({ ...install, userSettings }, managed, ["branding"]);
+    return opts.branding?.value ?? null;
+  } catch (err) {
+    console.error(`notice: userConfig branding could not be read (${err.message}); ignored`);
+    return null;
+  }
+};
 
 const TITLES = {
   landscape: "Landscape",
@@ -80,18 +100,23 @@ const viewData = (kind, record, from) => {
   return { title: `${TITLES[kind]} view`, facts, rows };
 };
 
-const deepeningPage = (record) => {
-  const page = renderDeepening(parseDeepening(record));
+const deepeningPage = (record, branding) => {
+  const page = renderDeepening(parseDeepening(record), { branding });
   const checked = validateDeepeningPage(page);
   if (!checked.ok) throw new ViewBuildError(checked.failures);
   return page;
 };
 
+const ALLOWED_FLAGS = ["--record", "--from", "--branding-option", "--team-ref"];
 const [kind, ...rest] = process.argv.slice(2);
 const flags = {};
-for (let i = 0; i < rest.length; i += 2) flags[rest[i]] = rest[i + 1];
-if (!Object.hasOwn(TITLES, kind) || !flags["--record"] || Object.keys(flags).some((flag) => !["--record", "--from"].includes(flag))) {
-  console.error(`usage: build-view.mjs ${Object.keys(TITLES).join("|")} --record <record.json> [--from <node-id>]`);
+let flagError = rest.length % 2 !== 0;
+for (let i = 0; i < rest.length; i += 2) {
+  flags[rest[i]] = rest[i + 1];
+  if (typeof rest[i + 1] !== "string") flagError = true;
+}
+if (flagError || !Object.hasOwn(TITLES, kind) || !flags["--record"] || Object.keys(flags).some((flag) => !ALLOWED_FLAGS.includes(flag))) {
+  console.error(`usage: build-view.mjs ${Object.keys(TITLES).join("|")} --record <record.json> [--from <node-id>] [--branding-option <json>] [--team-ref <ref>]`);
   process.exit(2);
 }
 
@@ -104,11 +129,25 @@ try {
   }
   if (kind === "deepening" && flags["--from"]) throw new RecordError("--from does not apply to the deepening record");
   if (kind !== "deepening" && (!isObject(record) || record.schema_version !== 1)) throw new RecordError("the record is not a schema_version 1 record");
-  const page = kind === "deepening" ? deepeningPage(record) : buildView({
+  const branding = resolveBranding({
+    userConfig: readBrandingOption(flags["--branding-option"]),
+    projectRoot: findRoot(),
+    teamRef: flags["--team-ref"] ?? null,
+  });
+  const tokensCss = readFileSync(fileURLToPath(new URL("../reference/html-tokens.css", import.meta.url)), "utf8");
+  const page = kind === "deepening" ? deepeningPage(record, branding) : buildView({
     profile: "interactive",
-    template: readFileSync(fileURLToPath(new URL("../templates/map-view.html", import.meta.url)), "utf8"),
+    template: applyBranding(
+      readFileSync(fileURLToPath(new URL("../templates/map-view.html", import.meta.url)), "utf8"),
+      { tokensCss, branding },
+    ),
     data: viewData(kind, record, flags["--from"]),
   });
+  if (branding.notices.length) {
+    for (const line of brandingReportLines(branding)) {
+      if (line.startsWith("notice:")) console.error(line);
+    }
+  }
   const dir = join(tmpdir(), "architecture-views");
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   if (!lstatSync(dir).isDirectory())
