@@ -290,7 +290,7 @@ checks_changed_names() {
     return
   fi
   local raw="$CHECKS_TMP/names" rc meta f
-  local -a m
+  local -a m names=()
   checks_diff --raw --no-abbrev -z --diff-filter=ACMR >"$raw"
   rc=$?
   while IFS= read -r -d '' meta && IFS= read -r -d '' f; do
@@ -299,8 +299,9 @@ checks_changed_names() {
       IFS= read -r -d '' f || break
       [[ "${m[4]}" == R* && "${m[0]}" == "${m[1]}" && "${m[2]}" == "${m[3]}" ]] && continue
     fi
-    printf '%s\0' "$f"
+    names+=("$f")
   done <"$raw"
+  ((${#names[@]} == 0)) || printf '%s\0' "${names[@]}"
   return "$rc"
 }
 

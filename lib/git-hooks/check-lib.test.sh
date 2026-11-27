@@ -101,6 +101,14 @@ expect "copy fixture: git reports the copy as an exact copy" C100 \
 expect "pre-commit files: an exact copy is still listed" $'copied.md\norig.md' \
   "$(in_repo "$V" pre-commit 'checks_files' | nul_list | sort)"
 
+new_repo; N="$REPO"
+pad="$(printf '%*s' 60 '' | tr ' ' p)"
+for ((i = 1; i <= 1500; i++)); do printf 'x\n' >"$N/$pad$i.txt"; done
+git -C "$N" add .
+find "$N" -maxdepth 1 -name "${pad}1*.txt" -delete
+expect "files: a checks_files call inside a loop reading checks_files leaves both lists whole" "1500|888" \
+  "$(in_repo "$N" pre-commit 'outer=0 inner=0; while IFS= read -r -d "" f; do outer=$((outer + 1)); if ((outer == 1)); then CHECKS_MODE=worktree; while IFS= read -r -d "" g; do inner=$((inner + 1)); done < <(checks_files); CHECKS_MODE=pre-commit; fi; done < <(checks_files); echo "$outer|$inner"')"
+
 new_repo; H="$REPO"
 printf 'one\ntwo\n-- a/old\nfour\nfive\nsix\n' >"$H/f.txt"
 git -C "$H" add f.txt
