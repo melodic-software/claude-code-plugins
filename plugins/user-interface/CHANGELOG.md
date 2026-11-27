@@ -3,6 +3,12 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.11] - 2026-11-27
+
+### Changed
+
+- `write-css`: the reason for an `!important` goes in a CSS comment where the project's comment posture allows one, and in the commit or pull request under `necessary` or `none`.
+
 ## [0.28.10] - 2026-11-26
 
 ### Changed
