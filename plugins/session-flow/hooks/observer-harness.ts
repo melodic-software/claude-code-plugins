@@ -178,7 +178,14 @@ const measured = (s: HarnessState, e: Extract<HarnessEvent, { kind: 'measured' }
 }
 
 export const errorKey = (text: string) =>
-  (text.split(/\r?\n/).find(l => l.trim() !== '') ?? '').trim().replace(/\d+/g, '#').slice(0, 160)
+  text
+    .split(/\r?\n/)
+    .map(l => l.trim().replace(/\d+/g, '#'))
+    .filter(l => l !== '')
+    .join('\n')
+    .slice(0, 4000)
+
+const errorLine = (error: string) => (error.split('\n').find(l => !/^exit code #$/i.test(l)) ?? error.split('\n')[0] ?? '').slice(0, 160)
 
 const loop = (s: HarnessState, e: Extract<HarnessEvent, { kind: 'tool-ran' }>, o: HarnessOptions): HarnessResult => {
   if (e.error === undefined) {
@@ -194,7 +201,7 @@ const loop = (s: HarnessState, e: Extract<HarnessEvent, { kind: 'tool-ran' }>, o
     'loop',
     `${e.key} failed ${n} times in a row with the same error.`,
     `observer_loop_repeat: a tool call that fails the same way ${o.loopRepeat} times in a row is a loop; change the approach instead of retrying`,
-    `${n} failures: ${e.error || 'no error text'}`,
+    `${n} failures: ${errorLine(e.error) || 'no error text'}`,
     here('stop retrying: read the error, then change the command or the approach, or report what blocks it'),
   )
   return { state: { ...state, loops: [...s.loops, id] }, findings: [f], rows: [{ harness: 'loop', subject: e.key }] }

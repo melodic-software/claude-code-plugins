@@ -105,7 +105,8 @@ that call no model, so they cost no tokens:
 - *Slow tool*: `tool.run` times each call; a tool (a Bash command by its first two words) that runs
   past `observer_tool_slow_seconds` `observer_tool_repeat` times is reported once.
 - *Loop*: a tool (keyed the same way) whose call fails `observer_loop_repeat` times in a row with
-  the same error (its first line, digits masked) is reported once per tool and error; a success
+  the same error (its whole text, digits masked, so failures that differ under the same exit-code
+  line are not a loop) is reported once per tool and error; a success
   resets the count. `0` turns it off.
 - *Context*: each upward crossing of an `observer_context_percents` value.
 - *Rate limit*: a window at or past `observer_rate_limit_percent`, once per reset.

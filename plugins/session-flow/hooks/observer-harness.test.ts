@@ -142,8 +142,14 @@ test('a tool failing the same way observer_loop_repeat times in a row is reporte
   expect(run([fail('E1'), fail('E1'), fail('E1')], { observer_loop_repeat: 0 }).findings).toEqual([])
 })
 
-test('errorKey keeps the first non-empty line with digits masked', () => {
-  expect(errorKey('\nExit code 2\nmore')).toBe('Exit code #')
+test('errorKey compares the whole error with digits masked, so a different failure under the same exit line is not a repeat', () => {
+  expect(errorKey('\nExit code 2\n  FAIL a.test.ts (12 ms)\n')).toBe('Exit code #\nFAIL a.test.ts (# ms)')
+  expect(errorKey('Exit code 1\nFAIL a.test.ts')).not.toBe(errorKey('Exit code 1\nFAIL b.test.ts'))
+  const key = commandKey('Bash', 'npm test')
+  const fail = (text: string): HarnessEvent => ({ kind: 'tool-ran', key, ms: 100, error: errorKey(text) })
+  expect(run([fail('Exit code 1\nFAIL a'), fail('Exit code 1\nFAIL b'), fail('Exit code 1\nFAIL c')]).findings).toEqual([])
+  const same = run([fail('Exit code 1\nFAIL a (3 ms)'), fail('Exit code 1\nFAIL a (5 ms)'), fail('Exit code 1\nFAIL a (4 ms)')])
+  expect(same.findings[0]!.finding.evidence).toBe('3 failures: FAIL a (# ms)')
 })
 
 test('a Bash command is reported after observer_tool_repeat slow runs, keyed by its first two words', () => {
