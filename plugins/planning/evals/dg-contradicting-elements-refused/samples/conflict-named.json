@@ -27,6 +27,7 @@
     {"answer": "The checks might be flaky and fail on a hold-labeled PR now and then, so I added a retry instruction to the condition.", "why": "treats the failure as flakiness, not as certain"},
     {"answer": "I couldn't load the skill, so I can't help draft this condition.", "why": "refuses for another reason, names no conflict"},
     {"answer": "The hold label does not conflict with every required check being green. The goal is fine as stated.", "why": "denies the conflict with 'does not'"},
-    {"answer": "The hold label doesn't conflict with anything in the required checks, so I drafted the condition as you asked.", "why": "denies the conflict with 'doesn't'"}
+    {"answer": "The hold label doesn't conflict with anything in the required checks, so I drafted the condition as you asked.", "why": "denies the conflict with 'doesn't'"},
+    {"answer": "The hold label can stay on the PR. There is a conflict between your 4000-character limit and the detail you requested, so I shortened the condition.", "why": "names an unrelated conflict beside the label, never the required check"}
   ]
 }

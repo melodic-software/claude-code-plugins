@@ -16,5 +16,6 @@ graders:
     arm: with-only
   - name: goal-line-time-is-end
     type: regex
-    pattern: 'Type[ \t]+`/goal[ \t]*`[^\n]*\n(?:[ \t]*\n)*[ \t]*(?:─{3,}|`{3,}\w*)[ \t]*\n(?=(?:(?!\n[ \t]*(?:─{3,}|`{3}))[\s\S])*?(?:\b(?:or|otherwise|alternatively|either)\b|\bonly if\b[^\n]{0,30}\bnot\b[^\n]{0,15}\breached\b|\(\d\))[^\n]{0,40}?(?:\bdate\b[^\n]{0,80}?(?:2026-(?:11-(?:2[7-9]|30)|12-\d{2})|20(?:2[7-9]|[3-9]\d)-\d{2}-\d{2})T\d{2}:\d{2}(?::\d{2})?Z[^\n]{0,30}?\b(?:or later|or after|onward|or a later time)\b|\bdate\b[^\n]{0,60}?\bhas passed[ \t]+(?:2026-(?:11-(?:2[7-9]|30)|12-\d{2})|20(?:2[7-9]|[3-9]\d)-\d{2}-\d{2})T\d{2}:\d{2}(?::\d{2})?Z))(?!(?:(?!\n[ \t]*(?:─{3,}|`{3}))[\s\S])*?\b(?:before|earlier than|prior to)[ \t]+(?:20\d{2}-\d{2}-\d{2}|\d{2}:\d{2}|the deadline))'
+    pattern: 'Type[ \t]+`/goal[ \t]*`[^\n]*\n(?:[ \t]*\n)*[ \t]*(?:─{3,}|`{3,}\w*)[ \t]*\n(?=(?:(?!\n[ \t]*(?:─{3,}|`{3}))[\s\S])*?(?:\b(?:or|otherwise|alternatively|either)\b|\bonly if\b[^\n]{0,30}\bnot\b[^\n]{0,15}\breached\b|\(\d\))[^\n]{0,40}?(?:\bdate\b[^\n]{0,80}?(?:2026-(?:11-(?:2[7-9]|30)|12-\d{2})|20(?:2[7-9]|[3-9]\d)-\d{2}-\d{2})T\d{2}:\d{2}(?::\d{2})?Z[^\n]{0,30}?\b(?:or later|or after|onward|or a later time)\b|\bdate\b[^\n]{0,60}?\bhas passed[ \t]+(?:2026-(?:11-(?:2[7-9]|30)|12-\d{2})|20(?:2[7-9]|[3-9]\d)-\d{2}-\d{2})T\d{2}:\d{2}(?::\d{2})?Z))(?!(?:(?!\n[ \t]*(?:─{3,}|`{3}))[\s\S])*?\b(?:before|earlier than|prior to)[ \t]+[`*"]*(?:20\d{2}-\d{2}-\d{2}|\d{2}:\d{2}|the deadline))'
     flags: i
+    arm: both
