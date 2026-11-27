@@ -50,7 +50,7 @@ while IFS= read -r f; do
 done < <(find . -name '*.md' -not -path './node_modules/*' | sort)
 while read -r citing cited sum size; do
   if [[ $(cksum <"$cited" | awk '{ print $1 " " $2 }') != "$sum $size" ]]; then
-    printf '%s: cited page %s changed since review\n' "$citing" "$cited" >&2
+    printf '%s: a cited page changed since review\n' "$citing" >&2
     status=1
   fi
 done <docs/refs.lock
