@@ -388,6 +388,19 @@ class SelectCasesHiddenTest(unittest.TestCase):
                 block = self._select(SETUP, "# Prints the fixture.\n", "")
                 self.assert_runs(block, "an empty src copies the whole fixtures folder")
 
+    def test_positional_copy_after_the_guarded_loop_still_runs(self):
+        self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh"\n')
+        seed = self.repo / "plugins/alpha/evals/fixtures/seed.sh"
+        seed.write_text(
+            '#!/usr/bin/env bash\nfixtures="$(dirname "${BASH_SOURCE[0]}")"\n'
+            'while [[ $# -ge 1 ]]; do\n  src="$1"\n  shift 1\ndone\ncp -r "$fixtures/$src" "ws"\n',
+            encoding="utf-8",
+        )
+        _commit_all(self.repo, "copy after loop")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_runs(block, "the copy runs after the loop with src empty")
+
     def test_guarded_positional_copy_called_with_no_arguments_is_no_run(self):
         self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh"\n')
         block = self._select(SETUP, "# Prints the fixture.\n", "")
