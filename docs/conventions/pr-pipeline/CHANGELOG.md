@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [13.4.0] - 2026-11-27
+
+### Added
+
+- pr-merge's `enable-auto-merge` arms a trusted person's pull request (a `User` whose id is kind `human` on the trusted-actor list) at the head pr-verify passed, with the lanes App token and `expectedHeadOid` that head, when it is not a draft, armed, queued or a stack layer, carries no hold label (`do-not-merge`, `pr-verify-failed`, `security: outside-actor`, `needs-human` or the human-gated label, judged over its whole label list, read again past the first 100), has no `Hold:` or "do not merge" body line, changes no lane source pr-review-main reviews, and the verdict reader counts a PASS or PASS-NOTES at the head. It skips every lane-source pull request until a reader decides whether pr-review-main's findings at a head are settled. A trusted bot's pull request keeps its own path. It posts the lanes App's pin at the head before arming; the next scheduled run disarms one whose newest pin names another head or was edited, then posts the lanes App's `babysit-merge-unpin` record, which `pinMoved`, `pinned` and `pinHold` read as no pin, so a person's later arm at a head the sweep refuses is not held for the stale pin; on the lanes App's own pull request every pin reader, `babysit_postmerge.py`'s included, skips an unpin, so its older pin still holds a moved head. Each trusted arm counts against the lane room the lanes path reads: a rung or post-merge refusal, an unreadable room or a reached `merge.max-in-flight` refuses it before any pin; every armed, unqueued trusted person's pull request counts as in flight, as a lanes App one does, a session's own arm with no lanes App pin included, and while the trusted-actor list does not read every armed, unqueued `User`'s pull request counts; and each arm the sweep attempts holds a slot for the rest of the sweep, even when its pin does not post or the arm fails, unless GitHub refuses the arm on its first send. It disarms and unpins its own arm at the live head the same way once a hold label, a body hold line, a member veto or a lost PASS stands, and reads the pull request's queue state, arm and head again just before any unpin, posting it only while it is still out of the queue and unarmed at that head. An unarmed trusted person's pull request refused for any reason, a draft or a hold included, posts the unpin whenever its newest lanes App record is a pin, so an unpin that did not post after a disarm is posted by the next sweep.
+- The pr-verify wake and the eval-release wake serve the lanes App's pull requests and a trusted person's, the two the token broker mints the wake for; the scheduled sweep is the fallback for any other. The pr-verify wake downloads the trusted-actor list only for a `User`'s pull request.
+- `ci-status` in the merge queue holds every pull request that is not the lanes App's, whatever `merge.verify-authors` says, when its newest lanes App pin names another head, was edited, or its edit time does not read (`merge-holds.mjs` `pinHold`), so a trusted person's pull request armed at a passing head and pushed again does not merge the unjudged head; a trusted approval of the live head, or the lanes App's unpin, lifts it.
+
+### Changed
+
+- Removed central `owner-decisions.md` row-link requirement from cost-hold and architecture pointer entries in `docs/conventions/pr-pipeline/README.md`.
+
 ## [13.3.2] - 2026-11-27
 
 ### Fixed

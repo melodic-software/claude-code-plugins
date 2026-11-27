@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [16.2.7] - 2026-11-27
+
+### Changed
+
+- `triage` cost-decision wording requires a `verbatim:` owner quote without requiring a central owner-decisions row link.
+
 ## [16.2.6] - 2026-11-27
 
 ### Fixed
