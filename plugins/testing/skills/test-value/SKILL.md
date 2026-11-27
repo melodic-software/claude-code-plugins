@@ -149,7 +149,7 @@ https://jestjs.io/docs/snapshot-testing.
 | `rule-zero-assertion` | a test body with no assertion | assert the behavior |
 | `rule-recomputed-expectation` | both sides the same expression: `expect(LIMIT).toBe(LIMIT)` | take the expected side from §1 |
 | `rule-inert-assertion` | an assertion that never runs: unawaited `toBeVisible()`, `assert (x == 1, "msg")`, `m.called_once_with(...)`, bare `.Should();`, `Assert.True(true)`, `Assert.NotNull(typeof(T))` | await it, fix the tuple, use `assert_called_once_with`, assert a value the code computes |
-| `rule-conditional-assertion` | every assertion inside an `if`, a `catch` or a loop over the result; a C# `return;` before every assertion | assert unconditionally; check the length first; skip the test instead of returning |
+| `rule-conditional-assertion` | every assertion inside an `if`, a `catch` or a loop over the result; a C# `return;` before every assertion | assert unconditionally; check the length first; skip the test instead of returning <!-- portability-ok: R6 kept-adapter rule summary for testing:audit --> |
 | `rule-flaky-passes-suite`, `rule-only-not-forbidden` | Playwright retries without `failOnFlakyTests`; no `forbidOnly` | set both in the config |
 
 **Checks little** (can fail, but misses most wrong answers):

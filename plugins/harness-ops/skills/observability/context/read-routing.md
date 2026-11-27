@@ -5,7 +5,7 @@ Operator setup (install, env, retention): [operator-setup.md](operator-setup.md)
 
 Batch reports and JSONL jq: this skill's scope actions. Product bugs: `/harness-ops:known-issues`.
 
-**CC** = Claude Code CLI (not .NET app OTEL). Full naming table: [operator-setup.md](operator-setup.md)
+**CC** = Claude Code CLI (not .NET app OTEL). Full naming table: [operator-setup.md](operator-setup.md) <!-- portability-ok: R6 mechanism disambiguation - Claude Code CLI vs app OTEL -->
 "Naming".
 
 ## Three layers (do not conflate)

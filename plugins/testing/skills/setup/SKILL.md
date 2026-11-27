@@ -109,7 +109,7 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
      [playwright/no-focused-test](https://github.com/playwright-community/eslint-plugin-playwright/blob/main/docs/rules/no-focused-test.md).
      As of 2026-11-10; recheck when a plugin release note moves one of these rules out of its
      recommended config or renames it.
-   - C#: `xUnit2021` (xunit.analyzers, which the check counts as present through an `xunit` or
+   - C#: `xUnit2021` (xunit.analyzers, which the check counts as present through an `xunit` or <!-- portability-ok: R6 kept-adapter check - setup.sh analyzer detection -->
      `xunit.v3` reference) and `NUnit2009` (NUnit.Analyzers, which the check requires as its own
      reference). Packaging: [xUnit2021](https://xunit.net/xunit.analyzers/rules/xUnit2021) and
      [NUnit2009](https://docs.nunit.org/articles/nunit-analyzers/NUnit2009.html). As of 2026-11-10;
