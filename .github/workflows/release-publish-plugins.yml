@@ -6,6 +6,11 @@ on:
   push:
     branches: [main]
     paths: ['.changes/**']
+  # workflow_run runs this file from the default branch, never a PR's copy.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [PR Require Checks]
+    types: [completed]
+    branches: [release/plugins]
   workflow_dispatch:
     inputs:
       action:
@@ -23,12 +28,14 @@ permissions: {}
 
 concurrency:
   group: release-plugins
-  cancel-in-progress: ${{ github.event_name != 'push' }}
+  cancel-in-progress: ${{ github.event_name != 'push' && github.event_name != 'workflow_run' }}
 
 jobs:
   merge:
     name: Merge
-    if: github.ref == 'refs/heads/main' && (inputs.action || 'merge') == 'merge'
+    if: >-
+      github.ref == 'refs/heads/main' && (inputs.action || 'merge') == 'merge'
+      && (github.event_name != 'workflow_run' || github.event.workflow_run.head_repository.full_name == github.repository)
     environment:
       name: plugin-release
       deployment: false
@@ -350,7 +357,7 @@ jobs:
             if [ -n "$SKIPPED" ]; then
               printf '**Not released:** %s. A fragment for each failed validation; it stays on `main` until fixed, and the next release picks it up.\n\n' "$(code_list "$SKIPPED")"
             fi
-            echo "The \`release-publish-plugins\` workflow queues this pull request itself once \`ci-status\` is green (every 3 hours, on a fragment push, or by hand with action \`merge\`). Never use the merge button: the workflow checks it against main's live tip first."
+            echo "The \`release-publish-plugins\` workflow queues this pull request itself once \`ci-status\` is green (when its checks finish, every 3 hours, on a fragment push, or by hand with action \`merge\`). Never use the merge button: the workflow checks it against main's live tip first."
           } >"$body"
           title="chore(release): release $RELEASED plugins"
           number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')"
