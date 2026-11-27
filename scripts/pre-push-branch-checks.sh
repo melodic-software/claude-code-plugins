@@ -10,6 +10,7 @@ remote="${1:-origin}"
 zero=0000000000000000000000000000000000000000
 started="${EPOCHREALTIME:-}"
 
+# shellcheck disable=SC2329 # run by the EXIT traps below
 report_time() {
   [[ -n "$started" && -n "${EPOCHREALTIME:-}" ]] || return 0
   local ms=$(((${EPOCHREALTIME//[!0-9]/} - ${started//[!0-9]/}) / 1000))

@@ -37,7 +37,7 @@ reference_files() {
 
 reference() {
   local js='const fs = require("fs"), c = require("crypto"), d = process.argv[1]; let n = 0;
-    for (let r = 0; r < 12; r++) for (const f of fs.readdirSync(d)) n += c.createHash("sha256").update(fs.readFileSync(`${d}/${f}`)).digest()[0];
+    for (let r = 0; r < 12; r++) for (const f of fs.readdirSync(d)) n += c.createHash("sha256").update(fs.readFileSync(d + "/" + f)).digest()[0];
     JSON.parse(JSON.stringify(Array.from({ length: 40000 }, (_, i) => ({ i, s: String(i) }))));'
   local py='import hashlib, os, sys; d = sys.argv[1]; sum(hashlib.sha256(open(os.path.join(d, f), "rb").read()).digest()[0] for _ in range(12) for f in os.listdir(d))'
   local pids=() p rc=0
@@ -76,20 +76,20 @@ measure() {
 
 reference_files || {
   fail "the reference workload's files could not be written"
-  test_harness::report
+  test_harness::report || exit 1
 }
 trap 'rm -rf "${REFERENCE_DIR:?}"' EXIT
 fixture_tree::build f --git --label prepush-timing || {
   fail "the snapshot fixture of HEAD could not be built"
-  test_harness::report
+  test_harness::report || exit 1
 }
 printf '%s\n' "$OBJECTS" >"$f/.git/objects/info/alternates"
-git_test_config "$f" update-ref refs/heads/main "$REAL_HEAD" &&
+if ! { git_test_config "$f" update-ref refs/heads/main "$REAL_HEAD" &&
   git_test_config "$f" symbolic-ref HEAD refs/heads/main &&
-  git_test_config "$f" read-tree -u --reset HEAD || {
+  git_test_config "$f" read-tree -u --reset HEAD; }; then
   fail "the fixture could not check out HEAD"
-  test_harness::report
-}
+  test_harness::report || exit 1
+fi
 cp "$HOOK" "$f/scripts/pre-push-branch-checks.sh"
 git_test_config "$f" add -A && git_test_config "$f" commit -q --allow-empty -m hook &&
   git_test_config "$f" update-ref refs/remotes/origin/main HEAD &&
@@ -105,7 +105,10 @@ else
 fi
 
 case "$(uname -s 2>/dev/null)" in
-MINGW* | MSYS* | CYGWIN*) test_harness::report ;;
+MINGW* | MSYS* | CYGWIN*)
+  test_harness::report
+  exit
+  ;;
 *) ;;
 esac
 
@@ -139,4 +142,4 @@ if ((${hook_ms:-3000} < 2500)); then
   fi
 fi
 
-test_harness::report
+test_harness::report || exit 1
