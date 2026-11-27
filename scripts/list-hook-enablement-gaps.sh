@@ -11,7 +11,22 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
-HAS_HOOK='([(.hooks? // {}) | .[]? | .[]? | (.hooks? // [])[]?] | length) + ((.modules? // []) | length) > 0'
+# shellcheck disable=SC2016
+EXEMPT_HOOKS='[
+  {"plugin": "discovery", "args": ["${CLAUDE_PLUGIN_ROOT}/lib/docs-fetcher-gate.mjs", "discovery:docs-fetcher"]},
+  {"plugin": "multi-agent", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/drift-checker-fetch-gate.mjs"]},
+  {"plugin": "multi-agent", "args": ["${CLAUDE_PLUGIN_ROOT}/lib/docs-fetcher-gate.mjs", "multi-agent:docs-fetcher"]},
+  {"plugin": "multi-agent", "args": ["${CLAUDE_PLUGIN_ROOT}/lib/docs-fetcher-gate.mjs", "multi-agent:registry-fetcher"]}
+]'
+
+# shellcheck disable=SC2016
+HAS_HOOK='
+  def is_exempt($plugin; $exempt):
+    (if (.args? | type) == "array" then .args else [] end) as $a
+    | any($exempt[]; .plugin == $plugin and (.args | length) <= ($a | length) and $a[0:(.args | length)] == .args);
+  ([(.hooks? // {}) | .[]? | .[]? | (.hooks? // [])[]? | select(is_exempt($plugin; $exempt) | not)] | length)
+    + ((.modules? // []) | length) > 0
+'
 HAS_KEY='[(.userConfig // {}) | to_entries[] | select((.key | test("_enabled$")) and (.value | type) == "object" and .value.type == "boolean")] | length > 0'
 
 scanned=0
@@ -20,7 +35,7 @@ for config in plugins/*/hooks/hooks.json; do
   [[ -f "$config" ]] || continue
   plugin="${config#plugins/}"
   plugin="${plugin%%/*}"
-  has_hook="$(jq -r "$HAS_HOOK" "$config" 2>/dev/null | tr -d '\r')"
+  has_hook="$(jq -r --arg plugin "$plugin" --argjson exempt "$EXEMPT_HOOKS" "$HAS_HOOK" "$config" 2>/dev/null | tr -d '\r')"
   if [[ "$has_hook" != true && "$has_hook" != false ]]; then
     echo "$NAME: $config is not readable JSON" >&2
     exit 2
