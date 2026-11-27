@@ -493,12 +493,17 @@ function configRoot({ enabled = true, everyDays = 1, cap } = {}) {
 const runGate = async (root, { open = 2, scanAt = NOW - 2 * DAY, before = [], env = {}, fake = forge({ open, runs: [...before, { at: scanAt, sha: root.sha }] }) } = {}) =>
   gate({ root: root.dir, call: fake.call, now: NOW, env: { REPOSITORY: "o/r", STANDARDS_DIR: STANDARDS_FIXTURE, EVENT_NAME: "schedule", READS_CONFINED: "true", ...env } });
 
-test("until the legs can block reads outside the checkout, no scheduled or forced run starts a leg, and nothing is read from the API", async () => {
-  const gateStep = parse(WORKFLOW_TEXT).jobs.gate.steps.find((step) => /gate\.mjs gate$/.test(step.run ?? ""));
-  assert.notEqual(gateStep.env.READS_CONFINED, "true", "the shipped workflow does not claim confined reads");
+test("the gate claims confined reads only while every leg blocks reads outside the checkout; unconfined, no run starts a leg or reads the API", async () => {
+  const workflow = parse(WORKFLOW_TEXT);
+  const gateStep = workflow.jobs.gate.steps.find((step) => /gate\.mjs gate$/.test(step.run ?? ""));
+  assert.equal(gateStep.env.READS_CONFINED, "true");
+  for (const leg of LEGS) {
+    const launch = workflow.jobs[leg].steps.find((step) => /run-claude-cli@/.test(step.uses ?? ""));
+    assert.equal(launch.with["block-outside-reads"], "true", `${leg} blocks reads outside its working directories`);
+  }
   for (const env of [{}, { EVENT_NAME: "workflow_dispatch", FORCE: "true" }]) {
     const fake = forge();
-    const result = await runGate(configRoot({ enabled: true }), { fake, env: { ...env, READS_CONFINED: gateStep.env.READS_CONFINED } });
+    const result = await runGate(configRoot({ enabled: true }), { fake, env: { ...env, READS_CONFINED: undefined } });
     assert.deepEqual([result.run, result.reason, fake.calls], [false, "reads-unconfined", []], JSON.stringify(env));
   }
   const forced = await runGate(configRoot({ enabled: false }), { env: { EVENT_NAME: "workflow_dispatch", FORCE: "true", READS_CONFINED: "false" } });

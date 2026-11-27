@@ -111,6 +111,7 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
           EVENT_NAME: ${{ github.event_name }}
           FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force && 'true' || 'false' }}
+          READS_CONFINED: "true"
         run: node .base/.github/scripts/maintenance-scan-architecture/gate.mjs gate
 
       - name: Read the key's credit history
@@ -278,6 +279,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
           sandbox: "true"
+          block-outside-reads: "true"
           tools: |
             Read
             Grep
@@ -569,6 +571,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
           sandbox: "true"
+          block-outside-reads: "true"
           tools: |
             Read
             Grep
@@ -820,6 +823,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
           sandbox: "true"
+          block-outside-reads: "true"
           tools: |
             Read
             Grep
