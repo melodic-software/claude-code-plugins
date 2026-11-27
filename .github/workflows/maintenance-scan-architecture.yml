@@ -954,6 +954,10 @@ jobs:
     env:
       GIT_CONFIG_GLOBAL: /dev/null
       GIT_CONFIG_NOSYSTEM: "1"
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@v7
@@ -1004,6 +1008,11 @@ jobs:
             echo "::error::findings.json does not match the SHA-256 the check job recorded"
             exit 1
           fi
+
+      - name: Install resolve-config's packages
+        if: steps.verify.outcome == 'success'
+        timeout-minutes: 5
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
       # "events triggered by the GITHUB_TOKEN will not create a new workflow run": https://docs.github.com/en/actions/concepts/security/github_token
       - name: File the findings

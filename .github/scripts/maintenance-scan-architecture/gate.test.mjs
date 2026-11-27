@@ -126,6 +126,15 @@ test("File Findings holds only issues write and contents read, files on the job'
   assert.ok(!/request-lane-token/.test(WORKFLOW_TEXT));
 });
 
+test("every job that reads the improvement cascade installs resolve-config's packages first, since openItemCap loads yaml from them", () => {
+  for (const [name, job] of Object.entries(parse(WORKFLOW_TEXT).jobs)) {
+    const reads = job.steps?.findIndex((step) => /(gate|file-findings)\.mjs (gate|file)$/.test(step.run ?? "")) ?? -1;
+    if (reads === -1) continue;
+    const install = job.steps.findIndex((step) => /npm ci .*--prefix \.base\/\.github\/actions\/resolve-config$/.test(step.run ?? ""));
+    assert.ok(install !== -1 && install < reads, `${name} installs resolve-config's packages before reading the cascade`);
+  }
+});
+
 test("the workflow runs only on its daily schedule and a dispatch, with no push trigger", () => {
   const workflow = parse(WORKFLOW_TEXT);
   assert.deepEqual(Object.keys(workflow.on).sort(), ["schedule", "workflow_dispatch"]);
