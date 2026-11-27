@@ -11,3 +11,4 @@ bump: patch
 ### Fixed
 
 - Redacting a secret at the end of a line no longer joins the next line onto the redacted one.
+- A secret whose gitleaks rule marks only part of it, such as a base64 JWT, a Teams webhook URL or a Kubernetes Secret's later data values, is redacted whole; only line breaks and a trailing quote, space or semicolon are kept.

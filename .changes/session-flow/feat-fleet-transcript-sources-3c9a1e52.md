@@ -13,3 +13,4 @@ bump: minor
 - `/session-flow:recall` prints a history-only prompt only when its project is one of the scanned directories; a prompt from another project needs `--scope all`, which the skill passes only at the `all` scope.
 - `/session-flow:audit-sessions` churn findings show a file edited outside the session's working directory at its own path, instead of joining its redacted `~/` form onto the working directory.
 - `/session-flow:audit-sessions` published reports keep its metric names and drift canary keys, such as `cache.missed_input_tokens`, instead of replacing them with `<redacted:generic-api-key>`; a secret beside them is still redacted.
+- A secret whose gitleaks rule marks only part of it, such as a base64 JWT, a Teams webhook URL or a Kubernetes Secret's later data values, is redacted whole; only line breaks and a trailing quote, space or semicolon are kept.

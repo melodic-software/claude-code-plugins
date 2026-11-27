@@ -158,9 +158,13 @@ class Redactor:
         return self.redact(text)[:limit]
 
 
+_TERMINATOR = re.compile(r"""[`'"\s;]|\\[nr]|""")
+
+
 def _placeholder(label: str, allow: frozenset[str] = frozenset()) -> Callable[[re.Match[str]], str]:
-    """Replace a rule match up to the end of its last capture group, keeping the terminator gitleaks
-    rules match after the secret and each line break the match held before it."""
+    """Replace a whole rule match, keeping each line break it held and, after the last capture group,
+    the one bare terminator gitleaks rules match after a secret. A rule whose groups mark only part
+    of the secret (jwt-base64's header markers) leaves secret text on either side of them."""
 
     def swap(match: re.Match[str]) -> str:
         groups = [i for i in range(1, (match.re.groups or 0) + 1) if match.start(i) >= 0]
@@ -168,8 +172,9 @@ def _placeholder(label: str, allow: frozenset[str] = frozenset()) -> Callable[[r
         cut = max((match.end(i) for i in groups), default=match.end())
         if match.string[first:cut] in allow:
             return match[0]
-        lead = match.string[match.start():first]
-        return label + "\n" * lead.count("\n") + match.string[cut:match.end()]
+        lead, tail = match.string[match.start():first], match.string[cut:match.end()]
+        kept = tail if _TERMINATOR.fullmatch(tail) else "\n" * tail.count("\n")
+        return label + "\n" * lead.count("\n") + kept
 
     return swap
 

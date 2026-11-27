@@ -49,6 +49,42 @@ def test_a_match_ending_a_line_keeps_the_line_break_and_what_follows() -> None:
     assert redacted.count("\n") == text.count("\n"), "a redaction never joins two lines"
 
 
+UUID = "".join(("1a2b3c4d", "-1a2b-1a2b-1a2b-", "1a2b3c4d5e6f"))
+JWT_B64_BODY = "".join(("x7Kq", "Lm2P")) * 6
+TEAMS_TAIL = "".join(("9f8e7d6c", "-9f8e-9f8e-9f8e-", "9f8e7d6c5b4a"))
+K8S_LATER = "".join(("c2Vjb25k", "c2VjcmV0dmFs"))
+
+
+@pytest.mark.parametrize(
+    ("text", "secrets", "expected"),
+    [
+        (
+            "".join(("ZXlK", "aGJHY2lPaU")) + JWT_B64_BODY + " ok",
+            [JWT_B64_BODY],
+            "<redacted:jwt-base64> ok",
+        ),
+        (
+            "".join(("https://acme.web", "hook.office.com/webhookb2/"))
+            + f"{UUID}@{UUID}/IncomingWebhook/{'ab' * 16}/{TEAMS_TAIL} ok",
+            [TEAMS_TAIL, TEAMS_TAIL[-12:], "ab" * 16],
+            "<redacted:microsoft-teams-webhook> ok",
+        ),
+        (
+            "data:\n  username: " + "".join(("Zmlyc3Rz", "ZWNyZXQ=")) + "\n  dbhost: " + K8S_LATER + "\nkind: Secret\n",
+            [K8S_LATER, "".join(("Zmlyc3Rz", "ZWNyZXQ="))],
+            "<redacted:kubernetes-secret-yaml>\n\n\n\n",
+        ),
+    ],
+    ids=["jwt-base64", "teams-webhook", "k8s-secret-data-before-kind"],
+)
+def test_text_after_the_last_capture_group_is_kept_only_when_it_is_a_bare_terminator(
+    text: str, secrets: list[str], expected: str
+) -> None:
+    redacted = redact.load_redactor().redact(text)
+    assert [s for s in secrets if s in redacted] == [], "no secret text survives the redaction"
+    assert redacted == expected
+
+
 def test_mid_pattern_case_flag_survives_vendoring() -> None:
     token = "".join(("lin_", "api_", "Ab3" * 13, "Z"))
     assert (
