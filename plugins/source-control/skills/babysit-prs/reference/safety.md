@@ -1454,8 +1454,8 @@ as done and re-running the gate.
     (`ratify`/`ratified`, `approve`/`approved`, `confirm`/`confirmed`), and not a
     withheld-approval negation (`not approved`, `cannot approve`). All maintainer comments
     after the marker are scanned and the **latest decisive signal wins**: a ratification token
-    ratifies, while a revocation in non-approval words (`not approved`, `do not merge`)
-    re-holds, so a maintainer who ratifies and then revokes holds the PR. Matching is strict and
+    ratifies, while a revocation in non-approval words (`not approved`, `not ready`)
+    re-holds (`do not merge` is not one: the `do-not-merge` label holds instead), so a maintainer who ratifies and then revokes holds the PR. Matching is strict and
     fail-closed: an unrelated maintainer comment, a signal appearing before the marker, a
     ratify/revoke tie at the same timestamp, an unratified marker, or an issue whose comments
     cannot be read all hold the PR;

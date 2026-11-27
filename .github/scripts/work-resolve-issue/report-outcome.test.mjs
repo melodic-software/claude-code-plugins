@@ -173,7 +173,7 @@ test("remaining work opens a PR that starts Refs: #N, lists it, and holds nothin
   assert.ok(body.startsWith("Refs: #77\n\n## Summary"), body);
   assert.ok(body.includes("\n## Remaining work\n\n- Part B: the Windows host check\n- The docs page\n"), body);
   assert.ok(!body.includes("Closes #77"), body);
-  assert.ok(!body.includes("Hold: a human merges this"), body);
+  assert.ok(!decideDone({ outcome: { ...done, remaining: ["Part B: the Windows host check", "The docs page"] } }).hold, "a Refs PR holds nothing");
 });
 
 test('remaining work opens a Refs PR whatever "link" says', () => {
@@ -1707,9 +1707,10 @@ test("main holds a PR whose issue is eval-gated: do-not-merge, then the eval rea
     evalHoldComment(16803),
     "Held for the before-and-after eval that cut item #16803 needs. The pr-merge release step lifts this hold when an eval-pair record exists for the current head.\n\n<!-- pr-hold reason=eval -->",
   );
-  await withDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() }, async (dir) => {
+  const config = JSON.stringify({ merge: { "diff-check": { "denied-paths": ["a/**"] } } });
+  await withAsyncDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile(), "resolved-config.json": config }, async (dir) => {
     const { fetch, calls } = fakeFetch(evalRoutes([]));
-    assert.equal(await main({ env: env(dir), fetch }), 0);
+    assert.equal(await main({ env: { ...env(dir), RESOLVED_CONFIG: join(dir, "resolved-config.json") }, fetch }), 0);
     const writes = calls.filter((c) => c.method === "POST" && c.path.startsWith("/repos/o/r/issues/90/"));
     assert.deepEqual(writes.map((c) => [c.path, c.body]), [
       ["/repos/o/r/issues/90/labels", { labels: ["do-not-merge"] }],
@@ -1718,9 +1719,23 @@ test("main holds a PR whose issue is eval-gated: do-not-merge, then the eval rea
   });
 });
 
+test("main holds an eval-gated PR that a person must also merge with both reasons, each on its own line", async () => {
+  const both = evalHoldComment(77, true).split("\n");
+  assert.ok(both.includes("<!-- pr-hold reason=eval -->") && both.includes("<!-- pr-hold reason=person -->"), both.join("\n"));
+  await withDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() }, async (dir) => {
+    const { fetch, calls } = fakeFetch(evalRoutes([]));
+    assert.equal(await main({ env: env(dir), fetch }), 0);
+    const writes = calls.filter((c) => c.method === "POST" && c.path.startsWith("/repos/o/r/issues/90/"));
+    assert.deepEqual(writes.map((c) => [c.path, c.body]), [
+      ["/repos/o/r/issues/90/labels", { labels: ["do-not-merge"] }],
+      ["/repos/o/r/issues/90/comments", { body: evalHoldComment(77, true) }],
+    ]);
+  });
+});
+
 test("main posts the eval hold comment once: a rerun finds the lanes App's", async () => {
   await withDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() }, async (dir) => {
-    const prior = [{ user: { login: "melodic-automation-lanes[bot]" }, body: evalHoldComment(77) }];
+    const prior = [{ user: { login: "melodic-automation-lanes[bot]" }, body: evalHoldComment(77, true) }];
     const routes = evalRoutes(prior);
     routes[4] = ["GET", /\/pulls$/, 200, [{ number: 90, user: { login: "melodic-automation-lanes[bot]" }, head: { sha: "c".repeat(40) }, labels: [{ name: HOLD_LABEL }] }]];
     const { fetch, calls } = fakeFetch(routes);
@@ -5188,8 +5203,8 @@ for (const [name, overrides] of Object.entries({ ...HOLD_CASES, ...SCAN_CASES })
 }
 
 test("a reuse PR with a clean scan does not hold only because no runner check reported, and says what checks its head", () => {
-  const { body } = reusePlan({ ...CLEAN_REUSE, checks: { ...CLEAN_CHECKS, results: [] } });
-  assert.ok(!body.split("\n").includes("Hold: a human merges this"), body);
+  const { body, hold } = reusePlan({ ...CLEAN_REUSE, checks: { ...CLEAN_CHECKS, results: [] } });
+  assert.equal(hold, false, body);
   assert.ok(body.includes("ci-status, pr-verify and the security review lane check the head before it merges."), body);
   assert.ok(!body.includes("a person reviews the diff"), body);
 });

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 
-import { EVAL_GATED_LABEL as REPORT_OUTCOME_EVAL_GATED_LABEL } from "../work-resolve-issue/report-outcome.mjs";
+import { EVAL_GATED_LABEL as REPORT_OUTCOME_EVAL_GATED_LABEL, evalHoldComment as laneHoldComment } from "../work-resolve-issue/report-outcome.mjs";
 import {
   CANNOT_START_CAUSES,
   CANNOT_START_JOB,
@@ -629,6 +629,18 @@ test("a compare run that recorded it cannot start at the current head releases a
     assert.equal(result.cannotStart.cause, cause);
     assert.equal(result.record, undefined);
   }
+});
+
+test("a lane PR held for a person as well as for the eval keeps its label after a VALID record or a cannot-start record; an eval-only one releases", () => {
+  const laneHold = (personHold) => comment(laneHoldComment(77, personHold), { user: APP, at: "2026-11-06T10:01:00Z", app: { id: 1, slug: "lanes" } });
+  for (const [name, evidence] of [
+    ["a VALID record", { comments: [laneHold(true), recordComment()] }],
+    ["a cannot-start record", { comments: [laneHold(true)], cannotStart: cannotStart() }],
+  ]) {
+    assert.deepEqual(run(evidence), { release: false, reason: "hold-reason-person" }, name);
+  }
+  assert.equal(run({ comments: [laneHold(false), recordComment()] }).release, true, "an eval-only lane hold releases on a VALID record");
+  assert.equal(run({ comments: [laneHold(false)], cannotStart: cannotStart() }).release, true, "an eval-only lane hold releases on a cannot-start record");
 });
 
 test("a missing record alone, or a cannot-start record for another head or with an unknown cause, keeps the hold", () => {

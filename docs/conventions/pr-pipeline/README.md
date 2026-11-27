@@ -2281,12 +2281,11 @@ rather than disarms. The merge queue's
 reads the pull request's live head, not the SHA in the queue ref, and relies on GitHub dequeuing an
 entry when its head branch is pushed. `enable-auto-merge` turns auto-merge off on an armed one that
 now fails any of those, and does not turn it back on once a person has turned it off. A scheduled or
-hand-started run that leaves a lanes App pull request unarmed on report-outcome's own
-`do-not-merge` label, a hold path, a cost hold, the gate's verdict or its risk score
+hand-started run leaves a lanes App pull request that carries `do-not-merge` unarmed and posts no
+refusal comment for it. One that it leaves unarmed on a hold path, a cost hold, the gate's verdict or its risk score
 says why in one `<!-- babysit-merge-risk -->` comment, edited in place, and adds the human-gated
 label only for a cause a person must clear ([when work stops for the owner](../../contracts/loop-lane/README.md#when-work-stops-for-the-owner), with cost and trust holds
-kept): that hold
-label (owner decision Q-HOLDLINE), a configured denied path or a [path floor](#merge-authority) path,
+kept): a configured denied path or a [path floor](#merge-authority) path,
 a cost hold, untrusted provenance, an issue whose labels cannot be read whole, an untrusted spec, a
 security finding, a trusted-actor widening or a listing at GitHub's 3000-file cap. It puts the label back while the comment stands
 unless a person removed it since. Every other refusal, a
@@ -4513,7 +4512,7 @@ the author on the trusted-actor list, as every pr-unblock run does. A pushed fix
 PR and its head, so the next fix waits another `idle-hours`: a person's PR gets at most one fix
 round per idle window. A lanes App PR waits for no idle window. With an `adoption` section the
 human-gated label holds a lanes App PR from `fix-ci` too, including the label `enable-auto-merge`
-adds for report-outcome's hold, since its pr-merge escalation comment is not a pr-unblock lane escalation;
+adds for a cause a person must clear, since its pr-merge escalation comment is not a pr-unblock lane escalation;
 without one the tracker file and the trusted-actor list are not read, nothing is adopted, and only
 `do-not-merge` and `needs-human` hold.
 

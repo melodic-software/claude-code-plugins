@@ -813,6 +813,16 @@ stub_module "$TMP_ROOT/older.mjs" 'console.log("#7: no hold path.");
 console.log("#7: no verifier hold: pr-verify passed this head.");'
 STUB_MODULE="$TMP_ROOT/older.mjs"
 expect "in the merge queue, a base module that ignores the reader's report fails closed" 1 2 "::error::merge-holds.mjs exited 0 without its pr-verify FAIL verdict"
+stub_module "$TMP_ROOT/earlier-wording.mjs" 'console.log("#7: no member veto and no hold path.");
+console.log("#7: no verifier hold: pr-verify passed this head.");
+console.log("#7: no pr-verify FAIL hold: none stands at this head.");'
+STUB_MODULE="$TMP_ROOT/earlier-wording.mjs"
+expect "in the merge queue, a base module that still prints the earlier verdict wording passes" 0 2 "#7: no member veto and no hold path."
+stub_module "$TMP_ROOT/earliest-wording.mjs" 'console.log("#7: no body hold, no member veto and no hold path.");
+console.log("#7: no verifier hold: pr-verify passed this head.");
+console.log("#7: no pr-verify FAIL hold: none stands at this head.");'
+STUB_MODULE="$TMP_ROOT/earliest-wording.mjs"
+expect "in the merge queue, a base module that prints the body-hold era's verdict fails closed" 1 2 "::error::merge-holds.mjs exited 0 without its verdict."
 unset STUB_MODULE
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
 STUB_PULL="$(pull $'Closes #1\nHold: owner call')"
