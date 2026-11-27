@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -109,17 +109,22 @@ export function modelTools(workspace) {
   return { allowed: fill(allowed), disallowed: fill(disallowed) };
 }
 
-export function stagedGrants(stage) {
-  const root = join(stage, "plugins");
+const PLUGIN_ENTRIES = new Set([".claude-plugin", ".mcp.json", "CHANGELOG.md", "README.md", "context", "evals", "lib", "prerequisites.json", "probes", "reference", "retirements.yaml", "schemas", "scripts", "skills", "templates"]);
+const MANIFEST_KEYS = new Set(["name", "version", "description", "author", "homepage", "repository", "license", "keywords", "metadata", "userConfig"]);
+const SKILL_KEYS = new Set(["name", "description", "argument-hint", "user-invocable", "disable-model-invocation", "metadata", "shell"]);
+
+export function stagedGrants(stage, plugins = readdirSync(join(stage, "plugins"))) {
   const found = [];
-  for (const plugin of readdirSync(root)) {
-    if (existsSync(join(root, plugin, "hooks"))) found.push(`plugins/${plugin}/hooks`);
-    const manifest = JSON.parse(readFileSync(join(root, plugin, ".claude-plugin/plugin.json"), "utf8"));
-    for (const key of ["hooks", "mcpServers"]) if (key in manifest) found.push(`plugins/${plugin}/.claude-plugin/plugin.json ${key}`);
-    for (const file of readdirSync(join(root, plugin), { recursive: true })) {
+  for (const plugin of plugins) {
+    const dir = join(stage, "plugins", plugin);
+    for (const entry of readdirSync(dir)) if (!PLUGIN_ENTRIES.has(entry)) found.push(`plugins/${plugin}/${entry}`);
+    for (const entry of readdirSync(join(dir, ".claude-plugin"))) if (entry !== "plugin.json") found.push(`plugins/${plugin}/.claude-plugin/${entry}`);
+    const manifest = JSON.parse(readFileSync(join(dir, ".claude-plugin/plugin.json"), "utf8"));
+    for (const key of Object.keys(manifest)) if (!MANIFEST_KEYS.has(key)) found.push(`plugins/${plugin}/.claude-plugin/plugin.json ${key}`);
+    for (const file of readdirSync(join(dir, "skills"), { recursive: true })) {
       if (!/(^|\/)SKILL\.md$/.test(file)) continue;
-      const frontmatter = /^---\n([\s\S]*?)\n---/.exec(readFileSync(join(root, plugin, file), "utf8"))?.[1] ?? "";
-      if (/^allowed-tools:/m.test(frontmatter)) found.push(`plugins/${plugin}/${file} allowed-tools`);
+      const frontmatter = /^---\n([\s\S]*?)\n---/.exec(readFileSync(join(dir, "skills", file), "utf8"))?.[1] ?? "";
+      for (const [, key] of frontmatter.matchAll(/^([^\s:#][^:]*):/gm)) if (!SKILL_KEYS.has(key)) found.push(`plugins/${plugin}/skills/${file} ${key}`);
     }
   }
   return found;

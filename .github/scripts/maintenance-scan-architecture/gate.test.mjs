@@ -183,18 +183,7 @@ test("every model leg runs sandboxed, and its Bash rules allow no network-capabl
     const script = /^(?:bash|node) "?\/runner\/work\/r\/r\/\.lane\/plugins\/([^"* ]+)"?/.exec(command)?.[1];
     assert.ok(HELPERS.includes(script), `${rule} runs one named helper, never a plugin wildcard`);
   }
-  const skills = execFileSync("git", ["-C", REPO_ROOT, "ls-files", "plugins/improvement/skills/**/SKILL.md", "plugins/architecture/skills/**/SKILL.md"], { encoding: "utf8" }).trim().split("\n");
-  assert.ok(skills.length > 1, "the staged plugins' skills were listed");
-  for (const skill of skills) {
-    const frontmatter = /^---\n([\s\S]*?)\n---/.exec(readFileSync(join(REPO_ROOT, skill), "utf8"))?.[1] ?? "";
-    assert.doesNotMatch(frontmatter, /^allowed-tools:/m, `${skill} grants no tools while it runs, so the Skill rule widens nothing`);
-  }
-  for (const plugin of ["improvement", "architecture"]) {
-    const hooks = execFileSync("git", ["-C", REPO_ROOT, "ls-files", `plugins/${plugin}/hooks`], { encoding: "utf8" }).trim();
-    assert.equal(hooks, "", `${plugin} ships no hooks, which would run commands outside model-tools.json`);
-    const manifest = JSON.parse(readFileSync(join(REPO_ROOT, `plugins/${plugin}/.claude-plugin/plugin.json`), "utf8"));
-    assert.ok(!("hooks" in manifest) && !("mcpServers" in manifest), `${plugin}'s manifest declares no hooks or MCP servers`);
-  }
+  assert.deepEqual(stagedGrants(REPO_ROOT, ["improvement", "architecture"]), [], "the staged plugins hold only parts the stage allows, so no skill, hook or path entry widens model-tools.json");
   for (const helper of [...HELPERS, ...HELPER_IMPORTS]) {
     const text = readFileSync(join(REPO_ROOT, "plugins", helper), "utf8");
     assert.doesNotMatch(text, /child_process|\bspawn|\bexecFile|\beval\b|\bbash -c\b|\b(curl|wget|nc|python\d?|perl|ruby|npx|npm)\s|node -e\b/, `${helper} holds no process spawner, eval, network fetch or interpreter call; the hold floor keeps a person on any other command it adds`);
@@ -424,7 +413,7 @@ test("the prepared working tree is read-only but for .git and .work, so no comma
   }
 });
 
-test("the stage refuses a staged plugin that ships hooks, declares hooks or MCP servers, or has a skill that grants tools", () => {
+test("the stage refuses any plugin part, manifest key or skill frontmatter key outside its allow list", () => {
   const stage = (mutate) => {
     const dir = tempDir("scan-architecture-stage-");
     for (const plugin of ["improvement", "architecture"]) {
@@ -440,6 +429,15 @@ test("the stage refuses a staged plugin that ships hooks, declares hooks or MCP 
   assert.deepEqual(stage((p) => mkdirSync(join(p, "hooks"))), ["plugins/architecture/hooks"]);
   assert.deepEqual(stage((p) => writeFileSync(join(p, ".claude-plugin/plugin.json"), '{"name":"p","hooks":{}}\n')), ["plugins/architecture/.claude-plugin/plugin.json hooks"]);
   assert.deepEqual(stage((p) => writeFileSync(join(p, "skills/find/SKILL.md"), "---\nname: find\nallowed-tools: Bash\n---\n")), ["plugins/architecture/skills/find/SKILL.md allowed-tools"]);
+  for (const entry of ["commands", "agents", "bin", "monitors", "output-styles", "workflows", "themes", ".lsp.json", "settings.json"]) {
+    assert.deepEqual(stage((p) => mkdirSync(join(p, entry))), [`plugins/architecture/${entry}`], entry);
+  }
+  for (const key of ["lspServers", "monitors", "experimental", "commands", "agents", "skills", "outputStyles", "workflows"]) {
+    assert.deepEqual(stage((p) => writeFileSync(join(p, ".claude-plugin/plugin.json"), JSON.stringify({ name: "p", [key]: "./x" }))), [`plugins/architecture/.claude-plugin/plugin.json ${key}`], key);
+  }
+  assert.deepEqual(stage((p) => writeFileSync(join(p, ".claude-plugin/marketplace.json"), "{}")), ["plugins/architecture/.claude-plugin/marketplace.json"]);
+  assert.deepEqual(stage((p) => writeFileSync(join(p, "skills/find/SKILL.md"), "---\nname: find\nhooks:\n  PreToolUse: []\n---\n")), ["plugins/architecture/skills/find/SKILL.md hooks"]);
+  assert.deepEqual(stage((p) => writeFileSync(join(p, "skills/find/SKILL.md"), "---\nname: find\ndescription: d\nmetadata:\n  hooks: x\nshell: bash\n---\nbody\n")), [], "nested keys and the allowed keys pass");
   const stageStep = parse(WORKFLOW_TEXT).jobs["find-candidates"].steps.find((step) => step.id === "stage");
   assert.match(stageStep.run, /gate\.mjs prompt/);
   assert.equal(stageStep.env.STAGE, "${{ runner.temp }}/scan-stage");
