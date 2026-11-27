@@ -3647,6 +3647,10 @@ jq 'del(.marketplaces.market2)' "$run_dir/run.json.kept" >"$run_dir/run.json"
 record_echo
 assert_eq "run record: a marketplace with no record entry says so in its block" "1" \
   "$(jq '[.marketplaces[] | select(.name == "market2") | .errors[] | select(contains("no first-pass entry"))] | length' <<<"$out2")"
+jq '.marketplaces.market1.errors = ["read failed (exit 3): first\nsecond"]' "$run_dir/run.json.kept" >"$run_dir/run.json"
+record_echo
+assert_eq "run record: a multi-line error restores as one entry" '["read failed (exit 3): first\nsecond"]' \
+  "$(jq -c '.marketplaces.market1.errors' "$case_dir/echo.json")"
 
 record_case_b
 record_echo

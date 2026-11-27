@@ -329,7 +329,7 @@ json_strings_of() {
     printf -v "$__var" '%s' '[]'
     return 0
   fi
-  jq_to "$__var" -c -R -s 'split("\n") | map(select(length > 0))' <<<"$(printf '%s\n' "$@")"
+  jq_to "$__var" -c -R -s 'split("\u0000") | map(select(length > 0))' < <(printf '%s\0' "$@")
 }
 
 json_object_file() {
@@ -1077,7 +1077,7 @@ restore_fields() {
   for spec in "$@"; do
     read -r name var kind <<<"$spec"
     case "$kind" in
-      strings) mapfile -t "$var" < <(jq -r --arg mp "$mp" --arg n "$name" "${at}[]" "$RUN_RECORD") ;;
+      strings) mapfile -d '' -t "$var" < <(jq -j --arg mp "$mp" --arg n "$name" "${at}[] | (., \"\\u0000\")" "$RUN_RECORD") ;;
       rows) mapfile -t "$var" < <(jq -c --arg mp "$mp" --arg n "$name" "${at}[]" "$RUN_RECORD") ;;
       flag)
         jq_to val -r --arg mp "$mp" --arg n "$name" "$at" "$RUN_RECORD"
@@ -2036,8 +2036,7 @@ report_extras() {
         | group_by(.parent)
         | map({parent: .[0].parent, count: (map(.count) | add), paths: (map(.paths) | add)})
       end;
-    ([.divergences[]? | actionable | .id]) as $act
-    | .catalog_versions as $cv
+    .catalog_versions as $cv
     | ([.installed[]? | select(.currentProject == true) | .id]) as $here
     | ([.installed[]? | select(.projectPathPresent == false)]) as $absent
     # A home record still below the catalog, or with no version to compare: the
@@ -2068,8 +2067,7 @@ report_extras() {
                                   more_parents: ([0, ($groups | length) - $cap] | max),
                                   list_file: (if $list_file == "" then null else $list_file end)}),
        in_repo_records: ($here | length),
-       in_repo_ids: $here,
-       divergences_here: ($act | map(select(. as $i | $here | index($i))) | length)}' "$src"
+       in_repo_ids: $here}' "$src"
 }
 
 source_checkout() {
@@ -2252,7 +2250,10 @@ emit_marketplace_block() {
   json_strings_of errs ${MP_ERRORS[@]+"${MP_ERRORS[@]}"}
 
   catalog_regression_rows reg_interval reg_rows "$mp"
-  divergence_block div "$mp"
+  divergence_block div "$mp" || {
+    div='{"note":"the divergence computation failed"}'
+    mp_error "divergence computation failed"
+  }
   report_extras extras "$mp"
   jq_to checkout -r '.catalog_source // ""' <<<"$extras"
   source_checkout checkout "$checkout"

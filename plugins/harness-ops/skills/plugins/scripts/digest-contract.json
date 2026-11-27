@@ -55,9 +55,11 @@
     "divergences": {
       "pre": null, "mid": null, "post": null, "new_total": null,
       "new_by_interval": {"in_repo": null, "user_sweep": null, "concurrent": null},
-      "pre_existing": null
+      "pre_existing": null,
+      "actionable_here": null, "actionable_elsewhere": null, "in_worktrees": null, "blocked": null,
+      "by_path": [], "blocked_paths": null,
+      "record_count": null, "records_file": null, "note": null
     },
-    "divergences_here": null,
     "user_scope_orphans": [],
     "user_home_records": {"total": 0, "paths": []},
     "delisted": [],
