@@ -3,7 +3,6 @@
 set -euo pipefail
 set -o noclobber
 
-# Write only inside the run's temporary home, never the real one.
 here="$(pwd -P)"
 real="$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f6 || true)"
 home="$(cd "${HOME:-/}" && pwd -P)"

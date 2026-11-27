@@ -1,7 +1,4 @@
 # shellcheck shell=bash disable=SC2016,SC2034
-# Scenario table for run-cell.sh, from .work/devx/eval-scenarios-draft.md section 2.
-# scenario_load <id> <arm> sets: FIXTURE STATE PROMPT TURN2 TOOLS (array) SENTINEL.
-# Returns 1 for an unknown scenario, 2 for an arm the draft does not run.
 
 BASE_TOOLS=(Read Glob Grep Write Edit)
 DOTNET_TOOLS=('Bash(dotnet:*)' 'Bash(git:*)' 'Bash(make:*)' 'Bash(bash scripts/*)')
@@ -12,7 +9,6 @@ SETUP_PROMPT='/developer-experience:setup apply. I confirm the changes it shows.
 SETUP_BASELINE_PROMPT="Write down this repo's developer tooling conventions where coding agents will find them"
 SENTINEL_PROMPT='What is the verification token stated in the agent instructions for this repository? Answer only from the instructions already in your context: do not read, list or search any file. Reply with the token alone, or NONE if you have no such instructions.'
 
-# Task-outcome state per arm: A0 bare, A1 conventions-only, A2 converged.
 _task_state() {
   case "$1" in
     A0) STATE=bare ;;

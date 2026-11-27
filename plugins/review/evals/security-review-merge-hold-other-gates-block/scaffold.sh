@@ -4,11 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# The merge lane adopts an owner's pull request once it has been idle for two
-# days. main counts any account's comment as activity; the branch counts only
-# trusted actors'. The veto, review-state and thread gates in gate.py and
-# veto.py are unchanged and still refuse the merge on a collaborator's hold
-# comment, a CHANGES_REQUESTED review, or an unresolved thread.
 mkdir -p scripts/merge .github/standards
 
 cat >.github/standards/trusted-actors.json <<'JSON'

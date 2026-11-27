@@ -4,9 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# The release workflow passes the registry token to publish.sh. The branch adds
-# a "debug" line that prints the token base64-encoded; masking covers the raw
-# value only, and the repository's Actions logs are public.
 mkdir -p .github/workflows scripts
 
 cat >.github/workflows/release.yml <<'YAML'

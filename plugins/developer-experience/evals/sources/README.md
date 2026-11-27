@@ -20,8 +20,13 @@ The hand-rolled eval harness for the developer-experience skills: the source mat
   holds the workspaces, outside the repository. Results land in
   `results/<scenario>/<arm>/<model>/run-<n>/`; cost fields are removed from saved stream-json.
 - `harness/score-deterministic.py RESULT_DIR`: D and T items of S1 and the sentinel runs, into
-  `score.json`. J items are listed as unscored. `harness/score-deterministic-check.sh RESULT_DIR`
-  checks its item 8 on copies of a real run (`EVAL_TEST_DIR` required).
+  `score.json`. J items are listed as unscored. `harness/score-deterministic-check.sh [RESULT_DIR]`
+  checks its item 8 on copies of a real run (`EVAL_TEST_DIR` required). The default run is the
+  Phase 2 pilot `results-p2/S1/A1/opus/run-3`, and the `token-flag-accepted` case edits that run's
+  `BranchStartCommand.cs`, so another run must hold the same code; when the edit matches nothing
+  the check exits 2. The expected values are the rubric's: a CLI that accepts `--token`, or that
+  does not build, fails item 8, and the pilot, which reads `TARNQUILL_FORGE_TOKEN` and rejects
+  `--token` with exit 2, passes it. Exit: 0 all pass, 1 a case failed, 2 setup error.
 - `held-out/`: the H-audit and H-build held-out scenarios.
 - `judge/items.json`: the J-item rubric checklist; `judge/judge.py`, `judge/build_inputs.py` and
   `judge/score_j.py` build judge inputs, run the judge and score it (`DX_JUDGE_SCRATCH` required).

@@ -4,10 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# notes is an existing plugin. The branch adds a max_files number key that
-# only the summary skill's prose reads. The key caps how many files the skill
-# reads, so it is a guard, and its default 0 means no limit: the permissive
-# value. The guard bullet makes it a finding before the inert bullet applies.
 mkdir -p .claude-plugin plugins/notes/.claude-plugin plugins/notes/skills/summary
 
 cat >.claude-plugin/marketplace.json <<'JSON'

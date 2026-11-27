@@ -7,7 +7,6 @@ git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
 
-# Fixture values are assembled at run time so secret scanners do not flag this file.
 dev_value="CANARY-dev-$(printf '%s' 61c0ae)"
 prod_value="CANARY-prod-$(printf '%s' 93fd25)"
 mkdir -p deploy/dev deploy/prod

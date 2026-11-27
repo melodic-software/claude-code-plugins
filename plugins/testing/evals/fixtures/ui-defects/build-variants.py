@@ -52,8 +52,6 @@ def build(defects_path: Path, out: Path, map_path: Path) -> dict:
     base = base_path.read_text(encoding="utf-8")
     assets = sorted(p for p in site.rglob("*") if p.is_file() and p != base_path)
 
-    # Build into a staging sibling and swap it in only after every variant
-    # succeeds, so a failed build leaves the previous variants and map intact.
     staging = out.with_name(out.name + ".tmp")
     shutil.rmtree(staging, ignore_errors=True)
     mapping = {}

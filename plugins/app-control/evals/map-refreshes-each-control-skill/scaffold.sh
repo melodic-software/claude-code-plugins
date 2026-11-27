@@ -3,19 +3,15 @@
 # refresh must take each in turn on its own upkeep branch.
 set -euo pipefail
 
-# Init a repository here unless this directory already is one's top level, so the commit never lands
-# in an enclosing repository.
 if [[ "$(git rev-parse --show-toplevel 2>/dev/null || true)" != "$(pwd -P)" ]]; then
   git init -q -b main
 fi
 git config user.name eval
 git config user.email eval@example.invalid
-# Keep a .gitconfig in the workspace out of git status, so the clean status the prompt states holds.
 exclude="$(git rev-parse --git-path info/exclude)"
 mkdir -p "$(dirname "$exclude")"
 printf '%s\n' .gitconfig >>"$exclude"
 
-# seed <slug> <app> <feature> <entry point>
 seed() {
   local skill=".claude/skills/control-$1"
   mkdir -p "$skill/features/$3" "$1"
@@ -82,10 +78,7 @@ seed admin "Admin console" users 'the `/admin/people` page'
 seed shop Shop cart 'the `Add to basket` button'
 git add -A
 git commit -q -m "Admin console and shop with their control skills"
-# Name the starting branch main whatever branch an existing repository started on.
 git branch -M main
-# Give the pass the origin remote it fetches the default branch from. The bare repository sits under
-# .git, so it stays out of git status.
 origin="$(git rev-parse --absolute-git-dir)/origin.git"
 git init -q --bare -b main "$origin"
 git remote add origin "$origin" 2>/dev/null || git remote set-url origin "$origin"

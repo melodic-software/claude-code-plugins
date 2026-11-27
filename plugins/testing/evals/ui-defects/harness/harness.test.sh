@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Runs measure-layers.mjs and compares every defect-by-layer cell, and the
-# geometry check behind each geometry catch, with expected-matrix.json. The
-# expected cells come from the defect catalog's "Layers expected to catch it"
-# column; expected-matrix.json lists each cell that differs and why.
-# Skips (exit 0, nothing measured) when the one-time cache in README.md or
-# Chromium is missing; UI_DEFECTS_REQUIRE=1 fails the run instead, for a lane
-# that installed them and must not pass green on a skip.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

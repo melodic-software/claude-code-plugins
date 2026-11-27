@@ -111,7 +111,6 @@ def main(argv):
                               + ("" if d_ok is None else f"; D part pass={d_ok}")
                               + ("" if st["counted"] else "; judge not calibrated, not counted"))
             item_pass[key][prefix + arm].append(None if not st["counted"] else combined)
-        # DEVIATIONS 2026-10-09: S5 #1 is excluded from the compared totals of every arm.
         for i in score["items"]:
             if sc == "S5" and str(i["item"]) == "1":
                 i["excluded_from_totals"] = True

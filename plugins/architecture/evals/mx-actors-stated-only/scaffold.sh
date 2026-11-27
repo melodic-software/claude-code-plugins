@@ -8,7 +8,6 @@ git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
 
-# Fixture values are assembled at run time so secret scanners do not flag this file.
 pw_key="Pass""word"
 sql_value="CANARY-sql-$(printf '%s' 8d21e7)"
 tok_value="CANARY-tok-$(printf '%s' 4b7e10)"

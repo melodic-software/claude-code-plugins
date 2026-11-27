@@ -4,9 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# The broker mints a token from an activity's effect. The resolve-issue
-# activity reads issue text from anyone; the branch moves it from read to
-# write so it can push its own fix.
 mkdir -p .github/actions/resolve-config
 
 cat >.github/actions/resolve-config/resolve.mjs <<'JS'

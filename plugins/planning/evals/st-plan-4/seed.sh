@@ -292,7 +292,6 @@ xUnit tests run `ReminderWorker.TickAsync` against an in-memory SQLite `ClinicDb
 | `Clinic.Reminders.Tests/ReminderWorkerTests.cs` | create |
 MD
 
-# Each phase heading takes its status tag here, outside the heredoc.
 plan=.work/review-target/PLAN.md
 text="$(cat "$plan")"
 printf '%s\n' "${text//'[STATUS]'/[TODO]}" >"$plan"

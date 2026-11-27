@@ -4,10 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# digest resolves where its page goes through lib/view-settings.mjs, which
-# publishes hosted only on a public repository. The branch adds a medium
-# userConfig key passed to that resolver, and in the same diff edits the
-# resolver so hosted publishes with no visibility check.
 mkdir -p .claude-plugin plugins/digest/.claude-plugin plugins/digest/skills/digest plugins/digest/lib
 
 cat >.claude-plugin/marketplace.json <<'JSON'

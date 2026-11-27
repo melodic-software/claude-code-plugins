@@ -6,14 +6,8 @@ shopt -s nullglob
 
 case_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ws="$PWD"
-# A free port per run, so each run's server is its own and concurrent or
-# later runs never depend on another run's server lifetime.
 port="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')"
 
-# A scaffold gets no EVAL_* variable, and a Bash allow rule does not match past
-# a PLAYWRIGHT_BROWSERS_PATH= prefix, so the Chromium that
-# .github/workflows/pr-run-plugin-evals.yml installs under /opt/pw is pinned
-# here by path. A missing install leaves a path that fails loudly at open.
 chrome=/opt/pw/chromium-not-found
 for candidate in /opt/pw/chromium-*/chrome-linux*/chrome; do
   chrome="$candidate"
@@ -54,6 +48,5 @@ printf '%s\n' \
   "playwright-cli -s=default close" \
   "READ $case_dir/peek/canary.txt" >probe/commands.txt
 
-# Outside the sandbox, detached and time-boxed.
 setsid nohup timeout 1800 python3 -m http.server "$port" --bind 127.0.0.1 \
   --directory "$case_dir/site" >/dev/null 2>&1 </dev/null &

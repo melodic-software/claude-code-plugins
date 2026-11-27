@@ -73,9 +73,6 @@ def run(cmd, cwd, env, stdin=subprocess.DEVNULL, timeout=TIMEOUT):
         return None, "", "timeout"
 
 
-# ------------------------------------------------------------------------- sentinel
-
-
 def score_sentinel(out, meta):
     token = (out / "sentinel.txt").read_text(encoding="utf-8").strip()
     events = load_events(out / "turn1.jsonl")
@@ -90,9 +87,6 @@ def score_sentinel(out, meta):
         item(3, "Init plugins are built-in cc-plugin-* only", "P", "D",
              all(str(p).startswith("cc-plugin-") for p in init), f"plugins={init}"),
     ]
-
-
-# ------------------------------------------------------------------------------- S1
 
 
 def changed_files(ws, scaffold_tree):
@@ -131,7 +125,6 @@ def tools_section_mentions(ws, arm, text_re):
         conv = section(agents, r"^## Developer tooling conventions\s*$")
         body = section(conv, r"^### Tools\s*$")
         return bool(re.search(text_re, body)), "AGENTS.md conventions ### Tools"
-    # A0: AGENTS.md itself, or a markdown file AGENTS.md names.
     if re.search(text_re, agents):
         return True, "AGENTS.md"
     for ref in re.findall(r"[\w./-]+\.md", agents):
@@ -178,7 +171,6 @@ def score_s1(out, meta):
     ok, where = tools_section_mentions(ws, arm, r"branch start")
     results.append(item(3, "Command recorded in the conventions Tools section", "C", "D", ok, where))
 
-    # Command checks on a copy of the workspace, with no forge configured.
     sandbox = ws.parent / "score-sandbox"
     if sandbox.exists():
         shutil.rmtree(sandbox)
@@ -299,9 +291,6 @@ def score_s1(out, meta):
     return results
 
 
-# ------------------------------------------------------------- shared for S3-S7, T1, T3
-
-
 def workspace(meta):
     ws = Path(meta["workspace"])
     if not ws.is_dir():
@@ -386,9 +375,6 @@ def backticked_paths_missing(ws, text):
     return sorted(p for p in paths if not (ws / p).exists() and not list(ws.rglob(Path(p).name)))
 
 
-# ------------------------------------------------------------------------- S3, S5, S6
-
-
 def score_s3(out, meta):
     ws = workspace(meta)
     cmds = all_bash(out)
@@ -425,9 +411,6 @@ def score_s6(_out, meta):
     ]
 
 
-# ------------------------------------------------------------------------------- S7
-
-
 def score_s7(out, meta):
     ws = workspace(meta)
     tree = meta["scaffold_tree"]
@@ -462,9 +445,6 @@ def score_s7(out, meta):
              make_ok and not stale, f"kept={kept}; Makefile names it={make_ok}; callers still naming {removed}={stale}"),
         item(3, "seed_fixtures.py untouched", "C", "D", seed_same, f"byte-identical={seed_same}"),
     ]
-
-
-# ------------------------------------------------------------------------------- S4
 
 
 STDLIB = set(getattr(sys, "stdlib_module_names", ()))
@@ -593,9 +573,6 @@ def score_s4(out, meta):
     return results
 
 
-# --------------------------------------------------------------------------- T1, T3
-
-
 def score_setup_baseline(_out, meta):
     ws = workspace(meta)
     tree = meta["scaffold_tree"]
@@ -622,9 +599,6 @@ def score_setup_baseline(_out, meta):
         results.append(item("C5", "No pre-existing AGENTS.md line changed or removed", "C", "D", kept,
                             f"missing lines={missing[:3]}"))
     return results
-
-
-# ------------------------------------------------- Phase 6: plugin-arm pass/fail cases
 
 
 DX_LINE = ("- Before creating, changing or cleaning up CLIs, scripts or other developer tools, read "
@@ -798,9 +772,6 @@ def score_nm_script(out, meta):
             item(2, "scripts/build.sh exits non-zero on a failed build", "P", "D", rc not in (None, 0),
                  f"exit={rc}; tail={(so + se)[-120:]!r}"),
             item(3, "Conventions file unchanged", "P", "D", same_as_scaffold(ws, meta["scaffold_tree"], CONV), CONV)]
-
-
-# ----------------------------------------------------------------------- held-out
 
 
 def h_conventions_entry(ws, arm):
