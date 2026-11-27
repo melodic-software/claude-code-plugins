@@ -51,6 +51,12 @@ files in a plugin's cache directory actually match the commit its install record
 "<skill-dir>/scripts/cache-content-check.sh" --marketplace <name> --ids
 ```
 
+It reads no internal file itself: it runs `fleet-state.sh` (`--marketplace <name>` or `--all`) and
+checks the records of that report, using each record's `gitCommitSha`, `installPath` and
+`projectPathPresent` and the marketplace's `installLocation`. A marketplace `fleet-state.sh` cannot
+read, unknown or with no readable catalog, is exit `2` with its reason for `--marketplace`, and
+`{error: …}` under `--all`.
+
 `--ids` emits the stale ids alone, one per line, CR-free, the same contract and for the same reason
 as `fleet-state.sh --ids`. Step 5b does not use it beside the JSON form: the ids are already in that
 JSON, and a second call would repeat the run's most expensive read. It is the fallback for a JSON
@@ -80,8 +86,8 @@ Each install record gets one `verdict`:
 The JSON object is `{marketplace, scope, checked, match, stale_content, unverifiable, not_checked,
 skipped_absent_project_paths, installs: […]}`. `unverifiable` counts every verdict other than
 `match`, `stale-content` and `not-at-head`; `checked` is the sum of `match`, `stale_content`,
-`unverifiable` and `not_checked`. `skipped_absent_project_paths` counts project and local records
-whose `projectPath` is not a directory on this machine; they are not in `checked`.
+`unverifiable` and `not_checked`. `skipped_absent_project_paths` counts the project and local
+records `fleet-state.sh` reports with `projectPathPresent` not true; they are not in `checked`.
 `installs[].unreleased_changes` is true when the clone's work tree holds `.changes/<plugin>/`. With
 `--all` the output is `{marketplaces: {"<name>": <one marketplace's object>}}`, and a marketplace
 that fails appears as `{"<name>": {error: …}}` without stopping the others.

@@ -631,6 +631,7 @@ PASS3_PROGRAM="$VERSION_TRIPLE_DEF"'
                 # The record'"'"'s cache directory, as recorded: the one place a
                 # consumer can read the installed build'"'"'s own manifest from.
                 installPath: (.installPath // null),
+                gitCommitSha: (.gitCommitSha // null),
                 projectPath: (.projectPath // null),
                 currentProject: (
                   if (.scope == "project" or .scope == "local") and (.projectPath // "" | length) > 0 and ($cur | length) > 0 then
@@ -779,7 +780,8 @@ PASS3_PROGRAM="$VERSION_TRIPLE_DEF"'
         })) as $divergences
   | {
       marketplace: {name: $name, autoUpdate: ($au == "true"), lastUpdated: $lastUpdated,
-                    source: (if $src == "" then null else $src end)},
+                    source: (if $src == "" then null else $src end),
+                    installLocation: (if $loc == "" then null else $loc end)},
       project_root: (if ($cur | length) > 0 then $cur else null end),
       catalog: $catalog_names,
       catalog_versions: $cv,
@@ -897,6 +899,7 @@ emit_marketplace() {
     --arg au "$auto_update_json" \
     --arg lastUpdated "$last_updated" \
     --arg src "$source_text" \
+    --arg loc "$install_location" \
     --arg cur "$current_project_norm" \
     --arg ci "$case_insensitive_os" \
     --arg home "${HOME:-}" \

@@ -3,16 +3,15 @@
 #   0  ran to completion (per-install verdicts, including every unverifiable
 #      one, are reported in the body — a verdict is not an error)
 #   2  fatal: jq or git missing, no temporary file, a usage error, a named
-#      marketplace that is not in known_marketplaces.json, or an internal state
-#      file that is present but does not match its expected shape (fail loud on
-#      schema drift)
+#      marketplace fleet-state.sh cannot read (not in known_marketplaces.json,
+#      or no readable catalog), or fleet-state.sh failing on a state file
 
 set -uo pipefail
 
 script_src="${BASH_SOURCE[0]}"
 case "$script_src" in
-*/*) script_src_dir="${script_src%/*}" ;;
-*) script_src_dir="." ;;
+  */*) script_src_dir="${script_src%/*}" ;;
+  *) script_src_dir="." ;;
 esac
 JQ_CAPTURE="$script_src_dir/jq-capture.sh"
 if [[ -f "$JQ_CAPTURE" ]]; then
@@ -56,13 +55,14 @@ spool_records_to() {
   fi
 }
 
-INSTALLED_JSON="${CACHE_CONTENT_INSTALLED_JSON:-${FLEET_STATE_INSTALLED_JSON:-$HOME/.claude/plugins/installed_plugins.json}}"
-MARKETPLACES_JSON="${CACHE_CONTENT_MARKETPLACES_JSON:-${FLEET_STATE_MARKETPLACES_JSON:-$HOME/.claude/plugins/known_marketplaces.json}}"
+FLEET_STATE="$script_src_dir/fleet-state.sh"
+FLEET_STATE_ENV=()
+[[ -z "${CACHE_CONTENT_INSTALLED_JSON:-}" ]] ||
+  FLEET_STATE_ENV+=("FLEET_STATE_INSTALLED_JSON=$CACHE_CONTENT_INSTALLED_JSON")
+[[ -z "${CACHE_CONTENT_MARKETPLACES_JSON:-}" ]] ||
+  FLEET_STATE_ENV+=("FLEET_STATE_MARKETPLACES_JSON=$CACHE_CONTENT_MARKETPLACES_JSON")
 
 MAX_REPORTED_PATHS=10
-
-SENTINEL_SHAPE=$'\x01shape'
-SENTINEL_UNKNOWN=$'\x01unknown'
 
 usage() {
   local text
@@ -79,10 +79,11 @@ Default output is one JSON object (--json is accepted and changes nothing);
 --all wraps one object per marketplace. --ids prints the <name>@<marketplace>
 id of every stale-content install, one per line, and cannot be combined with
 --all. --scope defaults to user. Nothing is written and nothing is fetched.
+The install records come from fleet-state.sh beside this script.
 
 Exit: 0 ran to completion (a per-install verdict is not an error); 2 usage
-error, jq or git missing, an unknown marketplace, or a state file that does not
-match its expected shape.
+error, jq or git missing, a marketplace fleet-state.sh cannot read, or
+fleet-state.sh failing on a state file.
 
 The verdicts and JSON fields are in the plugins skill's context/script-contracts.md.
 EOF
@@ -95,51 +96,51 @@ SCOPE="user"
 IDS_MODE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --marketplace)
-    MODE="single"
-    TARGET="${2:-}"
-    if [[ -z "$TARGET" ]]; then
-      echo "ERROR: --marketplace requires a name" >&2
+    --marketplace)
+      MODE="single"
+      TARGET="${2:-}"
+      if [[ -z "$TARGET" ]]; then
+        echo "ERROR: --marketplace requires a name" >&2
+        exit 2
+      fi
+      shift 2
+      ;;
+    --scope)
+      SCOPE="${2:-}"
+      if [[ -z "$SCOPE" ]]; then
+        echo "ERROR: --scope requires user, project, or all" >&2
+        exit 2
+      fi
+      shift 2
+      ;;
+    --all)
+      MODE="all"
+      shift
+      ;;
+    --ids)
+      IDS_MODE="yes"
+      shift
+      ;;
+    --json)
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "ERROR: unknown argument: $1 (see --help)" >&2
       exit 2
-    fi
-    shift 2
-    ;;
-  --scope)
-    SCOPE="${2:-}"
-    if [[ -z "$SCOPE" ]]; then
-      echo "ERROR: --scope requires user, project, or all" >&2
-      exit 2
-    fi
-    shift 2
-    ;;
-  --all)
-    MODE="all"
-    shift
-    ;;
-  --ids)
-    IDS_MODE="yes"
-    shift
-    ;;
-  --json)
-    shift
-    ;;
-  -h | --help)
-    usage
-    exit 0
-    ;;
-  *)
-    echo "ERROR: unknown argument: $1 (see --help)" >&2
-    exit 2
-    ;;
+      ;;
   esac
 done
 
 case "$SCOPE" in
-user | project | all) ;;
-*)
-  echo "ERROR: unknown --scope: $SCOPE (expected user, project, or all)" >&2
-  exit 2
-  ;;
+  user | project | all) ;;
+  *)
+    echo "ERROR: unknown --scope: $SCOPE (expected user, project, or all)" >&2
+    exit 2
+    ;;
 esac
 
 if [[ "$MODE" == "default" ]]; then
@@ -168,45 +169,28 @@ SPOOL=$(mktemp 2>/dev/null) || {
 }
 trap 'rm -f -- "$SPOOL"' EXIT
 
-for f in "$INSTALLED_JSON" "$MARKETPLACES_JSON"; do
-  if [[ ! -f "$f" ]]; then
-    echo "ERROR: state file not found: $f" >&2
-    exit 2
-  fi
-done
-
-installed_bad() {
-  echo "ERROR: $INSTALLED_JSON is not valid installed_plugins.json (expected an object with a .plugins map of arrays)" >&2
+fs_args=(--all)
+[[ "$MODE" != "single" ]] || fs_args=(--marketplace "$TARGET")
+fs_rc=0
+fs_report=$(env ${FLEET_STATE_ENV[@]+"${FLEET_STATE_ENV[@]}"} "$FLEET_STATE" "${fs_args[@]}") || fs_rc=$?
+if ((fs_rc == 2)); then
+  echo "ERROR: fleet-state.sh could not read the plugin state (exit 2)" >&2
   exit 2
-}
-ALL_RECORDS=""
+fi
+FS_LINES=""
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-jq_to ALL_RECORDS -r --arg scope "$SCOPE" '
-  if (type == "object")
-    and ((.plugins // {}) | type == "object")
-    and ((.plugins // {}) | to_entries | all(.value | type == "array"))
-  then
-    (.plugins // {})
-    | to_entries
-    | map(.key as $id | .value[] | {
-        id: $id,
-        scope: (.scope // "user"),
-        version: (.version // ""),
-        sha: (.gitCommitSha // ""),
-        installPath: (.installPath // ""),
-        projectPath: (.projectPath // "")
-      })
-    | map(select($scope == "all" or (if $scope == "user" then .scope == "user" else .scope != "user" end)))
-    | map([.id, .scope, .version, .sha, .installPath, .projectPath] | join("\u001f"))
-    | .[]
-  else
-    "\u0001shape"
-  end
-' "$INSTALLED_JSON" 2>/dev/null || installed_bad
-[[ "$ALL_RECORDS" != "$SENTINEL_SHAPE" ]] || installed_bad
-
-marketplaces_bad() {
-  echo "ERROR: $MARKETPLACES_JSON is not valid known_marketplaces.json (expected an object)" >&2
+jq_to FS_LINES -r --arg scope "$SCOPE" '
+  (if has("marketplaces") then .marketplaces | to_entries | map({name: .key, b: .value})
+   else [{name: .marketplace.name, b: .}] end)[]
+  | "M\u001f\(.name)\u001f\(.b.marketplace.installLocation // "")\u001f\(.b.marketplace.error // "")",
+    (.b.installed[]?
+     | select($scope == "all" or (if $scope == "user" then .scope == "user" else .scope != "user" end))
+     | "R\u001f" + ([.id, .scope, .version, .gitCommitSha, .installPath,
+                    (if .scope != "user" and (.projectPath // "") != "" and .projectPathPresent != true
+                     then "absent" else "" end)]
+                   | map(. // "" | tostring) | join("\u001f")))
+' <<<"$fs_report" 2>/dev/null || {
+  echo "ERROR: fleet-state.sh printed no usable report" >&2
   exit 2
 }
 
@@ -216,7 +200,7 @@ walk_cache_roots() {
 }
 
 check_marketplace() {
-  local mp="$1" install_loc="$2"
+  local mp="$1" install_loc="$2" records="$3"
   local install_loc_native
   to_slashes_to install_loc_native "$install_loc"
 
@@ -255,18 +239,13 @@ check_marketplace() {
 
   local -a i_id=() i_scope=() i_version=() i_sha=() i_ipath=() i_root=()
   local -a i_verdict=() i_srcdir=()
-  local id scope version sha install_path project_path
-  local project_path_native install_path_native pre_verdict
-  while IFS=$'\x1f' read -r id scope version sha install_path project_path; do
+  local id scope version sha install_path absent
+  local install_path_native pre_verdict
+  while IFS=$'\x1f' read -r id scope version sha install_path absent; do
     [[ -n "$id" ]] || continue
-    [[ "$id" == *"@$mp" ]] || continue
-
-    if [[ "$scope" != "user" && -n "$project_path" ]]; then
-      to_slashes_to project_path_native "$project_path"
-      if [[ ! -d "$project_path_native" ]]; then
-        n_skipped=$((n_skipped + 1))
-        continue
-      fi
+    if [[ -n "$absent" ]]; then
+      n_skipped=$((n_skipped + 1))
+      continue
     fi
 
     checked=$((checked + 1))
@@ -288,7 +267,7 @@ check_marketplace() {
     i_root+=("$install_path_native")
     i_verdict+=("$pre_verdict")
     i_srcdir+=("")
-  done <<<"$ALL_RECORDS"
+  done <<<"$records"
 
   local n=${#i_id[@]}
   local k
@@ -364,8 +343,8 @@ check_marketplace() {
       path_rel="${rec#*$'\t'}"
       blob="${meta##* }"
       case "$meta" in
-      *" blob "*) ;;
-      *) continue ;;
+        *" blob "*) ;;
+        *) continue ;;
       esac
       owners=()
       gkey="$s"$'\x1f'"$path_rel"
@@ -596,13 +575,13 @@ check_marketplace() {
     fi
 
     case "$verdict" in
-    match) n_match=$((n_match + 1)) ;;
-    stale-content)
-      n_stale=$((n_stale + 1))
-      stale_ids+="${i_id[k]}"$'\n'
-      ;;
-    not-at-head) n_not_checked=$((n_not_checked + 1)) ;;
-    *) n_unverifiable=$((n_unverifiable + 1)) ;;
+      match) n_match=$((n_match + 1)) ;;
+      stale-content)
+        n_stale=$((n_stale + 1))
+        stale_ids+="${i_id[k]}"$'\n'
+        ;;
+      not-at-head) n_not_checked=$((n_not_checked + 1)) ;;
+      *) n_unverifiable=$((n_unverifiable + 1)) ;;
     esac
 
     json_string_to j_id "${i_id[k]}"
@@ -647,57 +626,56 @@ check_marketplace() {
     "$j_mp" "$j_scope_out" "$checked" "$n_match" "$n_stale" "$n_unverifiable" "$n_not_checked" "$n_skipped" "$records_json"
 }
 
-mp_loc=""
-mp_pairs=""
+mp_names=()
+mp_locs=()
+mp_errs=()
+mp_recs=()
+while IFS= read -r line; do
+  case "$line" in
+    M$'\x1f'*)
+      IFS=$'\x1f' read -r _ mp mp_loc mp_err <<<"$line"
+      mp_names+=("$mp")
+      mp_locs+=("$mp_loc")
+      mp_errs+=("$mp_err")
+      mp_recs+=("")
+      ;;
+    R$'\x1f'*) ((${#mp_recs[@]} == 0)) || mp_recs[-1]+="${line#R$'\x1f'}"$'\n' ;;
+    *) ;;
+  esac
+done <<<"$FS_LINES"
+
 j_name=""
 j_err=""
-
-if [[ "$MODE" == "single" ]]; then
-  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to mp_loc -r --arg mp "$TARGET" '
-    if type != "object" then "\u0001shape"
-    elif (has($mp) | not) then "\u0001unknown"
-    else (.[$mp] as $v
-          | if ($v | type) == "object" then ($v.installLocation // "" | tostring) else "" end)
-    end
-  ' "$MARKETPLACES_JSON" 2>/dev/null || marketplaces_bad
-  [[ "$mp_loc" != "$SENTINEL_SHAPE" ]] || marketplaces_bad
-  if [[ "$mp_loc" == "$SENTINEL_UNKNOWN" ]]; then
-    echo "ERROR: unknown marketplace: $TARGET (not in $MARKETPLACES_JSON)" >&2
-    exit 2
-  fi
-  out=""
-  out=$(check_marketplace "$TARGET" "$mp_loc") || {
-    echo "ERROR: could not read marketplace: $TARGET" >&2
-    exit 2
-  }
-  printf '%s' "$out"
-  [[ -n "$IDS_MODE" ]] || printf '\n'
-  exit 0
-fi
-
-# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-jq_to mp_pairs -r '
-  if type != "object" then "\u0001shape"
-  else (keys[] as $k
-        | $k + "\u001f"
-          + (.[$k] as $v
-             | if ($v | type) == "object" then ($v.installLocation // "" | tostring) else "" end))
-  end
-' "$MARKETPLACES_JSON" 2>/dev/null || marketplaces_bad
-[[ "$mp_pairs" != "$SENTINEL_SHAPE" ]] || marketplaces_bad
-
 envelope=""
-while IFS=$'\x1f' read -r mp mp_loc; do
-  [[ -n "$mp" ]] || continue
+for ((m = 0; m < ${#mp_names[@]}; m++)); do
   block=""
-  if ! block=$(check_marketplace "$mp" "$mp_loc"); then
+  if [[ -n "${mp_errs[m]}" ]]; then
+    if [[ "$MODE" == "single" ]]; then
+      echo "ERROR: could not read marketplace: ${mp_names[m]} (${mp_errs[m]})" >&2
+      exit 2
+    fi
+    json_string_to j_err "${mp_errs[m]}"
+    block="{\"error\":$j_err}"
+  elif ! block=$(check_marketplace "${mp_names[m]}" "${mp_locs[m]}" "${mp_recs[m]}"); then
+    if [[ "$MODE" == "single" ]]; then
+      echo "ERROR: could not read marketplace: ${mp_names[m]}" >&2
+      exit 2
+    fi
     json_string_to j_err "could not read marketplace"
     block="{\"error\":$j_err}"
   fi
-  json_string_to j_name "$mp"
+  if [[ "$MODE" == "single" ]]; then
+    printf '%s' "$block"
+    [[ -n "$IDS_MODE" ]] || printf '\n'
+    exit 0
+  fi
+  json_string_to j_name "${mp_names[m]}"
   [[ -z "$envelope" ]] || envelope+=","
   envelope+="$j_name:$block"
-done <<<"$mp_pairs"
+done
+if [[ "$MODE" == "single" ]]; then
+  echo "ERROR: fleet-state.sh named no marketplace for $TARGET" >&2
+  exit 2
+fi
 printf '{"marketplaces":{%s}}\n' "$envelope"
 exit 0
