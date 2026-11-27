@@ -77,6 +77,8 @@ native_cwd_to() {
 # shellcheck disable=SC2016  # jq programs: every $var is a jq variable
 SELECTOR_TABLE=(
   'installed-user|installed:array|id|$block.installed[]? | select(.scope == "user")'
+  'user-enable-state|installed:array|id state|$block.installed[]? | select(.scope == "user")
+     | {id, state: (if ($block.enabled // {})[.id] == false then "off" else "on" end)}'
   'update-candidates-user|installed:array catalog_versions:object|id version|$block.catalog_versions as $cvs | ($block.delisted // []) as $delisted
      | $block.installed[]? | select(.scope == "user")
      | select((($cvs[.id]) == null or ($cvs[.id]) != .version)

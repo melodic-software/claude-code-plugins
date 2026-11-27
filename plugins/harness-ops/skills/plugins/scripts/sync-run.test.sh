@@ -149,8 +149,10 @@ case "$verb" in
   *) ;;
   esac
   new="${CLAUDE_STUB_NEW_VERSION:-9.9.9}"
-  # CLAUDE_STUB_MOVE_CATALOG: the catalog moves during the run: this manifest changes.
-  [[ -z "${CLAUDE_STUB_MOVE_CATALOG:-}" ]] || printf '{"name":"moved","version":"8.8.8"}\n' >"$CLAUDE_STUB_MOVE_CATALOG"
+  # CLAUDE_STUB_MOVE_CATALOG: the catalog moves during the run: this manifest changes,
+  # to CLAUDE_STUB_MOVE_CATALOG_VERSION when set.
+  [[ -z "${CLAUDE_STUB_MOVE_CATALOG:-}" ]] ||
+    printf '{"name":"moved","version":"%s"}\n' "${CLAUDE_STUB_MOVE_CATALOG_VERSION:-8.8.8}" >"$CLAUDE_STUB_MOVE_CATALOG"
   # CLAUDE_STUB_DIRTY_FILE: every update rewrites that settings file.
   [[ -z "${CLAUDE_STUB_DIRTY_FILE:-}" ]] || printf '{"enabledPlugins":{"%s":true}}\n' "$id" >"$CLAUDE_STUB_DIRTY_FILE"
   # CLAUDE_STUB_MISFIRE_PATH: the CLI moves only the record keyed to that path,
@@ -3089,6 +3091,54 @@ assert_eq "catalog moved: counts the id whose catalog version changed during the
   "$(jq -r '.marketplaces[0].other_paths.catalog_moved' <<<"$out")"
 assert_contains "catalog moved: the report names it" \
   "$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$out")" "Catalog moved during this run: 1 plugin(s)"
+catalog_move_fixture
+EXTRA_ENV=(CLAUDE_STUB_NEW_VERSION=0.3.0 CC_STUB_CLEAN=1 CLAUDE_STUB_MOVE_CATALOG_VERSION=0.0.1
+  CLAUDE_STUB_MOVE_CATALOG="$case_dir/catalog/market1/alpha/.claude-plugin/plugin.json")
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "catalog regression: a backward move during the user sweep names the reads either side of it" \
+  '{"interval":"mid->pre-install","rows":["alpha@market1 0.3.0 0.0.1"]}' \
+  "$(jq -c '.marketplaces[0].catalog_regression' <<<"$out")"
+unsaved=""
+for label in pre-refresh pre mid pre-install pre-enable post; do
+  [[ -f "$(jq -r '.run_dir' <<<"$out")/$label.market1.json" ]] || unsaved+=" $label"
+done
+assert_eq "snapshot ledger: a sync pass with no enable gap saves every declared read but Step 5's" \
+  " pre-enable" "$unsaved"
+
+ledger_dir="$TEST_TMPDIR/ledger"
+ledger_of() {
+  (
+    RUN_DIR="$ledger_dir"
+    rm -rf "${ledger_dir:?}"
+    mkdir -p "$ledger_dir"
+    local label
+    for label in $1; do printf '{}' >"$ledger_dir/$label.m.json"; done
+    # shellcheck source=snapshot-ledger.sh
+    source "$SCRIPT_DIR/snapshot-ledger.sh"
+    snapshot_ledger_load "$STEPS_TABLE" || exit 1
+    local latest as_of pairs
+    snapshot_latest latest m
+    snapshot_as_of as_of m "$2"
+    snapshot_intervals pairs m
+    printf '%s|%s|%s' "${latest##*/}" "${as_of##*/}" "$(tr '\n' ',' <<<"$pairs" | sed 's/,*$//')"
+  )
+}
+assert_eq "snapshot ledger: a full sync or audit pass resolves latest to post and chains every read" \
+  "post.m.json|mid.m.json|pre-refresh pre,pre mid,mid pre-install,pre-install pre-enable,pre-enable post" \
+  "$(ledger_of "pre-refresh pre mid pre-install pre-enable post" mid)"
+assert_eq "snapshot ledger: a pass whose post read failed resolves latest to its last read" \
+  "pre-enable.m.json|pre-install.m.json|pre-refresh pre,pre mid,mid pre-install,pre-install pre-enable" \
+  "$(ledger_of "pre-refresh pre mid pre-install pre-enable" pre-install)"
+assert_eq "snapshot ledger: a re-entry with no enable gap bridges the skipped read" \
+  "post.m.json|pre-install.m.json|pre-refresh pre,pre mid,mid pre-install,pre-install post" \
+  "$(ledger_of "pre-refresh pre mid pre-install post" pre-install)"
+assert_eq "snapshot ledger: as of a read never taken is the next read saved" \
+  "post.m.json|post.m.json|pre-refresh pre,pre post" \
+  "$(ledger_of "pre-refresh pre post" mid)"
+assert_eq "snapshot ledger: a pass stopped after its first read has no interval" \
+  "pre-refresh.m.json||" \
+  "$(ledger_of "pre-refresh" pre)"
+assert_eq "snapshot ledger: an empty run directory resolves nothing" "||" "$(ledger_of "" pre)"
 
 paths_fixture
 EXTRA_ENV=(HOME="$case_dir/home" CLAUDE_STUB_KEY_CWD=1 CC_STUB_CLEAN=1)

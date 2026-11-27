@@ -2070,7 +2070,7 @@ write "$case_dir/table-report.json" '{
     {"id": "c@market1", "scope": "local", "version": "0.4.0", "currentProject": false, "projectPath": "/p/other",
      "projectPathPresent": true, "projectPathIsHome": false, "label": "update ineffective, uninstall clears it"}
   ],
-  "enabled": {},
+  "enabled": {"a@market1": false},
   "missing_from_user_install": ["d@market1"],
   "missing_from_enabled": ["a@market1", "b@market1", "e@market1"],
   "user_scope_orphans": ["b@market1", "c@market1"],
@@ -2080,6 +2080,7 @@ write "$case_dir/table-report.json" '{
 }'
 declare -A table_rows=(
   ["installed-user"]='a@market1'
+  ["user-enable-state"]=$'a@market1\toff'
   ["update-candidates-user"]=$'a@market1\t0.1.0'
   ["update-candidates-project"]=$'e@market1\tlocal\t1.0.0'
   ["update-candidates-other-paths"]=$'c@market1\tlocal\t/p/other\t0.4.0\t0.5.0\tfalse\tupdate ineffective, uninstall clears it'
@@ -2115,6 +2116,9 @@ for sel in $(help_selectors); do
   [[ "$out" == *"  $sel: "* ]] || missing_names+="$sel "
 done
 assert_eq "selector table: the rejection lists every selector with its columns" "" "$missing_names"
+jq '.enabled = {}' "$case_dir/table-report.json" >"$case_dir/unmentioned-report.json"
+ARGS=(--ids user-enable-state --from "$case_dir/unmentioned-report.json")
+assert_eq "user-enable-state: a user install the settings never mention is on" $'a@market1\ton' "$(run_ids "$case_dir")"
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)

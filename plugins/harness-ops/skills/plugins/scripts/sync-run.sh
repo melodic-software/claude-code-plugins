@@ -27,6 +27,8 @@ else
   echo "ERROR: jq-capture.sh not found at $JQ_CAPTURE" >&2
   exit 2
 fi
+# shellcheck source=snapshot-ledger.sh
+source "$SCRIPT_DIR/snapshot-ledger.sh"
 
 export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 
@@ -293,6 +295,10 @@ if ! jq_to STEPS_LIST -r '.[] | "\(.name) \(.modes | join(",")) \(.stop_on_faile
   exit 2
 fi
 mapfile -t MP_STEPS <<<"$STEPS_LIST"
+snapshot_ledger_load "$STEPS_DECL" || {
+  echo "ERROR: the step table names no snapshots: $STEPS_DECL" >&2
+  exit 2
+}
 STEP_MODE="$MODE"
 ((ONLY_INSTALL_MODE == 0)) || STEP_MODE="reentry"
 
@@ -691,14 +697,14 @@ catalog_regression_rows() {
   local __interval_var="$1"
   local __rows_var="$2"
   local mp="$3"
-  local snaps=(pre-refresh pre mid post)
-  local i a b rows=""
+  local pairs la lb a b rows=""
   printf -v "$__interval_var" '%s' ""
   printf -v "$__rows_var" '%s' "[]"
-  for ((i = 0; i + 1 < ${#snaps[@]}; i++)); do
-    a="$RUN_DIR/${snaps[i]}.$mp.json"
-    b="$RUN_DIR/${snaps[i + 1]}.$mp.json"
-    [[ -f "$a" && -f "$b" ]] || continue
+  snapshot_intervals pairs "$mp"
+  while read -r la lb; do
+    [[ -n "$lb" ]] || continue
+    snapshot_file a "$la" "$mp"
+    snapshot_file b "$lb" "$mp"
     # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
     jq_to rows -c --slurpfile a "$a" --slurpfile b "$b" -n "$TRIPLE_DEF"'
       ($a[0].catalog_versions // {}) as $before | ($b[0].catalog_versions // {}) as $after
@@ -707,11 +713,11 @@ catalog_regression_rows() {
                   and ($after[.key] | triple) < (.value | triple))
          | "\(.key) \(.value) \($after[.key])"]' || continue
     if [[ -n "$rows" && "$rows" != "[]" ]]; then
-      printf -v "$__interval_var" '%s' "${snaps[i]}->${snaps[i + 1]}"
+      printf -v "$__interval_var" '%s' "$la->$lb"
       printf -v "$__rows_var" '%s' "$rows"
       return 0
     fi
-  done
+  done <<<"$pairs"
   return 0
 }
 
@@ -734,7 +740,10 @@ would_pins() {
 
 divergence_block() {
   local __var="$1" mp="$2"
-  local pre="$RUN_DIR/pre.$mp.json" mid="$RUN_DIR/mid.$mp.json" post="$RUN_DIR/post.$mp.json"
+  local pre mid post
+  snapshot_file pre pre "$mp"
+  snapshot_file mid mid "$mp"
+  snapshot_file post post "$mp"
   if [[ ! -f "$pre" || ! -f "$mid" || ! -f "$post" ]]; then
     printf -v "$__var" '%s' '{"note":"a snapshot was missing, so the split could not be computed"}'
     return 0
@@ -983,7 +992,9 @@ other_paths_step() {
 finalize_other_paths() {
   local mp="$1" rows result=""
   local rows_file="$RUN_DIR/.other-paths-rows.$mp.json"
-  local post="$RUN_DIR/post.$mp.json" pre="$RUN_DIR/pre.$mp.json"
+  local post pre
+  snapshot_file post post "$mp"
+  snapshot_file pre pre "$mp"
   local skipped="$RUN_DIR/.other-paths-skipped.$mp.jsonl"
   ((ONLY_INSTALL_MODE == 0)) || return 0
   json_array_of rows ${PATH_ROWS[@]+"${PATH_ROWS[@]}"}
@@ -1709,19 +1720,20 @@ pending_remove() {
 }
 
 recover_pending() {
-  local mp="$1" id state
+  local mp="$1" id state snap states="$RUN_DIR/user-enable-state.$1.tsv"
+  local -A user_state=()
   [[ -n "$PENDING_FILE" && -f "$PENDING_FILE" && "$MODE" == "sync" ]] || return 0
-  [[ -f "$RUN_DIR/pre-install.$mp.json" ]] || return 0
+  snapshot_file snap pre-install "$mp"
+  [[ -f "$snap" ]] || return 0
+  project_ids user-enable-state "$snap" "$states" || return 0
+  while IFS=$'\t' read -r id state; do
+    [[ -n "$id" ]] && user_state["$id"]="${state//$'\r'/}"
+  done <"$states"
   while IFS= read -r id; do
     id="${id//$'\r'/}"
     [[ -n "$id" && "$id" == *"@$mp" ]] || continue
     case ",${ONLY_INSTALL// /,}," in *",$id,"*) continue ;; *) ;; esac
-    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-    jq_to state -r --arg id "$id" '
-      (any(.installed[]?; .id == $id and .scope == "user")) as $in
-      | .enabled[$id] as $en
-      | if ($in | not) then "absent" elif $en == false then "off" else "on" end' \
-      "$RUN_DIR/pre-install.$mp.json" || continue
+    state="${user_state[$id]:-absent}"
     case "$state" in
       off)
         enable_one "$id" user
@@ -1893,7 +1905,9 @@ cache_content_block() {
 
 finalize_moves() {
   local mp="$1" kind id scope old new result dir row line post_v ncat nlabel joined=""
-  local post="$RUN_DIR/post.$mp.json"
+  local post pre after_step2
+  snapshot_file post post "$mp"
+  snapshot_file pre pre "$mp"
   [[ -f "$RUN_DIR/moves.$mp.tsv" ]] || return 0
   if [[ -f "$post" ]]; then
     # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
@@ -1952,12 +1966,10 @@ finalize_moves() {
       "$result" == "updated" && -n "$new" && -n "$old" && -f "$post" ]]; then
       local moved=""
       if [[ "$post_v" == "$old" && "$new" != "$old" ]]; then
-        local after_step2="$post"
-        [[ -f "$RUN_DIR/mid.$mp.json" ]] && after_step2="$RUN_DIR/mid.$mp.json"
-        if [[ -f "$RUN_DIR/pre.$mp.json" ]]; then
+        if [[ -f "$pre" ]] && snapshot_as_of after_step2 "$mp" mid; then
           # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
           jq_to moved -r -n --arg id "$id" --arg sc "$scope" \
-            --slurpfile pre "$RUN_DIR/pre.$mp.json" --slurpfile post "$after_step2" \
+            --slurpfile pre "$pre" --slurpfile post "$after_step2" \
             '[$post[0].installed[]? | select(.id == $id and .scope == $sc and .currentProject != true)
               | . as $r | select(([$pre[0].installed[]? | select(.id == $id and .scope == $sc
                   and .projectPath == $r.projectPath) | .version] | first) != $r.version)
@@ -1994,12 +2006,7 @@ report_extras() {
   local __var="$1"
   local mp="$2"
   local src=""
-  for src in "$RUN_DIR/post.$mp.json" "$RUN_DIR/pre-install.$mp.json" "$RUN_DIR/pre.$mp.json" \
-    "$RUN_DIR/pre-refresh.$mp.json"; do
-    [[ -f "$src" ]] && break
-    src=""
-  done
-  if [[ -z "$src" ]]; then
+  if ! snapshot_latest src "$mp"; then
     printf -v "$__var" '%s' '{}'
     return 0
   fi

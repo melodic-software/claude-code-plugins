@@ -343,10 +343,12 @@ Then, for the rest of the run:
   occupies in `sync`; the code is in `sync-run.sh` rather than restated here. It is a read, so `audit`
   saves it too, into that run's scratch directory.
 
-- **Catalog regression check.** Step 6 diffs `catalog_versions` across every consecutive saved
-  snapshot for the marketplace, `pre-refresh` then `pre` then `mid` then `post`, and reports the
-  first interval in which any id's catalog version moved backward. Both actions have all four
-  snapshots, so both have the full chain. That interval is the signal that names the cause: in
+- **Catalog regression check.** Step 6 diffs `catalog_versions` across every two consecutive
+  snapshots the run saved for the marketplace, in the read order `steps.json`'s `snapshot` fields
+  declare (`scripts/snapshot-ledger.sh` resolves them, and every other reader of these files goes
+  through it), and reports the first interval in which any id's catalog version moved backward. A
+  read the run did not take is bridged, so the chain covers every read taken. That interval is the
+  signal that names the cause: in
   `sync` a regression across the `pre-refresh` to `pre` boundary is the Step 1 refresh pulling a
   source that moved backward, while one appearing later is the checkout changing under the run. In
   `audit` no refresh runs, and in `sync` a skipped refresh (`refresh.skipped` set) pulls nothing,
