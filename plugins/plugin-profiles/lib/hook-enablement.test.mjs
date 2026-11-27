@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import process from "node:process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const CLI = join(dirname(fileURLToPath(import.meta.url)), "hook-enablement.mjs");
 
 function world() {
-  const root = mkdtempSync(join(tmpdir(), "pp-hook-enablement-"));
+  const root = tempDir("pp-hook-enablement-");
   const home = join(root, "home");
   const project = join(root, "project");
   mkdirSync(join(home, ".claude"), { recursive: true });

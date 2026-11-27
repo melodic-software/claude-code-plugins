@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/plugin-profiles/hooks/hook-enabled.sh
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
