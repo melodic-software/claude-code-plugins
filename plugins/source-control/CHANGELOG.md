@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.0.2] - 2026-11-27
+
+### Changed
+
+- The pull-request skill's merge readiness check reads the reviews, check runs, commit statuses, review threads and pr-verify settings in parallel once the pull request itself is read, about 2 s faster on a ready PR. What it checks is unchanged.
+
 ## [15.0.1] - 2026-11-26
 
 ### Changed

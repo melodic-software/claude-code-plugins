@@ -185,6 +185,21 @@ assert_exit "a review list longer than the page cap -> UNCHECKED, which the skil
 assert_contains "past the cap -> says why" "$OUT" "more than 80 items at repos/acme/widgets/pulls/42/reviews"
 CLI="$CLI_REAL"
 
+BG_OUT=$(bash -c 'trap '\''echo "prior trap: $?"'\'' EXIT
+  source "$1"
+  _mg_spawn slow sleep 30
+  _mg_spawn quick true
+  echo "dir: $_mg_bg_dir"
+  echo "pid: $_mg_pid_slow"
+  exit 3' _ "$CLI")
+BG_RC=$?
+BG_DIR="$(sed -n 's/^dir: //p' <<<"$BG_OUT")"
+BG_PID="$(sed -n 's/^pid: //p' <<<"$BG_OUT")"
+assert_exit "under an existing EXIT trap -> the exit status is kept" 3 "$BG_RC"
+assert_contains "under an existing EXIT trap -> that trap still runs, with the exit status" "$BG_OUT" "prior trap: 3"
+assert_eq "background reads -> their directory is removed at exit" "gone" "$([[ -n "$BG_DIR" && ! -e "$BG_DIR" ]] && echo gone || echo "left: $BG_DIR")"
+assert_eq "an unjoined background read -> killed at exit" "gone" "$(kill -0 "$BG_PID" 2>/dev/null && echo running || echo gone)"
+
 echo
 # shellcheck disable=SC2154  # PASS and FAIL are the guardrails test helpers' counters
 echo "merge-readiness: $PASS passed, $FAIL failed"

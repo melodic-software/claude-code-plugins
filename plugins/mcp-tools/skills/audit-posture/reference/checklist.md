@@ -147,6 +147,16 @@ server as vetted by Anthropic.
 - **Pointer**: for Anthropic's position on MCP server review, see
   <https://code.claude.com/docs/en/security#mcp-security>.
 
+### Skills a configured server serves
+
+The audit does not report whether a configured server serves skills, because it never connects to
+a server. The operator reviews a server's skills as part of reviewing the server, again whenever a
+pinned version is bumped, and treats a remote server's skills as able to change without one.
+
+- **Pointer**: for which servers' skills Anthropic scans, see
+  <https://code.claude.com/docs/en/mcp#safety-of-mcp-skills>; for how a server serves skills,
+  <https://code.claude.com/docs/en/mcp#use-skills-from-mcp-servers>.
+
 ### Registry moderation
 
 P3 takes namespace ownership as the only provenance signal from the official MCP registry and
