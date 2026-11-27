@@ -706,6 +706,9 @@ PASS3_PROGRAM="$VERSION_TRIPLE_DEF"'
                   else null end
                 )
               })) as $installed
+  | ([$installed[].version, $cv[]] | map(select(type == "string")) | unique
+      | map({key: ., value: version_triple}) | from_entries) as $vt
+  | def vtri: if type == "string" then $vt[.] else null end; .
   # A lagging project/local record in a linked worktree: `claude plugin update`
   # reports success there and leaves the record unchanged (#6713), so the record
   # is labeled instead of dropped. It stays in installed[] and in divergences[],
@@ -717,14 +720,14 @@ PASS3_PROGRAM="$VERSION_TRIPLE_DEF"'
   # converge command runs from a home and a home pin must not set the target.
   | ($installed | group_by(.id)
       | map({key: .[0].id,
-             value: ([.[] | select(.projectPathIsHome != true) | .version | version_triple | select(. != null)] | max)})
+             value: ([.[] | select(.projectPathIsHome != true) | .version | vtri | select(. != null)] | max)})
       | from_entries) as $highest
   | ($installed | map(
       . as $r
-      | (($cv[$r.id] | version_triple) // $highest[$r.id]) as $ref
+      | (($cv[$r.id] | vtri) // $highest[$r.id]) as $ref
       | $r + {label: (
-          if $r.linkedWorktree == true and ($r.version | version_triple) != null
-             and $ref != null and ($r.version | version_triple) < $ref
+          if $r.linkedWorktree == true and ($r.version | vtri) != null
+             and $ref != null and ($r.version | vtri) < $ref
           then "update ineffective, uninstall clears it" else null end)}
     )) as $installed
   | ([$catalog[0].plugins[]?.name // empty] | unique) as $catalog_names
@@ -791,13 +794,13 @@ PASS3_PROGRAM="$VERSION_TRIPLE_DEF"'
       | map(select(length > 1))
       | map(.[0].id as $id
           | $highest[$id] as $hi
-          | ($cv[$id] | version_triple) as $cat
+          | ($cv[$id] | vtri) as $cat
           | ($hi != null and $cat != null and $cat < $hi) as $catalog_lower
           | {
           id: $id,
           highest: (if $hi == null then null
-                    else first(.[] | select(.projectPathIsHome != true and (.version | version_triple) == $hi) | .version) end),
-          userHolds: ($hi != null and any(.[]; .scope == "user" and (.version | version_triple) == $hi)),
+                    else first(.[] | select(.projectPathIsHome != true and (.version | vtri) == $hi) | .version) end),
+          userHolds: ($hi != null and any(.[]; .scope == "user" and (.version | vtri) == $hi)),
           scopes: map({scope, version, projectPath, projectPathPresent, projectPathIsHome, linkedWorktree,
                        projectEnabledEntry, label, class: scope_class($catalog_lower)}),
           versionsMatch: ((map(.version) | unique | length) == 1)
