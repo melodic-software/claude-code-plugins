@@ -31,12 +31,15 @@ export function loadRules(path) {
   if (!Number.isSafeInteger(own["source-cap"]) || own["source-cap"] < 1) {
     throw new Error(`${path}: \`own-agents.source-cap\` must be a positive integer`);
   }
+  if (!Array.isArray(own["hold-sources"]) || !own["hold-sources"].every((label) => typeof label === "string" && /^source: \S/i.test(label))) {
+    throw new Error(`${path}: \`own-agents.hold-sources\` must list \`source: <producer>\` labels`);
+  }
   rules["own-agents"] = own;
   return rules;
 }
 
 export const LANES_APP_IDENTITY = "lanes-app";
-export const OWN_AGENT_DEFAULTS = Object.freeze({ identities: Object.freeze([LANES_APP_IDENTITY]), "source-cap": 5 });
+export const OWN_AGENT_DEFAULTS = Object.freeze({ identities: Object.freeze([LANES_APP_IDENTITY]), "source-cap": 5, "hold-sources": Object.freeze([]) });
 
 export const ownAgentText = (item, ids) =>
   item?.author?.__typename === "Bot" &&

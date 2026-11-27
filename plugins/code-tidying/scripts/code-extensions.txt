@@ -26,3 +26,14 @@ hpp
 yaml
 yml
 toml
+awk
+css
+scss
+html
+htm
+xml
+editorconfig
+jsonc
+psd1
+kt
+cc

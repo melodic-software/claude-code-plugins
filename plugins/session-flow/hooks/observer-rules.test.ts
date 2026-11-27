@@ -63,12 +63,17 @@ test('check-replied while paused finishes as paused and accepts nothing', () => 
 
 test('check-replied from an older generation finishes as stale', () => {
   const r = replied(on({ gen: 2 }), answered(FINDING_REPLY))
-  expect(r.effects).toEqual([{ kind: 'finish', req: req(), outcome: 'stale' }])
+  expect(r.effects).toEqual([{ kind: 'finish', req: req(), outcome: 'stale', detail: { held: true } }])
+})
+
+test('a stale reply with no finding records held false', () => {
+  const r = replied(on({ gen: 2 }), answered('finding: none'))
+  expect(r.effects).toEqual([{ kind: 'finish', req: req(), outcome: 'stale', detail: { held: false } }])
 })
 
 test('check-replied after the session ended finishes as stale', () => {
   const r = replied(on({ gen: 1, ended: true }), answered(FINDING_REPLY))
-  expect(r.effects).toEqual([{ kind: 'finish', req: req(), outcome: 'stale' }])
+  expect(r.effects).toEqual([{ kind: 'finish', req: req(), outcome: 'stale', detail: { held: true } }])
 })
 
 test('check-replied with "finding: none" finishes as none', () => {
@@ -425,7 +430,7 @@ test('gate-replied with a finding below the refusal cap refuses the command and 
   const r = gateReplied(on(), answered(FINDING_REPLY))
   expect(r.state.refused).toEqual({ 'git push': 1 })
   expect(r.effects).toHaveLength(2)
-  expect(r.effects[0]).toEqual({ kind: 'record', row: { trigger: 'gate', latencyMs: 700, usage: undefined, outcome: 'refused', finding: 'Merged without the verdict.' } })
+  expect(r.effects[0]).toEqual({ kind: 'record', row: { trigger: 'gate', latencyMs: 700, usage: undefined, outcome: 'refused', finding: 'Merged without the verdict.', category: 'verification' } })
   const deny = r.effects[1]
   expect(deny?.kind).toBe('deny')
   expect(deny?.kind === 'deny' && deny.text.startsWith(AUTO_NOTE)).toBe(true)

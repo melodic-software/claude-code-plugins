@@ -8,6 +8,23 @@ gate="$SCRIPT_DIR/check-changelog-fragments.sh"
 self="$(basename "$0")"
 remote="${1:-origin}"
 zero=0000000000000000000000000000000000000000
+started="${EPOCHREALTIME:-}"
+parallel_started=""
+
+# shellcheck disable=SC2329 # called by report_time
+since_ms() { echo $(((${EPOCHREALTIME//[!0-9]/} - ${1//[!0-9]/}) / 1000)); }
+
+# shellcheck disable=SC2329 # run by the EXIT traps below
+report_time() {
+  [[ -n "$started" && -n "${EPOCHREALTIME:-}" ]] || return 0
+  local ms split=""
+  ms="$(since_ms "$started")"
+  ((ms > 3000)) || return 0
+  [[ -z "$parallel_started" ]] ||
+    split=" (git state and fragment checks $((ms - $(since_ms "$parallel_started"))) ms, whole-branch checks $(since_ms "$parallel_started") ms)"
+  echo "$self: this push's checks took ${ms} ms${split}, over the 3 s hook budget (owner-decisions L413); report it so the slow check is made faster or moved to CI." >&2
+}
+trap report_time EXIT
 
 top="$(git rev-parse --show-toplevel 2>/dev/null)" && cd "$top" || exit 0
 head_sha="$(git rev-parse HEAD 2>/dev/null)" || exit 0
@@ -87,7 +104,7 @@ work="$(mktemp -d "${TMPDIR:-/tmp}/pre-push-checks.XXXXXX")" || {
   echo "$self: mktemp failed; the whole-branch checks are left to CI." >&2
   exit "$blocked"
 }
-trap 'rm -rf "$work"' EXIT
+trap 'rm -rf "$work"; report_time' EXIT
 
 names=(changelog-parity plugin-options-docs plugin-contracts marketplace catalog cheatsheet)
 tools=(bash python3 node node node node)
@@ -99,6 +116,7 @@ fixes=(
   "node scripts/generate-catalog.mjs"
   "node scripts/generate-cheatsheet.mjs --root ."
 )
+parallel_started="${EPOCHREALTIME:-}"
 pids=()
 for i in "${!names[@]}"; do
   pids[i]=""

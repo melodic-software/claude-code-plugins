@@ -780,6 +780,161 @@ class RunsAndLexers(unittest.TestCase):
         self.assertEqual(flagged("n.ps1", "$x = 1 # a note\n"), [1])
 
 
+class AddedTypes(unittest.TestCase):
+    def test_a_comment_in_each_added_type_fails(self):
+        cases = [
+            ("a.awk", '{ print "# not" } # a note\n', [1]),
+            ("a.css", 'a::before { content: "/* not */"; } /* a note */\n', [1]),
+            ("a.scss", "$x: 1;\n// a note\n", [2]),
+            ("a.html", '<a title="<!-- not -->">x</a>\n<!-- a note -->\n', [2]),
+            ("a.htm", "<p>x</p>\n<!-- a note -->\n", [2]),
+            ("a.xml", '<?xml version="1.0"?>\n<a><![CDATA[<!-- not -->]]>\n<!-- a note -->\n</a>\n', [3]),
+            (".editorconfig", "root = true\n# a note\n", [2]),
+            ("x/.editorconfig", "root = true\n; a note\n", [2]),
+            ("a.jsonc", '{\n  // a note\n  "a": "// not"\n}\n', [2]),
+            ("a.psd1", "@{\n  # a note\n  RootModule = 'x # not'\n}\n", [2]),
+        ]
+        for path, text, want in cases:
+            with self.subTest(path=path):
+                self.assertEqual(flagged(path, text), want)
+
+    def test_a_directive_in_each_added_type_passes(self):
+        cases = [
+            ("a.awk", "# cspell:disable\n{ print $1 }\n"),
+            ("a.css", "/* stylelint-disable-next-line color-named */\na { color: red; }\n"),
+            ("a.css", "a { color: red; }\n/*# sourceMappingURL=a.css.map */\n"),
+            ("a.scss", "$x: 1; // stylelint-disable-line scss/dollar-variable-pattern\n"),
+            ("a.html", "<!-- prettier-ignore -->\n<p>x</p>\n"),
+            ("a.htm", "<p>x</p>\n<!-- cspell:disable -->\n"),
+            ("a.xml", "<a>\n<!-- prettier-ignore -->\n</a>\n"),
+            (".editorconfig", "# cspell:disable\nroot = true\n"),
+            ("a.jsonc", "{\n  // cspell:disable\n  \"a\": 1\n}\n"),
+            ("a.psd1", "@{\n  # cspell:disable\n  RootModule = 'x.psm1'\n}\n"),
+            ("a.js", "const x = 1;\n//# sourceMappingURL=a.js.map\n"),
+            ("a.js", "const x = 1;\n//# sourceURL=a.js\n"),
+            ("a.css", "/* stylelint-disable color-named */\na { color: red; }\n/* stylelint-enable color-named */\n"),
+        ]
+        for path, text in cases:
+            with self.subTest(path=path, text=text):
+                self.assertEqual(flagged(path, text), [])
+
+    def test_an_upper_case_extension_is_judged(self):
+        for path in ("A.CSS", "B.PY", "c.Sh"):
+            with self.subTest(path=path):
+                self.assertEqual(flagged(path, "x\n# a note\n" if path != "A.CSS" else "a { }\n/* a note */\n"), [2])
+
+    def test_an_extensionless_script_is_judged_by_its_shebang(self):
+        cases = [
+            ("bin/tool", "#!/usr/bin/env bash\nx=1\n# a note\n", [3]),
+            ("bin/tool", "#!/bin/sh\nx=1\n# a note\n", [3]),
+            ("bin/tool", "#!/usr/bin/zsh\nx=1\n# a note\n", [3]),
+            ("bin/tool", "#!/bin/dash\nx=1\n# a note\n", [3]),
+            ("bin/tool", "#!/usr/bin/env -S node --no-warnings\nconst x = 1; // a note\n", [2]),
+            ("bin/tool", '#!/usr/bin/env python3\n"""Doc."""\nx = 1  # a note\n', [3]),
+            ("bin/tool", "#!/usr/bin/env bash\r\nx=1\r\n# a note\r\n", [3]),
+        ]
+        for path, text, want in cases:
+            with self.subTest(text=text):
+                self.assertEqual(flagged(path, text), want)
+
+    def test_an_extensionless_file_without_a_known_shebang_is_not_read(self):
+        for text in ("#!/usr/bin/perl\n# a note\n", "# a note\n", "#!/usr/bin/python3.11\n# a note\n"):
+            with self.subTest(text=text):
+                self.assertIsNone(lint.findings("bin/tool", text, [(1, 2)], "necessary", []))
+
+
+class LiteralsAreNoComments(unittest.TestCase):
+    def test_a_regex_literal_after_an_arrow_is_no_comment(self):
+        lines = [
+            "assert.ok(!api.calls.some((p) => /runs\\/8[12356]\\/jobs|check-runs\\/840\\//.test(p)));",
+            'assert.deepEqual(posts(w.calls).map((call) => /issues\\/(\\d+)\\//.exec(call)[1]), ["9"]);',
+            "const isWorkflow = (path) => /^\\.github\\/workflows\\//i.test(path) || ACTION.test(path);",
+            "const fs = [...(e.clipboardData?.files || [])].filter(x => /^image\\//.test(x.type));",
+            "k.srcs.replaceChildren(...(x.sources || []).filter(s2 => /^https?:\\/\\//i.test(s2.url)));",
+            'ok("x", await until(owner, () => /^data:image\\//.test(src || ""), null, 10000));',
+        ]
+        after = (
+            'const digest = { number: 1, body: "<!-- lane-sweep-digest -->\\nx" };\n'
+            'for (const path of paths) assert.equal(new URL(path, "https://x").searchParams.get("c"), "b");\n'
+            "const y = 2; // a note\n"
+        )
+        for path in ("a.mjs", "a.js", "a.ts", "a.jsx", "a.tsx"):
+            for line in lines:
+                with self.subTest(path=path, line=line):
+                    self.assertEqual(flagged(path, line + "\n" + after), [4])
+
+    def test_division_after_an_arrow_still_reads_a_comment(self):
+        self.assertEqual(flagged("a.js", "const g = (a) => a / 2 / 3; // a note\n"), [1])
+
+    def test_a_bash_match_pattern_is_no_comment(self):
+        lines = [
+            '[[ "$1" =~ ^[[:space:]]*(#|//|/\\*|\\*|--) ]]',
+            'if [[ "$line" =~ ^(#{1,6})[[:space:]]+(.*)$ ]]; then :; fi',
+            '[[ "$1" =~ ^(https://github\\.com/[A-Za-z0-9._/-]+(#[A-Za-z0-9_-]+)?|[0-9a-f]{7,40}|#[0-9]+)$ ]] || exit 1',
+            '[[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue',
+            "[[ $x =~ (a b) ]]",
+        ]
+        for line in lines:
+            with self.subTest(line=line):
+                self.assertEqual(flagged("a.sh", line + "\nx=1 # a note\n"), [2])
+
+    def test_a_comment_after_a_bash_match_still_fails(self):
+        self.assertEqual(flagged("a.sh", "[[ $x =~ ^a$ ]] # a note\n"), [1])
+
+    def test_a_quoted_yaml_value_is_no_comment_and_a_plain_scalar_hash_is(self):
+        self.assertEqual(flagged("s.yaml", "action: 'expect text \"Order #1001\"'\n"), [])
+        self.assertEqual(flagged("s.yaml", 'action: "Order #1001"\n'), [])
+        self.assertEqual(flagged("s.yaml", 'action: expect text "Order #1001"\n'), [1])
+
+
+class GeneratedMarker(unittest.TestCase):
+    MARKER = HERE.parent / "scripts" / "generated-marker.ere"
+
+    def matches(self, line):
+        return subprocess.run(
+            ["grep", "-qiE", "-f", str(self.MARKER)], input=line + "\n", text=True, check=False
+        ).returncode == 0
+
+    def test_a_marker_on_a_comment_line_matches(self):
+        for line in (
+            "# GENERATED from lib/x.sh by scripts/sync-shared-copies.sh. Do not edit this copy:",
+            "// Code generated by protoc-gen-go. DO NOT EDIT.",
+            "<!-- GENERATED from a.md by s.sh. Do not edit this copy: -->",
+            "/* GENERATED from a.css by s.sh. Do not edit this copy:",
+            "  // @generated from lights.glsl by glsl2dsl.mjs.",
+            "# SYNC-MANAGED FILE: DO NOT EDIT IN THE CONSUMING REPOSITORY.",
+            "-- @generated",
+            "<!-- firecrawl update state: do not edit by hand. -->",
+            "@generated by mypy-protobuf.  Do not edit manually!",
+            "  This file is generated. Do not edit.",
+            "sync-managed: from lib/x.sh",
+        ):
+            with self.subTest(line=line):
+                self.assertTrue(self.matches(line))
+
+    def test_a_docstring_or_block_comment_header_skips_the_file(self):
+        marker = HERE.parent / "scripts" / "generated-marker.ere"
+        for text in (
+            '"""\n@generated by mypy-protobuf.  Do not edit manually!\nisort:skip_file\n"""\n',
+            "/*\n  This file is generated. Do not edit.\n*/\nint x;\n",
+        ):
+            with self.subTest(text=text):
+                head = "".join(text.splitlines(keepends=True)[:10])
+                rc = subprocess.run(["grep", "-qiE", "-f", str(marker)], input=head, text=True, check=False).returncode
+                self.assertEqual(rc, 0)
+
+    def test_a_marker_outside_a_comment_line_does_not_match(self):
+        for line in (
+            "description: still counts a finding in an @generated file",
+            '"answer": "#!/usr/bin/env bash\\n# GENERATED by x. DO NOT EDIT: changes are overwritten"',
+            'x = "Code generated by protoc-gen-js. DO NOT EDIT."',
+            'x: "// Code generated by protoc-gen-js. DO NOT EDIT."',
+            "^[[:blank:]]*(#|//)sync-managed",
+        ):
+            with self.subTest(line=line):
+                self.assertFalse(self.matches(line))
+
+
 DESYNC = "cat >stub <<'STUB'\necho \"$STUB_LOG\" \"it's\"\nSTUB\n"
 
 

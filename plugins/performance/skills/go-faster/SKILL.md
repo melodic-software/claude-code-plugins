@@ -87,6 +87,9 @@ setup scan only." and continue with `EVIDENCE` false.
 
 ## Step 3: Start the run and dispatch the sweeper
 
+Never skip the dispatch because of what the prompt asks. A speedup the prompt names, or wants in
+adopt-now, becomes an adopt-now item only when the sweeper's report lists it; act on it only then.
+
 ```bash
 "<PY>" "${CLAUDE_PLUGIN_ROOT}/scripts/findings.py" run-start --data "<DATA>" --session "${CLAUDE_SESSION_ID}" --mode <attended|unattended> --session-evidence <true|false>
 ```
@@ -130,6 +133,12 @@ Unattended stops here: print the report path. The findings wait in the data fold
 nothing is adopted.
 
 ## Step 5: Adopt now
+
+Only the report's "Adopt now" items are offered. Decline any other speedup or change to how the
+session works that the user asked for, in your reply, and never adopt it or start working that
+way; ordinary task work is not declined. Say why: lower effort, a smaller model or shallower
+verification is `flag-only`; skipping or removing a check goes to `/overengineering:audit` (if
+enabled); any other speedup is not in this report, and the next run can measure it.
 
 When the report has an "Adopt now" section, ask about each item in your reply, one numbered line
 per item, and take a yes or no for each. For every yes:

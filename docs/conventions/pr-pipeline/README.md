@@ -189,7 +189,8 @@ reader applies. It is the one list of lane ids: each is its workflow's file stem
 another repository's [`lane-grants.json`](../../../.github/actions/resolve-config/lane-grants.json)
 row admits. `lane-registry.json` and `lane-funding.json` key their entries by workflow file, and
 `lane-ids.test.mjs` fails when a file names a workflow that is neither a lane nor one it records as
-not a lane, such as `maintenance-measure-skill-edit-pass` (a `workflow_call` reusable).
+not a lane, such as `maintenance-measure-skill-edit-pass` and `maintenance-scan-architecture-find`
+(`workflow_call` reusables).
 
 | Lane | Starts on |
 |---|---|
@@ -200,6 +201,34 @@ not a lane, such as `maintenance-measure-skill-edit-pass` (a `workflow_call` reu
 | `pr-unblock` | a dispatch for each conflicting PR but a Dependabot head (Dependabot rebases its own), each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch or at the dispatcher's half-hourly tick, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, a dispatch at the half-hourly tick for a fix request on such a thread or a trusted person's top-level comment addressed to the lane, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
 | `work-unblock` | an issue closing, by a listed human, and a sweep every 15 minutes ([the work-unblock sweep](#the-work-unblock-sweep)) of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran; a sweep whose closed-issue listing fails holds green, and the next one reads back past it), which each finished `work-resolve-issue` run that ran a job also starts, so a freed slot admits the next deferred issue at once; labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs (one a merged `Refs:` pull request names after its newest decision comment goes to triage instead) and relabels a red-main fix issue a repeat failure reopened |
+| `maintenance-scan-architecture` | its daily schedule, or a dispatch by an account with write access, past its no-model gate job |
+
+A lane section's `enabled: false` turns every slot of the lane off, and `every-days` (default 1) is
+how many days a scheduled lane with a cadence gate waits, counted from its last run whose `Scan` job
+succeeded. `maintenance-scan-architecture` ships off. Its gate job
+(`.github/scripts/maintenance-scan-architecture/gate.mjs`) reads both keys and `find_open_item_cap`
+from the improvement config cascade (default 5). Before any API read it stops a run as `lane-off`
+when the lane is off, `reads-unconfined` unless the gate step sets `READS_CONFINED=true` (it does
+only while every model leg sets run-claude-cli's `block-outside-reads`, a test enforces that), or
+`at-cap` when the cap is 0. Then it stops one as `at-cap` when
+the open `source: architecture-improve` issues are at or above the cap, `not-due` when fewer than
+`every-days` calendar days passed since the last run on main whose `Scan` job succeeded (read back
+through the newest 400 runs; none found there is a first scan), or `no-merges`
+when nothing merged to main since it; `first-scan` means no such run exists. A dispatch's `force`
+input skips only `lane-off` and `not-due`; a schedule run never reads it. The key's credit read
+and the three model legs live in `maintenance-scan-architecture-find.yml`, a `workflow_call`
+reusable the lane's `find` job calls once with the three credential secrets by name. The model legs run
+sandboxed (`sandbox: "true"`), with the Bash commands and deny rules in
+`.github/scripts/maintenance-scan-architecture/model-tools.json`, and hold no write token: they
+return the candidates find may file, sealed for the `Scan` job, which drops any naming a security
+defect or shaped like an issue another script trusts (an `Upstream drift:` title, or an HTML
+comment marker in the body). `File Findings` runs only while the lane is on, so a forced run with
+the lane off files nothing. It files on the job's own `GITHUB_TOKEN` (`issues: write`, `contents:
+read`), each issue with exactly one `source: architecture-improve` label; the lane has no slot and
+the token broker grants it nothing. GitHub starts no workflow run on that token's events, so intake
+does not start on these issues, and admission's `own-agents.hold-sources` in
+`admission-rules.json` refuses any issue carrying a listed label, whoever filed it, for a listed
+human.
 
 `pr-unblock`'s dispatches come from `pr-unblock-dispatch.yml`, a scripted workflow with no model
 that runs on a push to `main`, half-hourly (five minutes after the lost-run reconciler's :04 and

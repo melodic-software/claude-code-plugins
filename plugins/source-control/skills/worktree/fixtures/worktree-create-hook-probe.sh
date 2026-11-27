@@ -28,9 +28,8 @@ mkrepo() {
 mkhook() {
   local name="$1" body="$2"
   printf '#!/usr/bin/env bash\n%s\n' "$body" >"$WORKDIR/$name.sh"
-  # Shell form (no `args`): the path carries no placeholder, so the documented
-  # rule at <https://code.claude.com/docs/en/hooks> ("Set `args` whenever the
-  # hook references a path placeholder") does not require exec form here.
+  # Shell form: no path placeholder, so "Set `args` whenever the hook references a path
+  # placeholder" (<https://code.claude.com/docs/en/hooks>) does not apply.
   printf '{"hooks":{"WorktreeCreate":[{"hooks":[{"type":"command","command":"bash \\"%s\\"","timeout":30}]}]}}\n' \
     "$WORKDIR/$name.sh" >"$WORKDIR/$name-settings.json"
 }

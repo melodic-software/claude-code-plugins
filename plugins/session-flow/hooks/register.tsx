@@ -2,8 +2,8 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import { askedRow, band } from './observer-band.tsx'
 import { type CheckRequest, type Effect, type Event, type Options, type Rate, initial, readOptions, step } from './observer-machine.ts'
-import { buildPrompt, type Finding, isKnown, type ParseFailure, ledgerHeader, ledgerLine, ledgerSection, remember, summarize, type Trigger } from './observer-live.ts'
-import { commandKey, type HarnessEvent, harness, harnessInitial, hookRunsFrom, type Platform } from './observer-harness.ts'
+import { buildPrompt, type Finding, type FinishDetail, isKnown, ledgerHeader, ledgerLine, ledgerSection, remember, summarize, type Trigger } from './observer-live.ts'
+import { commandKey, errorKey, type HarnessEvent, harness, harnessInitial, hookRunsFrom, type Platform } from './observer-harness.ts'
 
 const DAY_MS = 86_400_000
 const USAGE = `Usage: /observer [on|off]. Bare /observer shows this session's and the last day's checks.`
@@ -195,6 +195,7 @@ const gate = async ($: EngineInterface, command: string) => {
   const [seen, disputed, notRelevant] = [await list($, 'seen'), await list($, 'disputed'), await list($, 'notRelevant')]
   const prompt = buildPrompt(seen, disputed, undefined, notRelevant, (await count($, 'unclear')) > 0, {
     autoSend: true,
+    request: opts.requestCheck,
     guidance: opts.guidance,
     guidanceMax: opts.guidanceMax,
     override: opts.checkPrompt,
@@ -228,10 +229,11 @@ const runCheck = async ($: EngineInterface, trigger: Trigger, turnId: string, st
   const started = await $.clock.now()
   let outcome = 'error'
   let usage: Usage | undefined
-  let detail: ParseFailure | undefined
+  let detail: FinishDetail | undefined
+  let category: string | undefined
   try {
     const [seen, disputed, notRelevant] = [await list($, 'seen'), await list($, 'disputed'), await list($, 'notRelevant')]
-    const extra = { autoSend: opts.autoSend, guidance: opts.guidance, guidanceMax: opts.guidanceMax, override: opts.checkPrompt }
+    const extra = { autoSend: opts.autoSend, request: opts.requestCheck, guidance: opts.guidance, guidanceMax: opts.guidanceMax, override: opts.checkPrompt }
     const r = await $.model.fork({ prompt: buildPrompt(seen, disputed, req.open?.finding.finding, notRelevant, (await count($, 'unclear')) > 0, extra) })
     if (r.isAnswered) usage = r.usage
     const reply = r.isAnswered ? { isAnswered: true as const, text: r.text } : { isAnswered: false as const, reason: String(r.reason) }
@@ -239,12 +241,14 @@ const runCheck = async ($: EngineInterface, trigger: Trigger, turnId: string, st
     outcome = done.outcome ?? 'error'
     const fin = done.effects.find(fx => fx.kind === 'finish')
     if (fin?.kind === 'finish') detail = fin.detail
+    const acc = done.effects.find(fx => fx.kind === 'accept')
+    if (outcome === 'shown' && acc?.kind === 'accept') category = acc.finding.category
   } catch {
     outcome = 'error'
   } finally {
     m = step(m, { kind: 'check-finished' }, opts).state
     const latencyMs = (await $.clock.now()) - started
-    await record($, { at: await iso($), trigger, turnId, step: stepIndex, outcome, latencyMs, usage, ...detail }).catch(() => undefined)
+    await record($, { at: await iso($), trigger, turnId, step: stepIndex, outcome, latencyMs, usage, ...detail, ...(category ? { category } : {}) }).catch(() => undefined)
   }
 }
 
@@ -255,7 +259,7 @@ const runHarness = async ($: EngineInterface, e: HarnessEvent) => {
   if (r.findings.length === 0 || !m.on || (await $.store.get('paused')) === true) return
   const [seen, disputed, notRelevant] = [await list($, 'seen'), await list($, 'disputed'), await list($, 'notRelevant')]
   for (const { check, finding } of r.findings) {
-    const perSession = check === 'context' || check === 'rate-limit'
+    const perSession = check === 'context' || check === 'rate-limit' || check === 'loop'
     if (isKnown(finding.finding, ...(perSession ? [] : [seen]), disputed, notRelevant)) continue
     await accept($, { trigger: 'harness', turnId: '', step: -1, gen: m.gen, open: null, source: check }, finding).catch(() => undefined)
   }
@@ -356,9 +360,10 @@ export const register: Register = (on, options) => {
       const result = await next(e)
       const command = (e as { command?: unknown }).command
       const key = commandKey(e.tool, typeof command === 'string' ? command : undefined)
+      const error = 'isError' in result && result.isError === true ? errorKey(typeof result.text === 'string' ? result.text : '') : undefined
       void $.clock
         .now()
-        .then(end => runHarness($, { kind: 'tool-ran', key, ms: end - started }))
+        .then(end => runHarness($, { kind: 'tool-ran', key, ms: end - started, error }))
         .catch(() => undefined)
       return result
     })

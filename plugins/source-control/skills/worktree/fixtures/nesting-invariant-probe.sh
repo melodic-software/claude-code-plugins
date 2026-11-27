@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# ─────────────────────────────────────────────────────────────────────────────
-# STATUS: RUN 2026-09-30 on Claude Code 2.1.285, authenticated, ADJUDICATED. The
-# owning-parent leak does not reproduce on dot-nested, plain-nested or external
-# (5 InstructionsLoaded events per arm). On unrelated-nested the ENCLOSING
-# unrelated repo's scoped rule loads via the glob-match load reason; the "PARENT rule
-# loaded?" line checks the worktree's owner, so read the trace for that. See
-# fixtures/README.md for the record. A zero-event run is a fixture failure.
-# ─────────────────────────────────────────────────────────────────────────────
 
 set -uo pipefail
 

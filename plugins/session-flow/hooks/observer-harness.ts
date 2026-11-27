@@ -8,6 +8,7 @@ export type HarnessOptions = {
   cacheMissTokens: number
   toolSlowMs: number
   toolRepeat: number
+  loopRepeat: number
   contextPercents: readonly number[]
   rateLimitPercent: number
 }
@@ -15,7 +16,7 @@ export type HarnessOptions = {
 export type Platform = 'macos' | 'windows' | 'wsl' | 'linux' | 'unknown'
 export type Where = { repo: string; platform: Platform }
 
-export type HarnessCheck = 'hook-latency' | 'cache-miss' | 'slow-tool' | 'context' | 'rate-limit'
+export type HarnessCheck = 'hook-latency' | 'cache-miss' | 'slow-tool' | 'loop' | 'context' | 'rate-limit'
 
 type Usage = { cache_read_input_tokens?: number; cache_creation_input_tokens?: number; ephemeral_1h_input_tokens?: number; model?: string }
 export type RateLimit = { kind: string; percentUsed: number; resetsAt?: string }
@@ -36,16 +37,18 @@ export type HarnessState = {
   pending?: { usage: Usage; idleMinutes?: number; from?: number }
   turns: number
   misses: readonly string[]
+  fails: Readonly<Record<string, { error: string; n: number }>>
+  loops: readonly string[]
 }
 
-export const harnessInitial = (): HarnessState => ({ hooks: [], slow: {}, tools: [], zone: 0, rates: {}, ttlMinutes: 5, compacted: false, turns: 0, misses: [] })
+export const harnessInitial = (): HarnessState => ({ hooks: [], slow: {}, tools: [], zone: 0, rates: {}, ttlMinutes: 5, compacted: false, turns: 0, misses: [], fails: {}, loops: [] })
 
 export type HarnessEvent =
   | { kind: 'hook-runs'; runs: readonly { hook: string; ms: number }[] }
   | { kind: 'turn-started'; at: number }
   | { kind: 'turn-completed'; at: number; usage?: Usage }
   | { kind: 'compacted' }
-  | { kind: 'tool-ran'; key: string; ms: number }
+  | { kind: 'tool-ran'; key: string; ms: number; error?: string }
   | { kind: 'measured'; tokens?: number; percent?: number; rateLimits: readonly RateLimit[] }
 
 export type HarnessFinding = { check: HarnessCheck; finding: Finding }
@@ -174,6 +177,58 @@ const measured = (s: HarnessState, e: Extract<HarnessEvent, { kind: 'measured' }
   return { state, findings, rows: [...r.rows, ...findings.filter(f => f.check !== 'cache-miss').map(f => ({ harness: f.check, subject: f.finding.evidence }))] }
 }
 
+export const errorKey = (text: string) =>
+  text
+    .split(/\r?\n/)
+    .map(l => l.trim().replace(/\d+/g, '#'))
+    .filter(l => l !== '')
+    .join('\n')
+    .slice(0, 4000)
+
+const errorLine = (error: string) => (error.split('\n').find(l => !/^exit code #$/i.test(l)) ?? error.split('\n')[0] ?? '').slice(0, 160)
+
+const loop = (s: HarnessState, e: Extract<HarnessEvent, { kind: 'tool-ran' }>, o: HarnessOptions): HarnessResult => {
+  if (e.error === undefined) {
+    const fails = Object.fromEntries(Object.entries(s.fails).filter(([k]) => k !== e.key))
+    return { state: { ...s, fails }, findings: [], rows: [] }
+  }
+  const last = s.fails[e.key]
+  const n = last?.error === e.error ? last.n + 1 : 1
+  const state = { ...s, fails: { ...s.fails, [e.key]: { error: e.error, n } } }
+  const id = `${e.key}\n${e.error}`
+  if (o.loopRepeat < 1 || n < o.loopRepeat || s.loops.includes(id)) return { state, findings: [], rows: [] }
+  const f = finding(
+    'loop',
+    `${e.key} failed ${n} times in a row with the same error: ${errorLine(e.error).slice(0, 80) || 'no error text'}`,
+    `observer_loop_repeat: a tool call that fails the same way ${o.loopRepeat} times in a row is a loop; change the approach instead of retrying`,
+    `${n} failures: ${errorLine(e.error) || 'no error text'}`,
+    here('stop retrying: read the error, then change the command or the approach, or report what blocks it'),
+  )
+  return { state: { ...state, loops: [...s.loops, id] }, findings: [f], rows: [{ harness: 'loop', subject: e.key }] }
+}
+
+const slowTool = (s: HarnessState, e: Extract<HarnessEvent, { kind: 'tool-ran' }>, o: HarnessOptions): HarnessResult => {
+  const none = { state: s, findings: [], rows: [] }
+  if (e.ms < o.toolSlowMs || s.tools.includes(e.key)) return none
+  const n = (s.slow[e.key] ?? 0) + 1
+  const state = { ...s, slow: { ...s.slow, [e.key]: n } }
+  if (n < o.toolRepeat) return { ...none, state }
+  const f = finding(
+    'slow-tool',
+    `${e.key} has run slowly ${n} times this session.`,
+    `observer_tool_slow_seconds and observer_tool_repeat: a tool call over ${o.toolSlowMs / 1000} s repeated ${o.toolRepeat} times`,
+    `${n} calls over ${o.toolSlowMs / 1000} s, the last ${Math.round(e.ms / 1000)} s`,
+    here('narrow what it runs (one test file, one package), reuse its last output, or run it in the background'),
+  )
+  return { state: { ...state, tools: [...s.tools, e.key] }, findings: [f], rows: [{ harness: 'slow-tool', subject: e.key }] }
+}
+
+const toolRan = (s: HarnessState, e: Extract<HarnessEvent, { kind: 'tool-ran' }>, o: HarnessOptions): HarnessResult => {
+  const a = loop(s, e, o)
+  const b = slowTool(a.state, e, o)
+  return { state: b.state, findings: [...a.findings, ...b.findings], rows: [...a.rows, ...b.rows] }
+}
+
 export const harness = (s: HarnessState, e: HarnessEvent, o: HarnessOptions, where: Where): HarnessResult => {
   const none = (state: HarnessState = s): HarnessResult => ({ state, findings: [], rows: [] })
   if (!o.harnessCheck) return none()
@@ -188,20 +243,8 @@ export const harness = (s: HarnessState, e: HarnessEvent, o: HarnessOptions, whe
     }
     case 'compacted':
       return none({ ...s, compacted: true })
-    case 'tool-ran': {
-      if (e.ms < o.toolSlowMs || s.tools.includes(e.key)) return none()
-      const n = (s.slow[e.key] ?? 0) + 1
-      const state = { ...s, slow: { ...s.slow, [e.key]: n } }
-      if (n < o.toolRepeat) return none(state)
-      const f = finding(
-        'slow-tool',
-        `${e.key} has run slowly ${n} times this session.`,
-        `observer_tool_slow_seconds and observer_tool_repeat: a tool call over ${o.toolSlowMs / 1000} s repeated ${o.toolRepeat} times`,
-        `${n} calls over ${o.toolSlowMs / 1000} s, the last ${Math.round(e.ms / 1000)} s`,
-        here('narrow what it runs (one test file, one package), reuse its last output, or run it in the background'),
-      )
-      return { state: { ...state, tools: [...s.tools, e.key] }, findings: [f], rows: [{ harness: 'slow-tool', subject: e.key }] }
-    }
+    case 'tool-ran':
+      return toolRan(s, e, o)
     case 'measured':
       return measured(s, e, o, where)
   }

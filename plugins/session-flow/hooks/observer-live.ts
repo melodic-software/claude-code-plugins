@@ -6,11 +6,12 @@ export const TYPED_PAST_FREE = 2
 export const SKIP_MAX = 16
 export const GUIDANCE_MAX = 2000
 
-export const CATEGORIES = ['process', 'decision', 'verification', 'instruction'] as const
+export const CATEGORIES = ['process', 'decision', 'verification', 'instruction', 'request'] as const
 export type Category = (typeof CATEGORIES)[number] | 'harness'
 export type Fix = { route: 'here'; how: string } | { route: 'session'; how: string; command: string }
 export type Finding = { finding: string; category: Category; rule: string; evidence: string; fix?: Fix }
 export type ParseFailure = { reason: string; lengths?: { finding: number; rule: number; evidence: number } }
+export type FinishDetail = ParseFailure | { held: boolean }
 export type Parsed = { kind: 'none' } | { kind: 'finding'; value: Finding } | ({ kind: 'unparsable' } & ParseFailure)
 export type Trigger = 'step' | 'turn-end' | 'change' | 'gate' | 'harness'
 
@@ -39,15 +40,17 @@ export const isResolved = (text: string) => /^\s*resolved\s*:\s*yes\b/im.test(te
 
 const UNCLEAR = '\nThe person could not understand an earlier finding: write the finding and the rule in plain words a newcomer can follow, with no term left unexplained.\n'
 
-const INSTRUCTIONS = `Review this session's work so far for one process fault, judged only against rules and decisions written in this session's own instructions and conversation: instruction files (CLAUDE.md, AGENTS.md, rules files, skill text), handoffs, and decisions the owner stated or that a decision record shown here holds. Four kinds count:
+const REQUEST = `\n- request: part of the person's latest request was skipped, left unanswered or answered with something else, or the work drifted from the goal the person stated for this session.`
+
+const instructions = (request: boolean) => `Review this session's work so far for one process fault, judged only against rules and decisions written in this session's own instructions and conversation: instruction files (CLAUDE.md, AGENTS.md, rules files, skill text), handoffs, and decisions the owner stated or that a decision record shown here holds. ${request ? 'Five' : 'Four'} kinds count:
 - process: a step the instructions or a skill's procedure require was skipped or run out of order, or a forbidden action was taken.
 - decision: the work goes against a decision the owner made, or against the intent and vision they stated.
 - verification: something was called done, fixed, passing or merged without the check that proves it, or a check ran and its output went unread.
-- instruction: a written rule was broken, such as a command shape, a writing rule, where a file goes, a standard, a review criterion, the plugin philosophy or a code-quality rule.
+- instruction: a written rule was broken, such as a command shape, a writing rule, where a file goes, a standard, a review criterion, the plugin philosophy or a code-quality rule.${request ? REQUEST : ''}
 
 Report a fault only when every one of these holds: you can quote the rule or decision; you can name the act in this session that breaks it; the assistant has not already noticed or corrected it; it still matters now. Taste, unwritten preferences and guesses do not count. Most checks find nothing, and that is the expected answer.`
 
-export type PromptExtra = { autoSend?: boolean; guidance?: string; guidanceMax?: number; override?: string; heldCommand?: string }
+export type PromptExtra = { autoSend?: boolean; request?: boolean; guidance?: string; guidanceMax?: number; override?: string; heldCommand?: string }
 
 const guidanceBlock = (text: string, max: number) => (text.trim() === '' ? '' : `\nThe person's guidance for these checks:\n${text.trim().slice(0, max)}\n`)
 
@@ -58,7 +61,7 @@ export const buildPrompt = (seen: readonly string[], disputed: readonly string[]
 You are a separate reviewer beside this session, not the assistant doing its work. ${extra.autoSend ? 'Your finding is sent to the assistant as a note, so report only what is worth its attention.' : 'The assistant keeps working and never sees your reply unless the person sends it.'} You have no tools and get one reply. Never repeat a secret, token, credential or personal detail, even one that appears above.
 </system-reminder>
 
-${extra.override?.trim() || INSTRUCTIONS}
+${extra.override?.trim() || instructions(extra.request === true)}
 ${guidanceBlock(extra.guidance ?? '', extra.guidanceMax ?? GUIDANCE_MAX)}${heldBlock(extra.heldCommand)}${listed('Already reported (do not report again in any wording):', seen)}${listed('Disputed by the person (never report again):', disputed)}${listed('Not relevant to the person (do not report these or faults like them):', notRelevant)}${unclear ? UNCLEAR : ''}${openBlock(open)}
 Answer with plain lines and nothing else, in one of two shapes. Either:
 
@@ -67,7 +70,7 @@ finding: none
 or:
 
 finding: <one sentence of at most 200 characters naming what went wrong>
-category: <process | decision | verification | instruction>
+category: <process | decision | verification | instruction${extra.request ? ' | request' : ''}>
 rule: <the rule or decision, quoted where you can, and where it is written>
 evidence: <the act in this session that breaks it>`
 

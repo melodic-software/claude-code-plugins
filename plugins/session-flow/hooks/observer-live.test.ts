@@ -529,6 +529,15 @@ test('each check records its usage', async ($, on) => {
   expect(live(w)[0]).toMatchObject({ trigger: 'step', turnId: 't1', step: 6, outcome: 'none', usage: USAGE })
 })
 
+test('a shown check row records the finding category', async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer('finding: Skipped the second ask.\ncategory: request\nrule: the person asked two things\nevidence: only one answered'))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  expect(live(w).find(r => (r as { trigger?: string }).trigger === 'step')).toMatchObject({ trigger: 'step', outcome: 'shown', category: 'request' })
+})
+
 test('a parse_failed check row records the reason and field lengths, never the reply text', async ($, on) => {
   const w = world(on)
   w.replies.push(answer('finding: x\ncategory: taste\nrule: r'))
@@ -577,6 +586,16 @@ kitTest('parseReply stays linear on a long run of asterisks', async () => {
 
 kitTest('checksToSkipAfterIgnored: free for two ignores, then doubles to a cap of 16', async () => {
   expect([0, 1, 2, 3, 4, 5, 6, 7, 8].map(checksToSkipAfterIgnored)).toEqual([0, 0, 0, 1, 2, 4, 8, 16, 16])
+})
+
+test('the request category is asked only with request on, and parses', () => {
+  expect(buildPrompt([], [], undefined, [], false, { request: true })).toContain('- request: part of the person')
+  expect(buildPrompt([], [], undefined, [], false, { request: true })).toContain('instruction | request>')
+  expect(buildPrompt([], [], undefined, [], false, { request: true })).toContain('Five kinds count')
+  expect(buildPrompt([], [])).not.toContain('- request:')
+  expect(buildPrompt([], [])).toContain('Four kinds count')
+  const r = parseReply('finding: The second question went unanswered.\ncategory: request\nrule: the person asked two questions\nevidence: the reply answered only the first')
+  expect(r.kind === 'finding' && r.value.category).toBe('request')
 })
 
 kitTest('buildPrompt lists what was seen and disputed', async () => {

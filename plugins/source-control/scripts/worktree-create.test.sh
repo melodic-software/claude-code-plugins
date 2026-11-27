@@ -37,19 +37,19 @@ mkrepo() {
   local origin_url="" seed_head=1 remote_name="origin"
   while [[ $# -gt 0 ]]; do
     case "$1" in
-    --origin)
-      origin_url="$2"
-      shift 2
-      ;;
-    --remote-name)
-      remote_name="$2"
-      shift 2
-      ;;
-    --no-head)
-      seed_head=0
-      shift
-      ;;
-    *) shift ;;
+      --origin)
+        origin_url="$2"
+        shift 2
+        ;;
+      --remote-name)
+        remote_name="$2"
+        shift 2
+        ;;
+      --no-head)
+        seed_head=0
+        shift
+        ;;
+      *) shift ;;
     esac
   done
   local repo
@@ -117,8 +117,8 @@ assert_eq "fallback places the worktree under the plugin data dir" \
 assert_file_exists "fallback worktree materialized" "$out/README.md"
 
 case "$out" in
-"$repo"/*) fail "default is outside the repository" "not under $repo" "$out" ;;
-*) pass "default is outside the repository" ;;
+  "$repo"/*) fail "default is outside the repository" "not under $repo" "$out" ;;
+  *) pass "default is outside the repository" ;;
 esac
 
 discovery_root=$(mktemp -d "$TEST_TMPDIR/ghqrootXXXXXX")
@@ -141,8 +141,8 @@ disc_root_native="${disc_root_native%/github.com/acme/widget}"
 out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/nodiscovery --data-root-file "$DATA_ROOT_FILE" --repo-dir "$disc_repo" 2>/dev/null)
 assert_exit "discovery-layout repo creates against the default (exit 0)" 0 "$?"
 case "$out" in
-"$disc_root_native"/*) fail "default escapes the repository-discovery root" "not under $disc_root_native" "$out" ;;
-*) pass "default escapes the repository-discovery root" ;;
+  "$disc_root_native"/*) fail "default escapes the repository-discovery root" "not under $disc_root_native" "$out" ;;
+  *) pass "default escapes the repository-discovery root" ;;
 esac
 
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
@@ -757,14 +757,14 @@ reason="$(tr -d '\r\n' <"$lock_file")"
 assert_contains "session lock reason uses the claim token" "$reason" "session sess-owner since"
 assert_contains "session lock reason still names the helper" "$reason" "worktree-create.sh:"
 case "$reason" in
-"worktree-create.sh: lane active on "*" session sess-owner since "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z"; unlock when the owning lane is done")
-  pass "session lock reason has the claim_reason shape"
-  ;;
-*)
-  fail "session lock reason has the claim_reason shape" \
-    "worktree-create.sh: lane active on <host> session sess-owner since <utc>; unlock when the owning lane is done" \
-    "$reason"
-  ;;
+  "worktree-create.sh: lane active on "*" session sess-owner since "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z"; unlock when the owning lane is done")
+    pass "session lock reason has the claim_reason shape"
+    ;;
+  *)
+    fail "session lock reason has the claim_reason shape" \
+      "worktree-create.sh: lane active on <host> session sess-owner since <utc>; unlock when the owning lane is done" \
+      "$reason"
+    ;;
 esac
 
 bash "$CLAIM" check-enter "$out" --repo-dir "$repo" --session-id sess-owner >/dev/null 2>&1
@@ -796,14 +796,14 @@ else
   pass "omitted session id writes no ownable session token"
 fi
 case "$reason" in
-"worktree-create.sh: lane active on "*" since "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z"; unlock when the owning lane is done")
-  pass "omitted session id keeps the host-and-time reason"
-  ;;
-*)
-  fail "omitted session id keeps the host-and-time reason" \
-    "worktree-create.sh: lane active on <host> since <utc>; unlock when the owning lane is done" \
-    "$reason"
-  ;;
+  "worktree-create.sh: lane active on "*" since "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z"; unlock when the owning lane is done")
+    pass "omitted session id keeps the host-and-time reason"
+    ;;
+  *)
+    fail "omitted session id keeps the host-and-time reason" \
+      "worktree-create.sh: lane active on <host> since <utc>; unlock when the owning lane is done" \
+      "$reason"
+    ;;
 esac
 bash "$CLAIM" check-enter "$out" --repo-dir "$repo" --session-id arbitrary-sid >/dev/null 2>&1
 assert_exit "omitted session id does not satisfy check-enter for an arbitrary id" 4 "$?"
@@ -842,15 +842,15 @@ assert_exit "POSIX path has no drive letter" 1 "$?"
 windows_drive_letter '//server/share/x' >/dev/null 2>&1
 assert_exit "UNC path has no drive letter" 1 "$?"
 case "$(uname -s 2>/dev/null || true)" in
-MINGW* | MSYS* | CYGWIN*)
-  assert_eq "MSYS /d/ form is drive D" "D" "$(windows_drive_letter '/d/worktrees')"
-  err=$(check_same_drive 'C:/repos/acme' '/d/worktrees/acme-x' 1 2>&1 >/dev/null)
-  assert_exit "MSYS root vs Windows repo refuses cross-drive" 3 "$?"
-  ;;
-*)
-  windows_drive_letter '/d/worktrees' >/dev/null 2>&1
-  assert_exit "POSIX /d/ path is not a drive letter" 1 "$?"
-  ;;
+  MINGW* | MSYS* | CYGWIN*)
+    assert_eq "MSYS /d/ form is drive D" "D" "$(windows_drive_letter '/d/worktrees')"
+    err=$(check_same_drive 'C:/repos/acme' '/d/worktrees/acme-x' 1 2>&1 >/dev/null)
+    assert_exit "MSYS root vs Windows repo refuses cross-drive" 3 "$?"
+    ;;
+  *)
+    windows_drive_letter '/d/worktrees' >/dev/null 2>&1
+    assert_exit "POSIX /d/ path is not a drive letter" 1 "$?"
+    ;;
 esac
 
 check_same_drive 'C:/repos/acme' 'C:/worktrees/acme-x' 1 >/dev/null 2>&1
@@ -1394,6 +1394,17 @@ bash "$CLAIM" check-enter "$first" --repo-dir "$repo" --session-id s-next >/dev/
 assert_exit "after the takeover check-enter treats the tree as this session's" 0 "$?"
 assert_contains "the takeover keeps the creating helper in the reason" "$(lock_reason_of "$first")" "worktree-create.sh:"
 
+root="$TEST_TMPDIR/wtreuse-stale-gone"
+first=$(CLAUDE_CONFIG_DIR="$reuse_cfg" bash "$HELPER" --name feat/relaunch-gone --root "$root" --session-id s-gone --repo-dir "$repo" 2>/dev/null)
+git -C "$repo" config branch.feat/relaunch-gone.remote origin
+git -C "$repo" config branch.feat/relaunch-gone.merge refs/heads/feat/relaunch-gone
+code=0
+CLAUDE_CONFIG_DIR="$reuse_cfg" bash "$HELPER" --name feat/relaunch-gone --root "$root" --session-id s-next \
+  --repo-dir "$repo" >/dev/null 2>&1 || code=$?
+assert_exit "a stale takeover of a [gone] branch's worktree exits 0" 0 "$code"
+bash "$CLAIM" check-enter "$first" --repo-dir "$repo" --session-id s-next >/dev/null 2>&1
+assert_exit "after a [gone] takeover the tree is this session's claim" 0 "$?"
+
 root="$TEST_TMPDIR/wtreuse-anon"
 first=$(bash "$HELPER" --name feat/anon --root "$root" --repo-dir "$repo" 2>/dev/null)
 code=0
@@ -1479,5 +1490,33 @@ out=$(bash "$HELPER" --name feat-login --root "$root" --session-id s-p --repo-di
 assert_exit "a prefix of a registered worktree's name is created (exit 0)" 0 "$code"
 assert_eq "the prefix name gets its own path" "$root/acme-widget-feat-login" "$out"
 assert_eq "the prefix name gets its own branch" "feat-login" "$(git -C "$out" branch --show-current 2>/dev/null)"
+
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+printf '.' >"$repo/.git/commondir"
+root="$TEST_TMPDIR/wtcommondir"
+code=0
+err=$(bash "$HELPER" --name feat/stray --root "$root" --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
+assert_exit "a commondir file in the main .git refuses (exit 4)" 4 "$code"
+assert_contains "the refusal names the stray file" "$err" "/.git/commondir"
+assert_contains "the refusal names EnterWorktree's error" "$err" "not-a-git-repository"
+assert_contains "the refusal gives the fix" "$err" "worktree list"
+assert_file_absent "the refusal creates no worktree" "$root/acme-widget-feat-stray/README.md"
+if git -C "$repo" show-ref --verify --quiet refs/heads/feat/stray; then
+  fail "the refusal creates no branch" "no refs/heads/feat/stray" "branch exists"
+else
+  pass "the refusal creates no branch"
+fi
+
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root="$TEST_TMPDIR/wtcommondir-linked"
+code=0
+linked=$(bash "$HELPER" --name feat/linked-base --root "$root" --repo-dir "$repo" 2>/dev/null) || code=$?
+assert_exit "a main .git without commondir creates (exit 0)" 0 "$code"
+assert_file_exists "the linked worktree's own git dir holds commondir" \
+  "$(git -C "$linked" rev-parse --absolute-git-dir)/commondir"
+code=0
+out=$(bash "$HELPER" --name feat/from-linked --root "$root" --repo-dir "$linked" 2>/dev/null) || code=$?
+assert_exit "run from a linked worktree, its commondir does not refuse (exit 0)" 0 "$code"
+assert_file_exists "the worktree made from a linked worktree materialized" "$out/README.md"
 
 [[ $FAILED -eq 0 ]] || exit 1

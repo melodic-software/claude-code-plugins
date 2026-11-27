@@ -9,6 +9,7 @@ import {
   SKIP_MAX,
   TYPED_PAST_FREE,
   type Finding,
+  type FinishDetail,
   type ParseFailure,
   type Trigger,
   checksToSkipAfterIgnored,
@@ -44,6 +45,7 @@ export type Options = HarnessOptions & {
   gatePattern: RegExp
   gateTimeoutMs: number
   gateRefusals: number
+  requestCheck: boolean
 }
 
 export const GATE_PATTERN = String.raw`\b(git\s+push|gh\s+pr\s+(create|merge|comment|review)|gh\s+issue\s+(create|comment)|gh\s+api\b.*\s(-X|--method)\s*(POST|PATCH|PUT|DELETE))\b`
@@ -90,6 +92,7 @@ export const readOptions = (raw: Readonly<Record<string, unknown>>): { options: 
     gatePattern: new RegExp(pick('observer_gate_pattern', GATE_PATTERN, regex)),
     gateTimeoutMs: int('observer_gate_timeout_seconds', 30, 1) * 1000,
     gateRefusals: int('observer_gate_refusals', 1, 0),
+    requestCheck: bool('observer_request_check', false),
     harnessCheck: bool('observer_harness_check', false),
     hookLogDir: text('observer_hook_log_dir', '.observability/claude'),
     hookP95Ms: int('observer_hook_p95_ms', 1000, 1),
@@ -97,6 +100,7 @@ export const readOptions = (raw: Readonly<Record<string, unknown>>): { options: 
     cacheMissTokens: int('observer_cache_miss_tokens', 50_000, 1),
     toolSlowMs: int('observer_tool_slow_seconds', 60, 1) * 1000,
     toolRepeat: int('observer_tool_repeat', 3, 1),
+    loopRepeat: int('observer_loop_repeat', 3, 0),
     contextPercents: pick('observer_context_percents', [50, 75], v => typeof v === 'string' && /^\s*\d+(\s*,\s*\d+)*\s*$/.test(v), (v: string) => [...new Set(v.split(',').map(Number))].sort((a, b) => a - b)),
     rateLimitPercent: int('observer_rate_limit_percent', 80, 1),
   }
@@ -185,7 +189,7 @@ export type Effect =
   | { kind: 'check'; trigger: Trigger; turnId: string; step: number }
   | { kind: 'fork'; req: CheckRequest }
   | { kind: 'accept'; req: CheckRequest; finding: Finding }
-  | { kind: 'finish'; req: CheckRequest; outcome: string; detail?: ParseFailure }
+  | { kind: 'finish'; req: CheckRequest; outcome: string; detail?: FinishDetail }
   | { kind: 'store'; key: string; value: unknown }
   | { kind: 'record'; row: object }
   | { kind: 'ledger'; path: string; line: LedgerKind; finding: Finding; detail?: string }
@@ -215,7 +219,7 @@ const answered = (s: State, answer: string, toast?: string): Result => ({
 const failure = ({ reason, lengths }: ParseFailure): ParseFailure => (lengths ? { reason, lengths } : { reason })
 
 const replied = (s: State, e: Extract<Event, { kind: 'check-replied' }>, o: Options): Result => {
-  const finish = (state: State, outcome: string, before: Effect[] = [], detail?: ParseFailure): Result => ({
+  const finish = (state: State, outcome: string, before: Effect[] = [], detail?: FinishDetail): Result => ({
     state,
     effects: [...before, { kind: 'finish', req: e.req, outcome, ...(detail ? { detail } : {}) }],
   })
@@ -234,7 +238,7 @@ const replied = (s: State, e: Extract<Event, { kind: 'check-replied' }>, o: Opti
     effects.push({ kind: 'ledger', path: open.ledger, line: 'resolved', finding: open.finding }, { kind: 'record', row: { answer: 'resolved' } }, { kind: 'invalidate' })
     state = { ...state, card: null }
   }
-  if (!isCurrent) return finish(state, 'stale', effects)
+  if (!isCurrent) return finish(state, 'stale', effects, { held: parsed.kind === 'finding' })
   if (parsed.kind === 'none') return finish(state, 'none', effects)
   if (parsed.kind === 'unparsable') return finish(state, 'parse_failed', effects, failure(parsed))
   if (isKnown(parsed.value.finding, e.seen, e.disputed)) return finish(state, 'deduped', effects)
@@ -280,7 +284,7 @@ export const step = (s: State, e: Event, o: Options): Result => {
       if (parsed?.kind === 'finding' && times < o.gateRefusals)
         return {
           state: { ...s, refused: { ...s.refused, [e.command]: times + 1 } },
-          effects: [{ kind: 'record', row: { ...row, outcome: 'refused', finding: parsed.value.finding } }, { kind: 'deny', text: noteFor(parsed.value, 'plugin', o.autoNote) }],
+          effects: [{ kind: 'record', row: { ...row, outcome: 'refused', finding: parsed.value.finding, category: parsed.value.category } }, { kind: 'deny', text: noteFor(parsed.value, 'plugin', o.autoNote) }],
         }
       const outcome = !e.reply.isAnswered ? e.reply.reason : parsed?.kind === 'finding' ? 'allowed_after_refusals' : parsed?.kind === 'none' ? 'none' : 'parse_failed'
       return { state: s, effects: [{ kind: 'record', row: { ...row, outcome, ...(parsed?.kind === 'unparsable' ? failure(parsed) : {}) } }] }

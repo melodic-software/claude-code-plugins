@@ -31,15 +31,15 @@ const bad = (label) => { fail += 1; console.error(`FAIL: ${label}`); };
 const check = (cond, label) => (cond ? ok(label) : bad(label));
 
 // --- extract the helper block from the shipped asset ---------------------
-const OPEN = "/* ---- the four shared helpers ---- */";
-const CLOSE = "/* ---- pattern snippets, printed into their pre blocks as text ---- */";
+const OPEN = "function esc(";
+const CLOSE = "var SNIPPETS =";
 const from = src.indexOf(OPEN);
 const to = src.indexOf(CLOSE);
 if (from === -1 || to === -1 || to <= from) {
-  console.error("check-loop-closure-helpers: helper block markers not found in the asset");
+  console.error("check-loop-closure-helpers: helper block bounds not found in the asset");
   process.exit(2);
 }
-const helpers = src.slice(from + OPEN.length, to);
+const helpers = src.slice(from, to);
 
 // esc, safeHref and safeFilename are pure; copyText and downloadText touch the
 // DOM, so they are asserted at source level below rather than executed.

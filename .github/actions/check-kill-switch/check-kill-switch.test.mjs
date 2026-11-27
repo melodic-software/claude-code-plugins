@@ -544,6 +544,8 @@ const GATES = {
   "maintenance-measure-skill-edit.yml": { "check-inputs": "start", "generate-edit": "switch", "push-branch": "switch", publish: "switch" },
   "maintenance-monitor-signals.yml": { monitor: "start" },
   "maintenance-reconcile-lost-runs.yml": { reconcile: "start" },
+  "maintenance-scan-architecture.yml": { gate: "start", "file-findings": "switch" },
+  "maintenance-scan-architecture-find.yml": { "find-candidates": "switch", "find-candidates-subscription": "switch", "find-candidates-fallback": "switch" },
   "maintenance-tidy-code-upkeep.yml": { "select-areas": "start", "sweep-areas": "switch", "sweep-areas-subscription": "switch", "sweep-areas-fallback": "switch", "push-branches": "switch", publish: "switch" },
   "post-merge-file-demotion-issues.yml": { "report-red-main": "switch" },
   "post-merge-test-mutation.yml": { "check-range": "start" },

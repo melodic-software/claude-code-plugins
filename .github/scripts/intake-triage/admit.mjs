@@ -74,6 +74,7 @@ export const OWN_AGENT_EDITED = "its body was last edited by an account other th
 export const OWN_AGENT_PATCH_CAP = "its last run's patch was over the scan job's size cap (scan-refused-patch), and an own-agent filing is never split automatically, so a listed human decides it";
 export const SOURCE_UNREAD = "the open issues of its `source:` label were not read, so its producer's cap is unknown";
 export const ownAgentSize = (size) => `an own-agent filing is admitted only at Size small or medium, and it is Size ${size}, which is never split automatically, so a listed human decides it`;
+export const heldSource = (label) => `its producer's label \`${label}\` is on own-agents.hold-sources, whose filings wait for a listed human to decide them`;
 export const sourceCapWait = (label, older, cap) => `${older} older open issue(s) carry \`${label}\`, at or over that producer's cap of ${cap} (own-agents.source-cap)`;
 
 export function ownAgentIds(rules, appId) {
@@ -615,6 +616,11 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   const unsplit = splitChild || drift;
   if (unsplit && !rules.sizes.includes("large")) {
     rules = { ...rules, sizes: [...rules.sizes, "large"] };
+  }
+  const heldSources = (rules["own-agents"]?.["hold-sources"] ?? []).map((label) => label.toLowerCase());
+  for (const label of sourceLabels(issue.labels).filter((name) => heldSources.includes(String(name).toLowerCase()))) {
+    refuse.push(heldSource(label));
+    holdFor("intent");
   }
   const ownIds = ownAgentIds(rules, appId);
   const ownAgent = !splitChild && ownIds.has(issue.user?.id) && !String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER);

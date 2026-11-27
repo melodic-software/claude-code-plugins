@@ -1,9 +1,5 @@
 <?xml version="1.0" ?>
 <!DOCTYPE coverage SYSTEM 'http://cobertura.sourceforge.net/xml/coverage-04.dtd'>
-<!-- Hand-written fixture for the code-metrics coverage parsers, in the shape
-     kcov emits for a Bash script: unverified against a live run. The
-     <source> prefix and the <method> element are the two parts the join
-     depends on. -->
 <coverage line-rate="0.8" branch-rate="0.5" lines-covered="4" lines-valid="5" branches-covered="1" branches-valid="2" complexity="0" version="1.9" timestamp="1757000000">
   <sources>
     <source>/workspace/repo</source>

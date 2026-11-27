@@ -39,7 +39,7 @@ pr_number() {
   git log -1 --format=%s "$1" | sed -nE 's/.* \(#([0-9]+)\)$/\1/p'
 }
 
-original_of() { # <revert>: the commit it reverts; nothing when <revert> is not a revert
+original_of() {
   local named subject text
   named="$(sed -nE 's/^This reverts commit ([0-9a-f]{7,40}).*/\1/p' <<<"$(git log -1 --format=%b "$1")")"
   if [[ -n "$named" ]]; then
@@ -87,7 +87,7 @@ caught_lines() {
     <(git diff -U0 --no-color --no-renames "$1^" "$1" -- "$3")
 }
 
-pair_lines() { # <original> <revert>: "<path><TAB><n>,<n>..." per file holding a caught line
+pair_lines() {
   local path lines
   while IFS= read -r path; do
     lines="$(caught_lines "$1" "$2" "$path" | paste -sd, -)"
@@ -106,7 +106,7 @@ reverses_cleanly() {
   return "$status"
 }
 
-ranges() { # <n>,<n>...: the same ascending numbers as runs, 3,4,5,9 -> 3-5,9
+ranges() {
   tr , '\n' <<<"$1" | awk '
     function run() { return s == e ? s : s "-" e }
     NR == 1 { s = e = $1; next }
@@ -205,7 +205,6 @@ build() {
       git cat-file -e "$at:$path" 2>/dev/null || continue
       mkdir -p "$(dirname "$fixtures/$side/$path")"
       git cat-file blob "$at:$path" >"$fixtures/$side/$path.txt"
-      # A copy keeps the mode git recorded, so an executable script stays one.
       if [[ "$(git ls-tree --format='%(objectmode)' "$at" -- "$path")" == 100755 ]]; then chmod +x "$fixtures/$side/$path.txt"; fi
     done
   done
@@ -229,14 +228,7 @@ build() {
   done <<<"$lines"
 
   {
-    echo "# Revert case: a merged pull request that a later revert undid, rebuilt offline."
-    echo "# pr: $REPO#$pr (merged as $orig)"
-    echo "# base: $(git rev-parse "$orig^")"
-    echo "# revert: ${rpr:+#$rpr }$rev"
-    echo "# lines: at the merge, the lines the pull request added that the revert removed:"
-    echo "#   $where"
     echo "# confirmed-by: pending; a verifier agent checks the lines against the revert and names itself here"
-    echo "# rebuilt: only the files above, at base and merge."
     echo 'schema_version: "1.1"'
     echo "name: $name"
     echo "context:"
