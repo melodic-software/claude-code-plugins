@@ -9,6 +9,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIGEST_CONTRACT="$SCRIPT_DIR/digest-contract.json"
+RUN_RECORD_DECL="$SCRIPT_DIR/run-record.json"
 FLEET_STATE="${SYNC_RUN_FLEET_STATE:-$SCRIPT_DIR/fleet-state.sh}"
 CACHE_CHECK="${SYNC_RUN_CACHE_CHECK:-$SCRIPT_DIR/cache-content-check.sh}"
 NORMALIZE="${SYNC_RUN_NORMALIZE:-$SCRIPT_DIR/normalize-enabled-plugins.sh}"
@@ -258,6 +259,19 @@ if ! command -v jq >/dev/null 2>&1; then
   echo "ERROR: jq required (install with: winget install jqlang.jq | apt install jq | brew install jq)" >&2
   exit 2
 fi
+
+RR_RUN_FIELDS=()
+RR_MP_FIELDS=()
+RR_DECL=""
+# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+if ! jq_to RR_DECL -r 'to_entries[] | .key as $s | .value | to_entries[]
+    | "\($s) \(.key) \(.value.var) \(.value.kind)"' "$RUN_RECORD_DECL" 2>/dev/null || [[ -z "$RR_DECL" ]]; then
+  echo "ERROR: the run record declaration is unreadable: $RUN_RECORD_DECL" >&2
+  exit 2
+fi
+while read -r RR_SCOPE RR_SPEC; do
+  if [[ "$RR_SCOPE" == run ]]; then RR_RUN_FIELDS+=("$RR_SPEC"); else RR_MP_FIELDS+=("$RR_SPEC"); fi
+done <<<"$RR_DECL"
 
 json_lines() {
   local __var="$1"
@@ -947,13 +961,10 @@ other_paths_step() {
 
 finalize_other_paths() {
   local mp="$1" rows result=""
-  local file="$RUN_DIR/other-paths.$mp.json" rows_file="$RUN_DIR/.other-paths-rows.$mp.json"
+  local rows_file="$RUN_DIR/.other-paths-rows.$mp.json"
   local post="$RUN_DIR/post.$mp.json" pre="$RUN_DIR/pre.$mp.json"
   local skipped="$RUN_DIR/.other-paths-skipped.$mp.jsonl"
-  if ((ONLY_INSTALL_MODE == 1)); then
-    [[ -f "$file" ]] && OTHER_PATHS_JSON=$(<"$file")
-    return 0
-  fi
+  ((ONLY_INSTALL_MODE == 0)) || return 0
   json_array_of rows ${PATH_ROWS[@]+"${PATH_ROWS[@]}"}
   printf '%s\n' "$rows" >"$rows_file"
   [[ -f "$post" ]] || post="$rows_file"
@@ -986,7 +997,6 @@ finalize_other_paths() {
   else
     mp_error "other-paths read-back failed"
   fi
-  printf '%s\n' "$OTHER_PATHS_JSON" >"$file"
 }
 
 reset_marketplace_state() {
@@ -1010,57 +1020,105 @@ reset_marketplace_state() {
 }
 reset_marketplace_state
 
-persist_first_pass_rows() {
-  local mp="$1" ir_f us_f errs persisted
-  json_array_of ir_f ${IR_FAILED[@]+"${IR_FAILED[@]}"}
-  json_array_of us_f ${US_FAILED[@]+"${US_FAILED[@]}"}
-  json_strings_of errs ${MP_ERRORS[@]+"${MP_ERRORS[@]}"}
-  json_object_file "$RUN_DIR/.first-pass-args.$mp.json" \
-    errors "$errs" ir_failed "$ir_f" us_failed "$us_f" source_pull "$SOURCE_PULL_JSON" \
-    refresh_skipped "$REFRESH_SKIP_JSON"
-  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to persisted -c \
-    --arg refresh_rc "$REFRESH_RC" \
-    --arg refresh_out "$REFRESH_OUT" \
-    --arg refresh_reason "$REFRESH_REASON" \
-    --arg refresh_label "$REFRESH_LABEL" \
-    --arg refresh_predicted "$REFRESH_PREDICTED" \
-    '{errors, ir_failed, us_failed, source_pull,
-      refresh: {rc: (if $refresh_rc == "null" or $refresh_rc == "" then null
-                     else ($refresh_rc | tonumber? // $refresh_rc) end),
-                output: $refresh_out,
-                reason: $refresh_reason,
-                predicted: ($refresh_predicted == "true"),
-                label: $refresh_label,
-                skipped: .refresh_skipped}}' "$RUN_DIR/.first-pass-args.$mp.json"
-  printf '%s\n' "$persisted" >"$RUN_DIR/first-pass.$mp.json"
+record_fields_to() {
+  local __rf_var="$1" __rf_spec __rf_name __rf_v __rf_kind __rf_val __rf_ref __rf_out="" __rf_sep=""
+  shift
+  for __rf_spec in "$@"; do
+    read -r __rf_name __rf_v __rf_kind <<<"$__rf_spec"
+    __rf_ref="${__rf_v}[@]"
+    case "$__rf_kind" in
+      string) json_string_to __rf_val "${!__rf_v}" ;;
+      flag) if [[ "${!__rf_v}" == 1 ]]; then __rf_val=true; else __rf_val=false; fi ;;
+      strings) json_strings_of __rf_val ${!__rf_ref+"${!__rf_ref}"} ;;
+      rows) json_array_of __rf_val ${!__rf_ref+"${!__rf_ref}"} ;;
+      *) __rf_val="${!__rf_v:-null}" ;;
+    esac
+    __rf_out+="$__rf_sep\"$__rf_name\":$__rf_val"
+    __rf_sep=","
+  done
+  printf -v "$__rf_var" '{%s}' "$__rf_out"
 }
 
-restore_first_pass_rows() {
-  local mp="$1" lines line
-  local sidecar="$RUN_DIR/first-pass.$mp.json"
-  [[ -f "$sidecar" ]] || return 0
-  jq_to lines -r '.errors[]?' "$sidecar"
-  while IFS= read -r line; do
-    [[ -n "$line" ]] && MP_ERRORS+=("$line")
-  done <<<"$lines"
-  jq_to lines -c '.ir_failed[]?' "$sidecar"
-  while IFS= read -r line; do
-    [[ -n "$line" ]] && IR_FAILED+=("$line")
-  done <<<"$lines"
-  jq_to lines -c '.us_failed[]?' "$sidecar"
-  while IFS= read -r line; do
-    [[ -n "$line" ]] && US_FAILED+=("$line")
-  done <<<"$lines"
-  jq_to REFRESH_OUT -r '.refresh.output // ""' "$sidecar"
-  jq_to REFRESH_REASON -r '.refresh.reason // ""' "$sidecar"
-  jq_to REFRESH_PREDICTED -r 'if .refresh.predicted == true then "true" else "false" end' "$sidecar"
-  jq_to REFRESH_LABEL -r '.refresh.label // ""' "$sidecar"
-  jq_to REFRESH_RC -r 'if .refresh.rc == null then "null" else (.refresh.rc | tostring) end' "$sidecar"
-  jq_to REFRESH_SKIP_JSON -c '.refresh.skipped // null' "$sidecar"
-  [[ -n "$REFRESH_SKIP_JSON" ]] || REFRESH_SKIP_JSON="null"
-  jq_to SOURCE_PULL_JSON -c '.source_pull // null' "$sidecar"
-  [[ -n "$SOURCE_PULL_JSON" ]] || SOURCE_PULL_JSON="null"
+restore_fields() {
+  local mp="$1" spec name var kind val
+  shift
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  local at='(if $mp == "" then .run else .marketplaces[$mp] end)[$n]'
+  for spec in "$@"; do
+    read -r name var kind <<<"$spec"
+    case "$kind" in
+      strings) mapfile -t "$var" < <(jq -r --arg mp "$mp" --arg n "$name" "${at}[]" "$RUN_RECORD") ;;
+      rows) mapfile -t "$var" < <(jq -c --arg mp "$mp" --arg n "$name" "${at}[]" "$RUN_RECORD") ;;
+      flag)
+        jq_to val -r --arg mp "$mp" --arg n "$name" "$at" "$RUN_RECORD"
+        if [[ "$val" == true ]]; then printf -v "$var" 1; else printf -v "$var" 0; fi
+        ;;
+      string) jq_to "$var" -r --arg mp "$mp" --arg n "$name" "$at" "$RUN_RECORD" ;;
+      *) jq_to "$var" -c --arg mp "$mp" --arg n "$name" "$at" "$RUN_RECORD" ;;
+    esac
+  done
+}
+
+# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+RUN_RECORD_CHECK_JQ='
+  def type_of: {string: "string", flag: "boolean", strings: "array", rows: "array"}[.];
+  def bad($decl; $where):
+    . as $o
+    | [$decl | to_entries[] | .key as $k | (.value.kind | type_of) as $t
+       | select(($o | has($k) | not) or ($t != null and ($o[$k] | type) != $t)) | "\($where).\($k)"];
+  if type != "object" or (.run | type) != "object" or (.marketplaces | type) != "object" then
+    "it is not a run record object"
+  else
+    ((.run | bad($d[0].run; "run"))
+     + [.marketplaces | to_entries[] | .key as $m
+        | if (.value | type) == "object" then (.value | bad($d[0].marketplace; "marketplaces.\($m)"))[]
+          else "marketplaces.\($m)" end]) as $b
+    | if $b == [] then "" else "fields missing or of the wrong type: \($b | join(", "))" end
+  end'
+
+RUN_RECORD_OK=0
+run_record_load() {
+  local reason=""
+  if [[ ! -f "$RUN_RECORD" ]]; then
+    reason="run.json is missing"
+  elif ! jq_to reason -r --slurpfile d "$RUN_RECORD_DECL" "$RUN_RECORD_CHECK_JQ" "$RUN_RECORD" 2>/dev/null; then
+    reason="run.json is not valid JSON"
+  fi
+  if [[ -n "$reason" ]]; then
+    run_error "run record unusable ($reason): this re-entry ran on its own flags and defaults, without the first pass's flags, timings or rows"
+    return 0
+  fi
+  RUN_RECORD_OK=1
+  restore_fields "" "${RR_RUN_FIELDS[@]}"
+  [[ -z "${CLAUDE_CODE_REMOTE:-}" ]] || apply_pull_policy
+}
+
+run_record_restore_mp() {
+  local mp="$1" rec
+  if ((RUN_RECORD_OK == 1)); then
+    if jq -e --arg mp "$mp" '.marketplaces | has($mp)' "$RUN_RECORD" >/dev/null 2>&1; then
+      restore_fields "$mp" "${RR_MP_FIELDS[@]}"
+    else
+      mp_error "the run record holds no first-pass entry for this marketplace, so its first-pass rows are not shown"
+    fi
+  fi
+  [[ -z "${SYNC_RUN_RECORD_ECHO:-}" ]] || {
+    record_fields_to rec "${RR_MP_FIELDS[@]}"
+    run_record_append "$RUN_DIR/.run-record-echo.jsonl" "$mp" "$rec"
+  }
+}
+
+run_record_append() {
+  local key
+  json_string_to key "$2"
+  printf '{%s:%s}\n' "$key" "$3" >>"$1"
+}
+
+run_record_write() {
+  local record
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  jq_to record -c -s --argjson run "$3" '{run: $run, marketplaces: (add // {})}' "$2" &&
+    printf '%s\n' "$record" >"$1"
 }
 
 name_listed() {
@@ -1369,19 +1427,7 @@ run_marketplace() {
       fi
     fi
   else
-    if [[ -f "$RUN_DIR/pre.$mp.json" ]]; then
-      jq_to CATALOG_LAST_UPDATED -r '.marketplace.lastUpdated // ""' "$RUN_DIR/pre.$mp.json"
-      jq_to PROJECT_ROOT_JSON -c '.project_root' "$RUN_DIR/pre.$mp.json"
-      [[ -n "$PROJECT_ROOT_JSON" ]] || PROJECT_ROOT_JSON="null"
-    fi
-    if ((ALLOW_DOWNGRADE == 0)) && [[ -f "$RUN_DIR/downgrades.$mp.txt" ]]; then
-      while IFS=$'\t' read -r id scope old new; do
-        id="${id//$'\r'/}"
-        [[ -n "$id" ]] || continue
-        withheld_add "$id" "${scope//$'\r'/}" "${old//$'\r'/}" "${new//$'\r'/}"
-      done <"$RUN_DIR/downgrades.$mp.txt"
-    fi
-    restore_first_pass_rows "$mp"
+    run_record_restore_mp "$mp"
   fi
 
   if ((ONLY_INSTALL_MODE == 0)); then
@@ -1577,9 +1623,6 @@ run_marketplace() {
 
   recover_pending "$mp"
 
-  if ((ONLY_INSTALL_MODE == 1)); then
-    [[ ! -f "$RUN_DIR/install-held.$mp" ]] || INSTALL_HELD='"all-target"'
-  fi
   if ((REFRESH_FAILED == 1)); then
     INSTALL_DEFERRED="true"
   elif [[ "$MODE" == "sync" && "$INSTALL_NEW" == "ask" ]] && ((gap_count > 0)) && ((ONLY_INSTALL_MODE == 0)); then
@@ -1587,7 +1630,6 @@ run_marketplace() {
   elif ((ALL == 1)) && [[ "$INSTALL_NEW" == "all" ]] && ((gap_count > 0)) && ((ONLY_INSTALL_MODE == 0)); then
     STOPPED_BEFORE_INSTALL="true"
     INSTALL_HELD='"all-target"'
-    [[ "$MODE" == "audit" ]] || : >"$RUN_DIR/install-held.$mp"
   elif ((gap_count > 0)) || ((enable_gap_count > 0)) || ((ONLY_INSTALL_MODE == 1)); then
     clock_into T_IE_S
     run_install_step "$mp" "$gap_count"
@@ -2170,8 +2212,10 @@ emit_marketplace_block() {
   local mp="$1" ir_u ir_f ir_w ir_l us_u us_f us_w wh dg moved inst en pr rec errs
   local unset_cfg installed_disabled monitors
   [[ -n "$T_FN_S" ]] || clock_into T_FN_S
-  if ((ONLY_INSTALL_MODE == 0)); then
-    persist_first_pass_rows "$mp"
+  if [[ "$MODE" == "sync" ]] && ((ONLY_INSTALL_MODE == 0)); then
+    local rec
+    record_fields_to rec "${RR_MP_FIELDS[@]}"
+    run_record_append "$RUN_DIR/.run-record.jsonl" "$mp" "$rec"
   fi
   local reg_interval reg_rows div extras block checkout pull
 
@@ -2329,66 +2373,15 @@ emit_marketplace_block() {
 setup_run_dir
 pending_path
 
-SAVED_ALLOW_DOWNGRADE=""
-SAVED_INSTALL_NEW=""
-SAVED_INSTALL_NEW_INVALID=""
-if ((ONLY_INSTALL_MODE == 1)); then
-  if [[ -f "$RUN_DIR/flags.json" ]]; then
-    jq_to SAVED_ALLOW_DOWNGRADE -r '.allow_downgrade // false' "$RUN_DIR/flags.json" 2>/dev/null
-    [[ "$SAVED_ALLOW_DOWNGRADE" != "true" ]] || ALLOW_DOWNGRADE=1
-    jq_to SAVED_INSTALL_NEW -r '.install_new // ""' "$RUN_DIR/flags.json" 2>/dev/null
-    jq_to SAVED_INSTALL_NEW_INVALID -r '.install_new_invalid // ""' "$RUN_DIR/flags.json" 2>/dev/null
-    case "$SAVED_INSTALL_NEW" in
-      all | none | ask)
-        INSTALL_NEW="$SAVED_INSTALL_NEW"
-        INSTALL_NEW_INVALID="$SAVED_INSTALL_NEW_INVALID"
-        ;;
-      *) ;;
-    esac
-    SAVED_SOURCE_PULL=""
-    jq_to SAVED_SOURCE_PULL -r '.source_pull // ""' "$RUN_DIR/flags.json" 2>/dev/null
-    case "$SAVED_SOURCE_PULL" in
-      ask | never)
-        SOURCE_PULL="$SAVED_SOURCE_PULL"
-        jq_to SOURCE_PULL_INVALID -r '.source_pull_invalid // ""' "$RUN_DIR/flags.json" 2>/dev/null
-        jq_to SOURCE_PULL_OFF -r '.source_pull_off // ""' "$RUN_DIR/flags.json" 2>/dev/null
-        jq_to QUIET_AUTO_UPDATE -r '.quiet_auto_update // [] | join(",")' "$RUN_DIR/flags.json" 2>/dev/null
-        jq_to UPDATE_OTHER_PATHS -r 'if .update_other_paths == true then 1 else 0 end' "$RUN_DIR/flags.json" 2>/dev/null
-        [[ -z "${CLAUDE_CODE_REMOTE:-}" ]] || apply_pull_policy
-        ;;
-      *) ;;
-    esac
-  fi
-else
-  FLAG_AD="false"
-  ((ALLOW_DOWNGRADE == 0)) || FLAG_AD="true"
-  FLAG_IN=""
-  json_string_to FLAG_IN "$INSTALL_NEW"
-  FLAG_INV="null"
-  [[ -z "$INSTALL_NEW_INVALID" ]] || json_string_to FLAG_INV "$INSTALL_NEW_INVALID"
-  FLAG_SP=""
-  json_string_to FLAG_SP "$SOURCE_PULL"
-  FLAG_SPI="null"
-  [[ -z "$SOURCE_PULL_INVALID" ]] || json_string_to FLAG_SPI "$SOURCE_PULL_INVALID"
-  FLAG_SPO="null"
-  [[ -z "$SOURCE_PULL_OFF" ]] || json_string_to FLAG_SPO "$SOURCE_PULL_OFF"
-  FLAG_QAU="[]"
-  # shellcheck disable=SC2086  # word splitting on the comma-folded list is the point
-  json_strings_of FLAG_QAU ${QUIET_AUTO_UPDATE//,/ }
-  FLAG_UOP="false"
-  ((UPDATE_OTHER_PATHS == 0)) || FLAG_UOP="true"
-  printf '{"allow_downgrade":%s,"install_new":%s,"install_new_invalid":%s,"source_pull":%s,"source_pull_invalid":%s,"source_pull_off":%s,"quiet_auto_update":%s,"update_other_paths":%s}\n' \
-    "$FLAG_AD" "$FLAG_IN" "$FLAG_INV" "$FLAG_SP" "$FLAG_SPI" "$FLAG_SPO" "$FLAG_QAU" "$FLAG_UOP" >"$RUN_DIR/flags.json"
-fi
-
-FIRST_PASS_RUN="$RUN_DIR/first-pass-run.json"
+RUN_RECORD="$RUN_DIR/run.json"
 FIRST_PASS_TIMINGS="null"
-if ((ONLY_INSTALL_MODE == 1)) && [[ -f "$FIRST_PASS_RUN" ]]; then
-  jq_to FIRST_PASS_TIMINGS -c '.timings | select((.total | type) == "number")
-    | {total, resolution,
-       outside_marketplaces: (if (.outside_marketplaces | type) == "number" then .outside_marketplaces else null end)}' \
-    "$FIRST_PASS_RUN" 2>/dev/null || FIRST_PASS_TIMINGS="null"
-  [[ -n "$FIRST_PASS_TIMINGS" ]] || FIRST_PASS_TIMINGS="null"
+RUN_RECORD_ECHO_RUN=""
+if ((ONLY_INSTALL_MODE == 1)); then
+  run_record_load
+  [[ -z "${SYNC_RUN_RECORD_ECHO:-}" ]] || record_fields_to RUN_RECORD_ECHO_RUN "${RR_RUN_FIELDS[@]}"
+  : >"$RUN_DIR/.run-record-echo.jsonl"
+else
+  : >"$RUN_DIR/.run-record.jsonl"
 fi
 
 : >"$RUN_DIR/.blocks.jsonl"
@@ -2547,8 +2540,12 @@ jq_to DIGEST -c -n \
 
 printf '%s\n' "$DIGEST" >"$RUN_DIR/digest.json"
 if [[ "$MODE" == "sync" ]] && ((ONLY_INSTALL_MODE == 0)); then
-  FIRST_PASS_OUT=""
-  jq_to FIRST_PASS_OUT -c '{timings}' <<<"$DIGEST" && printf '%s\n' "$FIRST_PASS_OUT" >"$FIRST_PASS_RUN"
+  jq_to FIRST_PASS_TIMINGS -c '.timings | {total, resolution, outside_marketplaces}' <<<"$DIGEST" &&
+    record_fields_to RUN_RECORD_RUN "${RR_RUN_FIELDS[@]}" &&
+    run_record_write "$RUN_RECORD" "$RUN_DIR/.run-record.jsonl" "$RUN_RECORD_RUN" ||
+    echo "ERROR: the run record was not written; an --only-install re-entry of this run will report it unusable" >&2
+elif [[ -n "${SYNC_RUN_RECORD_ECHO:-}" ]] && ((ONLY_INSTALL_MODE == 1)); then
+  run_record_write "$SYNC_RUN_RECORD_ECHO" "$RUN_DIR/.run-record-echo.jsonl" "$RUN_RECORD_ECHO_RUN"
 fi
 
 REPORT=""

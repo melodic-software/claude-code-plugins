@@ -110,19 +110,27 @@ Each block's `cli` is `{calls, seconds}`: how many journaled `claude` calls this
 the marketplace and their summed wall time, so `timings.total` minus `cli.seconds` is the script's
 own time. `journal.log` records each call's time on the line after its output, as
 `# elapsed <seconds>s, exit <rc>`.
-An `--only-install` re-entry times both passes: the first pass saves its run timings to
-`first-pass-run.json` in the run directory, and the re-entry's `timings.total` and
-`timings.outside_marketplaces` sum the two passes, `timings.resolution` is the coarser of their
-clocks, and `timings.passes[]` holds each pass's own `{pass, total, outside_marketplaces,
-resolution}` (`first`, then `only_install`). The wait between the passes is in neither, and the
-report's run `Timing:` row names both passes and says the wait is not counted. The blocks still
-time only the re-entry, so on a re-entry the block totals plus `outside_marketplaces` fall short
-of `timings.total` by the first pass's block time. Only the first pass writes the file, so a
-second re-entry reports the first pass and itself, and the earlier re-entry's time is in neither.
-A run directory with no `first-pass-run.json` (an older version's) times the re-entry alone. The
-re-entry also reads `install_new` and `install_new_invalid` back from `flags.json`, so an invalid
-policy value the first pass named is still named in the digest and report that supersede it. The
-digest's `cwd` is what the `In-repo:` row names when no
+A sync first pass writes its run record, `run.json`, to the run directory; `scripts/run-record.json`
+declares its fields. The run-level fields are the flags the pass ran with (`--allow-downgrade`,
+`--install-new`, `--source-pull`, `--quiet-auto-update`, `--update-other-paths`, the invalid values
+named and why the pull policy is off) and its run timings. Each marketplace's entry holds its
+errors, failed in-repo and user-sweep rows, withheld downgrades, refresh outcome, source pull,
+`catalog_last_updated`, `project_root`, `install_held` and `other_paths`. An `--only-install`
+re-entry restores every declared field whole, so its digest and report carry the first pass's flags
+and rows, an invalid policy value included; with `CLAUDE_CODE_REMOTE` set it then forces the pull
+policy off again. A missing or unreadable `run.json`, or one lacking a declared field, is a run
+error in the digest and report, and that re-entry runs on its own flags and the defaults; a
+marketplace the record has no entry for gets a block error. Only the first pass writes the record,
+so a second re-entry restores the first pass again.
+
+A re-entry times both passes: its `timings.total` and `timings.outside_marketplaces` sum the first
+pass's recorded timings and its own, `timings.resolution` is the coarser of their clocks, and
+`timings.passes[]` holds each pass's own `{pass, total, outside_marketplaces, resolution}`
+(`first`, then `only_install`). The wait between the passes is in neither, and the report's run
+`Timing:` row names both passes and says the wait is not counted. The blocks still time only the
+re-entry, so on a re-entry the block totals plus `outside_marketplaces` fall short of
+`timings.total` by the first pass's block time, and a second re-entry reports the first pass and
+itself, the earlier re-entry's time in neither. The digest's `cwd` is what the `In-repo:` row names when no
 project root resolved. Ids and counts only: the per-file cache detail and every snapshot stay in
 the run directory, which the digest names.
 

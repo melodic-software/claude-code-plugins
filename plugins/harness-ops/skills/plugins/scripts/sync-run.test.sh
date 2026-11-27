@@ -3359,6 +3359,122 @@ reuse_run CLAUDE_STUB_REFRESH_TOUCH="$case_dir/user_settings.json" \
   CLAUDE_STUB_REFRESH_PAUSE=3
 assert_contains "reuse: a read of an input whose ctime is under 2 s old is not stored" "$(pre_stored)" "not stored"
 
+RUN_RECORD_DECL="$SCRIPT_DIR/run-record.json"
+record_case_a() {
+  CASE_NUM=$((CASE_NUM + 1))
+  case_dir=$(new_case_dir)
+  catalog_plugin "$case_dir" market1 alpha 0.3.0
+  catalog_plugin "$case_dir" market1 beta 0.2.0
+  catalog_plugin "$case_dir" market2 gamma 0.1.0
+  local p
+  p=$(norm_path "$case_dir")
+  write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [{\"scope\": \"user\", \"installPath\": \"a\", \"version\": \"0.1.0\"},
+                        {\"scope\": \"project\", \"projectPath\": \"$p\", \"installPath\": \"a\", \"version\": \"0.1.0\"}],
+    \"gamma@market2\": [{\"scope\": \"user\", \"installPath\": \"g\", \"version\": \"0.1.0\"}]
+  }
+}"
+  write "$case_dir/known_marketplaces.json" "{
+  \"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"},
+  \"market2\": {\"source\": {\"source\": \"github\", \"repo\": \"e/n\"}, \"installLocation\": \"$case_dir/mkt2\", \"lastUpdated\": \"2026-02-01T00:00:00Z\"}}"
+  write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+  write "$case_dir/catalog/market2.json" '{"plugins": [{"name": "gamma", "source": "gamma"}]}'
+  write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "gamma@market2": true}}'
+  setup_case "$case_dir"
+  EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_UPDATE_FAIL_ID=alpha@market1
+    CLAUDE_STUB_REFRESH_FAIL_MP=market2 CC_STUB_CLEAN=1)
+  out=$(run_sync "$case_dir" --all --install-new all --allow-downgrade --source-pull never --pull-source market1 \
+    --quiet-auto-update market1 --update-other-paths --journal-root "$case_dir/journal")
+  run_dir=$(jq -r '.run_dir' <<<"$out")
+}
+record_case_b() {
+  CASE_NUM=$((CASE_NUM + 1))
+  case_dir=$(new_case_dir)
+  golden_fixture "$case_dir" 0.1.0 0.5.0 true
+  git init -q -b main "$case_dir/origin"
+  printf 'one\n' >"$case_dir/origin/f"
+  fixture_git "$case_dir/origin" add f
+  fixture_git "$case_dir/origin" commit -q -m one
+  git clone -q "$case_dir/origin" "$case_dir/mkt"
+  jq -n --arg loc "$case_dir/mkt" --arg url "$(git -C "$case_dir/mkt" remote get-url origin)" \
+    '{market1: {source: {source: "git", url: $url}, installLocation: $loc, lastUpdated: "2026-03-01T00:00:00Z"}}' \
+    >"$case_dir/known_marketplaces.json"
+  EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CC_STUB_CLEAN=1)
+  out=$(run_sync "$case_dir" --marketplace market1 --install-new bogus --source-pull bogus \
+    --journal-root "$case_dir/journal")
+  run_dir=$(jq -r '.run_dir' <<<"$out")
+}
+record_echo() {
+  rm -f "$case_dir/echo.json"
+  EXTRA_ENV+=(SYNC_RUN_RECORD_ECHO="$case_dir/echo.json")
+  out2=$(run_sync "$case_dir" --only-install "" --run-dir "$run_dir" "$@")
+  EXTRA_ENV=("${EXTRA_ENV[@]:0:${#EXTRA_ENV[@]}-1}")
+}
+record_mismatches() {
+  jq -r -n --slurpfile d "$RUN_RECORD_DECL" --slurpfile r "$1" --slurpfile e "$2" '
+    ($d[0].run | keys[] | select($r[0].run[.] != $e[0].run[.]) | "run.\(.)"),
+    ($r[0].marketplaces | keys[] as $m | $d[0].marketplace | keys[]
+     | select($r[0].marketplaces[$m][.] != $e[0].marketplaces[$m][.]) | "\($m).\(.)")'
+}
+
+record_case_a
+assert_eq "run record: the first pass writes run.json" "true" "$([[ -f "$run_dir/run.json" ]] && echo true || echo false)"
+assert_eq "run record: the first pass leaves none of the retired re-entry files" "" \
+  "$(env -C "$run_dir" ls flags.json first-pass-run.json first-pass.market1.json other-paths.market1.json install-held.market1 2>/dev/null)"
+record_echo
+assert_eq "run record: an all-target re-entry restores every declared field" "" \
+  "$(record_mismatches "$run_dir/run.json" "$case_dir/echo.json")"
+assert_eq "run record: the all-target re-entry reports no record error" "[]" \
+  "$(jq -c '[.errors[] | select(contains("run record"))]' <<<"$out2")"
+assert_eq "run record: the hold survives the re-entry from the record" "all-target" \
+  "$(jq -r '.marketplaces[] | select(.name == "market1") | .install_held' <<<"$out2")"
+record_a="$TEST_TMPDIR/record-a.json"
+cp "$run_dir/run.json" "$record_a"
+mv "$run_dir/run.json" "$run_dir/run.json.kept"
+record_echo --render
+assert_contains "run record: a missing record is a run error in the digest" "$(head -n 1 <<<"$out2" | jq -r '.errors[]')" \
+  "run record unusable (run.json is missing)"
+assert_contains "run record: and the report shows it" "$out2" "run record unusable (run.json is missing)"
+record_default="$case_dir/echo.json"
+cp "$record_default" "$TEST_TMPDIR/record-default.json"
+record_default="$TEST_TMPDIR/record-default.json"
+printf '{' >"$run_dir/run.json"
+record_echo
+assert_contains "run record: a corrupt record is a run error in the digest" "$(jq -r '.errors[]' <<<"$out2")" \
+  "run record unusable (run.json is not valid JSON)"
+jq 'del(.run.install_new) | .marketplaces.market1.errors = "x"' "$run_dir/run.json.kept" >"$run_dir/run.json"
+record_echo
+assert_contains "run record: a record missing a field names it" "$(jq -r '.errors[]' <<<"$out2")" \
+  "fields missing or of the wrong type: run.install_new, marketplaces.market1.errors"
+assert_eq "run record: an unusable record restores no first-pass flag" "ask" "$(jq -r '.install_new' <<<"$out2")"
+jq 'del(.marketplaces.market2)' "$run_dir/run.json.kept" >"$run_dir/run.json"
+record_echo
+assert_eq "run record: a marketplace with no record entry says so in its block" "1" \
+  "$(jq '[.marketplaces[] | select(.name == "market2") | .errors[] | select(contains("no first-pass entry"))] | length' <<<"$out2")"
+
+record_case_b
+record_echo
+assert_eq "run record: a withheld-downgrade re-entry restores every declared field" "" \
+  "$(record_mismatches "$run_dir/run.json" "$case_dir/echo.json")"
+assert_eq "run record: the refresh skip survives the re-entry" "true" \
+  "$(jq -r '.marketplaces[0].refresh.skipped != null' <<<"$out2")"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CC_STUB_CLEAN=1 CLAUDE_CODE_REMOTE=true)
+record_echo
+assert_eq "run record: an autonomous re-entry still forces the pull policy off" \
+  "never autonomous session (CLAUDE_CODE_REMOTE set)" \
+  "$(jq -r '.source_pull' <<<"$out2") $(jq -r '.run.source_pull_off' "$case_dir/echo.json")"
+assert_eq "run record: and keeps the first pass's invalid values named" "bogus bogus" \
+  "$(jq -r '"\(.install_new_invalid) \(.source_pull_invalid)"' <<<"$out2")"
+assert_eq "run record: every declared field is set off its default by one of the two first passes" "" \
+  "$(jq -r -n --slurpfile d "$RUN_RECORD_DECL" --slurpfile a "$record_a" --slurpfile b "$run_dir/run.json" \
+    --slurpfile z "$record_default" '
+    ($z[0].marketplaces | to_entries[0].value) as $zm
+    | ($d[0].run | keys[] | select(. as $k | all($a[0], $b[0]; .run[$k] == $z[0].run[$k])) | "run.\(.)"),
+      ($d[0].marketplace | keys[]
+       | select(. as $k | all($a[0], $b[0]; all(.marketplaces[]; .[$k] == $zm[$k]))) | "marketplace.\(.)")')"
+
 if ((FAILED > 0)); then
   printf '\n%d test(s) failed\n' "$FAILED" >&2
   exit 1
