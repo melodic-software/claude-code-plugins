@@ -375,6 +375,7 @@ LC_ALL=C awk '
     for (qi = 1; qi <= n_q; qi++) {
       oj = q_list[qi]
       if (oj == cur_q) continue
+      if ((cur_q in round_q_ord) && (oj in round_q_ord) && round_q_ord[oj] <= round_q_ord[cur_q]) continue
       dj_size = 0
       for (m = 1; m <= qw_cnt[oj]; m++) {
         w = qw_item[oj, m]
@@ -500,17 +501,25 @@ LC_ALL=C awk '
     if (low ~ /\([ \t]*(survey|glob|grep|git[ \t]+[a-z]+|read|command|tool)[ \t]*,[ \t]*this[ \t]+session[ \t]*\)[ \t.]*$/) return 1
     return 0
   }
-  function cites_sourced_context(s,    low, rest, k, i) {
+  function cites_sourced_context(s,    low, rest, seg, k, i, saw_sourced, saw_unsourced) {
     low = tolower(s)
     rest = low
-    while (match(rest, /(^|[^a-z0-9_])(context([ \t]+line)?[ \t]*#?|line[ \t]+#?)([0-9]+)([^a-z0-9_]|$)/)) {
-      k = substr(rest, RSTART, RLENGTH)
-      gsub(/[^0-9]/, "", k)
-      k += 0
-      if ((k in ctx_line_sourced) && ctx_line_sourced[k] == 1) return 1
-      if ((k in ctx_line_sourced) && ctx_line_sourced[k] == -1) return -1
+    saw_sourced = 0
+    saw_unsourced = 0
+    while (match(rest, /(^|[^a-z0-9_])(context([ \t]+(lines?|items?))?[ \t]*#?|lines?[ \t]+#?)[0-9]+(([ \t]*,[ \t]*|[ \t]+and[ \t]+)#?[0-9]+)*/)) {
+      seg = substr(rest, RSTART, RLENGTH)
       rest = substr(rest, RSTART + RLENGTH)
+      while (match(seg, /[0-9]+/)) {
+        k = substr(seg, RSTART, RLENGTH) + 0
+        seg = substr(seg, RSTART + RLENGTH)
+        if (k in ctx_line_sourced) {
+          if (ctx_line_sourced[k] == 1) saw_sourced = 1
+          else if (ctx_line_sourced[k] == -1) saw_unsourced = 1
+        }
+      }
     }
+    if (saw_sourced) return 1
+    if (saw_unsourced) return -1
     for (i = 1; i <= n_ctx_paths; i++) {
       if (index(low, ctx_paths[i]) > 0) return 1
     }
@@ -588,6 +597,7 @@ LC_ALL=C awk '
     if (p1_q != "") {
       add_code(p1_q, 0)
       if (first_round_q == "") first_round_q = p1_q
+      if (!(p1_q in round_q_ord)) round_q_ord[p1_q] = ++n_round_q
       p1_topic = ""
       p1_title = $0
       sub(/^[^A-Za-z0-9]*Q[0-9]+/, "", p1_title)

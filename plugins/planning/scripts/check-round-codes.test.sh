@@ -665,6 +665,21 @@ round single-alt-overlap.md \
 runx "under single pacing an alternative previewing another question's topic fails" 1 empty-ledger.md single-alt-overlap.md '^preview=10:overlap:Q5$' --pacing single
 nox "under round pacing the same alternative prints no preview finding" empty-ledger.md single-alt-overlap.md '^preview='
 
+round single-later-cites-earlier.md \
+  'Round 2' \
+  'Scope check: 4 questions asked so far' \
+  '' \
+  '❓ Q4 (after the last attempt): **What happens to an event after its last failed attempt?**' \
+  'Context:' \
+  '- Webhooks are delivered at least once (user, round 1).' \
+  '➡️ My recommendation: **Move it to a dead-letter table.** (verified, user, round 1).' \
+  '---' \
+  '❓ Q5 (attempt count): **How many delivery attempts does the sender make before giving up?**' \
+  'Context:' \
+  '- Failed events go to the dead-letter table (your answer to Q4, after the last attempt).' \
+  '➡️ My recommendation: **Five attempts.** (verified, your answer to Q4, after the last attempt).'
+runx "under single pacing a later question citing an earlier question in its Context passes" 0 empty-ledger.md single-later-cites-earlier.md 'bare=0 status=ok structure=0$' --pacing single
+
 BASIS_SAMPLES="$EVALS_DIR/interview-recommendation-basis-and-flip/samples/checkable-basis-and-flip.json"
 for idx in 0 1 2 3 4; do
   {
@@ -747,6 +762,36 @@ round flips-if-concise.md \
   'Basis: verified, Context 1' \
   'Flips if: writes fail.'
 runx "concise confirmable Flips if condition passes" 0 empty-ledger.md flips-if-concise.md 'bare=0 status=ok structure=0$'
+
+round basis-ctx-mixed-order.md \
+  'Scope check: 1 questions asked so far' \
+  '❓ Q1 (retries): **Should failed retries write to the audit log?**' \
+  'Context:' \
+  '1. Each retry runs in its own worker (src/retry.ts:12)' \
+  '2. Operators may prefer quieter logs (judgment)' \
+  '➡️ My recommendation: **yes, one entry per failed retry**' \
+  'Basis: verified, Context 2 and Context 1'
+runx "Basis citing judgment Context line before sourced Context line still passes" 0 empty-ledger.md basis-ctx-mixed-order.md 'bare=0 status=ok structure=0$'
+
+round basis-ctx-plural-lines.md \
+  'Scope check: 1 questions asked so far' \
+  '❓ Q1 (retries): **Should failed retries write to the audit log?**' \
+  'Context:' \
+  '1. Each retry runs in its own worker (src/retry.ts:12)' \
+  '2. Operators may prefer quieter logs (judgment)' \
+  '➡️ My recommendation: **yes, one entry per failed retry**' \
+  'Basis: verified, Context lines 2 and 1'
+runx "Basis citing plural Context lines passes when any cited line is sourced" 0 empty-ledger.md basis-ctx-plural-lines.md 'bare=0 status=ok structure=0$'
+
+round basis-ctx-plural-items.md \
+  'Scope check: 1 questions asked so far' \
+  '❓ Q1 (retries): **Should failed retries write to the audit log?**' \
+  'Context:' \
+  '1. Each retry runs in its own worker (src/retry.ts:12)' \
+  '2. Operators may prefer quieter logs (judgment)' \
+  '➡️ My recommendation: **yes, one entry per failed retry**' \
+  'Basis: verified, Context items 2, 1'
+runx "Basis citing plural Context items passes when any cited line is sourced" 0 empty-ledger.md basis-ctx-plural-items.md 'bare=0 status=ok structure=0$'
 
 TERMS_SAMPLES="$EVALS_DIR/interview-context-unfamiliar-term-upstream/samples/answerable-without-follow-up.json"
 for kind in pass fail; do
