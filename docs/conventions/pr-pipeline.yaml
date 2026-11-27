@@ -933,6 +933,14 @@ merge:
         class: enforcement
       - glob: ".github/scripts/maintenance-scan-architecture/model-tools.json"
         class: enforcement
+      - glob: ".github/scripts/maintenance-scan-architecture/gate.mjs"
+        class: enforcement
+      - glob: ".github/scripts/maintenance-scan-architecture/lane.mjs"
+        class: enforcement
+      - glob: ".github/scripts/maintenance-scan-architecture/prepare-working-tree.sh"
+        class: enforcement
+      - glob: ".github/scripts/maintenance-scan-architecture/prompt.md"
+        class: enforcement
       - glob: ".github/scripts/lib/github-rest.mjs"
         class: enforcement
       - glob: "plugins/work-items/scripts/charge-words.json"

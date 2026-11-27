@@ -28,6 +28,7 @@
     "Bash(node WORKSPACE/.lane/plugins/architecture/scripts/build-view.mjs *)",
     "Bash(node \"WORKSPACE/.lane/plugins/architecture/scripts/build-view.mjs\" *)"
   ],
+  "readCommands": ["grep", "head", "wc", "cut", "sort"],
   "disallowed": [
     "Bash(git push *)",
     "Bash(gh *)",

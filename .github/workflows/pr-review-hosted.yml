@@ -227,6 +227,10 @@ jobs:
         .github/scripts/maintenance-monitor-signals/issues.mjs
         .github/scripts/maintenance-scan-architecture/file-findings.mjs
         .github/scripts/maintenance-scan-architecture/model-tools.json
+        .github/scripts/maintenance-scan-architecture/gate.mjs
+        .github/scripts/maintenance-scan-architecture/lane.mjs
+        .github/scripts/maintenance-scan-architecture/prepare-working-tree.sh
+        .github/scripts/maintenance-scan-architecture/prompt.md
         .github/scripts/lib/github-rest.mjs
         plugins/work-items/scripts/charge-words.json
         .github/scripts/pr-unblock/dependency-classify.mjs

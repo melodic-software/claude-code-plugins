@@ -110,6 +110,13 @@ test("the model legs' Bash rules refuse each route to arbitrary code, the enviro
     "uniq notes.txt src/example.mjs",
     `node ${ws}/.lane/plugins/architecture/lib/prerequisites.mjs check .work/p`,
     `bash ${ws}/.lane/plugins/architecture/skills/map-containers/scripts/collect-containers.sh --out src/example.mjs`,
+    "head /home/runner/.claude/.credentials.json",
+    "grep -r KEY /home/runner",
+    "head ~/.claude/.credentials.json",
+    `head "$HOME/.claude/.credentials.json"`,
+    `cut -d= -f2 "/home/runner/work/_temp/settings.json"`,
+    "wc -c < /etc/passwd",
+    "sort /etc/passwd",
   ]) {
     assert.equal(permitted(tools, command), false, command);
   }
@@ -121,6 +128,8 @@ test("the model legs' Bash rules refuse each route to arbitrary code, the enviro
     "uniq -c",
     "git log --name-only --format=%H HEAD~50..HEAD",
     "grep -rn deepening plugins/architecture",
+    "head -50 src/a.mjs",
+    "wc -l src/a.mjs",
     `bash ${ws}/.lane/plugins/architecture/lib/read-verification.sh --plugin architecture --skill improve`,
     `node ${ws}/.lane/plugins/architecture/skills/improve/scripts/improve-settings.mjs --home .work`,
     `bash "${ws}/.lane/plugins/architecture/lib/read-verification.sh" --plugin architecture --skill improve`,
@@ -151,6 +160,12 @@ test("every model leg runs sandboxed, and its Bash rules allow no network-capabl
     if (!/^(bash|node) /.test(command)) continue;
     const script = /^(?:bash|node) "?\/runner\/work\/r\/r\/\.lane\/plugins\/([^"* ]+)"?(?: \*)?$/.exec(command)?.[1];
     assert.ok(HELPERS.includes(script), `${rule} runs one named helper, never a plugin wildcard`);
+  }
+  const skills = execFileSync("git", ["-C", REPO_ROOT, "ls-files", "plugins/improvement/skills/**/SKILL.md", "plugins/architecture/skills/**/SKILL.md"], { encoding: "utf8" }).trim().split("\n");
+  assert.ok(skills.length > 1, "the staged plugins' skills were listed");
+  for (const skill of skills) {
+    const frontmatter = /^---\n([\s\S]*?)\n---/.exec(readFileSync(join(REPO_ROOT, skill), "utf8"))?.[1] ?? "";
+    assert.doesNotMatch(frontmatter, /^allowed-tools:/m, `${skill} grants no tools while it runs, so the Skill rule widens nothing`);
   }
   for (const helper of HELPERS) {
     const text = readFileSync(join(REPO_ROOT, "plugins", helper), "utf8");

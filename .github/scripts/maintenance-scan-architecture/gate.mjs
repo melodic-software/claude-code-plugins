@@ -97,12 +97,14 @@ export function promptText(room) {
 }
 
 const MODEL_TOOLS = fileURLToPath(new URL("./model-tools.json", import.meta.url));
+const OUTSIDE_PATHS = ["/*", "* /*", "~*", "* ~*", "*\"/*", "*'/*", "*\"~*", "*'~*", "*$*"];
 
 export function modelTools(workspace) {
   if (!/^\/[^\s*()]+$/.test(workspace ?? "")) throw new Error(`the workspace ${JSON.stringify(workspace)} is no absolute path without spaces, stars or parentheses`);
-  const { allowed, disallowed } = JSON.parse(readFileSync(MODEL_TOOLS, "utf8"));
+  const { allowed, disallowed, readCommands } = JSON.parse(readFileSync(MODEL_TOOLS, "utf8"));
+  const outside = readCommands.flatMap((command) => OUTSIDE_PATHS.map((shape) => `Bash(${command} ${shape})`));
   const fill = (rules) => rules.map((rule) => rule.replaceAll("WORKSPACE", workspace));
-  return { allowed: fill(allowed), disallowed: fill(disallowed) };
+  return { allowed: fill(allowed), disallowed: fill([...disallowed, ...outside]) };
 }
 
 const multiline = (name, lines) => `${name}<<TOOLS_EOF\n${lines.join("\n")}\nTOOLS_EOF\n`;
