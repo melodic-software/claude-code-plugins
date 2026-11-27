@@ -667,7 +667,7 @@
       "pattern": ".templateengine",
       "entry_types": ["directory"],
       "confidence_ceiling": "low",
-      "reason": "dotnet new template engine settings and cache (%USERPROFILE%\\.templateengine on Windows); the cache rebuilds (dotnet new --debug:rebuild-cache), but packages/ holds templates installed with dotnet new install, which are lost"
+      "reason": "dotnet new template engine settings and cache (%USERPROFILE%\\.templateengine on Windows); the cache rebuilds on the next dotnet new run, but packages/ holds templates installed with dotnet new install, which are lost"
     },
     {
       "id": "mcp-remote-auth-store",

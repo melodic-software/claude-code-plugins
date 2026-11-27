@@ -142,7 +142,7 @@
       },
       "tool": "prune-run-roots.py",
       "read_only_command": null,
-      "destructive_native_command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/prune-run-roots.py\" (CLAUDE_PLUGIN_ROOT of the evals plugin)",
+      "destructive_native_command": "python3 skills/plugin-eval/scripts/prune-run-roots.py, run from the evals plugin install root",
       "manual_step": null,
       "platforms": ["linux"],
       "verification": {
@@ -163,7 +163,7 @@
       },
       "tool": "docker-links.py",
       "read_only_command": null,
-      "destructive_native_command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/docker-links.py\" restore (CLAUDE_PLUGIN_ROOT of the evals plugin)",
+      "destructive_native_command": "python3 skills/plugin-eval/scripts/docker-links.py restore, run from the evals plugin install root",
       "manual_step": null,
       "platforms": ["linux"],
       "verification": {
