@@ -1,7 +1,7 @@
 // test-scope: plugins/architecture/** plugins/improvement/** .github/actions/resolve-config/package.json .github/workflows/maintenance-scan-architecture.yml .github/workflows/maintenance-scan-architecture-find.yml docs/conventions/pr-pipeline.yaml docs/conventions/pr-pipeline/pr-pipeline.schema.json .github/scripts/maintenance-scan-architecture/model-tools.json
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -411,13 +411,20 @@ test("the prepared working tree is read-only but for .git and .work, so no comma
   writeFileSync(join(dir, "README.md"), "x\n");
   git("add", ".");
   git("commit", "-q", "-m", "source");
+  git("checkout", "-q", "--detach");
   const stage = tempDir("scan-stage-");
   mkdirSync(join(stage, "plugins/architecture"), { recursive: true });
   writeFileSync(join(stage, "plugins/architecture/run.sh"), "true\n");
   const script = join(REPO_ROOT, ".github/scripts/maintenance-scan-architecture/prepare-working-tree.sh");
+  const env = { PATH: process.env.PATH, MODEL: "m", STAGE: stage, BRANCH: "main", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+  assert.throws(() => execFileSync("bash", [script], { cwd: dir, env: { ...env, BRANCH: "" }, stdio: "pipe" }), "no branch name fails the step");
   try {
-    execFileSync("bash", [script], { cwd: dir, env: { PATH: process.env.PATH, MODEL: "m", STAGE: stage, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" }, stdio: "pipe" });
-    for (const path of ["src/a.mjs", "src/new.mjs", "README.md", ".lane/plugins/architecture/run.sh", ".lane/plugins/new.sh", ".git/hooks/post-checkout"]) {
+    execFileSync("bash", [script], { cwd: dir, env, stdio: "pipe" });
+    assert.equal(git("branch", "--show-current"), "main", "the candidate-file path needs a current branch");
+    for (const path of [".claude/commands", ".claude/agents"]) {
+      assert.ok(statSync(join(dir, path)).isDirectory(), `${path} exists for the sandbox to mount over`);
+    }
+    for (const path of ["src/a.mjs", "src/new.mjs", "README.md", ".lane/plugins/architecture/run.sh", ".lane/plugins/new.sh", ".git/hooks/post-checkout", ".claude/commands/x.md", ".claude/agents/x.md"]) {
       assert.throws(() => writeFileSync(join(dir, path), "overwritten\n"), /EACCES/, path);
     }
     assert.equal(readFileSync(join(dir, "src/a.mjs"), "utf8"), "export {};\n");
@@ -433,10 +440,18 @@ test("the prepared working tree is read-only but for .git and .work, so no comma
   planted.git("add", "-f", ".work/record.json");
   planted.git("commit", "-q", "-m", "planted");
   try {
-    assert.throws(() => execFileSync("bash", [script], { cwd: planted.dir, env: { PATH: process.env.PATH, MODEL: "m", STAGE: stage, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" }, stdio: "pipe" }), "a .work already in the checkout, such as a committed symlink, fails the step");
+    assert.throws(() => execFileSync("bash", [script], { cwd: planted.dir, env, stdio: "pipe" }), "a .work already in the checkout, such as a committed symlink, fails the step");
   } finally {
     execFileSync("chmod", ["-R", "u+w", planted.dir]);
   }
+});
+
+test("every leg names the scanned branch from the gate-pinned ref, which the schedule payload cannot leave empty", () => {
+  const prepares = FIND_TEXT.match(/run: bash \.github\/scripts\/maintenance-scan-architecture\/prepare-working-tree\.sh/g) ?? [];
+  const branches = FIND_TEXT.match(/^ {10}BRANCH: \$\{\{ github\.ref_name \}\}$/gm) ?? [];
+  assert.ok(prepares.length >= 3);
+  assert.equal(branches.length, prepares.length);
+  assert.match(WORKFLOW_TEXT, /if: github\.ref == 'refs\/heads\/main'/);
 });
 
 test("the stage refuses any plugin part, manifest key or skill frontmatter key outside its allow list", () => {

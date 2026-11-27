@@ -192,6 +192,7 @@ jobs:
         env:
           STAGE: ${{ runner.temp }}/scan-stage
           MODEL: ${{ steps.models.outputs.model }}
+          BRANCH: ${{ github.ref_name }}
         run: bash .github/scripts/maintenance-scan-architecture/prepare-working-tree.sh
 
       - name: Scan the architecture
@@ -242,6 +243,13 @@ jobs:
           path: .lane-trusted
           persist-credentials: false
           set-safe-directory: false
+
+      - name: Fail the leg when the sandbox could not start
+        if: always() && steps.run.outputs.execution-file != ''
+        timeout-minutes: 1
+        env:
+          EXECUTION_FILE: ${{ steps.run.outputs.execution-file }}
+        run: node .lane-trusted/.github/scripts/maintenance-scan-architecture/sandbox-check.mjs
 
       - name: Upload the sealed transcript
         if: always() && steps.run.outputs.execution-file != ''
@@ -483,6 +491,7 @@ jobs:
         env:
           STAGE: ${{ runner.temp }}/scan-stage
           MODEL: ${{ steps.models.outputs.model }}
+          BRANCH: ${{ github.ref_name }}
         run: bash .github/scripts/maintenance-scan-architecture/prepare-working-tree.sh
 
       - name: Scan the architecture
@@ -534,6 +543,13 @@ jobs:
           path: .lane-trusted
           persist-credentials: false
           set-safe-directory: false
+
+      - name: Fail the leg when the sandbox could not start
+        if: always() && steps.run.outputs.execution-file != ''
+        timeout-minutes: 1
+        env:
+          EXECUTION_FILE: ${{ steps.run.outputs.execution-file }}
+        run: node .lane-trusted/.github/scripts/maintenance-scan-architecture/sandbox-check.mjs
 
       - name: Upload the sealed transcript
         if: always() && steps.run.outputs.execution-file != ''
@@ -736,6 +752,7 @@ jobs:
         env:
           STAGE: ${{ runner.temp }}/scan-stage
           MODEL: ${{ steps.models.outputs.model }}
+          BRANCH: ${{ github.ref_name }}
         run: bash .github/scripts/maintenance-scan-architecture/prepare-working-tree.sh
 
       - name: Scan the architecture
@@ -786,6 +803,13 @@ jobs:
           path: .lane-trusted
           persist-credentials: false
           set-safe-directory: false
+
+      - name: Fail the leg when the sandbox could not start
+        if: always() && steps.run.outputs.execution-file != ''
+        timeout-minutes: 1
+        env:
+          EXECUTION_FILE: ${{ steps.run.outputs.execution-file }}
+        run: node .lane-trusted/.github/scripts/maintenance-scan-architecture/sandbox-check.mjs
 
       - name: Upload the sealed transcript
         if: always() && steps.run.outputs.execution-file != ''
