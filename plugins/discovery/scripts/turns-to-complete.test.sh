@@ -97,6 +97,69 @@ expect "a user record after the ceiling marks the dispatch resumed" 0 \
 expect "a ceiling stop with no later user record reports unknown" 0 \
   '^\| 2026-08-02 \| discovery:explorer \| 40 \| yes \| unknown \|' --root "$ROOT"
 
+HOME_B="/""home/user-b"
+LEAK="host-b $HOME_B ops-b@example.org"
+printf '{"schema":"transcript-sources/v1","sources":[%s,%s]}\n' \
+  "{\"name\":\"host-a-wsl\",\"host\":\"host-a\",\"platform\":\"wsl\",\"config_dir\":\"$WORK\"}" \
+  '{"name":"host-b-wsl","host":"host-b","platform":"wsl","config_dir":"/srv/user-b/.claude","via":["ssh","host-b"]}' \
+  >"$WORK/sources.json"
+mkagent leak "$LEAK" 2026-08-07 4
+expect "the markdown names the host and email by placeholders" 0 \
+  '^\| 2026-08-07 \| <host-2> ~ <email> \| 4 \| no \| n/a \|' \
+  --root "$ROOT" --agent-type "$LEAK" --sources-file "$WORK/sources.json"
+for leaked in host-b "$HOME_B" example.org; do
+  expect_absent "the markdown carries no $leaked" "$leaked" \
+    --root "$ROOT" --agent-type "$LEAK" --sources-file "$WORK/sources.json"
+done
+expect "a missing sources file publishes nothing" 2 'nothing published: the sources file was not found' \
+  --root "$ROOT" --agent-type "$LEAK" --sources-file "$WORK/absent-sources.json"
+expect_absent "a missing sources file prints no table" '^\| date' \
+  --root "$ROOT" --agent-type "$LEAK" --sources-file "$WORK/absent-sources.json"
+AWS_KEY="AKIA""IOSFODNN7""EXAMPLE"
+SECRET_TYPE="$AWS_KEY project-zeta"
+mkagent secret "$SECRET_TYPE" 2026-08-08 3
+expect "a detected secret and a --redact-identifiers entry leave as placeholders" 0 \
+  '^\| 2026-08-08 \| <redacted:aws-access-token> <identifier> \| 3 \|' \
+  --root "$ROOT" --agent-type "$SECRET_TYPE" --sources-file "$WORK/sources.json" --redact-identifiers project-zeta
+expect_absent "the secret is not published" "$AWS_KEY" \
+  --root "$ROOT" --agent-type "$SECRET_TYPE" --sources-file "$WORK/sources.json" --redact-identifiers project-zeta
+
+CLAUDE_CONFIG_DIR="$WORK" expect "without --root the local configuration directory's projects are read" 0 \
+  '^\| 2026-08-02 \| discovery:explorer \| 40 \| yes \|'
+expect "without --root each local source of the sources file is read" 0 \
+  '^\| 2026-08-02 \| discovery:explorer \| 40 \| yes \|' --sources-file "$WORK/sources.json"
+
+expect "--json names each source this skill does not read" 0 \
+  '"Not read by this skill: host-b-wsl \(remote; this skill reads this host.s sources only\)"' \
+  --sources-file "$WORK/sources.json" --json
+expect "the markdown header names the unread remote source by placeholder" 0 \
+  '^- Not read by this skill: <host-2:wsl> \(remote; this skill reads this host.s sources only\)$' \
+  --sources-file "$WORK/sources.json"
+CLAUDE_CONFIG_DIR="$WORK" expect_absent "with only local sources no unread source is named" 'Not read by this skill' --json
+
+BLOCKED="$WORK/blocked"
+mkdir -p "$BLOCKED"
+printf 'not a directory\n' >"$BLOCKED/projects"
+printf '{"schema":"transcript-sources/v1","sources":[%s,%s]}\n' \
+  "{\"name\":\"host-a-wsl\",\"host\":\"host-a\",\"platform\":\"wsl\",\"config_dir\":\"$WORK\"}" \
+  "{\"name\":\"host-a-windows\",\"host\":\"host-a\",\"platform\":\"windows\",\"config_dir\":\"$BLOCKED\"}" \
+  >"$WORK/gap-sources.json"
+expect "the header names an unlistable projects directory as a gap with its retry" 0 \
+  '^- Gap: <host-1:windows> unreadable: its projects directory could not be listed \(NotADirectoryError\)\. Retry: python3 ' \
+  --sources-file "$WORK/gap-sources.json"
+expect "the other local source is still read" 0 \
+  '^\| 2026-08-02 \| discovery:explorer \| 40 \| yes \|' --sources-file "$WORK/gap-sources.json"
+expect "--json carries the gap verbatim in its header" 0 \
+  "\"Gap: host-a-windows unreadable: .*Retry: python3 $SUT --sources-file $WORK/gap-sources.json --json --diagnostics-dir $WORK/diag\"" \
+  --sources-file "$WORK/gap-sources.json" --json --diagnostics-dir "$WORK/diag"
+if compgen -G "$WORK/diag/*.json" >/dev/null && grep -q '"kind": "lookup"' "$WORK"/diag/*.json; then
+  pass "--diagnostics-dir writes the gap as a lookup record"
+else
+  fail "--diagnostics-dir wrote no lookup record"
+fi
+printf '{"schema":"transcript-sources/v1"}\n' >"$WORK/bad-sources.json"
+expect "a malformed sources file exits 2" 2 'error: .*bad-sources.json' --sources-file "$WORK/bad-sources.json" --json
+
 if [[ "$fails" -ne 0 ]]; then
   printf '%d failure(s)\n' "$fails" >&2
   exit 1

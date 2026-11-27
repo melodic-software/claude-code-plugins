@@ -1245,4 +1245,42 @@ run stop-hook-timing "$WORK/no-stop.jsonl"
 assert_eq "a transcript with no Stop summary reads zero records and no hooks" "0 0" \
   "$(q '"\(.records) \(.hooks | length)"')"
 
+HOME_B="/""home/user-b"
+printf '{"schema":"transcript-sources/v1","sources":[%s,%s]}\n' \
+  "{\"name\":\"host-a-wsl\",\"host\":\"host-a\",\"platform\":\"wsl\",\"config_dir\":\"$WORK/cfg-a\"}" \
+  '{"name":"host-b-wsl","host":"host-b","platform":"wsl","config_dir":"/srv/user-b/.claude","via":["ssh","host-b"]}' \
+  >"$WORK/sources.json"
+doc "$WORK/leak.json" "{\"id\":\"git-1\",\"key\":\"git/x\",\"area\":\"git\",\"title\":\"slow on host-b\",\"status\":\"flag-only\",\"reason\":\"see $HOME_B/notes, ask ops-b@example.org\"}"
+run render "$WORK/leak.json" --sources-file "$WORK/sources.json"
+assert_eq "render with a sources file exits 0" "0" "$RUN_RC"
+# shellcheck disable=SC2016  # the backticks are the literal markdown code span render prints
+assert_contains "the report names the host by its placeholder" \
+  '- **slow on <host-2>** (git, `git-1`): see ~/notes, ask <email>' "$RUN_OUT"
+for leaked in host-b "$HOME_B" example.org; do
+  assert_not_contains "the report carries no $leaked" "$leaked" "$RUN_OUT"
+done
+FR="$WORK/finish-redacted"
+mkdir -p "$FR"
+cp "$WORK/leak.json" "$FR/findings.json"
+run finish --run "$FR" --sources-file "$WORK/sources.json"
+assert_eq "finish with a sources file exits 0" "0" "$RUN_RC"
+assert_not_contains "the written report carries no host name" "host-b" "$(cat "$FR/report.md")"
+FM="$WORK/finish-missing-sources"
+mkdir -p "$FM"
+cp "$WORK/leak.json" "$FM/findings.json"
+run finish --run "$FM" --sources-file "$WORK/absent-sources.json"
+assert_eq "finish with a missing sources file exits 2" "2" "$RUN_RC"
+assert_eq "finish with a missing sources file writes no report" "absent" "$([[ -e "$FM/report.md" ]] && echo present || echo absent)"
+assert_contains "the error says nothing was published" "nothing published: the sources file was not found" "$RUN_OUT"
+assert_not_contains "the error names no sources path" "absent-sources" "$RUN_OUT"
+run render "$WORK/leak.json" --sources-file "$WORK/absent-sources.json"
+assert_eq "render with a missing sources file exits 2" "2" "$RUN_RC"
+assert_not_contains "render with a missing sources file prints no report" "go-faster report" "$RUN_OUT"
+AWS_KEY="AKIA""IOSFODNN7""EXAMPLE"
+doc "$WORK/secret.json" "{\"id\":\"git-1\",\"key\":\"git/x\",\"area\":\"git\",\"title\":\"t\",\"status\":\"flag-only\",\"reason\":\"set AWS_ACCESS_KEY_ID=$AWS_KEY then project-zeta\"}"
+run render "$WORK/secret.json" --sources-file "$WORK/sources.json" --redact-identifiers project-zeta
+assert_not_contains "a detected secret is not published" "$AWS_KEY" "$RUN_OUT"
+assert_contains "the secret shows its rule placeholder" "AWS_ACCESS_KEY_ID=<redacted:aws-access-token>" "$RUN_OUT"
+assert_contains "an identifier given by --redact-identifiers is replaced" "then <identifier>" "$RUN_OUT"
+
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1

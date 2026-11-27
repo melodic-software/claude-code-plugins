@@ -48,6 +48,7 @@ _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+import transcript_sources  # noqa: E402  (path set above; plugin-bundled module)
 from spawn_noise import (  # noqa: E402  (path set above; plugin-bundled module)
     BIMODAL_SPREAD_RATIO,
     NOOP_SPAWN,
@@ -247,11 +248,6 @@ def utc_now() -> datetime:
 def iso_utc(epoch: float) -> str:
     """An epoch timestamp as the UTC, second-precision string every section emits."""
     return datetime.fromtimestamp(epoch, timezone.utc).isoformat(timespec="seconds")
-
-
-def default_root() -> Path:
-    env = os.environ.get("CLAUDE_CONFIG_DIR")
-    return Path(env) if env else Path.home() / ".claude"
 
 
 def timed(fn, *args, **kwargs):
@@ -2232,7 +2228,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--root",
         type=Path,
         default=None,
-        help="install root (else $CLAUDE_CONFIG_DIR, else ~/.claude)",
+        help="install root (else the first local source's config dir, else $CLAUDE_CONFIG_DIR, else ~/.claude)",
+    )
+
+    ap.add_argument(
+        "--sources-file",
+        default="",
+        help="the transcript_sources_file option: the first local source is the config dir",
+    )
+    ap.add_argument(
+        "--diagnostics-dir", help="write a lookup gap here as a diagnostics record"
     )
     ap.add_argument(
         "--session-id",
@@ -2296,9 +2301,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
-
-    root = (args.root or default_root()).expanduser().resolve()
+    try:
+        lookup = transcript_sources.lookup_report(
+            args.sources_file, transcript_sources.retry_argv(__file__, sys.argv[1:]), args.diagnostics_dir,
+        )
+    except transcript_sources.SourcesError as exc:
+        print(json.dumps({"errors": [f"sources-file: {exc}"]}, indent=2))
+        return 2
+    root = (args.root.expanduser() if args.root else transcript_sources.first_local_config_dir(lookup.sources)).resolve()
     report: dict = {
+        "header": lookup.header,
         "generated_at": utc_now().isoformat(timespec="seconds"),
         "root": str(root),
         "platform": sys.platform,

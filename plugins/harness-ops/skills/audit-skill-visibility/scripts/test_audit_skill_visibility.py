@@ -3,6 +3,7 @@ import io
 import json
 import os
 import pathlib
+import shlex
 import shutil
 import stat
 import subprocess
@@ -10,6 +11,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 from datetime import datetime, timedelta, timezone
 
 for _v in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
@@ -3658,6 +3660,58 @@ class CollectJsonlRotationTest(unittest.TestCase):
                 handle.write('{"ts":"2026-02-01T00:00:00Z","skill":"a:new"}\n')
             events, _ = engine.collect_jsonl(store)
         self.assertEqual([e["skill"] for e in events], ["a:new"])
+
+
+class CollectionHeaderTest(unittest.TestCase):
+    """The resolver-backed root and the report header's lookup gap, with invented hosts."""
+
+    def setUp(self) -> None:
+        self.tmp = pathlib.Path(tempfile.mkdtemp(prefix="header-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        (self.tmp / "wsl" / "projects").mkdir(parents=True)
+        (self.tmp / "windows").mkdir()
+        (self.tmp / "windows" / "projects").write_text("not a directory", encoding="utf-8")
+        self.sources = self.tmp / "sources.json"
+        self.sources.write_text(json.dumps({"schema": "transcript-sources/v1", "sources": [
+            {"name": "host-b-wsl", "host": "host-b", "platform": "wsl", "config_dir": "/srv/user-b/.claude", "via": ["ssh", "host-b"]},
+            {"name": "host-a-wsl", "host": "host-a", "platform": "wsl", "config_dir": str(self.tmp / "wsl")},
+            {"name": "host-a-windows", "host": "host-a", "platform": "windows", "config_dir": str(self.tmp / "windows")},
+        ]}), encoding="utf-8")
+        self.argv = ["--sources-file", str(self.sources), "--diagnostics-dir", str(self.tmp / "diag")]
+
+    def assert_header(self, header: list[str]) -> None:
+        (record,) = (self.tmp / "diag").glob("*.json")
+        script = pathlib.Path(engine.__file__).resolve()
+        gap, retry = header[0].split(" Retry: ", 1)
+        self.assertEqual(
+            [gap, shlex.split(retry), *header[1:]],
+            [
+                "Gap: host-a-windows unreadable: its projects directory could not be listed (NotADirectoryError).",
+                ["python3", str(script), *self.argv_used],
+                f"Diagnostics: {record}",
+            ],
+            "the retry is a shell command that re-runs this audit with the same arguments",
+        )
+
+    def run_main(self, *args: str) -> tuple[int, str, str]:
+        plugins = self.tmp / "plugins" / "alpha" / "skills" / "one"
+        plugins.mkdir(parents=True, exist_ok=True)
+        (plugins / "SKILL.md").write_text('---\nname: one\ndescription: "does a thing"\n---\n', encoding="utf-8")
+        out, err = io.StringIO(), io.StringIO()
+        argv = ["--plugins-root", str(self.tmp / "plugins"), "--claude-json", str(self.tmp / "absent.json"), "--render", "json", *args]
+        with mock.patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": str(self.tmp)}), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = engine.main(argv)
+        self.argv_used = argv
+        return rc, out.getvalue(), err.getvalue()
+
+    def test_header_lookup_gap(self) -> None:
+        rc, out, err = self.run_main(*self.argv)
+        self.assertEqual(rc, 0, err)
+        self.assert_header(json.loads(out)["header"])
+
+    def test_a_missing_sources_file_warns_on_stderr(self) -> None:
+        rc, out, err = self.run_main("--sources-file", str(self.tmp / "absent.json"))
+        self.assertEqual((rc, err.count("not found"), json.loads(out)["header"]), (0, 1, []))
 
 
 if __name__ == "__main__":

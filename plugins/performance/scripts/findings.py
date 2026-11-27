@@ -8,10 +8,12 @@ folder passed as a literal argument. Subcommands:
     add --run <run-dir> [--json <text>] append the finding(s) passed in --json, else on stdin;
                                         refuse any that break a rule, including a citation whose
                                         as_of is not the run's date
-    finish --run <run-dir>              validate the whole run, write report.md, print its path
+    finish --run <run-dir> [--sources-file F] [--redact-identifiers LIST]
+                                        validate the whole run, write report.md, print its path
     validate <findings.json>            exit 1 naming each rule a finding breaks
     rank <findings.json>                one `<section>\t<id>` line per finding, in report order
-    render <findings.json>              the markdown report
+    render <findings.json> [--sources-file F] [--redact-identifiers LIST]
+                                        the markdown report
     lint-catalog <dir|file>...          exit 1 naming each catalog row that breaks the grammar
     lock acquire|heartbeat|release|status --data <dir> --session <id>
     adopt --data <dir> --session <id> --findings <findings.json> --id <id> --route-taken <route>
@@ -31,6 +33,10 @@ folder passed as a literal argument. Subcommands:
     permission-counts --file <path>...  per settings file: status (read, missing, invalid or
                                         unreadable) and, when read, its ask and deny rule counts;
                                         nothing else from the file is printed
+
+The report render prints and finish writes is published output: it passes through the publish
+redactor (`lib/publish.py` over `--sources-file` and `--redact-identifiers`), and when that fails
+closed nothing is printed or written and the exit is 2.
 
 A run's date is the UTC date of the started_at that run-start writes: a citation is outside advice
 re-read in this run, so add, finish, validate and adopt refuse one with any other as_of. A findings
@@ -434,8 +440,21 @@ def render(doc: dict) -> str:
     return "\n".join(out) + "\n"
 
 
+def publisher(args: argparse.Namespace) -> Callable[[str], str]:
+    """The publish redactor (the generated shared copy in ../lib); exits 2 when it fails closed."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+    sys.dont_write_bytecode = True
+    import publish
+
+    try:
+        return publish.publisher(args.sources_file, args.redact_identifiers).redact
+    except publish.PublishError as exc:
+        die(str(exc))
+
+
 def cmd_render(args: argparse.Namespace) -> int:
-    sys.stdout.write(render(load(args.file)))
+    md_out = publisher(args)
+    sys.stdout.write(md_out(render(load(args.file))))
     return 0
 
 
@@ -1262,8 +1281,9 @@ def cmd_finish(args: argparse.Namespace) -> int:
         print("\n".join(errors))
         return 1
     report = run / "report.md"
+    text = publisher(args)(render(doc))
     with writing(report):
-        report.write_text(render(doc), encoding="utf-8", newline="\n")
+        report.write_text(text, encoding="utf-8", newline="\n")
     print(report.as_posix())
     return 0
 
@@ -1651,6 +1671,9 @@ def main() -> int:
     p = sub.add_parser("finish")
     p.add_argument("--run", required=True)
     p.set_defaults(fn=cmd_finish)
+    for command in (p, sub.choices["render"]):
+        command.add_argument("--sources-file", default="", help="the transcript_sources_file option, whose identifiers the report redacts")
+        command.add_argument("--redact-identifiers", default="", help="the redact_identifiers option: more names and paths the report redacts")
     p = sub.add_parser("status-timing")
     p.add_argument("--data", required=True)
     p.add_argument("--runs", type=int, default=5)

@@ -1,20 +1,32 @@
 #!/usr/bin/env python3
 """Measure how many assistant turns discovery subagent dispatches take to finish.
 
-Reads Claude Code session transcripts: every subagents/agent-*.jsonl that has a
-sibling agent-*.meta.json. A turn is counted in the unit `maxTurns` uses (see
+Reads Claude Code session transcripts through the shared reader (lib/transcript_reader.py): every
+subagents/agent-*.jsonl that has a sibling agent-*.meta.json, under --root, else under the projects
+directory of each local source the sources file lists (lib/transcript_sources.py; with no
+--sources-file, the local configuration directory). A turn is counted in the unit `maxTurns` uses (see
 plugins/discovery/reference/parent-contract.md): one assistant message, however
 many parallel tool calls it holds, so assistant records are grouped by
 message.id and the distinct ids are counted.
 
-Only counts, dates and agent types are printed, never transcript content.
+A local source whose projects directory exists but cannot be listed is a gap: the report header
+(transcript_sources.lookup_report, `header` in --json) names it with its retry, this invocation
+verbatim, and --diagnostics-dir writes it there as a lookup diagnostics record. The header also
+names each source of the sources file on another host, which this script does not read, so its
+counts are this host's only. With --root it reads that one directory and has no header.
+
+Only counts, dates and agent types are printed, never transcript content. The markdown is
+published output: it passes through the publish redactor (lib/publish.py over --sources-file and
+--redact-identifiers), and when that fails closed nothing is printed and the exit is 2; --json is not.
 
 Exit 0 = report written (an empty result is still a report)
-Exit 2 = the transcripts root cannot be read, or a usage error
+Exit 2 = the --root cannot be read, the sources file is malformed, the publish redactor fails
+         closed, or a usage error
 
 Usage:
   python3 turns-to-complete.py [--root DIR] [--agent-type A,B] [--since YYYY-MM-DD]
-                               [--ceiling N] [--json]
+                               [--ceiling N] [--json] [--sources-file F]
+                               [--redact-identifiers LIST] [--diagnostics-dir DIR]
 
 A dispatch enters the statistics only when it finished: its last assistant
 message has a stop_reason other than tool_use, or it reached the ceiling. Running,
@@ -40,6 +52,13 @@ import sys
 from datetime import date
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
+sys.dont_write_bytecode = True
+
+import publish  # noqa: E402  (the generated shared copy in ../lib)
+import transcript_reader  # noqa: E402  (the generated shared copy in ../lib)
+import transcript_sources  # noqa: E402  (the generated shared copy in ../lib)
+
 DEFAULT_TYPES = (
     "discovery:researcher,discovery:explorer,"
     "discovery:intent-tracer,discovery:research-verifier"
@@ -62,28 +81,21 @@ def analyze(jsonl: Path, ceiling: int) -> dict | None:
     last_stop = None
     resumed = False
     try:
-        with jsonl.open(encoding="utf-8") as fh:
-            for line in fh:
-                try:
-                    rec = json.loads(line)
-                except ValueError:
-                    continue
-                if not isinstance(rec, dict):
-                    continue
-                first_ts = first_ts or rec.get("timestamp")
-                msg = rec.get("message")
-                msg = msg if isinstance(msg, dict) else {}
-                if rec.get("type") == "assistant" and msg.get("id"):
-                    ids.add(msg["id"])
-                    last_stop = msg.get("stop_reason")
-                    stopped = stopped or last_stop == "max_turns"
-                elif (
-                    rec.get("type") == "user"
-                    and (len(ids) >= ceiling or stopped)
-                    and not _is_tool_result(msg.get("content"))
-                ):
-                    resumed = True
-    except (OSError, UnicodeDecodeError):
+        for rec in transcript_reader.iter_records(jsonl):
+            first_ts = first_ts or rec.get("timestamp")
+            msg = rec.get("message")
+            msg = msg if isinstance(msg, dict) else {}
+            if rec.get("type") == "assistant" and msg.get("id"):
+                ids.add(msg["id"])
+                last_stop = msg.get("stop_reason")
+                stopped = stopped or last_stop == "max_turns"
+            elif (
+                rec.get("type") == "user"
+                and (len(ids) >= ceiling or stopped)
+                and not _is_tool_result(msg.get("content"))
+            ):
+                resumed = True
+    except OSError:
         return None
     hit = len(ids) >= ceiling or stopped
     return {
@@ -131,28 +143,49 @@ def table(headers: list[str], body: list[list[object]]) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--root", default="~/.claude/projects", help="transcripts root")
+    ap.add_argument("--root", help="one transcripts root; default: each local source's projects directory")
     ap.add_argument(
         "--agent-type", default=DEFAULT_TYPES, help="comma-separated agentType filter"
     )
     ap.add_argument("--since", type=date.fromisoformat, metavar="YYYY-MM-DD")
     ap.add_argument("--ceiling", type=int, default=40, help="turn ceiling (default 40)")
     ap.add_argument("--json", action="store_true", help="emit JSON instead of markdown")
+    ap.add_argument("--sources-file", default="", help="a transcript sources file, whose identifiers markdown redacts")
+    ap.add_argument("--redact-identifiers", default="", help="comma-separated names and paths markdown also redacts")
+    ap.add_argument("--diagnostics-dir", help="write a lookup gap here as a diagnostics record")
     args = ap.parse_args()
 
-    root = Path(args.root).expanduser()
-    try:
-        list(os.scandir(root))
-    except OSError as exc:
-        print(f"error: cannot read root {root}: {exc.strerror}", file=sys.stderr)
-        return 2
+    sources = None
+    header: list[str] = []
+    if args.root:
+        roots = [Path(args.root).expanduser()]
+        try:
+            list(os.scandir(roots[0]))
+        except OSError as exc:
+            print(f"error: cannot read root {roots[0]}: {exc.strerror}", file=sys.stderr)
+            return 2
+    else:
+        try:
+            report = transcript_sources.lookup_report(
+                args.sources_file, transcript_sources.retry_argv(__file__, sys.argv[1:]), args.diagnostics_dir,
+            )
+        except transcript_sources.SourcesError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        sources = report.sources
+        unread = {gap.source for gap in report.gaps}
+        roots = [Path(e.config_dir) / "projects" for e in sources.local() if e.name not in unread]
+        header = report.header + [
+            f"Not read by this skill: {entry.name} (remote; this skill reads this host's sources only)"
+            for entry in sources.all() if not entry.is_local
+        ]
 
     wanted = {t.strip() for t in args.agent_type.split(",") if t.strip()}
     since = args.since.isoformat() if args.since else None
     rows: list[dict] = []
     skipped = 0
     unfinished = 0
-    for dirpath, _, files in os.walk(root):
+    for dirpath, _, files in (walked for root in roots for walked in os.walk(root)):
         for name in files:
             if not (name.startswith("agent-") and name.endswith(".jsonl")):
                 continue
@@ -186,9 +219,14 @@ def main() -> int:
             file=sys.stderr,
         )
     if args.json:
-        print(json.dumps({"dispatches": rows, "summary": summary}, indent=2))
+        print(json.dumps({"header": header, "dispatches": rows, "summary": summary}, indent=2))
         return 0
-    print(
+    try:
+        publisher = publish.publisher(args.sources_file, args.redact_identifiers, sources=sources)
+    except publish.PublishError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    dispatches = (
         table(
             ["date", "agentType", "turns", "hit_ceiling", "resumed"],
             [
@@ -203,9 +241,10 @@ def main() -> int:
             ],
         )
     )
-    print()
     cols = ("agentType", "n", "min", "p50", "p90", "max", "at_ceiling")
-    print(table(list(cols), [[s[k] for k in cols] for s in summary]))
+    totals = table(list(cols), [[s[k] for k in cols] for s in summary])
+    lead = "\n".join(transcript_sources.report_header_md(header)) + ("\n" if header else "")
+    print(publisher.redact(f"{lead}{dispatches}\n\n{totals}"))
     return 0
 
 

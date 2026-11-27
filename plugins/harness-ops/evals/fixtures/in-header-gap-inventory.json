@@ -1,0 +1,25 @@
+{
+  "header": [
+    "Gap: host-a-windows unreadable: its projects directory could not be listed (PermissionError). Retry: python3 /opt/eval-plugins/harness-ops/skills/inventory/scripts/inventory.py --sources-file /srv/eval/sources.json --out ./claude-inventory.json",
+    "Diagnostics: /srv/eval/data/diagnostics/20261101T090000Z-lookup.json"
+  ],
+  "integrity": {
+    "status": "ok",
+    "lanes": {
+      "builtin_commands": {"status": "ok", "problems": [], "advisories": []}
+    },
+    "cli_version": "2.1.288",
+    "validated_against": "2.1.288",
+    "problems": [],
+    "advisories": []
+  },
+  "builtin_commands": [
+    {"name": "clear", "description": "Clear conversation history", "user_invocable": true, "model_invocable": false},
+    {"name": "compact", "description": "Compact the conversation", "user_invocable": true, "model_invocable": false},
+    {"name": "config", "description": "Open the config panel", "user_invocable": true, "model_invocable": false},
+    {"name": "doctor", "description": "Diagnose the installation", "user_invocable": true, "model_invocable": false},
+    {"name": "help", "description": "Show help", "user_invocable": true, "model_invocable": false},
+    {"name": "model", "description": "Set the model", "user_invocable": true, "model_invocable": false},
+    {"name": "status", "description": "Show status", "user_invocable": true, "model_invocable": false}
+  ]
+}

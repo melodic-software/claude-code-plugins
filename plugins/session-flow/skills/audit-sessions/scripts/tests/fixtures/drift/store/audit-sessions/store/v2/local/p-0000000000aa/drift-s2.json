@@ -1,5 +1,5 @@
 {
-  "schema": "session-record/v1",
+  "schema": "session-record/v2",
   "session_id": "drift-s2",
   "census": {
     "2.0.2|*": {"record_type:user": 30},

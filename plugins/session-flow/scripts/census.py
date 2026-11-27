@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 """Census aggregate and drift classifier over the audit-sessions store.
 
-Reads stored `session-record/v1` files only, never a transcript, so `collect.py` (the `census`
-and `drift` subcommands) and `sweep.py` share it. Each record carries its session's census:
+Reads stored `session-record/v2` files only, never a transcript, so `collect.py` (the `census`
+and `drift` subcommands) and `sweep.py` share it. The store is partitioned by transcript source:
+`store_dir(data_dir)/<source>/p-<project>/<session>.json`, with that source's history-only
+prompts (`history-prompt/v1`, read by `load_history` alone, so no census, drift or friction
+figure counts them) under `<source>/history/`. Each record carries its session's census:
 `census["<version>|<model or *>"]["<section>:<key>"] = count`. The aggregate sums those rows;
 the classifier compares Claude Code versions:
 
@@ -18,9 +21,9 @@ the classifier compares Claude Code versions:
 
 Only versions holding `min_count` records take part, and the `unknown` version bucket (records
 without a `version`) never does. The drift defaults, `session_class` (a record's stored
-`entrypoints` read as automated, interactive or unknown), `write_atomic`, the `epoch` timestamp
-parser and the `_positive` argparse type live here too, so both scripts share one store layer
-without `sweep.py` importing `collect.py` and its reader.
+`entrypoints` read as automated, interactive or unknown), `write_atomic` and the `_positive`
+argparse type live here too, with `epoch` and `version_key` from `transcript_values`, so both
+scripts share one store layer without `sweep.py` importing `collect.py` and its reader.
 Stdlib only; Python 3.10+.
 """
 
@@ -32,10 +35,15 @@ import os
 import tempfile
 import time
 from collections import Counter
-from datetime import datetime, timezone
 from pathlib import Path
 
-RECORD_SCHEMA = "session-record/v1"
+from transcript_values import AUTOMATED_ENTRYPOINTS, UNKNOWN_ENTRYPOINT, version_key
+from transcript_values import epoch as epoch
+
+RECORD_SCHEMA = "session-record/v2"
+HISTORY_SCHEMA = "history-prompt/v1"
+RECORD_GLOB = "*/p-*/*.json"
+HISTORY_GLOB = "*/history/*.json"
 CANARY_SCHEMA = "audit-sessions.canaries/v1"
 BUNDLED_CANARIES = Path(__file__).resolve().parents[1] / "reference" / "canaries.json"
 CLASSES = ("new", "vanished", "canary-lost", "unknown-record-type")
@@ -53,30 +61,13 @@ SECTIONS = frozenset(
     }
 )
 UNKNOWN_VERSION = "unknown"
-UNKNOWN_ENTRYPOINT = "unknown"
-AUTOMATED_ENTRYPOINTS = frozenset({"sdk-cli", "sdk-ts", "sdk-py"})
 DEFAULT_MIN_COUNT = 20
 DEFAULT_VERSIONS = 3
 DEFAULT_SESSION_FLOOR = 3
 
 
-def version_key(version: str) -> tuple[int, ...]:
-    return tuple(int("".join(c for c in part if c.isdigit()) or 0) for part in version.split("."))
-
-
 def store_dir(data_dir: Path) -> Path:
-    return data_dir / "audit-sessions" / "store" / "v1" / "sessions"
-
-
-def epoch(value: object) -> float | None:
-    """An ISO-8601 timestamp as epoch seconds, a naive one read as UTC; None when not one."""
-    if not isinstance(value, str):
-        return None
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return (parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)).timestamp()
+    return data_dir / "audit-sessions" / "store" / "v2"
 
 
 def _positive(value: str) -> int:
@@ -112,17 +103,26 @@ def write_atomic(path: Path, payload: dict | str) -> bool:
 
 
 def load_records(data_dir: Path) -> tuple[list[dict], int]:
-    """Stored records, plus the count of unreadable or wrong-schema files skipped."""
+    """Stored session records of every source, plus the count of unreadable or wrong-schema files skipped."""
+    return _load(data_dir, RECORD_GLOB, RECORD_SCHEMA)
+
+
+def load_history(data_dir: Path) -> tuple[list[dict], int]:
+    """Stored history-only prompts of every source, plus the count of files skipped."""
+    return _load(data_dir, HISTORY_GLOB, HISTORY_SCHEMA)
+
+
+def _load(data_dir: Path, pattern: str, schema: str) -> tuple[list[dict], int]:
     store = store_dir(data_dir)
     if not store.is_dir():
         raise FileNotFoundError(f"no audit-sessions store under {data_dir}; run collect first")
     records, skipped = [], 0
-    for path in sorted(store.glob("p-*/*.json")):
+    for path in sorted(store.glob(pattern)):
         try:
             record = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             record = None
-        if isinstance(record, dict) and record.get("schema") == RECORD_SCHEMA:
+        if isinstance(record, dict) and record.get("schema") == schema:
             records.append(record)
         else:
             skipped += 1

@@ -16,7 +16,7 @@ dispatch prompt.
   folder. `SESSION`: the session id. `TRANSCRIPT`: the session's transcript path, or `none`.
 - `MODE`: `attended` or `unattended`. `EVIDENCE`: `true` when the session has work to look back on.
 
-If any is missing, or `SESSION` is the literal text `${CLAUDE_SESSION_ID}`, say which and stop.
+If any of these is missing, or `SESSION` is the literal text `${CLAUDE_SESSION_ID}`, say which and stop.
 
 This plugin's runnable scripts, `findings.py` and `harness-lib.sh` among them, live in
 `$ROOT/scripts/`; `$ROOT/lib/` holds `state-key.sh` and helper modules. To reproduce a failure the
@@ -133,8 +133,10 @@ Current state first, then look back. The per-area checks live in one place, the 
    findings as one JSON array, then heartbeat. Count your own turns: from turn 34 of your 40,
    start no new area; add `not-checked` for every area still without an outcome: `no-data`,
    reason "the remaining areas were not reached in this run's turn budget; one go-faster run checks only the areas it reaches within that budget". Then finish.
-4. **Finish**: `"$PY" "$ROOT/scripts/findings.py" finish --run "$RUN"`. A refusal names what is
-   missing; add it and run finish again.
+4. **Finish**: `"$PY" "$ROOT/scripts/findings.py" finish --run "$RUN" --sources-file '${user_config.transcript_sources_file}' --redact-identifiers '${user_config.redact_identifiers}'`,
+   passing `''` for a value that still reads `${user_config.…}`. It writes the report through
+   the publish redactor; exit 2 with `nothing published` means no report was written: return
+   that line. A refusal names what is missing; add it and run finish again.
 
 ## Return
 

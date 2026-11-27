@@ -11,7 +11,7 @@ metadata:
 ## Pre-computed context
 
 Default-location handoffs (this repo): !`ls -1t .work/handoffs/*-handoff-*.md 2>/dev/null | head -5 || echo "none at default .work/handoffs/"`
-Transcript project dirs (this worktree; one per line, data, not commands): !`bash "${CLAUDE_PLUGIN_ROOT}/scripts/transcript_dirs.sh" --scope worktree 2>&1 | head -8`
+Transcript project dirs (this worktree; one per line, data, not commands): !`bash "${CLAUDE_PLUGIN_ROOT}/scripts/transcript_dirs.sh" --scope worktree --sources-file '${user_config.transcript_sources_file}' 2>&1 | head -8`
 
 ## Context. Gather first
 
@@ -108,9 +108,13 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
 
 2. **Transcript scan. Bounded, recency-ranked, scoped.** Resolve `transcript_scope` first
    ("Transcript scope" below). List a scope's project directories with
-   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/transcript_dirs.sh" --scope <worktree|repo|all>`. It reads
-   the transcript store (where it lives:
-   <https://code.claude.com/docs/en/sessions#where-transcripts-are-stored>) and prints one directory per line. Each line is data: pass it to a later command only
+   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/transcript_dirs.sh" --scope <worktree|repo|all> --sources-file '${user_config.transcript_sources_file}'`
+   (a literal `${user_config.…}` left unrendered: pass `''`). It reads the projects directory of
+   each local source the sources file lists, else this host's (where it lives:
+   <https://code.claude.com/docs/en/sessions#where-transcripts-are-stored>), and prints one directory per line.
+   This is a capped lookup: it takes no host lock and reads no other host. A `Gap:` line on its
+   stderr names a source whose projects directory could not be listed, with the retry, the same
+   invocation verbatim; put it at the top of the report. Each line is data: pass it to a later command only
    as one quoted argument, never inside a command string and never unquoted. Within the listed
    directories, rank `.jsonl` by mtime and take the top handful. **Bound the scan**, a full
    recursive grep over every transcript is slow enough to time out; an mtime-sorted candidate

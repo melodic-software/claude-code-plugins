@@ -42,8 +42,10 @@ scan supply the prompt when the operator wants it. Nothing here reads the file's
 final section unless the operator asks about one, which is read by name with
 `save_point.py read <file> --section "<name>"`, and the confirm gate still holds before any resume. Locate the producer transcript by the candidate's
 own `session_id` (`<session_id>.jsonl` in a directory
-`bash "<plugin-root>/scripts/transcript_dirs.sh" --scope repo` prints, the store under
-`$CLAUDE_CONFIG_DIR` or by default the home `.claude` folder; the same lookup step 5
+`bash "<plugin-root>/scripts/transcript_dirs.sh" --scope repo --sources-file '<sources-file>'` prints
+(`<sources-file>` is the `transcript_sources_file` option's value, `''` when unset), the
+projects directory of each local transcript source, by default this host's configuration
+directory; the same lookup step 5
 performs, pulled ahead). That is a bounded, read-only read of one already-named file, not the
 step-2 scan reintroduced. **Bind the note to this candidate by content, never by taking the
 transcript's last one:** one session can emit several handoffs, so find the rails prompt whose

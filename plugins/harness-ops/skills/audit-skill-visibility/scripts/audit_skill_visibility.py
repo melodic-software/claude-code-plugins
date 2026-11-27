@@ -47,6 +47,13 @@ from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
+from pathlib import Path
+
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import transcript_sources  # noqa: E402  (path set above; plugin-bundled module)
 
 MIN_PYTHON = (3, 11)
 
@@ -3238,7 +3245,16 @@ def main(argv: list[str] | None = None) -> int:
         "--state-key",
         help="repo-identity/worktree-discriminator, from lib/state-key.sh",
     )
+    parser.add_argument(
+        "--sources-file",
+        default="",
+        help="the transcript_sources_file option: the first local source is the config dir",
+    )
+    parser.add_argument(
+        "--diagnostics-dir", help="write a lookup gap here as a diagnostics record"
+    )
     args = parser.parse_args(argv)
+    header: list[str] = []
     if args.now:
         try:
             _parse_ts(args.now)
@@ -3265,9 +3281,17 @@ def main(argv: list[str] | None = None) -> int:
     else:
         clock = _parse_ts(args.now) if args.now else datetime.now(tz=UTC)
         current_project = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
-        config_root = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser(
-            "~/.claude"
-        )
+        try:
+            lookup = transcript_sources.lookup_report(
+                args.sources_file,
+                transcript_sources.retry_argv(__file__, sys.argv[1:] if argv is None else argv),
+                args.diagnostics_dir,
+            )
+            config_root = str(transcript_sources.first_local_config_dir(lookup.sources))
+            header = lookup.header
+        except transcript_sources.SourcesError as exc:
+            print(f"error: --sources-file: {exc}", file=sys.stderr)
+            return 2
         layers = settings_layers(
             current_project,
             config_root,
@@ -3404,10 +3428,12 @@ def main(argv: list[str] | None = None) -> int:
         print(path)
         return 0
 
+    model["header"] = header
     if args.render == "json":
         print(json.dumps(model, indent=2))
     else:
-        print(_render_markdown(model))
+        lead = "\n".join(transcript_sources.report_header_md(header)) + ("\n" if header else "")
+        print(lead + _render_markdown(model))
     return 0
 
 

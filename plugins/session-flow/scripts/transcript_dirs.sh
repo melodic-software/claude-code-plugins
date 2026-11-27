@@ -8,11 +8,19 @@ HERE="${BASH_SOURCE[0]%/*}"
 HERE="$(cd "$HERE" && pwd)" || exit 2
 
 usage() {
-  printf 'usage: transcript_dirs.sh --scope <worktree|repo|all>\n' >&2
+  printf 'usage: transcript_dirs.sh --scope <worktree|repo|all> [--sources-file F]\n  F: the transcript_sources_file option; its local sources are the stores (default: this host)\n' >&2
   exit 2
 }
-[[ $# -eq 2 && "$1" == --scope ]] || usage
-SCOPE="$2"
+ARGV=("$@")
+SCOPE=""
+SOURCES_FILE=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --scope) [[ $# -ge 2 && -z "$SCOPE" ]] || usage; SCOPE="$2"; shift 2 ;;
+  --sources-file) [[ $# -ge 2 ]] || usage; SOURCES_FILE="$2"; shift 2 ;;
+  *) usage ;;
+  esac
+done
 case "$SCOPE" in worktree | repo | all) ;; *) usage ;; esac
 
 win_form() {
@@ -46,15 +54,44 @@ source "$HERE/../lib/python-probe.sh"
 PY=""
 python_probe::floor_interpreter_to PY
 
-if [[ -n "$PY" && -f "$HERE/../lib/claude_projects.py" ]]; then
-  py_args=(resolve-project-dirs --scope "$SCOPE")
-  for root in ${roots[@]+"${roots[@]}"}; do
-    py_args+=(--root "$root")
-  done
-  exec "$PY" -I -X utf8 "$HERE/../lib/claude_projects.py" "${py_args[@]}"
+STORES=()
+if [[ -n "$PY" ]]; then
+  # shellcheck disable=SC2016 # the program is literal Python
+  listed="$("$PY" -I -X utf8 -c 'import sys
+sys.path.insert(0, sys.argv[1])
+import transcript_sources as t
+try:
+    report = t.lookup_report(sys.argv[2], t.retry_argv(sys.argv[3], sys.argv[4:], interpreter="bash"))
+except t.SourcesError as error:
+    print(f"transcript_dirs: {error}", file=sys.stderr)
+    sys.exit(2)
+for line in report.header:
+    print(line, file=sys.stderr)
+for entry in report.sources.local():
+    print(entry.config_dir)' "$HERE" "$SOURCES_FILE" "$HERE/transcript_dirs.sh" "${ARGV[@]}")" || exit 2
+  while IFS= read -r config; do
+    [[ -n "$config" ]] && STORES+=("$config/projects")
+  done <<<"$listed"
+elif [[ -n "$SOURCES_FILE" ]]; then
+  printf 'gap: Python 3.10+ not found, so the sources file was not read and no directory was listed\n' >&2
+  exit 0
+else
+  config="${CLAUDE_CONFIG_DIR:-}"
+  [[ -n "$config" ]] || config="$HOME/.claude"
+  STORES=("$config/projects")
 fi
 
-STORE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
+if [[ -n "$PY" && -f "$HERE/../lib/claude_projects.py" ]]; then
+  root_args=()
+  for root in ${roots[@]+"${roots[@]}"}; do
+    root_args+=(--root "$root")
+  done
+  for STORE in ${STORES[@]+"${STORES[@]}"}; do
+    "$PY" -I -X utf8 "$HERE/../lib/claude_projects.py" resolve-project-dirs --scope "$SCOPE" \
+      --projects-dir "$STORE" ${root_args[@]+"${root_args[@]}"} || exit 2
+  done
+  exit 0
+fi
 
 PRINTED=()
 emit() {
@@ -71,14 +108,18 @@ if [[ -n "${CLAUDE_CONFIG_DIR:-}" && "$pinned" =~ ^[A-Za-z0-9_-]{1,64}$ ]]; then
   case "$(printf '%s' "$pinned" | tr '[:upper:]' '[:lower:]')" in
   con | prn | aux | nul | com[0-9] | lpt[0-9]) ;;
   *)
-    [[ -d "$STORE/$pinned" ]] && emit "$STORE/$pinned"
+    for STORE in ${STORES[@]+"${STORES[@]}"}; do
+      [[ -d "$STORE/$pinned" ]] && emit "$STORE/$pinned"
+    done
     exit 0
     ;;
   esac
 fi
 
 if [[ "$SCOPE" == all ]]; then
-  for dir in "$STORE"/*/; do emit "${dir%/}"; done
+  for STORE in ${STORES[@]+"${STORES[@]}"}; do
+    for dir in "$STORE"/*/; do emit "${dir%/}"; done
+  done
   exit 0
 fi
 
@@ -106,7 +147,9 @@ scan_root() {
   done
 }
 
-for root in "${roots[@]}"; do scan_root "$root"; done
+for STORE in ${STORES[@]+"${STORES[@]}"}; do
+  for root in "${roots[@]}"; do scan_root "$root"; done
+done
 
 if [[ "$SKIPPED" -eq 1 ]]; then
   printf 'gap: Python 3.10+ not found; only exact-name directories were listed, so sessions started in a subdirectory or under a hashed long name were skipped\n' >&2

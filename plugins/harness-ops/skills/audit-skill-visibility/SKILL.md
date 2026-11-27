@@ -110,10 +110,10 @@ instead, read the plugin manifest:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-skill-visibility/scripts/audit_skill_visibility.py" \
-  --installed
+  --installed --sources-file '${user_config.transcript_sources_file}' --diagnostics-dir "${CLAUDE_PLUGIN_DATA}/diagnostics"
 ```
 
-It reads `~/.claude/plugins` by default (pass a directory to `--installed` to
+`--sources-file` (`''` when unrendered) picks the configuration directory, its first local source's; name each gap the report's `header` lists, with its retry, first. It reads `~/.claude/plugins` by default (pass a directory to `--installed` to
 point elsewhere). The two answers differ on purpose: a checkout can hold
 plugins that are not installed, so the repo count and the installed count
 disagree. Neither number is wrong; they answer different questions.
@@ -262,7 +262,7 @@ a session that loaded a different fleet; it is listed under
 `fit-unconfirmed`. `overflowing` needs no capture, since an uncounted entry
 only adds to the listing.
 `--listing-capture <transcript.jsonl>` reads the listing a session actually
-received from its transcript (`~/.claude/projects/<project>/<session>.jsonl`),
+received from its transcript (`<config dir>/projects/<project>/<session>.jsonl`),
 counts every entry no disk walk could find (built-in, bundled, synced skills
 when no signed-in account was read, and, in a checkout, any plugin outside the
 checkout and the project's own skills) at its captured length, and reports in

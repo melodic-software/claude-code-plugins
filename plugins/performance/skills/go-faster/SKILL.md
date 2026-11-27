@@ -40,11 +40,16 @@ Resolved when this skill loaded:
 echo "PY=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-python.sh" || echo unresolved)"
 echo "KEY=$(bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh" || echo unresolved)"
 echo "DATA=$(d="${EVAL_GO_FASTER_DATA:-}"; case "$d" in "") ;; /*) echo "$d" ;; *) echo "$PWD/$d" ;; esac || true)"
-echo "TRANSCRIPT=$(t="${EVAL_GO_FASTER_TRANSCRIPT:-}"; if [ -n "$t" ] && [ -f "$t" ]; then case "$t" in /*) echo "$t" ;; *) echo "$PWD/$t" ;; esac; else ls "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/projects/*/"${CLAUDE_SESSION_ID}.jsonl" 2>/dev/null | head -1; fi || true)"
+echo "TRANSCRIPT=$(t="${EVAL_GO_FASTER_TRANSCRIPT:-}"; if [ -n "$t" ] && [ -f "$t" ]; then case "$t" in /*) echo "$t" ;; *) echo "$PWD/$t" ;; esac; else "$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-python.sh")" "${CLAUDE_PLUGIN_ROOT}/lib/transcript_sources.py" local-config-dir --sources-file '${user_config.transcript_sources_file}' 2>/dev/null | while IFS= read -r c; do ls "$c"/projects/*/"${CLAUDE_SESSION_ID}.jsonl" 2>/dev/null; done | head -1; fi || true)"
+echo "SOURCES_WARNING=$("$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-python.sh")" "${CLAUDE_PLUGIN_ROOT}/lib/transcript_sources.py" local-config-dir --sources-file '${user_config.transcript_sources_file}' 2>&1 >/dev/null | tr '\n' ' ' || true)"
 ```
 
 If those lines reached you as literal commands, run them yourself with Bash, as written: the `PY` line runs its script with `bash` because the Bash tool's shell may be zsh.
 `PY=unresolved` means no Python runs here, and `KEY=unresolved` means no hash tool: stop and say which. An empty `TRANSCRIPT` is `none`.
+`TRANSCRIPT` is looked up in the projects directory of each local source of the
+`transcript_sources_file` option (`lib/transcript_sources.py local-config-dir`), else this host's
+configuration directory. A non-empty `SOURCES_WARNING` is the resolver's stderr about that option
+(a sources file not found, or one it refused): quote it at the top of your reply.
 
 - **Pointer**: when the `TRANSCRIPT` line finds no file in a session that has one, fetch
   [the application data table](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
@@ -89,7 +94,9 @@ setup scan only." and continue with `EVIDENCE` false.
 It prints `RUN`; exit 3 is `write-denied`: release the lock (Step 4) and report its `cannot write`
 line. Dispatch the `performance:go-faster-sweeper` agent with a prompt carrying `PY`,
 `ROOT` (`${CLAUDE_PLUGIN_ROOT}`), `RUN`, `DATA`, `SESSION`, `TRANSCRIPT`, `MODE` and `EVIDENCE`,
-each on its own line. `MODE` is `unattended` when the caller passed `--unattended`, else `attended`;
+each on its own line. The sweeper's last
+step writes the report through the publish redactor (`lib/publish.py`'s `publisher`):
+`"<PY>" "${CLAUDE_PLUGIN_ROOT}/scripts/findings.py" finish --run "<RUN>" --sources-file '${user_config.transcript_sources_file}' --redact-identifiers '${user_config.redact_identifiers}'`. `MODE` is `unattended` when the caller passed `--unattended`, else `attended`;
 `--mode` takes the same value. The flag itself reaches neither `findings.py` nor the sweeper.
 
 - **Attended**: do not wait on the sweeper where the session lets it run in the background. Tell

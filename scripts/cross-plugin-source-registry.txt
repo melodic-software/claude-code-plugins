@@ -805,7 +805,7 @@ lib/git-hooks/install.mjs -> plugins/*/lib/git-hooks/install.mjs
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies, which sit at a
 # different path in each plugin.
-lib/redact.py -> plugins/session-flow/scripts/redact.py plugins/corrections/tools/findings-buffer/lib/redact.py
+lib/redact.py -> plugins/session-flow/scripts/redact.py plugins/corrections/tools/findings-buffer/lib/redact.py plugins/performance/lib/redact.py plugins/discovery/lib/redact.py plugins/explainer-video/scripts/redact.py plugins/source-control/tools/reviewer-media/lib/redact.py plugins/speech/scripts/redact.py plugins/evals/scripts/redact.py
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/check-convention-facts.mjs, the advisory current-facts check a setup
@@ -888,6 +888,18 @@ scripts/media_scan.py
 # Dedicated check: scripts/sync-shared-copies.sh --check. The scan floor's
 # redactor. Canonical: lib/redact.py.
 scripts/redact.py
+# Dedicated check: scripts/sync-shared-copies.sh --check. The publish redactor
+# of the transcript-mining scripts. Canonical: lib/redact.py.
+lib/redact.py
+# Dedicated check: scripts/sync-shared-copies.sh --check. The transcript source
+# resolver. Canonical: lib/transcript_sources.py.
+lib/transcript_sources.py
+# Dedicated check: scripts/sync-shared-copies.sh --check. The fail-closed loader
+# of the publish redactor. Canonical: lib/publish.py.
+lib/publish.py
+# Dedicated check: scripts/sync-shared-copies.sh --check. The one transcript
+# parser of the transcript-mining scripts. Canonical: lib/transcript_reader.py.
+lib/transcript_reader.py
 # Dedicated check: scripts/sync-shared-copies.sh --check. The rules the scan
 # floor reads. Canonical:
 # plugins/session-flow/vendor/gitleaks/gitleaks-rules.json.
