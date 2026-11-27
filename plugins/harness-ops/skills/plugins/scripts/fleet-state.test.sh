@@ -2159,6 +2159,40 @@ ARGS=(--fingerprint --marketplace market1)
 out=$(run_state "$case_dir")
 assert_exit "fingerprint: combined with another argument is a usage error" 2 "$?"
 
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+mkdir -p "$case_dir/home" "$case_dir/cur/.claude" "$case_dir/wt" "$case_dir/main/.git/worktrees/wt" \
+  "$case_dir/catalog/market1/a/.claude-plugin" "$case_dir/catalog/market1/b/.claude-plugin"
+write "$case_dir/main/.git/worktrees/wt/commondir" '../..'
+write "$case_dir/wt/.git" "gitdir: $case_dir/main/.git/worktrees/wt"
+write "$case_dir/cur/.claude/settings.json" '{"enabledPlugins": {"a@market1": true, "b@market1": false}}'
+write "$case_dir/catalog/market1/a/.claude-plugin/plugin.json" '{"version": "2.0.0"}'
+write "$case_dir/catalog/market1/b/.claude-plugin/plugin.json" '{"version": "1.0.0"}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "a", "source": "./a"}, {"name": "b", "source": "./b"}, {"name": "c", "source": {"source": "github", "repo": "x/c"}}]}'
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"a@market1": true}}'
+write "$case_dir/installed_plugins.json" "{\"version\": 2, \"plugins\": {
+  \"a@market1\": [
+    {\"scope\": \"user\", \"installPath\": \"u\", \"version\": \"1.5.0\"},
+    {\"scope\": \"project\", \"projectPath\": \"$case_dir/cur\", \"installPath\": \"p\", \"version\": \"1.0.0\"},
+    {\"scope\": \"local\", \"projectPath\": \"$case_dir/cur\", \"installPath\": \"l\", \"version\": \"1.5.0\"},
+    {\"scope\": \"project\", \"projectPath\": \"$case_dir/wt\", \"installPath\": \"w\", \"version\": \"1.0.0\"},
+    {\"scope\": \"project\", \"projectPath\": \"$case_dir/home\", \"installPath\": \"h\", \"version\": \"3.0.0\"},
+    {\"scope\": \"project\", \"projectPath\": \"/home/<user>\", \"installPath\": \"s\", \"version\": \"1.0.0\"},
+    {\"scope\": \"local\", \"projectPath\": \"/mnt/d/USERS/someone/\", \"installPath\": \"m\", \"version\": \"v1.2.3\"},
+    {\"scope\": \"project\", \"projectPath\": \"$case_dir/gone\", \"installPath\": \"g\", \"version\": \"not-a-version\"}
+  ],
+  \"b@market1\": [
+    {\"scope\": \"project\", \"projectPath\": \"$case_dir/cur\", \"installPath\": \"p\", \"version\": \"1.2.0\"},
+    {\"scope\": \"project\", \"projectPath\": \"$case_dir/wt\", \"installPath\": \"w\", \"version\": 7},
+    {\"scope\": \"user\", \"installPath\": \"u\", \"version\": \"1.2.0\"}
+  ]}}"
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir" CLAUDE_PROJECT_DIR="$case_dir/cur" HOME="$case_dir/home")
+assert_exit "pinned report: exit 0" 0 "$?"
+assert_eq "pinned report: byte-identical to fixtures/fleet-state-pin.json with the case dir as <CASE>" \
+  "$(<"$SCRIPT_DIR/fixtures/fleet-state-pin.json")" "${out//"$case_dir"/<CASE>}"
+
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]] && exit 0
 exit 1
