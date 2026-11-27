@@ -1826,14 +1826,14 @@ assert_eq "divergences split: the origin lines sum to the count they follow" "67
 div_by_path='{"post":19,"pre_existing":19,"new_total":0,"new_by_interval":{"in_repo":0,"user_sweep":0},
   "actionable_here":0,"actionable_elsewhere":18,"in_worktrees":1,"blocked":0,
   "by_path":[{"path":"/w/a","class":"actionable","count":5,"ids":["a@m","b@m","c@m"],"more":2},
-             {"path":"/w/bb","class":"actionable","count":12,"ids":["a@m","f@m"],"more":0},
+             {"path":"/w/bb","class":"actionable","count":12,"ids":["a@m","f@m","g@m"],"more":9},
              {"path":"/w/longer-path","class":"worktree","count":1,"ids":["a@m"],"more":0},
              {"path":"/w/d","class":"actionable","count":1,"ids":["a@m"],"more":0}],
   "blocked_paths":{"paths":2,"records":4}}'
 div_text=$(needs_digest sync "{\"divergences\": $div_by_path}" | jq -r -f "$SCRIPT_DIR/render-report.jq")
 assert_golden "divergence by path, no project root: the report matches the golden" divergence-by-path-no-root.txt "$div_text"
 assert_eq "divergence by path: three paths print as columns of path, right-aligned count and the first ids" \
-  "$(printf '      %-32s  %2s  %s\n' /w/a 5 'a@m, b@m, c@m, +2 more' /w/bb 12 'a@m, f@m' \
+  "$(printf '      %-32s  %2s  %s\n' /w/a 5 'a@m, b@m, c@m, +2 more' /w/bb 12 'a@m, f@m, g@m, +9 more' \
     '/w/longer-path (linked worktree)' 1 'a@m')" \
   "$(grep -A3 'by project path' <<<"$div_text" | tail -n 3)"
 assert_contains "divergence by path: the paths past three are counted, with where the rest are" "$div_text" \

@@ -18,7 +18,7 @@ Left as they are (1)
       0 newly created by this run
     by project path (diverging records, first ids):
       /w/a                               5  a@m, b@m, c@m, +2 more
-      /w/bb                             12  a@m, f@m
+      /w/bb                             12  a@m, f@m, g@m, +9 more
       /w/longer-path (linked worktree)   1  a@m
       +1 more path(s): in the digest's divergences.by_path
       2 path(s) not present: 4 diverging record(s), counted under stale project records
