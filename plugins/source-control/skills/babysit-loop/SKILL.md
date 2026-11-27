@@ -217,7 +217,7 @@ from the operator's managed and user settings itself.
 
 ## do-not-merge
 
-A do-not-merge label, or a PR body that says "do not merge" or has a line starting `Hold:`, is respected by default in every tier and at every rung: the PR is reported, never merged, and the label is never removed.
+A do-not-merge label is respected by default in every tier and at every rung: the PR is reported, never merged, and the label is never removed.
 Stripping it happens only behind the explicit `--strip-do-not-merge` invocation flag: a per-invocation direct order, never a config key, never persisted.
 
 ## Escalation

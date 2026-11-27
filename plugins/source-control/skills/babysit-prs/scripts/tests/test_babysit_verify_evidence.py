@@ -6473,7 +6473,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
                 )
 
     def test_a_hold_the_gate_reads_on_the_pull_request_closes_nothing(self) -> None:
-        for hold in ("body-hold", "human-blocking-comment:kyle-sexton", "unreadable"):
+        for hold in ("do-not-merge", "needs-human", "unreadable"):
             with self.subTest(hold):
                 self.verdicts[unattended.PR] = evidence("verify:repeated-fail")
                 self.holds[unattended.PR] = hold

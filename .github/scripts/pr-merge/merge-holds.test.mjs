@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import * as holdsModule from "./merge-holds.mjs";
-import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, decisionGaps, evidenceHold, fromRest, holds, laneChange, laneChangeIn, linkHold, main, passRefusalOf, pathHold, PIN_RE, pinHold, sameNetChange, unranHead, withPinEdit, diffFiles, needsDiff, DIFF, wholeCompare } from "./merge-holds.mjs";
+import { CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, decisionGaps, evidenceHold, fromRest, holds, laneChange, laneChangeIn, linkHold, main, passRefusalOf, pathHold, PIN_RE, pinHold, sameNetChange, unranHead, withPinEdit, diffFiles, needsDiff, DIFF, wholeCompare } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { chain, DIFF_TEXT, LISTED, modifiedAs, PAGE_TWO } from "./capped-compare.fixture.mjs";
 
@@ -333,11 +333,11 @@ test("decisionGaps reads outside HTML comments and names each gap once", () => {
 });
 
 test("the cost hold's reason names what the linked decision comment lacks", () => {
-  const [reason] = holds("", [], ["infra/main.tf"], [], [], null, true, true, ["a verbatim quote"]);
+  const [reason] = holds(["infra/main.tf"], [], [], null, true, ["a verbatim quote"]);
   assert.match(reason, /the owner's words quoted verbatim/);
   assert.match(reason, /the linked decision comment lacks a verbatim quote$/);
-  assert.doesNotMatch(holds("", [], ["infra/main.tf"], [], [], null)[0], /lacks/);
-  assert.deepEqual(holds("", [], ["infra/main.tf"], [], [], LINK), []);
+  assert.doesNotMatch(holds(["infra/main.tf"], [], [], null)[0], /lacks/);
+  assert.deepEqual(holds(["infra/main.tf"], [], [], LINK), []);
 });
 
 test("costHold holds a cost path, case-folded, until a decision", () => {
@@ -350,7 +350,7 @@ test("costHold holds a cost path, case-folded, until a decision", () => {
 });
 
 const BASELINE = "docs/upstream/claude-code-native-surfaces.min.json";
-function ci(files, { reviews = [], body = "Closes #40", options, denied = [], writers = "fail", head = HEAD, queue, pull, baselineFile = BASELINE } = {}) {
+function ci(files, { reviews = [], body = "Closes #40", options, denied = [], head = HEAD, queue, pull, baselineFile = BASELINE } = {}) {
   const dir = tempDir("merge-holds-");
   const env = pull === undefined ? {} : { BABYSIT_VERIFY_PULL: join(dir, "pull"), LANES_APP_ID: "9", ...(baselineFile === null ? {} : { BASELINE_FILE: baselineFile }) };
   if (pull !== undefined) {
@@ -372,17 +372,7 @@ function ci(files, { reviews = [], body = "Closes #40", options, denied = [], wr
       argv.push(join(dir, "evidence"));
     }
   }
-  const { github: decisions } = world(options);
-  const github = async (method, path, data) => {
-    if (data?.query !== BODY_WRITERS_QUERY) {
-      return decisions(method, path, data);
-    }
-    assert.deepEqual(data.variables, { owner: "owner", name: "repo", number: 99 });
-    if (writers === "fail") {
-      throw new Error("unreadable");
-    }
-    return { data: { repository: { pullRequest: writers } } };
-  };
+  const { github } = world(options);
   const lines = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
@@ -507,7 +497,7 @@ test("ci-status holds no other trusted path or manifest change, only a configure
   ]) {
     const passed = await ci([{ filename: path, status: "modified" }]);
     assert.equal(passed.code, 0, `${path}: ${passed.out}`);
-    assert.match(passed.out, /no member veto and no hold path\./);
+    assert.match(passed.out, /no hold path\./);
   }
   const held = await ci([{ filename: "docs/held.md", status: "modified" }], { denied: ["docs/held.md"] });
   assert.equal(held.code, 1);
@@ -519,25 +509,19 @@ test("ci-status holds no change to the retired synced trusted-actor list path: t
   for (const change of [{ filename: path, status: "modified" }, { filename: path, status: "added" }, [path, ".github/standards/trusted-actors/old.json", "renamed"]]) {
     const passed = await ci([change]);
     assert.equal(passed.code, 0, passed.out);
-    assert.match(passed.out, /no member veto and no hold path\./);
+    assert.match(passed.out, /no hold path\./);
   }
 });
 
-test("ci-status holds no body hold text, even a person's; a hold path or a member's veto still holds", async () => {
+test("ci-status holds on no body text or member comment; a hold path still holds", async () => {
   const body = "Closes #40\n\nHold: wait for the release.\n\ndo not merge";
-  const person = { __typename: "User" };
-  const written = await ci(["docs/a.md"], { body, writers: { author: person, userContentEdits: { totalCount: 0, nodes: [] } } });
+  const veto = { id: 1, user: { login: "kyle", id: 7, type: "User" }, author_association: "MEMBER", created_at: "2026-10-23T10:00:00Z", body: "Please do not merge this yet." };
+  const written = await ci(["docs/a.md"], { body, reviews: [veto] });
   assert.equal(written.code, 0, written.out);
-  assert.match(written.out, /^#99: no member veto and no hold path\.$/m);
-  const pathed = await ci(["docs/held.md"], { body, denied: ["docs/held.md"] });
+  assert.match(written.out, /^#99: no hold path\.$/m);
+  const pathed = await ci(["docs/held.md"], { body, reviews: [veto], denied: ["docs/held.md"] });
   assert.equal(pathed.code, 1, pathed.out);
   assert.match(pathed.out, /it changes docs\/held\.md, a hold path/);
-  assert.doesNotMatch(pathed.out, /its body holds it/);
-  const veto = { id: 1, user: { login: "kyle", id: 7, type: "User" }, author_association: "MEMBER", created_at: "2026-10-23T10:00:00Z", body: "Please do not merge this yet." };
-  const vetoed = await ci(["docs/a.md"], { body, reviews: [veto] });
-  assert.equal(vetoed.code, 1, vetoed.out);
-  assert.match(vetoed.out, /kyle asked not to merge it/);
-  assert.doesNotMatch(vetoed.out, /its body holds it/);
 });
 
 test("ci-status holds a cost path that an approval does not lift, and the owner's decision does", async () => {
@@ -549,7 +533,7 @@ test("ci-status holds a cost path that an approval does not lift, and the owner'
   assert.match(approved.out, /a cost path/);
   const decided = await ci(["infra/main.tf"], { body: `Closes #40\n\n${LINK}` });
   assert.equal(decided.code, 0, decided.out);
-  assert.match(decided.out, /no member veto and no hold path\./);
+  assert.match(decided.out, /no hold path\./);
   assert.equal((await ci(["infra/main.tf"], { body: `Closes #40\n\n${LINK}`, options: { node: { lastEditedAt: "2026-10-22T13:00:00Z" } } })).code, 1);
 });
 
@@ -1208,9 +1192,9 @@ test("in the merge queue, the lanes App's configured baseline file needs no veri
     assert.doesNotMatch(held.out, /changes only docs\/upstream/);
   }
   const veto = { user: { login: "owner-person", id: 5, type: "User" }, body: "do not merge", created_at: "2026-10-23T11:00:00Z", author_association: "OWNER" };
-  const vetoed = await ci([BASELINE], { pull: lanes, reviews: [veto], queue: { verdicts: [], link: { record: null, closing: { totalCount: 0, nodes: [] } }, evidence: report(null) } });
-  assert.equal(vetoed.code, 1, vetoed.out);
-  assert.doesNotMatch(vetoed.out, /no member veto/);
+  const commented = await ci([BASELINE], { pull: lanes, reviews: [veto], queue: { verdicts: [], link: { record: null, closing: { totalCount: 0, nodes: [] } }, evidence: report(null) } });
+  assert.equal(commented.code, 0, commented.out);
+  assert.match(commented.out, /^#99: no hold path\.$/m);
 });
 
 test("in the merge queue, a pass the linked issue changed after holds until pr-verify judges the head again", async () => {
@@ -1249,7 +1233,7 @@ test("in the merge queue, a FAIL the reader counts holds a passed head", async (
   assert.match(out, /::error title=pr-verify hold::#99: pr-verify's reader refuses this head \(verify:fail: fails at the head\); push a new head/);
   assert.doesNotMatch(out, /no pr-verify FAIL hold/);
   assert.doesNotMatch(out, /^::error::/m);
-  assert.match(out, /^#99: no member veto and no hold path\.$/m);
+  assert.match(out, /^#99: no hold path\.$/m);
 });
 
 test("in the merge queue, the reader's verify:unreadable is a pr-verify hold beside a body hold", async () => {
@@ -1911,29 +1895,6 @@ test("queueHolds: the kill switch holds only the lanes App's pull request, until
 test("queueHolds: a pull request or label list that does not read throws", () => {
   assert.throws(() => holdsModule.queueHolds({ pull: { number: 7, head: {} } }), /does not read/);
   assert.throws(() => holdsModule.queueHolds({ pull: queuedPull({ labels: null }) }), /labels are not a list/);
-});
-
-test("a member naming the do-not-merge label is no veto; saying not to merge is", () => {
-  const said = (body) => [{ login: "kyle-sexton", isUser: true, association: "OWNER", at: "2026-10-30T01:00:00Z", body }];
-  for (const body of [
-    "Apply the `do-not-merge` label before writing any explanation.",
-    "Removed the do-not-merge label; the hold reason is gone.",
-  ]) {
-    assert.deepEqual(holdsModule.vetoers(said(body)), [], body);
-  }
-  for (const body of [
-    "Do not merge this yet.",
-    "don't merge",
-    "do-not-merge",
-    "do-not-merge: waiting on #10954",
-    "Not ready, do-not-merge until Friday.",
-    "The checks are failing, do-not-merge until they pass.",
-    "`do-not-merge` label please",
-    "Hold on, do-not-merge, I'm still reviewing.",
-    "Every hold stays: ci-status, gitleaks, do-not-merge, cost holds.",
-  ]) {
-    assert.deepEqual(holdsModule.vetoers(said(body)), ["kyle-sexton"], body);
-  }
 });
 
 test("authorSkip judges an author as resolve-pr.mjs and ci-status's queue author checks did", () => {

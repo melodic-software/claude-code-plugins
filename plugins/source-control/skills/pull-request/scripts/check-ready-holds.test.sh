@@ -203,39 +203,18 @@ run 7 >/dev/null 2>&1
 assert_exit "an unreadable trusted-actors list leaves the label holding" 3 "$?"
 rm -f "$TEST_TMPDIR/events.json" "$TEST_TMPDIR/comments.json"
 
-pr "feat(x): add a thing" "Please do not merge until the release."
-out=$(run 7)
-assert_exit "a 'do not merge' body holds the flip" 3 "$?"
-assert_contains "the body hold says so" "$out" "body"
-
-pr "feat(x): add a thing" "Please don't merge until the migration lands."
-run 7 >/dev/null
-assert_exit "a \"don't merge\" body holds the flip" 3 "$?"
-
-pr "feat(x): add a thing" $'Please don’t merge yet.'
-run 7 >/dev/null
-assert_exit "a typographic apostrophe in don't still holds the flip" 3 "$?"
-
-pr "feat(x): add a thing" $'## Summary\n\nHold: a human merges this\n'
-out=$(run 7)
-assert_exit "a body line starting Hold: holds the merge only, not the flip" 0 "$?"
-assert_silent "a Hold: line reports nothing" "$out"
-
-pr "feat(x): add a thing" $'## Summary\n\nHold: do not merge until X lands.\n'
-run 7 >/dev/null
-assert_exit "a Hold: line saying do not merge holds the merge only, not the flip" 0 "$?"
-
-pr "feat(x): add a thing" $'## Summary\n\n  > hold: don\'t merge yet\n'
-run 7 >/dev/null
-assert_exit "a quoted lower-case hold: line saying don't merge does not hold the flip" 0 "$?"
-
-pr "feat(x): add a thing" $'Hold: a human merges this\n\nPlease do not merge until the release.\n'
-run 7 >/dev/null
-assert_exit "do not merge outside a Hold: line still holds the flip" 3 "$?"
-
-pr "feat(x): add a thing" "Adds the do-not-merge label check to the merge lane."
-run 7 >/dev/null
-assert_exit "a body that only names the label is not a hold" 0 "$?"
+for body in "Please do not merge until the release." "Please don't merge until the migration lands." \
+  $'Please don’t merge yet.' $'## Summary\n\nHold: a human merges this\n' $'## Summary\n\n  > hold: don\'t merge yet\n'; do
+  shown=$(printf '%q' "$body")
+  pr "feat(x): add a thing" "$body"
+  out=$(run 7)
+  assert_exit "body text holds nothing: $shown" 0 "$?"
+  assert_silent "body text reports nothing: $shown" "$out"
+  pr "feat(x): add a thing" "$body" '[{"name":"do-not-merge"}]'
+  out=$(run 7)
+  assert_exit "the do-not-merge label holds beside $shown" 3 "$?"
+  assert_contains "the label hold names the label beside $shown" "$out" "label: the pull request carries do-not-merge"
+done
 
 pr "test(harness-config): WIP: pin permission suites" ""
 out=$(run 7)
@@ -279,7 +258,7 @@ assert_not_contains "an open linked issue is not reported" "$out" "acme/app#10"
 pr "test(x): WIP: thing" "do not merge" '[{"name":"do-not-merge"}]' "[$(ref 11)]"
 echo closed >"$TEST_TMPDIR/issue-11"
 out=$(run 7)
-assert_eq "every hold is reported, one per line" "4" "$(grep -c . <<<"$out")"
+assert_eq "every hold is reported, one per line" "3" "$(grep -c . <<<"$out")"
 
 assert_contains "a github.com issue names its host" "$(cat "$TEST_TMPDIR/calls")" "--hostname github.com"
 

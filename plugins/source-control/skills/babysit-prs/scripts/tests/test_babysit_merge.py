@@ -334,16 +334,22 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertIsNone(result["autopilotMergeTier"]["distinctBotApproval"])
         self.assertFalse(result["ready"])
 
-    def test_plain_do_not_merge_comment_blocks(self) -> None:
+    def test_a_do_not_merge_comment_holds_nothing_but_the_label_does(self) -> None:
         comment = {
             "author": {"login": "maintainer", "__typename": "User", "is_bot": False},
             "body": "Please do not merge this PR yet.",
         }
         result = self._evaluate(_pr(), issue_comments=[comment])
-        self.assertIn(
-            "maintainer", result["autopilotMergeTier"]["humanBlockingComments"]
+        self.assertEqual(result["autopilotMergeTier"]["humanBlockingComments"], [])
+        self.assertTrue(result["ready"], result["blockers"])
+        labeled = self._evaluate(
+            _pr(labels=[{"name": "do-not-merge"}]), issue_comments=[comment]
         )
-        self.assertFalse(result["ready"])
+        self.assertFalse(labeled["ready"])
+        self.assertTrue(
+            any("'do-not-merge' label" in b for b in labeled["blockers"]),
+            labeled["blockers"],
+        )
 
     def test_inline_review_comment_veto_blocks(self) -> None:
         row = {
@@ -451,7 +457,7 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         )
         revoke = _comment(
             "maintainer",
-            "Actually, do not merge — hold this.",
+            "Actually, not approved — hold this.",
             association="OWNER",
             created_at="2026-02-02T00:00:00Z",
         )
@@ -510,7 +516,7 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         )
         revoke = _comment(
             "maintainer",
-            "do not merge",
+            "not approved",
             association="OWNER",
             created_at="2026-02-01T00:00:00Z",
         )
@@ -521,6 +527,25 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertEqual(
             result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_REF]
         )
+
+    def test_do_not_merge_after_ratification_does_not_revoke(self) -> None:
+        ratify = _comment(
+            "maintainer",
+            "Ratified — proceed.",
+            association="OWNER",
+            created_at="2026-02-01T00:00:00Z",
+        )
+        later = _comment(
+            "maintainer",
+            "do not merge",
+            association="OWNER",
+            created_at="2026-02-02T00:00:00Z",
+        )
+        result = self._evaluate(
+            _pr(), linked_issue_comments=[DECISION_MARKER, ratify, later]
+        )
+        self.assertTrue(result["ready"], result["blockers"])
+        self.assertEqual(result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [])
 
     def test_bot_comment_with_blocking_prose_does_not_block(self) -> None:
         comment = {
@@ -634,34 +659,26 @@ class TierAbsentIsInert(TierEvaluateHarness):
 
 
 class PullRequestBodyHold(TierEvaluateHarness):
-    def test_body_saying_do_not_merge_blocks_with_and_without_the_tier(self) -> None:
+    def test_body_hold_text_holds_nothing_but_the_label_does(self) -> None:
         for body in (
             "Superseded. Do not merge this draft.",
             "Please don't merge until the migration lands.",
-        ):
-            for tier in (TIER, None):
-                with self.subTest(body=body, tier=tier is not None):
-                    result = self._evaluate(_pr(body=body), tier=tier)
-                    self.assertFalse(result["ready"])
-                    self.assertTrue(
-                        any("body holds the merge" in b for b in result["blockers"]),
-                        result["blockers"],
-                    )
-
-    def test_body_line_starting_hold_blocks_with_and_without_the_tier(self) -> None:
-        for body in (
             "Refs: #1\r\n\r\nHold: a human merges this\r\n",
             "## Summary\n  hold: until the release ships",
-            "Refs: #1\n Hold: pasted from a rich-text editor",
+            "Refs: #1\n\u00a0Hold: pasted from a rich-text editor",
             "Refs: #1\rHold: a bare CR line break",
         ):
             for tier in (TIER, None):
                 with self.subTest(body=body, tier=tier is not None):
                     result = self._evaluate(_pr(body=body), tier=tier)
-                    self.assertFalse(result["ready"])
+                    self.assertTrue(result["ready"], result["blockers"])
+                    labeled = self._evaluate(
+                        _pr(body=body, labels=[{"name": "do-not-merge"}]), tier=tier
+                    )
+                    self.assertFalse(labeled["ready"])
                     self.assertTrue(
-                        any("body holds the merge" in b for b in result["blockers"]),
-                        result["blockers"],
+                        any("'do-not-merge' label" in b for b in labeled["blockers"]),
+                        labeled["blockers"],
                     )
 
     def test_hold_word_inside_a_line_does_not_block(self) -> None:

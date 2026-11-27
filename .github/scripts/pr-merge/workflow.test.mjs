@@ -544,14 +544,14 @@ test("the eval-release wake dispatches only an unarmed, unheld lanes App or trus
   assert.equal(run.status, 0);
   assert.deepEqual(
     run.calls.map((call) => call.replace(/ --jq .*$/, "")),
-    [read(7), dispatch(7), read(8), dispatch(8), read(9), read(10), read(11), read(12), dispatch(12), read(13), read(14), read(15), read(16), dispatch(16), read(17)],
-    "the trusted person's 8 and a lanes App draft wake; 12's read fails, so it dispatches anyway",
+    [read(7), dispatch(7), read(8), dispatch(8), read(9), read(10), read(11), read(12), dispatch(12), read(13), read(14), read(15), dispatch(15), read(16), dispatch(16)],
+    "the trusted person's 8 and 15, whose body text holds nothing, and a lanes App draft wake; 12's read fails, so it dispatches anyway",
   );
   assert.match(run.stdout, /::notice title=eval-release wake::pr=9 already armed; nothing woken/);
   assert.match(run.stdout, /::notice title=eval-release wake::pr=10 held \(do-not-merge\); nothing woken/);
-  for (const pr of [11, 13, 17]) assert.match(run.stdout, new RegExp(`::notice title=eval-release wake::pr=${pr} not a lanes App or trusted person pull request; nothing woken`), String(pr));
+  for (const pr of [11, 13]) assert.match(run.stdout, new RegExp(`::notice title=eval-release wake::pr=${pr} not a lanes App or trusted person pull request; nothing woken`), String(pr));
+  assert.match(run.stdout, /::notice title=eval-release wake::pr=17 not woken: 5 woken this run/);
   assert.match(run.stdout, /::notice title=eval-release wake::pr=14 a draft; nothing woken/);
-  assert.match(run.stdout, /::notice title=eval-release wake::pr=15 held \(body Hold: line\); nothing woken/);
   const unread = runEvalWake("8 13 11", { appId: "5", answers, trusted: "/nonexistent/trusted-actors.json" });
   assert.deepEqual(unread.calls.filter((call) => call.startsWith("workflow")), [dispatch(8), dispatch(13), dispatch(11)], "a User's pull request dispatches when the list does not read");
   const skipped = runEvalWake("21 22 23 24 25 26 27", { appId: "5", answers: { 21: pull({ id: 2 }), 22: bot(), 23: bot(), 24: bot(), 25: bot(), 26: bot(), 27: bot() } });

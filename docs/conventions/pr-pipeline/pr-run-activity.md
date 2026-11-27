@@ -2408,17 +2408,16 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   body starts `Closes #<n>` (or `Refs: #<n>`, with a `## Remaining work` section listing them,
   when the outcome's `remaining` names parts of the issue the PR leaves for later work; a
   `remaining` that is not 1 to 20 strings with text counts as none, and the run's `link` field
-  decides nothing), and adds
-  `Hold: a human merges this` for untrusted-provenance work, for a diff that
+  decides nothing), and holds it with the `do-not-merge` label for untrusted-provenance work, for a diff that
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
   resolved config; unreadable holds every PR), or, while some path is denied, for one too large
-  for the compare listing to show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
+  for the compare listing to show whole. It holds it the same way when the issue carries `merge: human` whose newest `labeled`
   event is a listed human's or the lanes App's, or when the trusted list that judges it cannot be
   read, and never for anyone else's. When the issue's events cannot be read, a run that would open
   a PR opens none, posts nothing and ends green with a notice: the branch stays unreported, and
   the next run work-unblock's sweep starts opens the PR from it.
-  A PR with that line also gets the `do-not-merge` label right after it opens, or when the run
-  reuses its open PR; the work class stays on the issue. A PR the label cannot reach is closed
+  The label goes on right after the PR opens, or when the run reuses its open PR; the work class
+  stays on the issue. A PR the label cannot reach is closed
   and the issue retried (`hold-label-failed`).
   The run's own summary is quoted with issue references broken, so squash-merging the PR closes only `#<n>`. Every stop takes the route its reason has in
   `.github/scripts/work-resolve-issue/stop-routes.json`, one row per reason with a `why`; a
@@ -2553,11 +2552,11 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   model text. Otherwise the PR has fixed text naming the earlier run and none of the model's text.
   Either way its Fix section lists the files `GET /compare` names, those on a
   `merge.diff-check.denied-paths` glob marked and listed first; a failed compare says the list is
-  unavailable and still opens the PR. The PR carries the hold line on the same conditions as a
+  unavailable and still opens the PR. The PR carries the hold label on the same conditions as a
   `done` run's (one check, `mustHold` in `report-outcome.mjs`), `merge: human` included, plus
   two of its own: the compare failed, or the leak scan `run-checks` ran on the branch (its
   `scan` word in the checks record) is missing or not `clean`, since `lint-repo`'s gitleaks scan
-  does not cover what that scan flags. Runner checks add no hold line of their own, failed or not
+  does not cover what that scan flags. Runner checks add no hold of their own, failed or not
   reported (missing or another tip): the Verification section lists each result, and `ci-status`
   reruns them on the head. The summary never decides the hold or reaches a status:
   `report-statuses` then posts only `pipeline/report-outcome` on that branch, so any statuses the

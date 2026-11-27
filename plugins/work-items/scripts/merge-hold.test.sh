@@ -71,11 +71,11 @@ verdict() {
 }
 
 HOLD="Hold: a human merges this"
-verdict "admin comment quoting the line holds" 0 "$HOLD" "[$(comment owner "$OWNER_SAYS")]"
-verdict "maintain (write) comment holds" 0 "$HOLD" "[$(comment maint "$HOLD")]"
+verdict "admin comment quoting the line holds" 0 "" "[$(comment owner "$OWNER_SAYS")]"
+verdict "maintain (write) comment holds" 0 "" "[$(comment maint "$HOLD")]"
 verdict "triage commenter does not hold" 1 "" "[$(comment triager "$HOLD")]"
 verdict "read-only commenter does not hold" 1 "" "[$(comment stranger "$OWNER_SAYS")]"
-verdict "untrusted line plus trusted line holds" 0 "$HOLD" \
+verdict "untrusted line plus trusted line holds" 0 "" \
   "[$(comment stranger "$HOLD"),$(comment owner "$OWNER_SAYS")]"
 verdict "owner comment without the line does not hold" 1 "" "[$(comment owner "looks good")]"
 verdict "no comments does not hold" 1 "" "[]"
@@ -83,8 +83,8 @@ verdict "different case is not the line" 1 "" "[$(comment owner "hold: a human m
 verdict "comment read failure refuses" 11 "" "[]" GH_STUB_COMMENTS_ERR=1
 verdict "permission read failure refuses" 11 "" "[$(comment ghost "$HOLD")]"
 verdict "unusable login refuses" 11 "" "[$(comment 'a;b' "$HOLD")]"
-verdict "managed-user login with an underscore holds" 0 "$HOLD" "[$(comment mona-cat_octo "$HOLD")]"
-verdict "failed permission read beside a writer holds" 0 "$HOLD" \
+verdict "managed-user login with an underscore holds" 0 "" "[$(comment mona-cat_octo "$HOLD")]"
+verdict "failed permission read beside a writer holds" 0 "" \
   "[$(comment ghost "$HOLD"),$(comment owner "$HOLD")]"
 
 mkdir -p "$TMP/nogh"

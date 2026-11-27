@@ -29,27 +29,19 @@ import {
 } from "../pr-unblock/gate-source.mjs";
 import { readHoldPaths } from "../work-resolve-issue/report-outcome.mjs";
 import {
-  BODY_HOLD,
   costDecision,
-  HUMAN_VETO,
   costHold,
   humansOf,
-  LANE_HOLD,
   liftersOf,
-  MEMBERS,
   pathHoldKind,
   pathLifters,
-  personWrote,
   PIN_RE,
   UNPIN_RE,
   readPathHolds,
   readStatuses,
   unblockStops,
-  vetoers,
 } from "./merge-holds.mjs";
 import { ARM_HOLDS, NEEDS_HUMAN } from "../lib/lane-vocabulary.mjs";
-
-export { BODY_HOLD, HUMAN_VETO } from "./merge-holds.mjs";
 
 const REPO = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/;
 const SHA = /^[0-9a-f]{40}$/;
@@ -70,7 +62,6 @@ export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: Strin
         id number isDraft isCrossRepository isInMergeQueue headRefName headRefOid baseRefOid body updatedAt mergeStateStatus
         stack { baseRefName entries(first: 100) { totalCount nodes { position pullRequest { number state } } } }
         author { __typename login ... on User { databaseId } ... on Bot { databaseId } }
-        userContentEdits(first: 100) { totalCount nodes { editor { __typename login } } }
         labels(first: 100) { totalCount nodes { name } }
         autoMergeRequest { enabledAt }
       }
@@ -214,8 +205,6 @@ async function answerBody(text) {
   }
 }
 
-export const LANE_HOLD_REASON = "its body carries the lane's own 'Hold: a human merges this' line: a person merges it by hand, or removes that line";
-
 export function holdReason(pull, humanGated) {
   const labels = pull.labels?.nodes ?? [];
   if (!(pull.labels?.totalCount <= labels.length)) {
@@ -223,14 +212,7 @@ export function holdReason(pull, humanGated) {
   }
   const names = new Set(labels.map((label) => String(label?.name).toLowerCase()));
   const label = [...HOLD_LABELS, humanGated].find((name) => names.has(name.toLowerCase()));
-  if (label !== undefined) {
-    return `it carries ${label}`;
-  }
-  const body = String(pull.body ?? "");
-  if (LANE_HOLD.test(body)) {
-    return LANE_HOLD_REASON;
-  }
-  return BODY_HOLD.test(body) && personWrote(pull) ? "its body holds it" : null;
+  return label === undefined ? null : `it carries ${label}`;
 }
 
 const unlabeledAs = (connection, name) => {
@@ -300,32 +282,10 @@ const itemOf = (item) => ({
 
 const headLifters = (detail, humans, head) => pathLifters((detail?.reviews?.nodes ?? []).map(itemOf), humans, head);
 
-export function memberVetoes(detail) {
+export function discussionUnread(detail) {
   const threads = detail?.reviewThreads;
-  if (![detail?.comments, detail?.reviews, threads].every(whole) || !threads.nodes.every((thread) => whole(thread?.comments))) {
-    return null;
-  }
-  const items = [...detail.comments.nodes, ...detail.reviews.nodes, ...threads.nodes.flatMap((thread) => thread.comments.nodes)].map(itemOf);
-  const vetoes = vetoers(items);
-  const at = items.filter((item) => item.isUser && vetoes.includes(item.login) && item.body.trim()).map((item) => item.at).sort().at(-1) ?? null;
-  return { vetoes, at };
+  return [detail?.comments, detail?.reviews, threads].every(whole) && threads.nodes.every((thread) => whole(thread?.comments)) ? null : "its comments could not all be read";
 }
-
-export function discussionHold(detail) {
-  const read = memberVetoes(detail);
-  if (read === null) {
-    return "its comments could not all be read";
-  }
-  return read.vetoes.length ? `${read.vetoes.join(", ")} asked not to merge it` : null;
-}
-
-export const VETO_LABEL = "do-not-merge";
-export const VETO_MARKER = "<!-- member-veto-label -->";
-export const vetoNote = (vetoes) =>
-  [
-    VETO_MARKER,
-    `${vetoes.join(", ")} asked not to merge this pull request, so the lanes App added the \`${VETO_LABEL}\` label. It comes off once a later comment by each of them lifts the veto; the same label added by anyone else stays.`,
-  ].join("\n");
 
 const carries = (pull, label) => (pull.labels?.nodes ?? []).some((node) => String(node?.name).toLowerCase() === String(label).toLowerCase());
 
@@ -334,24 +294,6 @@ const newestAppComment = (comments, bot, test) =>
     .filter((c) => c?.author?.__typename === "Bot" && c.author.login === bot && test(c))
     .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
     .at(-1);
-
-const vetoNoted = (comments, bot) => newestAppComment(comments, bot, (c) => firstLine(c.body) === VETO_MARKER) !== undefined;
-
-export function vetoLabelOwned(timeline, login, body = "") {
-  const { labeled, since } = labelHistory(timeline, VETO_LABEL, new Set());
-  if (!isApp(labeled?.actor, login) || Number.isNaN(since) || BODY_HOLD.test(body) || LANE_HOLD.test(body)) {
-    return false;
-  }
-  const named = /\bdo[\s-]*not[\s-]*merge\b/i;
-  const veto = (item) => MEMBERS.has(String(item.author_association).toUpperCase()) && HUMAN_VETO.test(String(item.body ?? ""));
-  if (timeline.some((item) => item.event === "commented" && !isApp(item.user, login) && Date.parse(item.created_at) >= since && named.test(String(item.body ?? "")) && !veto(item))) {
-    return false;
-  }
-  return timeline.some((item) => {
-    const at = Date.parse(item.created_at);
-    return item.event === "commented" && isApp(item.user, login) && firstLine(item.body) === VETO_MARKER && at >= since && at - since <= PAIRED_MS;
-  });
-}
 
 function trustedHumans(env) {
   try {
@@ -931,8 +873,7 @@ export const TRUSTED_READS = Object.freeze(["files", "cost", "lane-source", "ver
 const PASSES = Object.freeze(["pass", "pass-notes"]);
 
 export function trustedHoldReason(pull, humanGated) {
-  const held = holdReason(pull, humanGated) ?? holdReason(pull, NEEDS_HUMAN);
-  return held ?? (BODY_HOLD.test(String(pull.body ?? "")) ? "its body holds it" : null);
+  return holdReason(pull, humanGated) ?? holdReason(pull, NEEDS_HUMAN);
 }
 
 export function trustedVerdictHold(evidence, head) {
@@ -971,7 +912,7 @@ export function decideTrusted(pull, humanGated, facts = {}, bot = undefined) {
     if (!pinned(facts.comments, bot, pull.headRefOid, undefined, true)) {
       return none("already armed");
     }
-    const held = trustedHoldReason(pull, humanGated) ?? discussionHold(facts.discussion);
+    const held = trustedHoldReason(pull, humanGated) ?? discussionUnread(facts.discussion);
     if (held !== null) {
       return { action: "disarm", reason: held };
     }
@@ -1059,9 +1000,9 @@ function judgeUnheld(pull, facts, bot) {
   if (!Array.isArray(facts.comments)) {
     return none("its comments could not be read, so its pin cannot be checked");
   }
-  const vetoed = discussionHold(facts.discussion);
-  if (vetoed !== null) {
-    return none(vetoed);
+  const unread = discussionUnread(facts.discussion);
+  if (unread !== null) {
+    return none(unread);
   }
   return { action: "arm", reason: "pr-verify passed its head and no hold stands", pin: !pinned(facts.comments, bot, pull.headRefOid, undefined, true) };
 }
@@ -1153,9 +1094,6 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
         : !SHA.test(String(pull.headRefOid))
           ? "its head is not a commit SHA"
           : holdReason(pull, humanGated);
-  if (held === LANE_HOLD_REASON && !armed && detail !== null) {
-    return detail === undefined ? { action: "read", reason: "its discussion is not read yet" } : { action: "none", reason: held, clears: "person" };
-  }
   if (held !== null) {
     return { action: armed ? "disarm" : "none", reason: held };
   }
@@ -1176,9 +1114,9 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
     return { action: armed ? "disarm" : "none", reason: FILES_CAPPED_REASON, clears: "person" };
   }
   if (Array.isArray(detail.files) && detail.files.length === 0) {
-    const vetoed = discussionHold(detail);
-    if (vetoed !== null) {
-      return { action: armed ? "disarm" : "none", reason: vetoed, withdraw: true };
+    const unread = discussionUnread(detail);
+    if (unread !== null) {
+      return { action: armed ? "disarm" : "none", reason: unread, withdraw: true };
     }
     if (newestAppComment(detail.comments?.nodes, bot, (c) => c.body === emptyDiffNote(pull.headRefOid)) !== undefined) {
       return { action: armed ? "disarm" : "none", reason: EMPTY_DIFF_REOPENED_REASON, clears: "person" };
@@ -1203,9 +1141,9 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
     const partial = scored && (detail.verify.reviews === null || (typeof detail.verify.reviews === "string" && !detail.verify.reviews.startsWith("unreadable"))) ? {} : { partial: true };
     return !read && !armed ? { action: "verify", reason: "its verifier verdict is not read yet", fold: { ...held, partial: true } } : { ...held, ...partial };
   }
-  const vetoed = discussionHold(detail);
-  if (vetoed !== null) {
-    return { action: armed ? "disarm" : "none", reason: vetoed, withdraw: true };
+  const unread = discussionUnread(detail);
+  if (unread !== null) {
+    return { action: armed ? "disarm" : "none", reason: unread, withdraw: true };
   }
   const autoMerge = detail.timelineItems?.nodes?.at(-1);
   if (!armed && autoMerge?.__typename === "AutoMergeDisabledEvent" && autoMerge.actor?.__typename === "User") {
@@ -1665,58 +1603,6 @@ export async function main({ env = process.env, github, actions, laneReads, veri
       }
       return discussions.get(number);
     };
-    const vetoLabel = async (pull, detail) => {
-      const read = memberVetoes(detail);
-      if (!reads || stopped !== null || read === null || !lanes(pull) || !(pull.labels?.totalCount <= (pull.labels?.nodes?.length ?? 0))) {
-        return false;
-      }
-      const base = `/repos/${repo[0]}/issues/${pull.number}`;
-      let labeled = false;
-      try {
-        if (read.vetoes.length > 0 && !carries(pull, VETO_LABEL)) {
-          if (liftedByPerson(await unlabeledTimeline(pull.number), VETO_LABEL, read.at)) {
-            console.log(`enable-auto-merge: #${pull.number} left without ${VETO_LABEL}: a person removed it after the newest veto, or the timeline did not read whole`);
-            return false;
-          }
-          if (!write) {
-            console.log(`enable-auto-merge: #${pull.number} would label ${VETO_LABEL} (report-only): ${read.vetoes.join(", ")} asked not to merge it`);
-            return false;
-          }
-          await github("POST", `${base}/labels`, { labels: [VETO_LABEL] });
-          labeled = true;
-          await github("POST", `${base}/comments`, { body: vetoNote(read.vetoes) });
-          await leaveQueue(pull, VETO_LABEL);
-          console.log(`enable-auto-merge: #${pull.number} labeled ${VETO_LABEL}: ${read.vetoes.join(", ")} asked not to merge it`);
-          return true;
-        }
-        if (read.vetoes.length === 0 && carries(pull, VETO_LABEL) && vetoNoted(detail.comments?.nodes, slug)) {
-          let timeline;
-          try {
-            timeline = await paginate(github, `${base}/timeline`);
-          } catch (error) {
-            console.log(`enable-auto-merge: #${pull.number} keeps ${VETO_LABEL}: its timeline did not read: ${describe(error)}`);
-            return false;
-          }
-          if (!vetoLabelOwned(timeline, env.LANES_BOT_LOGIN, pull.body ?? "")) {
-            console.log(`enable-auto-merge: #${pull.number} keeps ${VETO_LABEL}: the lanes App did not add it for a member veto`);
-            return false;
-          }
-          if (!write) {
-            console.log(`enable-auto-merge: #${pull.number} would lift ${VETO_LABEL} (report-only): no member veto stands`);
-            return false;
-          }
-          await github("DELETE", `${base}/labels/${encodeURIComponent(VETO_LABEL)}`);
-          pull.labels = unlabeledAs(pull.labels, VETO_LABEL);
-          console.log(`enable-auto-merge: #${pull.number} lifted ${VETO_LABEL}: no member veto stands`);
-          return true;
-        }
-      } catch (error) {
-        failed += 1;
-        const kept = labeled ? `; ${VETO_LABEL} is on without its ${VETO_MARKER} comment, so only a person takes it off` : "";
-        console.log(`::error title=enable-auto-merge::#${pull.number} member-veto label: ${describe(error)}${escapeCommand(kept)}`);
-      }
-      return false;
-    };
     const skips = { on: reads && write && Boolean(env.EAM_SKIP_OUT), maxMinutes: skipLimit(env.SKIP_MAX_MINUTES, SKIP_MAX_MINUTES), maxSkips: skipLimit(env.SKIP_MAX_SKIPS, SKIP_MAX_SKIPS) };
     const rollups = new Map();
     const kept = {};
@@ -1922,13 +1808,6 @@ export async function main({ env = process.env, github, actions, laneReads, veri
         await armTrusted(pull);
         continue;
       }
-      if (reads && stopped === null && lanes(pull) && carries(pull, VETO_LABEL)) {
-        try {
-          await vetoLabel(pull, await discussionOf(pull.number));
-        } catch (error) {
-          console.log(`enable-auto-merge: #${pull.number} discussion did not read for its ${VETO_LABEL} label: ${describe(error)}`);
-        }
-      }
       let { action, reason } = decide(pull, judging);
       let clears;
       let comment;
@@ -1969,7 +1848,6 @@ export async function main({ env = process.env, github, actions, laneReads, veri
         try {
           detail = await discussionOf(pull.number);
           if (detail !== null) {
-            await vetoLabel(pull, detail);
             const standing = priorRefusal(detail?.comments?.nodes, slug)?.body;
             const approvedBy = (detail.reviews?.nodes ?? []).map(itemOf).some((item) => item.isUser && humans.has(item.userId) && item.state === "APPROVED");
             unmarked = widen && !isPartial(standing, pull.headRefOid) && !((approvedBy || pathHolds === false) && holdPathOnly(standing, pull.headRefOid, humanGated, pathHolds));

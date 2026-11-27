@@ -19,7 +19,6 @@ import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securi
 
 export { doneEvidence, REFINE_MARKER };
 
-export const HOLD_LINE = "Hold: a human merges this";
 export const HOLD_LABEL = "do-not-merge";
 export const EVAL_GATED_LABEL = "eval-gated";
 export const evalHoldComment = (issueNumber) =>
@@ -913,7 +912,6 @@ export function reusePlan({
     `Closes #${issueNumber}`,
     ...linkage,
     "",
-    ...(hold ? [HOLD_LINE, ""] : []),
     "## Summary",
     "",
     ...about,
@@ -1118,7 +1116,6 @@ export function decide({
   const body = [
     refs ? `Refs: #${issueNumber}` : `Closes #${issueNumber}`,
     ...linkage.filter((line) => !(refs && line.startsWith("Refs:"))),
-    ...(hold ? ["", HOLD_LINE] : []),
     "",
     "## Summary",
     "",

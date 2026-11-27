@@ -20,44 +20,28 @@ for f in "$1" "$2"; do
 done
 
 CLOSING_URL_ERE='(close[sd]?|fix(es|ed)?|resolve[sd]?):?[[:blank:]]*https?://github\.com/[a-z0-9_.-]+/[a-z0-9_.-]+/issues/[0-9]+'
-HOLD_ERE='do(n[^[:space:]]{0,3}t|[[:space:]]+not)[[:space:]]+merge'
-
-split_holds() {
-  local rest match
-  rest=$(tr -d '\r' <"$1" | tr '[:upper:]' '[:lower:]') || return 1
-  while [[ "$rest" =~ $HOLD_ERE ]]; do
-    match=${BASH_REMATCH[0]}
-    rest=${rest#*"$match"}
-    [[ "$match" == *$'\n'* ]] || continue
-    printf 'hold wording across lines: %s\n' "$(printf '%s' "$match" | tr -s '[:space:]' ' ')"
-  done
-}
 
 gate_lines() {
   local line lower in_followups=0
   local lead='^[[:blank:]>]*'
-  {
-    while IFS= read -r line || [[ -n "$line" ]]; do
-      line="${line%$'\r'}"
-      lower=$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')
-      if [[ "$lower" =~ ^##[[:blank:]]+follow-ups[[:blank:]]*$ ]]; then
-        in_followups=1
-      elif [[ "$lower" =~ ^#{1,2}[[:blank:]] ]]; then
-        in_followups=0
-      fi
-      if ((in_followups)); then
-        [[ "$line" =~ [^[:blank:]] ]] || continue
-        printf '%s\n' "$line"
-      elif [[ "$lower" =~ ${lead}(hold|draft|siblings|merge-risk|refs|relates[[:blank:]]+to): ]] ||
-        [[ "$lower" =~ ${lead}no[[:blank:]]+(linked|related)[[:blank:]]+issue ]] ||
-        [[ "$lower" =~ $HOLD_ERE ]] ||
-        [[ "$lower" =~ $CLOSING_ERE ]] ||
-        [[ "$lower" =~ $CLOSING_URL_ERE ]]; then
-        printf '%s\n' "$line"
-      fi
-    done <"$1"
-    split_holds "$1"
-  } | sort
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    lower=$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')
+    if [[ "$lower" =~ ^##[[:blank:]]+follow-ups[[:blank:]]*$ ]]; then
+      in_followups=1
+    elif [[ "$lower" =~ ^#{1,2}[[:blank:]] ]]; then
+      in_followups=0
+    fi
+    if ((in_followups)); then
+      [[ "$line" =~ [^[:blank:]] ]] || continue
+      printf '%s\n' "$line"
+    elif [[ "$lower" =~ ${lead}(draft|siblings|merge-risk|refs|relates[[:blank:]]+to): ]] ||
+      [[ "$lower" =~ ${lead}no[[:blank:]]+(linked|related)[[:blank:]]+issue ]] ||
+      [[ "$lower" =~ $CLOSING_ERE ]] ||
+      [[ "$lower" =~ $CLOSING_URL_ERE ]]; then
+      printf '%s\n' "$line"
+    fi
+  done <"$1" | sort
 }
 
 current=$(gate_lines "$1") || die "cannot read $(printf '%q' "$1")"

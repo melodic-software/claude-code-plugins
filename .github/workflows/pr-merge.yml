@@ -2743,13 +2743,12 @@ jobs:
             # Kept in step with pr-verify.yml's wake-pr-merge: the broker
             # mints for this wake on a lanes App pull request and on a
             # trusted person's (a User whose id is kind "human" on the
-            # trusted-actor list), whose draft or body Hold: line waits for
-            # the sweep. A failed read, an unread list for a User, or no lanes
+            # trusted-actor list), whose draft waits for the sweep. A failed read, an unread list for a User, or no lanes
             # App id, dispatches anyway.
             if [[ ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]] &&
               answer=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" \
-                --jq '"\(.user.id) \(.user.type) \(.auto_merge != null) \([.labels[].name] | index("do-not-merge") != null) \(.draft) \((.body // "") | test("(^|[\\r\\n])[ \\t]*hold:"; "i"))"') &&
-              read -r id type armed held draft hold <<<"$answer"; then
+                --jq '"\(.user.id) \(.user.type) \(.auto_merge != null) \([.labels[].name] | index("do-not-merge") != null) \(.draft)"') &&
+              read -r id type armed held draft <<<"$answer"; then
               if [ "$id $type" != "$LANES_APP_ID Bot" ]; then
                 person=false
                 if [ "$type" = User ]; then
@@ -2770,10 +2769,6 @@ jobs:
               fi
               if [ "$type" = User ] && [ "$draft" = true ]; then
                 echo "::notice title=eval-release wake::pr=$pr a draft; nothing woken"
-                continue
-              fi
-              if [ "$type" = User ] && [ "$hold" = true ]; then
-                echo "::notice title=eval-release wake::pr=$pr held (body Hold: line); nothing woken"
                 continue
               fi
             fi

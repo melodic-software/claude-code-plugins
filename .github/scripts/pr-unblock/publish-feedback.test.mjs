@@ -1929,7 +1929,6 @@ test("a landed fix puts the recorded Verification text in place and leaves every
 
 test("section text holding a line a gate reads, or a shape a reader takes, drops the refresh and keeps the round", async () => {
   for (const [text, why] of [
-    ["Hold: wait for the vendor", "a line a gate reads"],
     ["> Draft: still open", "a line a gate reads"],
     ["Closes #9", "a line a gate reads"],
     ["Fixes https://github.com/o/r/issues/9", "a line a gate reads"],
@@ -1937,7 +1936,6 @@ test("section text holding a line a gate reads, or a shape a reader takes, drops
     ["Siblings: #4, #6", "a line a gate reads"],
     ["Merge-Risk: max=LOW", "a line a gate reads"],
     ["No related issue: none", "a line a gate reads"],
-    ["Please do not\nmerge yet.", "a line a gate reads"],
     ["Ran it.\n## Follow-ups", "a line a gate reads"],
     ["Ran it.\n## Notes", "a heading line"],
     ["Ran it.\n```\nnpm test", "a code fence"],
@@ -1955,7 +1953,7 @@ test("section text holding a line a gate reads, or a shape a reader takes, drops
     assert.equal(api.posted().length, 1, `the reply still posts: ${text}`);
     assert.equal(dropLine(api), `The body refresh was dropped: the text holds ${why}.`, text);
   }
-  for (const text of ["Ran `@types/node` checks.", "Mail a@b.example about it.", "Fixed the parser; see the closing notes."]) {
+  for (const text of ["Hold: wait for the vendor", "Please do not\nmerge yet.", "Ran `@types/node` checks.", "Mail a@b.example about it.", "Fixed the parser; see the closing notes."]) {
     assert.equal(sectionRefusal(text), null, text);
   }
 });
@@ -2058,7 +2056,7 @@ test("gateLines names exactly the lines check-gate-lines.sh names", (t) => {
   }
   const named = out.split("\n").filter((line) => line.startsWith("added: ")).map((line) => line.slice("added: ".length)).sort();
   assert.deepEqual(gateLines(corpus), named);
-  assert.ok(named.length >= 18, "the corpus exercises the list");
+  assert.ok(named.length >= 14, "the corpus exercises the list");
 });
 
 const ASKED_AT = "2026-11-17T10:00:00Z";

@@ -90,7 +90,7 @@ export STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]\n  
 KYLE_VETO="$(comment kyle User MEMBER 2026-10-23T10:00:00Z 'Please do not merge this yet.')"
 
 STUB_PULL="$(pull 'Closes #1')"
-expect "a lanes App pull request with no hold passes" 0 3 "#7: no member veto and no hold path"
+expect "a lanes App pull request with no hold passes" 0 3 "#7: no hold path."
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
 expect "a person's pull request is left to pr-merge's gate, with no discussion read" 0 0 "not the lanes App's"
 STUB_PULL="$(pull 'Closes #1' '{"id":1,"login":"melodic-automation-lanes[bot]","type":"User"}')"
@@ -107,7 +107,7 @@ for user in '{"id":153232337,"login":"kyle-sexton","type":"User"}' '{"id":496993
   expect_pull_reads "a non-App payload author ($(jq -r .login <<<"$user")) reads no pull" 0
 done
 STUB_PULL="$(pull 'Closes #1')"
-expect "the lanes App's payload author goes on to the live read" 0 3 "#7: no member veto and no hold path"
+expect "the lanes App's payload author goes on to the live read" 0 3 "#7: no hold path."
 expect_pull_reads "the lanes App's pull request is read once" 1
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
 for payload in "STUB_AUTHOR_ID=" "STUB_AUTHOR_ID=x" "STUB_AUTHOR_TYPE="; do
@@ -354,43 +354,21 @@ else
 fi
 
 STUB_PULL="$(pull $'Closes #1\n\nHold: wait for the canary')"
-expect "a Hold: line in the body does not hold: do-not-merge is the veto" 0 3 "no member veto and no hold path"
+expect "a Hold: line in the body does not hold: do-not-merge is the hold" 0 3 "no hold path."
 STUB_PULL="$(pull $'Closes #1\r\n  hold: owner call')"
-expect "an indented, lower-case hold line after a CRLF does not hold" 0 3 "no member veto and no hold path"
+expect "an indented, lower-case hold line after a CRLF does not hold" 0 3 "no hold path."
 STUB_PULL="$(pull $'Closes #1\n\nDo not merge before Friday.')"
-expect "'do not merge' in the body does not hold" 0 3 "no member veto and no hold path"
+expect "'do not merge' in the body does not hold" 0 3 "no hold path."
 STUB_PULL="$(pull $'Closes #1\n\nThe threshold: unchanged')"
 expect "a line that only contains 'hold:' later does not hold" 0 3
 
 STUB_PULL="$(pull 'Closes #1')"
 STUB_ISSUE="[$KYLE_VETO]"
-expect "a member's veto comment fails, naming the member" 1 3 "::error::#7: kyle asked not to merge it"
-STUB_ISSUE="[$(comment drive-by User NONE 2026-10-23T10:00:00Z 'do not merge')]"
-expect "a NONE-association veto does not hold" 0 3
-STUB_ISSUE="[$(comment outsider User CONTRIBUTOR 2026-10-23T10:00:00Z "don't merge")]"
-expect "a CONTRIBUTOR veto does not hold" 0 3
-STUB_ISSUE="[$(comment helper Bot MEMBER 2026-10-23T10:00:00Z 'do-not-merge')]"
-expect "a bot's veto does not hold" 0 3
-STUB_ISSUE="[$(comment owner User OWNER 2026-10-23T10:00:00Z "Don’t merge")]"
-expect "an OWNER's curly-apostrophe veto holds" 1 3 "owner asked not to merge it"
-STUB_ISSUE="[$KYLE_VETO,$(comment kyle User MEMBER 2026-10-23T11:00:00Z 'Go ahead now.')]"
-expect "a later comment by the same member lifts the veto" 0 3
-STUB_ISSUE="[$(comment kyle User MEMBER 2026-10-23T11:00:00Z 'Go ahead now.'),$KYLE_VETO]"
-expect "the newest comment decides, not the listing order" 0 3
-STUB_ISSUE="[$KYLE_VETO,$(comment other User COLLABORATOR 2026-10-23T11:00:00Z 'LGTM')]"
-expect "another member's later comment does not lift it" 1 3 "kyle asked not to merge it"
-STUB_ISSUE="[$KYLE_VETO]" STUB_REVIEWS="[$(review kyle MEMBER 2026-10-23T11:00:00Z '')]"
-expect "a later review with no text does not lift it" 1 3 "kyle asked not to merge it"
-STUB_ISSUE="[$KYLE_VETO]" STUB_REVIEWS="[$(review kyle MEMBER 2026-10-23T11:00:00Z 'Fine, ship it.')]"
-expect "a later review with text lifts it" 0 3
+expect "a member's comment saying not to merge holds nothing: the do-not-merge label is the one hold" 0 3 "#7: no hold path."
 STUB_ISSUE='[]' STUB_REVIEWS="[$(review kyle COLLABORATOR 2026-10-23T11:00:00Z 'do not merge')]"
-expect "a review summary veto holds" 1 3 "kyle asked not to merge it"
+expect "a review summary saying not to merge holds nothing" 0 3 "#7: no hold path."
 STUB_REVIEWS='[]' STUB_INLINE="[$KYLE_VETO]"
-expect "an inline review comment veto holds" 1 3 "kyle asked not to merge it"
-STUB_INLINE='[]' STUB_ISSUE="[$KYLE_VETO,$(comment ana User OWNER 2026-10-23T09:00:00Z 'do not merge')]"
-expect "every vetoing member is named, sorted" 1 3 "ana, kyle asked not to merge it"
-STUB_ISSUE="[$KYLE_VETO]" STUB_PULL="$(pull $'Hold: x')"
-expect "beside a body hold, which holds nothing, the veto holds" 1 3 "kyle asked not to merge it"
+expect "an inline review comment saying not to merge holds nothing" 0 3 "#7: no hold path."
 STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE=''
 
 STUB_PULL="$(pull 'Closes #1')"
@@ -416,7 +394,7 @@ STUB_PR_FILES="$(page '[["docs/guide.md"]]')" \
   expect "broker pages listing fewer files than changed_files fail closed" 1 0 "GitHub listed fewer files than #7 changes"
 expect_file_reads "the short broker pages are not read again" 0
 STUB_PULL="$(pull 'Closes #1')"
-STUB_PR_FILES="$(page '[["docs/guide.md"]]')" expect "clean broker pages pass" 0 3 "#7: no member veto and no hold path"
+STUB_PR_FILES="$(page '[["docs/guide.md"]]')" expect "clean broker pages pass" 0 3 "#7: no hold path."
 expect_file_reads "clean broker pages leave no files read" 0
 STUB_FILES='[["docs/held/a.md"]]' STUB_PR_FILES='not json' \
   expect "unparsable broker pages fall back to the live read" 1 3 "it changes docs/held/a.md, a hold path"
@@ -675,7 +653,7 @@ expect "in the merge queue, a record with no linked issues holds" 1 3 "its verif
 STUB_RECORD='' STUB_NO_RECORD=1
 expect "in the merge queue, a record the reader could not read holds" 1 3 "its verifier pass's record could not be read"
 STUB_NO_RECORD='' STUB_RECORD='.linked_issues[].number = 9' STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]"
-expect "in the merge queue, a trusted approval of the head lifts a changed link" 0 3 "#7: no member veto and no hold path."
+expect "in the merge queue, a trusted approval of the head lifts a changed link" 0 3 "#7: no hold path."
 STUB_RECORD='' STUB_REVIEWS=''
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass-notes\":[11]}"
 expect "in the merge queue, a pass-notes at the head passes" 0 3 "no verifier hold: pr-verify passed this head"
@@ -747,7 +725,7 @@ STUB_MODULE="$TMP_ROOT/no-author-rule.mjs" \
   expect "in the merge queue, a base module without authorSkip fails an owner pull request closed" 1 0 "::error::cannot read whether pr-verify judges the author of #7"
 KILL=true expect "in the merge queue, the kill switch does not hold an owner pull request" 0 2 "$NOT_HELD"
 STUB_ISSUE="[$KYLE_VETO]" STUB_INLINE="[$KYLE_VETO]" STUB_REVIEWS="[$(review kyle MEMBER 2026-10-23T10:00:00Z 'Please do not merge this yet.')]" \
-  expect "in the merge queue, a member's veto does not hold an owner pull request" 0 2 "$NOT_HELD"
+  expect "in the merge queue, a member's comment saying not to merge does not hold an owner pull request" 0 2 "$NOT_HELD"
 STUB_FILES='[["docs/held/x.md"],[".github/standards/trusted-actors/trusted-actors.json"],["infra/main.tf"]]' \
   expect "in the merge queue, a hold path does not hold an owner pull request" 0 2 "$NOT_HELD"
 STUB_PULL="$(pull 'Closes #1' '{"id":337859524,"login":"melodic-release[bot]","type":"Bot"}')"
@@ -823,21 +801,19 @@ EVENT=pull_request REF=refs/pull/7/merge PR_NUMBER=7 STUB_ARTIFACTS='{}' \
 export STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]\n    path-holds: true'
 STUB_PULL="$(pull 'Closes #1')"
 stub_module() { printf 'export const switchHold = () => null;\nif (process.argv.length > 3) {\n%s\n}\n' "$2" >"$1"; }
-stub_module "$TMP_ROOT/old.mjs" 'console.log("#7: no body hold, no member veto and no hold path.");'
+stub_module "$TMP_ROOT/old.mjs" 'console.log("#7: no hold path.");'
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}" STUB_MODULE="$TMP_ROOT/old.mjs"
 expect "in the merge queue, a base module that ignores the verdicts fails closed" 1 3 "::error::merge-holds.mjs exited 0 without its verifier verdict"
-stub_module "$TMP_ROOT/older.mjs" 'console.log("#7: no body hold, no member veto and no hold path.");
+stub_module "$TMP_ROOT/older.mjs" 'console.log("#7: no hold path.");
 console.log("#7: no verifier hold: pr-verify passed this head.");'
 STUB_MODULE="$TMP_ROOT/older.mjs"
 expect "in the merge queue, a base module that ignores the reader's report fails closed" 1 3 "::error::merge-holds.mjs exited 0 without its pr-verify FAIL verdict"
 unset STUB_MODULE
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
 STUB_PULL="$(pull $'Closes #1\nHold: owner call')"
-expect "in the merge queue, a body hold does not fail the group" 0 3 "no member veto and no hold path"
+expect "in the merge queue, a body hold does not fail the group" 0 3 "no hold path."
 STUB_PULL="$(pull 'Closes #1')" STUB_ISSUE="[$KYLE_VETO]"
-expect "in the merge queue, a member's veto fails the group" 1 3 "kyle asked not to merge it"
-STUB_ISSUE="[$KYLE_VETO,$(comment kyle User MEMBER 2026-10-23T11:00:00Z 'ok, merge it')]"
-expect "in the merge queue, a lifted veto passes" 0 3
+expect "in the merge queue, a member's comment saying not to merge does not fail the group" 0 3 "#7: no hold path."
 STUB_ISSUE='' STUB_FILES='[["docs/held/x.md"]]'
 expect "in the merge queue, a hold path fails the group" 1 3 "it changes docs/held/x.md, a hold path"
 STUB_FILES='[["docs/guide.md"]]'

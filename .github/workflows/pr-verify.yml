@@ -2137,12 +2137,9 @@ jobs:
           done
           [[ $pr =~ ^[1-9][0-9]{0,15}$ ]] || exit 0
           { echo "pr=$pr"; echo "verdict=$verdict"; } >>"$GITHUB_OUTPUT"
-          # The Hold: test spells a line start as (^|[\r\n]), not ^ with a
-          # multiline flag: gh --jq runs gojq, whose Go regexp anchors and
-          # flags differ from jq's Oniguruma, and this form reads alike in both.
           if [[ ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]] &&
             answer=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" \
-              --jq '"\(.user.id) \(.user.type) \(.auto_merge != null) \([.labels[].name] | index("do-not-merge") != null) \(.draft) \((.body // "") | test("(^|[\\r\\n])[ \\t]*hold:"; "i"))"') &&
+              --jq '"\(.user.id) \(.user.type) \(.auto_merge != null) \([.labels[].name] | index("do-not-merge") != null) \(.draft)"') &&
             read -r _ type _ <<<"$answer"; then
             { echo "answer=$answer"; echo "type=$type"; } >>"$GITHUB_OUTPUT"
           fi
@@ -2179,11 +2176,11 @@ jobs:
           # a pr-merge run the broker would refuse. One already armed or held
           # by do-not-merge needs no wake: the scheduled sweep runs the same
           # decision on it, disarms included, and ci-status holds do-not-merge
-          # in the merge queue. A person's draft or body Hold: line also
+          # in the merge queue. A person's draft also
           # waits for the sweep. A failed read, or no lanes App id, dispatches
           # anyway: pr-merge decides all of this itself.
           if [[ ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]] && [ -n "${ANSWER:-}" ] &&
-            read -r id type armed held draft hold <<<"$ANSWER"; then
+            read -r id type armed held draft <<<"$ANSWER"; then
             if [ "$id $type" != "$LANES_APP_ID Bot" ]; then
               person=false
               if [ "$type" = User ]; then
@@ -2204,10 +2201,6 @@ jobs:
             fi
             if [ "$type" = User ] && [ "$draft" = true ]; then
               echo "::notice title=pr-verify wake::pr=$pr verdict=$verdict a draft; nothing woken"
-              exit 0
-            fi
-            if [ "$type" = User ] && [ "$hold" = true ]; then
-              echo "::notice title=pr-verify wake::pr=$pr verdict=$verdict held (body Hold: line); nothing woken"
               exit 0
             fi
           fi

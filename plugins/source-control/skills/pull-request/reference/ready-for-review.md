@@ -29,10 +29,9 @@ flip is done, so run 2.5.2, 2.5.3 and 2.5.5 and skip 2.5.4 and 2.5.6.
 
 Still a draft: refuse a held or superseded one before touching the branch
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#check-for-a-hold)).
-Held means a `do-not-merge` label, a body that says "do not merge", or a WIP marker in the title;
-superseded means an issue the PR closes is already closed. A body line starting `Hold:` holds the
-merge only, so it does not stop the flip. Neither does a `do-not-merge` label whose only stated
-reason is an eval hold: each `<!-- pr-hold reason=... -->` line posted since the label's newest
+Held means a `do-not-merge` label or a WIP marker in the title; superseded means an issue the PR
+closes is already closed. A `do-not-merge` label whose only stated reason is an eval hold does not
+stop the flip: each `<!-- pr-hold reason=... -->` line posted since the label's newest
 labeled event reads `reason=eval`, and a human on the trusted-actors list or the lanes App posted
 it (the loop-lane contract's "Record the reason"). Flip with the label on, and leave it for the
 pr-merge release step to take off once the eval-pair record posts: removing and re-adding it voids

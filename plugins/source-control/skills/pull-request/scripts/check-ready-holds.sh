@@ -172,7 +172,6 @@ eval_only_hold() {
 
 reasons=$(jq -r --argjson unattended "$UNATTENDED" '
   (if $unattended then (.body // "" | [scan("(?mi)^[ \\t>]*Draft:[ \\t]*[^\\r\\n]*")] | first // empty | "draft: a person asked for this draft (\(gsub("[[:cntrl:]]"; ""))); only a person flips it") else empty end),
-  (.body // "" | gsub("(?mi)^[ \\t>]*Hold:[^\\r\\n]*"; "") | if test("\\bdo(?:n['"'"'\u2019]?t| not)\\s+merge\\b"; "i") then "body: it says do not merge" else empty end),
   (.title // "" | if test("^\\s*(?:[a-z]+(?:\\([^)]*\\))?!?:\\s*)?wip\\b|[\\[(]wip[\\])]"; "i") then "title: a WIP marker in \"\(gsub("[[:cntrl:]]"; ""))\"" else empty end)
 ' <<<"$facts") || die 2 "cannot parse the pull request facts"
 

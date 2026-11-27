@@ -139,6 +139,21 @@ PR_URL=$(gh pr create -R "$REPO" --draft --head "$BRANCH" --title "<type>: <desc
 PR_NUMBER=$(basename "$PR_URL")
 ```
 
+A held create (§2.7's `--hold`) adds `--label do-not-merge` to the `gh pr create` call, so the PR
+opens with the hold.
+
+## Label a held PR over REST
+
+The REST create below takes no labels, so a held REST create follows it with:
+
+```bash
+gh api --method POST "repos/$REPO/issues/$PR_NUMBER/labels" -f 'labels[]=do-not-merge'
+```
+
+On a triangular flow `$BASE_REPO` takes `$REPO`'s place. When this call fails, the PR is open
+without its hold: report the failure with GitHub's error text, leave the PR a draft, and do not
+run Phase 2.5's flip.
+
 ## Open the PR over REST
 
 `gh pr create` sends a `RepositoryInfo` GraphQL query as its repo-info preamble, before touching
@@ -165,6 +180,8 @@ PR_URL=$(printf '%s' "$PR_JSON" | jq -r '.html_url')
 PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r '.number')
 ```
 
+A held create then runs [Label a held PR over REST](#label-a-held-pr-over-rest).
+
 `--method POST` and `-X POST` are the same flag. Section numbers (§2.2, §2.7) are the create
 phase's.
 
@@ -185,7 +202,7 @@ In a sandboxed session, take identity from the create response, or re-read it wi
 Resolve the repository for the worker's checkout, not the orchestrator's:
 `REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "$WT" --write) || exit 1`, then
 `export GH_REPO="$REPO"`. `gh pr create` must pass `--head "$BRANCH"` explicitly, since the
-invoker is not on the branch:
+invoker is not on the branch, and a held create adds `--label do-not-merge`:
 
 ```bash
 PR_URL=$(gh pr create -R "$REPO" --draft --head "$BRANCH" --title "<type>: <description>" --body-file "$BODY_FILE")
@@ -208,6 +225,9 @@ PR_JSON=$(gh api --method POST "repos/$BASE_REPO/pulls" \
   -f title="<type>: <description>" -f head="<fork-owner>:$BRANCH" \
   -f base="$BASE" -F body=@"$BODY_FILE" -F draft=true)
 ```
+
+On either REST form, a held create reads `PR_NUMBER` from `$PR_JSON` and runs
+[Label a held PR over REST](#label-a-held-pr-over-rest).
 
 Naming `$BASE_REPO` in the path needs no `cd` and no `GH_REPO` prefix. On a triangular flow
 resolve `$BASE` from it too, as `BASE=$(gh api "repos/$BASE_REPO" --jq '.default_branch')`, never

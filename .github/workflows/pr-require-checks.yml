@@ -3942,7 +3942,7 @@ jobs:
           # $RUNNER_TEMP/pr-reads. Steps use it for three reads only: the pull
           # request (pulls/<n>), its labels and its issue events. Comments,
           # reviews, runs, jobs and annotations are always read live with
-          # gh_read, so a member's veto or a new review is never missed. A read
+          # gh_read, so a new comment or review is never missed. A read
           # that fails keeps nothing, so the next step reads again and fails
           # closed as before. pr_read_put <answer> <args>... keeps an answer a
           # step read its own way; pr_read_forget drops every kept answer, and
@@ -5351,7 +5351,7 @@ jobs:
               exit 0
             fi
             if [ "$judged" = true ]; then
-              echo "#$pr is not the lanes App's, but pr-verify judges its author (merge.verify-authors: $authors): the lanes App pin, the kill switch once the lanes App armed it, and a pr-verify FAIL at its head hold it; member veto and hold paths stay the lanes App's."
+              echo "#$pr is not the lanes App's, but pr-verify judges its author (merge.verify-authors: $authors): the lanes App pin, the kill switch once the lanes App armed it, and a pr-verify FAIL at its head hold it; hold paths stay the lanes App's."
             else
               echo "#$pr is not the lanes App's, and pr-verify does not judge its author (merge.verify-authors: $authors): only the lanes App pin and, once the lanes App armed it, the kill switch hold it."
             fi
@@ -5457,8 +5457,8 @@ jobs:
             exit 1
           fi
           # Another author's pull request reads only its reviews, each body
-          # blanked: an approval of the head still lifts its pin or FAIL hold,
-          # and no text vetoes it. Reviews feed only that lift, so one whose
+          # blanked: an approval of the head still lifts its pin or FAIL hold.
+          # Reviews feed only that lift, so one whose
           # author pr-verify does not judge reads them only under a pin hold.
           : >"$RUNNER_TEMP/discussion.jsonl"
           read_discussion() {
@@ -5713,7 +5713,7 @@ jobs:
           # from main's tip, which a queued group that changes the wording has
           # not reached yet.
           printf '%s\n' "$out"
-          grep -qxF -e "#$pr: no member veto and no hold path." -e "#$pr: no body hold, no member veto and no hold path." <<<"$out" || { echo "::error::merge-holds.mjs exited 0 without its verdict."; exit 1; }
+          grep -qxF -e "#$pr: no hold path." -e "#$pr: no member veto and no hold path." <<<"$out" || { echo "::error::merge-holds.mjs exited 0 without its verdict."; exit 1; }
           if [ "${#verdicts[@]}" -gt 0 ] && ! grep -qE "^#$pr: no verifier hold: " <<<"$out"; then
             echo "::error::merge-holds.mjs exited 0 without its verifier verdict."
             exit 1

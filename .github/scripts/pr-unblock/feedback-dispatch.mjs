@@ -10,9 +10,9 @@ import { ACTIONS_BOT_ID, FEEDBACK_HOLDS } from "../lib/lane-vocabulary.mjs";
 import { isPrUnblockTitle } from "../lib/run-title.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { tokenRefusal } from "../pr-merge/refire-refused.mjs";
-import { answeredIds, anyListed, askedComments, fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, laneReader, MARKER_AUTHOR_ID, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, readTriggers, REQUEST_HISTORY_QUERY, requestHistoryOf, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom, VERIFY_NOTE_MARKER, withLaneBinding } from "./address-feedback.mjs";
+import { answeredIds, anyListed, askedComments, fixRequesters, humanGatedLabelFrom, isFixRequest, laneReader, MARKER_AUTHOR_ID, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, readTriggers, REQUEST_HISTORY_QUERY, requestHistoryOf, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom, VERIFY_NOTE_MARKER, withLaneBinding } from "./address-feedback.mjs";
 
-export { HOLD_LINE, NO_ADOPTION, ownerAdoption, ownerAuthored };
+export { NO_ADOPTION, ownerAdoption, ownerAuthored };
 import { commentItems, gateSource, listLabelEvents, prHold, reviewReader } from "./gate-source.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, RUN_ID, startOf, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
@@ -45,9 +45,6 @@ const WORKFLOW_PATH = /^\.github\/workflows\/[a-z0-9][a-z0-9-]{0,80}\.ya?ml$/;
 export const autoMergeArmed = (pull) => pull?.auto_merge != null;
 
 export async function ownerSkip({ api, pull, adoption, now }) {
-  if (HOLD_LINE.test(String(pull.body ?? ""))) {
-    return "held by a Hold: line";
-  }
   if (autoMergeArmed(pull)) {
     return "";
   }

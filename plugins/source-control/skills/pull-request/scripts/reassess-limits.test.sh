@@ -90,31 +90,18 @@ out=$(run)
 assert_exit "the label is a limit" 3 "$?"
 assert_contains "the label limit is reported in any case" "$out" "label: "
 
-reset
-pr OPEN $'## Summary\nHold: waiting on the evals'
-out=$(run)
-assert_exit "a Hold: body line is a limit" 3 "$?"
-assert_contains "a Hold: line reads as held" "$out" "held: its body"
-
-reset
-pr OPEN $'## Summary\n Hold: waiting'
-out=$(run)
-assert_contains "a Hold: line behind a no-break space holds" "$out" "held: its body"
-
-reset
-pr OPEN $'## Summary\rhold: waiting'
-out=$(run)
-assert_contains "a Hold: line after a bare carriage return holds" "$out" "held: its body"
-
-reset
-pr OPEN "Please don't merge this yet"
-out=$(run)
-assert_contains "a body saying not to merge reads as held" "$out" "held: its body"
-
-reset
-pr OPEN "This threshold: mentions hold: mid-line"
-out=$(run)
-assert_exit "hold: in the middle of a line holds nothing" 0 "$?"
+for body in $'## Summary\nHold: waiting on the evals' $'## Summary\n\u00a0Hold: waiting' \
+  $'## Summary\rhold: waiting' "Please don't merge this yet"; do
+  shown=$(printf '%q' "$body")
+  reset
+  pr OPEN "$body"
+  out=$(run)
+  assert_exit "body text is no limit: $shown" 0 "$?"
+  pr OPEN "$body" '[{"name":"do-not-merge"}]'
+  out=$(run)
+  assert_exit "the do-not-merge label limits beside $shown" 3 "$?"
+  assert_contains "the label limit is reported beside $shown" "$out" "label: the pull request carries do-not-merge"
+done
 
 reset
 queued true
@@ -126,7 +113,7 @@ echo '{"stack":{"id":1}}' >"$F/stack"
 out=$(run)
 assert_contains "a stack member is limited" "$out" "stack: "
 
-for read in queue stack comments reviews inline same-head; do
+for read in queue stack reviews same-head; do
   reset
   rm "$F/$read"
   out=$(run)
@@ -155,54 +142,14 @@ review() {
 
 reset
 echo "[[$(comment ana User MEMBER 2026-01-01T00:00:00Z 'do not merge')]]" >"$F/comments"
-out=$(run)
-assert_contains "a member's veto holds" "$out" "held: a veto from ana"
-
-reset
 echo "[[$(review ana 2026-01-01T00:00:00Z COMMENTED 'do not merge')]]" >"$F/reviews"
+echo "[[$(comment ana User MEMBER 2026-01-01T00:00:00Z 'do-not-merge, please')]]" >"$F/inline"
 out=$(run)
-assert_contains "a veto in a review body holds" "$out" "held: a veto from ana"
-
-reset
-echo "[[$(comment ana User MEMBER 2026-01-01T00:00:00Z 'do not merge')]]" >"$F/inline"
+assert_exit "a member's do-not-merge comment, review or inline comment is no limit" 0 "$?"
+pr OPEN "" '[{"name":"do-not-merge"}]'
 out=$(run)
-assert_contains "a veto in an inline comment holds" "$out" "held: a veto from ana"
-
-reset
-echo "[[$(comment ana User MEMBER 2026-01-01T00:00:00Z 'do not merge'),$(comment ana User MEMBER 2026-01-02T00:00:00Z 'fine now')]]" >"$F/comments"
-out=$(run)
-assert_exit "a member's later comment lifts their veto" 0 "$?"
-
-reset
-echo "[[$(comment ana User MEMBER 2026-01-01T00:00:00Z 'do not merge'),$(comment ana User MEMBER 2026-01-02T00:00:00Z '  ')]]" >"$F/comments"
-out=$(run)
-assert_contains "a later empty item lifts nothing" "$out" "held: a veto from ana"
-
-reset
-echo "[[$(comment zed User NONE 2026-01-01T00:00:00Z 'do not merge')]]" >"$F/comments"
-out=$(run)
-assert_exit "an outsider's comment is no veto" 0 "$?"
-
-reset
-echo "[[$(comment bot Bot MEMBER 2026-01-01T00:00:00Z 'do not merge')]]" >"$F/comments"
-out=$(run)
-assert_exit "a bot's comment is no veto" 0 "$?"
-
-reset
-echo "[[$(comment ana User MEMBER 2026-01-01T00:00:00Z 'see the do-not-merge label')]]" >"$F/comments"
-out=$(run)
-assert_exit "naming the label as a label is no veto" 0 "$?"
-
-reset
-# shellcheck disable=SC2016 # literal backticks
-echo "[[$(comment ana User MEMBER 2026-01-01T00:00:00Z 'see the `do-not-merge` label')]]" >"$F/comments"
-out=$(run)
-assert_exit "naming the backticked label as a label is no veto" 0 "$?"
-
-reset
-echo "[[$(comment ana User MEMBER 2026-01-01T00:00:00Z 'do-not-merge, please')]]" >"$F/comments"
-out=$(run)
-assert_contains "a bare do-not-merge is a veto" "$out" "held: a veto from ana"
+assert_exit "the do-not-merge label limits beside a member's do-not-merge comment" 3 "$?"
+assert_contains "the label limit is reported beside the comment" "$out" "label: the pull request carries do-not-merge"
 
 reset
 echo "[[$(review ana 2026-01-01T00:00:00Z CHANGES_REQUESTED)]]" >"$F/reviews"
@@ -262,17 +209,10 @@ if command -v python3 >/dev/null 2>&1; then
   gate() {
     python3 -I -c 'import sys
 sys.path.insert(0, sys.argv[1])
-import babysit_lease, babysit_merge, babysit_merge_policy
-print(babysit_merge_policy.BODY_MERGE_HOLD_RE.pattern)
-print(babysit_merge.HUMAN_MERGE_VETO_RE.pattern)
+import babysit_lease
 print(babysit_lease.lease_path(sys.argv[2], "worker", "Acme/App#7"))' "$BABYSIT" "$STATE"
   }
-  { read -r body_re; read -r veto_re; read -r lease_file; } < <(gate)
-  eval "$(grep -E '^(BODY_HOLD_RE|VETO_RE)=' "$SCRIPT")"
-  # shellcheck disable=SC2153,SC2154 # assigned by the eval above
-  assert_eq "the body hold pattern is the merge gate's" "$body_re" "$BODY_HOLD_RE"
-  # shellcheck disable=SC2153,SC2154 # assigned by the eval above
-  assert_eq "the veto pattern is the merge gate's" "$veto_re" "$VETO_RE"
+  lease_file=$(gate)
   reset
   echo '{"expires_at":"2099-01-01T00:00:00+00:00"}' >"$lease_file"
   out=$(cd "$REPO_DIR" && PATH="$STUB_DIR:$PATH" bash "$SCRIPT" 7 --repo Acme/App --state-dir "$STATE")

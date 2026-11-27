@@ -252,12 +252,13 @@ test("a trusted pull request changing infra/main.tf is refused without a recorde
   assert.match(leftLine(recordedDecision, 500), new RegExp(`armed at ${CLEAN_HEAD}`));
 });
 
-test("a member's 'Please do not merge this yet.' after the PASS refuses the trusted arm", async () => {
+test("a member's 'Please do not merge this yet.' after the PASS holds nothing: the trusted arm goes ahead", async () => {
   const veto = { author: { __typename: "User", login: "kyle-sexton" }, authorAssociation: "MEMBER", body: "Please do not merge this yet.", createdAt: "2026-11-27T14:30:00Z", lastEditedAt: null };
   const result = await run([clean({ comments: [veto] })]);
-  assert.equal(armedHeads(result), 0, result.lines.join("\n"));
-  assert.equal(pinPosts(result).length, 0, "no pin posts for a vetoed pull request");
-  assert.match(leftLine(result, 500), /left: kyle-sexton asked not to merge it$/);
+  assert.equal(armedHeads(result), 1, result.lines.join("\n"));
+  const labeled = await run([clean({ comments: [veto], labels: { totalCount: 1, nodes: [{ name: "do-not-merge" }] } })]);
+  assert.equal(armedHeads(labeled), 0, labeled.lines.join("\n"));
+  assert.match(leftLine(labeled, 500), /left: it carries do-not-merge/);
 });
 
 const OLD_HEAD = "a".repeat(40);
@@ -441,11 +442,9 @@ test("#19128's shape is not armed: it changes a .claude lane source and no reade
   assert.match(leftLine(result, 19128), /left: .*\.claude\/skills\/control-claude-code-plugins\/features\/docs-hygiene\/README\.md.*lane source/);
 });
 
-test("#19361's shape is not armed: its body carries a Hold: line", async () => {
+test("#19361's shape is not held by the Hold: line in its body", async () => {
   const result = await run([recorded("19361")]);
-  assert.equal(armedHeads(result), 0);
-  assert.deepEqual(result.verified, []);
-  assert.match(leftLine(result, 19361), /left: its body holds it/);
+  assert.doesNotMatch(leftLine(result, 19361), /its body holds it/);
 });
 
 test("only a User whose id is kind human is a trusted person: a trusted bot, a bot id typed User and a person id typed Bot keep the lanes' skip", async () => {
@@ -573,7 +572,6 @@ test("an armed or queued trusted pull request with no hold standing is left as i
   assert.match(leftLine(queued, 500), /left: it is in the merge queue/);
 });
 
-const VETO = { author: { __typename: "User", login: "kyle-sexton" }, authorAssociation: "MEMBER", body: "Please do not merge this yet.", createdAt: "2026-11-27T14:30:00Z", lastEditedAt: null };
 const lanesArmed = (overrides = {}) => clean({ autoMergeRequest: { enabledAt: "2026-11-27T14:00:00Z" }, comments: [lanesComment(pinBody(CLEAN_HEAD))], ...overrides });
 const disarmedAndUnpinned = (result, why) => {
   assert.deepEqual(disarms(result).map(({ variables }) => variables), [{ id: "PR_500" }], result.lines.join("\n"));
@@ -584,19 +582,11 @@ const disarmedAndUnpinned = (result, why) => {
   assert.match(leftLine(result, 500), new RegExp(`disarmed: ${why}; unpinned at ${CLEAN_HEAD}`));
 };
 
-test("a lanes App arm at the head is disarmed and unpinned once a member vetoes it", async () => {
-  disarmedAndUnpinned(await run([lanesArmed({ comments: [lanesComment(pinBody(CLEAN_HEAD)), VETO] })]), "kyle-sexton asked not to merge it");
-});
-
 test("a lanes App arm at the head is disarmed and unpinned once a hold label goes on", async () => {
   const tracker = join(HERE, "fixtures/enable-auto-merge-tracker.json");
   for (const name of ["do-not-merge", "needs-human", "security: outside-actor", "human-gated"]) {
     disarmedAndUnpinned(await run([lanesArmed({ labels: { totalCount: 1, nodes: [{ name }] } })], { env: { TRACKER_CONFIG: tracker } }), `it carries ${name}`);
   }
-});
-
-test("a lanes App arm at the head is disarmed and unpinned once its body gains a Hold: line", async () => {
-  disarmedAndUnpinned(await run([lanesArmed({ body: "Closes #499\n\nHold: the owner reads this first." })]), "its body holds it");
 });
 
 test("a lanes App arm at the head is disarmed and unpinned once pr-verify no longer passes it", async () => {
@@ -734,9 +724,7 @@ test("an unpin that fails after a hold disarm at the pinned head is posted by th
   assert.notEqual(failed.code, 0, "the failed unpin fails the run");
   for (const [label, pull, why] of [
     ["hold label", clean({ ...doNotMerge, comments: [pinAtHead] }), "it carries do-not-merge"],
-    ["body hold", clean({ body: "Closes #499\n\nHold: the owner reads this first.", comments: [pinAtHead] }), "its body holds it"],
     ["draft", clean({ isDraft: true, comments: [pinAtHead] }), "it is a draft"],
-    ["veto", clean({ comments: [pinAtHead, VETO] }), "kyle-sexton asked not to merge it"],
   ]) {
     const next = await run([pull]);
     assert.deepEqual(

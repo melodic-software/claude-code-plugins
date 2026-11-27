@@ -10,14 +10,12 @@ import { test } from "node:test";
 import {
   ARM_MUTATION,
   AUTO_MERGE_STATE_QUERY,
-  BODY_HOLD,
   DETAIL_QUERY,
   DISARM_MUTATION,
   DISCUSSION_PAGE_QUERIES,
   MERGE_QUEUE_QUERY,
   rotated,
   oldestFirst,
-  HUMAN_VETO,
   PULLS_QUERY,
   THREAD_PAGE_QUERY,
   UNLABELED_QUERY,
@@ -64,16 +62,13 @@ import {
   pinBody,
   pinMoved,
   supersededBody,
-  VETO_MARKER,
-  vetoLabelOwned,
-  vetoNote,
 } from "./enable-auto-merge.mjs";
 import { GitHubError } from "../lib/github-client.mjs";
 import { DEQUEUE_MUTATION, QUEUE_ENTRY_QUERY } from "../pr-unblock/address-feedback.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { COMMENT_EDITED_QUERY, LANE_HOLD, PULL_OPENED_QUERY, VERIFY_PATH, personWrote, unblockStops, verdictHold } from "./merge-holds.mjs";
+import { COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, VERIFY_PATH, unblockStops, verdictHold } from "./merge-holds.mjs";
 import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
-import { HOLD_LINE, decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
+import { decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -593,12 +588,11 @@ test("a lanes App draft carrying a hold is not handed to recover", async () => {
   const held = [
     draft(1, { labels: labels("do-not-merge") }),
     draft(2, { labels: labels("needs-human") }),
-    draft(3, { body: `Closes #1003\n\n${HOLD_LINE}` }),
     draft(4, { labels: { totalCount: 101, nodes: [] } }),
   ];
   assert.deepEqual((await run(held)).asked, []);
-  const { asked } = await run([...held, draft(5)]);
-  assert.deepEqual(asked.map(([kind, drafts]) => [kind, drafts.map(({ number }) => number)]), [["recover", [5]]]);
+  const { asked } = await run([...held, draft(3, { body: "Closes #1003\n\nHold: a human merges this" }), draft(5)]);
+  assert.deepEqual(asked.map(([kind, drafts]) => [kind, drafts.map(({ number }) => number)]), [["recover", [3, 5]]]);
 });
 
 test("the record line format is babysit_whole_review.record_line's", () => {
@@ -789,14 +783,15 @@ test("a pull request whose diff against main is empty is closed plainly, never v
   assert.deepEqual(reportOnly.notes, [], "a report-only run closes nothing");
 });
 
-test("an empty-diff pull request a person reopened or vetoed is not closed again", async () => {
+test("an empty-diff pull request a person reopened or labeled is not closed again", async () => {
   const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
   const closedOnce = said(LANES.login, emptyDiffNote(HEAD), "2026-10-23T10:00:00Z", "NONE", "Bot");
   assert.deepEqual(decide(pull(1), options, { ...detail({ comments: [closedOnce] }), files: [], filesCapped: false }), { action: "none", reason: EMPTY_DIFF_REOPENED_REASON, clears: "person" });
   const reopened = await run([pull(1, { files: [], discussion: { comments: [closedOnce] } })]);
   assert.ok(!reopened.notes.some(({ method }) => method === "PATCH"), "a reopened pull request is not closed again");
+  assert.equal(decide(pull(1, { labels: labels("do-not-merge") }), options, { ...detail(), files: [], filesCapped: false }).action, "none", "the do-not-merge label stands over the close");
   const veto = said("kyle-sexton", "Please don't merge this yet.", "2026-10-23T10:00:00Z");
-  assert.equal(decide(pull(1), options, { ...detail({ comments: [veto] }), files: [], filesCapped: false }).action, "none", "a person's veto stands over the close");
+  assert.equal(decide(pull(1), options, { ...detail({ comments: [veto] }), files: [], filesCapped: false }).action, "close-empty", "a comment holds no close");
   const earlier = said(LANES.login, emptyDiffNote("e".repeat(40)), "2026-10-23T10:00:00Z", "NONE", "Bot");
   assert.equal(decide(pull(1), options, { ...detail({ comments: [earlier] }), files: [], filesCapped: false }).action, "close-empty", "a close at another head does not count");
 });
@@ -844,12 +839,6 @@ test("a refusal a lane clears gets a failing pr-merge/unarmed status once it has
   const armed = await run([pull(3)], {}, { now });
   assert.deepEqual(armed.writes, [{ mutation: "arm", id: "PR_3", head: HEAD }]);
   assert.deepEqual(armed.statuses, [{ sha: HEAD, state: "success", description: "armed for native auto-merge" }]);
-  const vetoed = pull(4, {
-    discussion: { comments: [lanesSaid(laneNote(MISSING_REASON, "2026-01-01T00:00:00.000Z")), said("kyle-sexton", "do not merge", "2026-10-23T10:30:00Z")] },
-  });
-  const held = await run([vetoed], {}, { now });
-  assert.deepEqual(held.writes, []);
-  assert.deepEqual(held.statuses, [{ sha: HEAD, state: "success", description: "its lanes refusal no longer stands" }]);
   assert.deepEqual((await run([standing("2026-10-23T10:00:00.000Z")], { REPORT_ONLY: "true" }, { now })).statuses, []);
 });
 
@@ -1310,7 +1299,7 @@ test("an unarmed note that fails to rewrite leaves the arm standing and warns", 
   assert.ok(lines.some((line) => line.startsWith("::warning title=enable-auto-merge::#7 refusal comment 77 not marked superseded")));
 });
 
-test("a Hold: line, do-not-merge or the human-gated label leaves it unarmed", async () => {
+test("do-not-merge or the human-gated label leaves it unarmed; body text holds nothing", async () => {
   const { code, writes } = await run([
     pull(1, { body: "Closes #5\n\nHold: a human merges this\n" }),
     pull(2, { body: "Closes #5\r\n  hold: wait for the canary" }),
@@ -1319,7 +1308,7 @@ test("a Hold: line, do-not-merge or the human-gated label leaves it unarmed", as
     pull(5, { body: "Closes #5\n\nPlease do not merge yet." }),
   ]);
   assert.equal(code, 0);
-  assert.deepEqual(writes, []);
+  assert.deepEqual(writes.map(({ mutation, id }) => `${mutation} ${id}`).sort(), ["arm PR_1", "arm PR_2", "arm PR_5"]);
 });
 
 test("the human-gated label comes from the tracker config", async () => {
@@ -1331,9 +1320,9 @@ test("the human-gated label comes from the tracker config", async () => {
 test("an armed pull request that now holds is disarmed", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
   const { code, writes } = await run([
-    pull(1, { autoMergeRequest: armed, body: "Closes #5\n\nHold: a human merges this" }),
+    pull(1, { autoMergeRequest: armed, labels: labels("do-not-merge") }),
     pull(2, { autoMergeRequest: armed, labels: labels("needs-human") }),
-    pull(3, { autoMergeRequest: armed }),
+    pull(3, { autoMergeRequest: armed, body: "Closes #5\n\nHold: a human merges this" }),
   ]);
   assert.equal(code, 0);
   assert.deepEqual(writes, [
@@ -1721,36 +1710,6 @@ test("decide leaves a pull request with no labels read alone", () => {
   });
 });
 
-test("the body hold agrees with the gate's BODY_MERGE_HOLD_RE", () => {
-  const bodies = [
-    "Hold: a human merges this",
-    "Closes #1\n\nHold: x",
-    "Closes #1\r\n   HOLD: x",
-    "Closes #1\rhold: x",
-    "Closes #1\n\nthe hold: is not at the line start",
-    "Closes #1\n\nDon't merge",
-    "Closes #1\n\ndon’t  merge this",
-    "Closes #1\n\nDo NOT\nmerge",
-    "Closes #1\n\ndonut merge",
-    "Closes #1\n\nwhat to do: merge it",
-    "Closes #1\n\nnothing here",
-    "",
-  ];
-  const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
-  const python = spawnSync(
-    "python3",
-    ["-c", "import json,sys\nfrom babysit_merge_policy import BODY_MERGE_HOLD_RE as R\nprint(json.dumps([bool(R.search(b)) for b in json.load(sys.stdin)]))"],
-    { cwd: scripts, input: JSON.stringify(bodies), encoding: "utf8" },
-  );
-  assert.equal(python.status, 0, python.stderr);
-  const expected = JSON.parse(python.stdout);
-  assert.deepEqual(
-    bodies.map((body) => BODY_HOLD.test(body)),
-    expected,
-  );
-  assert.ok(expected.includes(true) && expected.includes(false));
-});
-
 test("TRUST_REFUSALS are the reasons the gate's trust_refusal returns, and each goes to a person", () => {
   const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
   const python = spawnSync(
@@ -1770,7 +1729,7 @@ test("TRUST_REFUSALS are the reasons the gate's trust_refusal returns, and each 
   assert.equal(verifyClears({ head: "a".repeat(40), ineligible: "refs-issues:2" }, "a".repeat(40)), "lane");
 });
 
-test("report-outcome's own Closes and Refs pull request bodies arm, and its hold bodies do not", () => {
+test("report-outcome's own Closes and Refs pull requests arm, and the ones it labels do-not-merge do not", () => {
   const plan = (overrides) =>
     decideOutcome({
       outcome: { exit: "done", reason: "", title: "docs(work-items): fix a typo", summary: "Fixed it." },
@@ -1785,39 +1744,26 @@ test("report-outcome's own Closes and Refs pull request bodies arm, and its hold
   const verdict = (overrides) => {
     const opened = plan(overrides);
     assert.equal(opened.action, "open-pr");
-    return decide(pull(1, { body: opened.body }), { bot: "melodic-automation-lanes", humanGated: "needs-human", holdPaths: [".github/**"] }, { ...detail(), files: ["docs/a.md"], verify: PASSED });
+    const labeled = opened.hold ? { labels: labels("do-not-merge") } : {};
+    return decide(pull(1, { body: opened.body, ...labeled }), { bot: "melodic-automation-lanes", humanGated: "needs-human", holdPaths: [".github/**"] }, { ...detail(), files: ["docs/a.md"], verify: PASSED });
   };
   assert.deepEqual(verdict({}), { action: "arm", reason: "no hold" });
-  assert.equal(verdict({ humanMerge: true }).action, "none");
-  assert.equal(verdict({ changedFiles: [".github/workflows/x.yml"] }).action, "none");
+  assert.deepEqual(verdict({ humanMerge: true }), { action: "none", reason: "it carries do-not-merge" });
+  assert.deepEqual(verdict({ changedFiles: [".github/workflows/x.yml"] }), { action: "none", reason: "it carries do-not-merge" });
   const refs = { outcome: { exit: "done", reason: "", title: "t", summary: "s", remaining: ["Part B"] } };
   assert.ok(plan(refs).body.startsWith("Refs: #77\n"));
   assert.deepEqual(verdict(refs), { action: "arm", reason: "no hold" });
 });
 
-test("a member's newest comment saying not to merge holds, and a later one lifts it", async () => {
+test("a member's comment saying not to merge holds nothing; the do-not-merge label holds and disarms", async () => {
   const veto = said("kyle-sexton", "Please don't merge this yet.", "2026-10-23T10:00:00Z");
   const { code, writes } = await run([
     pull(1, { discussion: { comments: [veto] } }),
-    pull(2, { discussion: { comments: [veto, said("kyle-sexton", "Go ahead.", "2026-10-23T11:00:00Z")] } }),
-    pull(3, { discussion: { comments: [said("someone", "do not merge", "2026-10-23T10:00:00Z", "CONTRIBUTOR")] } }),
-    pull(4, { discussion: { comments: [said("codex", "do not merge", "2026-10-23T10:00:00Z", "NONE", "Bot")] } }),
-    pull(5, { discussion: { reviews: [{ ...veto, createdAt: undefined, submittedAt: veto.createdAt }] } }),
-    pull(6, { discussion: { inline: [said("kyle-sexton", "do-not merge until the canary", "2026-10-23T10:00:00Z", "MEMBER")] } }),
-    pull(7, { discussion: { comments: [veto, said("kyle-sexton", "", "2026-10-23T11:00:00Z")] } }),
+    pull(2, { labels: labels("do-not-merge"), discussion: { comments: [veto] } }),
+    pull(3, { autoMergeRequest: {}, labels: labels("do-not-merge") }),
   ]);
   assert.equal(code, 0);
-  assert.deepEqual(
-    writes.map(({ id }) => id),
-    ["PR_2", "PR_3", "PR_4"],
-  );
-});
-
-test("an armed pull request a member now vetoes is disarmed", async () => {
-  const { writes } = await run([
-    pull(1, { autoMergeRequest: {}, discussion: { comments: [said("kyle-sexton", "do not merge", "2026-10-23T10:00:00Z")] } }),
-  ]);
-  assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_1" }]);
+  assert.deepEqual(writes.map(({ mutation, id }) => `${mutation} ${id}`).sort(), ["arm PR_1", "disarm PR_3"]);
 });
 
 test("a pull request whose discussion cannot all be read is not armed", async () => {
@@ -1850,23 +1796,6 @@ test("a person's later enable or merge-queue add clears their auto-merge disable
   assert.equal(decided([off, autoMergeEvent("AutoMergeEnabledEvent", "kyle-sexton")]).action, "arm");
   assert.equal(decided([off, autoMergeEvent("AddedToMergeQueueEvent", "kyle-sexton"), autoMergeEvent("RemovedFromMergeQueueEvent", "github-merge-queue", "Bot")]).action, "arm");
   assert.equal(decided([autoMergeEvent("AutoMergeDisabledEvent", "melodic-automation-lanes", "Bot")]).action, "arm");
-});
-
-test("the comment veto agrees with the gate's HUMAN_MERGE_VETO_RE", () => {
-  const bodies = ["do not merge", "Don't merge", "don’t merge", "dont-merge", "do-not merge", "Do NOT\nmerge", "donut merge", "merge it", "doesn't merge", "", "do-not-merge", "ci-status, gitleaks, do-not-merge, cost holds", "the `do-not-merge` label", "removed the do-not-merge label", "Not ready, do-not-merge until Friday.", "Sorry, do-not-merge this.", "`do-not-merge` label please", "a, b, do-not-merge", "Hold on, do-not-merge, I'm still reviewing."];
-  const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
-  const python = spawnSync(
-    "python3",
-    ["-c", "import json,sys\nfrom babysit_merge import HUMAN_MERGE_VETO_RE as R\nprint(json.dumps([bool(R.search(b)) for b in json.load(sys.stdin)]))"],
-    { cwd: scripts, input: JSON.stringify(bodies), encoding: "utf8" },
-  );
-  assert.equal(python.status, 0, python.stderr);
-  const expected = JSON.parse(python.stdout);
-  assert.deepEqual(
-    bodies.map((body) => HUMAN_VETO.test(body)),
-    expected,
-  );
-  assert.ok(expected.includes(true) && expected.includes(false));
 });
 
 test("a pull request whose head now changes a hold path is not armed, or is disarmed", async () => {
@@ -2086,32 +2015,21 @@ test("a label list the listing cut is read whole", async () => {
 
 test("a comment list the detail cut is read whole", async () => {
   const chatter = Array.from({ length: 3 }, (_, index) => said("kyle-sexton", `note ${index}`, `2026-10-23T0${index}:00:00Z`));
-  const veto = said("kyle-sexton", "do not merge", "2026-10-23T09:00:00Z");
   const cut = (comments) => ({ ...detail({ comments }), comments: { totalCount: comments.length, nodes: comments.slice(-1) } });
-  const { writes, lines } = await run([
-    pull(1, { discussion: { comments: chatter }, cutDiscussion: cut(chatter) }),
-    pull(2, { discussion: { comments: [veto, ...chatter] }, cutDiscussion: cut([veto, ...chatter]) }),
-  ]);
+  const { writes, calls } = await run([pull(1, { discussion: { comments: chatter }, cutDiscussion: cut(chatter) })]);
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
-  assert.ok(lines.includes("enable-auto-merge: #2 left: kyle-sexton asked not to merge it"), lines.join("\n"));
+  assert.ok(calls.some(({ body }) => body?.query === DISCUSSION_PAGE_QUERIES.comments && body.variables?.number === 1), "the cut comment list is paged");
 });
 
 test("a review thread's comment list the detail cut is read whole, page by page", async () => {
   const chatter = Array.from({ length: 3 }, (_, index) => said("kyle-sexton", `note ${index}`, `2026-10-23T0${index}:00:00Z`));
-  const veto = said("other-member", "do not merge", "2026-10-22T09:00:00Z", "MEMBER");
   const cut = (id, comments) => ({ ...detail(), reviewThreads: page([{ id, comments: { totalCount: comments.length, nodes: comments.slice(-1) } }]) });
-  const { writes, lines, calls } = await run([
-    pull(1, { cutDiscussion: cut("T1", chatter), threads: { T1: chatter } }),
-    pull(2, { cutDiscussion: cut("T2", [veto, ...chatter]), threads: { T2: [veto, ...chatter] } }),
-  ]);
+  const { writes, calls } = await run([pull(1, { cutDiscussion: cut("T1", chatter), threads: { T1: chatter } })]);
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
-  assert.ok(lines.includes("enable-auto-merge: #2 left: other-member asked not to merge it"), lines.join("\n"));
   const pages = calls.filter(({ body }) => body?.query === THREAD_PAGE_QUERY).map(({ body }) => body.variables);
   assert.deepEqual(pages, [
     { id: "T1", after: null },
     { id: "T1", after: "2" },
-    { id: "T2", after: null },
-    { id: "T2", after: "2" },
   ]);
 });
 
@@ -2134,108 +2052,31 @@ test("a discussion or label list past its page cap arms nothing", async () => {
   assert.ok(lines.some((line) => line.startsWith("enable-auto-merge: #4 labels did not read whole: ") && line.includes("more than 1000 labels")), lines.join("\n"));
 });
 
-test("a deleted author or editor counts as a person who wrote the body", () => {
-  const edits = (...editors) => ({ totalCount: editors.length, nodes: editors.map((editor) => ({ editor })) });
-  const bot = { __typename: "Bot" };
-  assert.equal(personWrote({ author: bot, userContentEdits: edits() }), false);
-  assert.equal(personWrote({ author: bot, userContentEdits: edits(bot) }), false);
-  assert.equal(personWrote({ author: null, userContentEdits: edits() }), true);
-  assert.equal(personWrote({ author: bot, userContentEdits: edits(null) }), true);
-  assert.equal(personWrote(null), true);
-});
-
-test("a body hold counts only when a person wrote some of the body", async () => {
-  const body = "Closes #5\n\nHold: wait for the release.";
-  const edits = (...typenames) => ({ totalCount: typenames.length, nodes: typenames.map((__typename) => ({ editor: { __typename } })) });
-  const { writes } = await run([
-    pull(1, { body, userContentEdits: edits() }),
-    pull(2, { body, userContentEdits: edits("Bot") }),
-    pull(3, { body, userContentEdits: edits("Bot", "User") }),
-    pull(4, { body, userContentEdits: { totalCount: 101, nodes: [] } }),
-    pull(5, { body }),
-  ]);
-  assert.deepEqual(writes, [
-    { mutation: "arm", id: "PR_1", head: HEAD },
-    { mutation: "arm", id: "PR_2", head: HEAD },
-  ]);
-});
-
-test("the lane's own hold line holds a lanes App body", async () => {
-  assert.equal(`\n${HOLD_LINE}\n`.match(LANE_HOLD)?.[0].trim(), HOLD_LINE);
-  const appOnly = { totalCount: 0, nodes: [] };
-  const { writes } = await run([
-    pull(1, { body: `Closes #5\n\n${HOLD_LINE}`, userContentEdits: appOnly }),
-    pull(2, { body: `Closes #5\n\n${HOLD_LINE}\n\n## Summary`, userContentEdits: appOnly }),
-    pull(3, { body: `Closes #5\n\nquoted: ${HOLD_LINE}`, userContentEdits: appOnly }),
-  ]);
-  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_3", head: HEAD }]);
-});
-
-test("a do-not-merge label holds a lanes App PR whose body lost its hold line or its Refs line", async () => {
-  const appOnly = { totalCount: 0, nodes: [] };
+test("a do-not-merge label holds a lanes App PR whatever its body says", async () => {
   const held = labels("do-not-merge");
   const { writes } = await run([
-    pull(1, { body: "Refs: #5\n\n## Summary", labels: held, userContentEdits: appOnly }),
-    pull(2, { body: "Closes #5\n\n## Summary", labels: held, userContentEdits: appOnly }),
-    pull(3, { body: "Closes #5\n\n## Summary", userContentEdits: appOnly }),
+    pull(1, { body: "Refs: #5\n\n## Summary", labels: held }),
+    pull(2, { body: "Closes #5\n\n## Summary", labels: held }),
+    pull(3, { body: "Closes #5\n\n## Summary" }),
   ]);
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_3", head: HEAD }]);
   assert.equal(holdReason({ labels: held, body: "Closes #5" }, "needs-human"), "it carries do-not-merge");
-  assert.equal(holdReason({ labels: labels("Human-Merge-Hold"), body: "Closes #5" }, "needs-human"), null);
+  assert.equal(holdReason({ labels: labels("Human-Merge-Hold"), body: "Closes #5\n\nHold: a human merges this" }, "needs-human"), null);
 });
 
-const LANE_HOLD_REASON = "its body carries the lane's own 'Hold: a human merges this' line: a person merges it by hand, or removes that line";
-const LANE_HOLD_NOTE = "its body carries the lane's own 'Hold: a human merges this' line: a person merges it by hand, or\n  removes that line";
-const APP_ONLY = { totalCount: 0, nodes: [] };
-const laneHeld = (number, overrides = {}) => pull(number, { body: `Closes #5\n\n${HOLD_LINE}`, userContentEdits: APP_ONLY, ...overrides });
-test("the lane's own hold line is commented on once and labeled human-gated", async () => {
-  const first = await run([laneHeld(1)]);
-  assert.equal(first.code, 0);
-  assert.deepEqual(first.writes, []);
-  assert.deepEqual(first.notes, [
-    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(LANE_HOLD_NOTE) } },
-    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
-  ]);
-  const labeled = await run([laneHeld(1, { labels: labels("needs-human"), discussion: { comments: [lanesSaid(personNote(LANE_HOLD_REASON))] } })]);
-  assert.deepEqual(labeled.notes, []);
-  assert.deepEqual(labeled.verified, []);
-  const lifted = await run([laneHeld(1, { discussion: { comments: [lanesSaid(personNote(LANE_HOLD_REASON))] }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })]);
-  assert.deepEqual(lifted.notes, []);
-  const unlabeledOnce = await run([laneHeld(1, { discussion: { comments: [lanesSaid(personNote(LANE_HOLD_REASON))] } })]);
-  assert.deepEqual(unlabeledOnce.notes, [{ method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } }]);
-});
-
-test("the lane's hold line over a lane's comment posts once, then reads the posted one", async () => {
-  const laneComment = lanesSaid(laneNote(MISSING_REASON));
-  const first = await run([laneHeld(1, { discussion: { comments: [laneComment] } })]);
-  assert.deepEqual(first.notes, [
-    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(LANE_HOLD_NOTE) } },
-    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
-  ]);
-  const posted = { ...lanesSaid(personNote(LANE_HOLD_NOTE), "2026-10-23T10:05:00Z"), databaseId: 78, createdAt: "2026-10-23T10:05:00Z" };
-  const both = [laneComment, posted];
-  const lifted = await run([laneHeld(1, { discussion: { comments: both }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })]);
-  assert.deepEqual(lifted.notes, []);
-  const relabel = await run([laneHeld(1, { discussion: { comments: both } })]);
-  assert.deepEqual(relabel.notes, [{ method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } }]);
-});
-
-test("a person's own hold text and an event run write no note, and an event run disarms the lane's hold line with no read", async () => {
-  const person = { totalCount: 1, nodes: [{ editor: { __typename: "User" } }] };
-  const { notes, writes } = await run([pull(1, { body: "Closes #5\n\nHold: waiting on a review", userContentEdits: person })]);
-  assert.deepEqual(writes, []);
-  assert.deepEqual(notes, []);
-  const event = await run([laneHeld(2, { autoMergeRequest: {} }), laneHeld(3)], { EVENT_NAME: "pull_request_target", EVENT_PR: "2" });
+const labelHeld = (number, overrides = {}) => pull(number, { labels: labels("do-not-merge"), ...overrides });
+test("an event run disarms a labeled pull request with no discussion read", async () => {
+  const event = await run([labelHeld(2, { autoMergeRequest: {} }), labelHeld(3)], { EVENT_NAME: "pull_request_target", EVENT_PR: "2" });
   assert.deepEqual(event.writes, [{ mutation: "disarm", id: "PR_2" }]);
   assert.deepEqual(event.notes, []);
   assert.ok(!event.calls.some(({ body }) => body?.query === DETAIL_QUERY));
-  const reader = await run([laneHeld(4, { autoMergeRequest: {} })]);
+  const reader = await run([labelHeld(4, { autoMergeRequest: {} })]);
   assert.deepEqual(reader.writes, [{ mutation: "disarm", id: "PR_4" }]);
   assert.deepEqual(reader.notes, []);
 });
 
 test("an event run handles only its own pull request", async () => {
-  const pulls = [laneHeld(2, { autoMergeRequest: {} }), laneHeld(3, { autoMergeRequest: {} })];
+  const pulls = [labelHeld(2, { autoMergeRequest: {} }), labelHeld(3, { autoMergeRequest: {} })];
   const event = await run(pulls, { EVENT_NAME: "pull_request_target", EVENT_PR: "3" });
   assert.deepEqual(event.writes, [{ mutation: "disarm", id: "PR_3" }]);
   assert.deepEqual((await run(pulls, { EVENT_NAME: "pull_request_target", EVENT_PR: "9" })).writes, []);
@@ -2387,7 +2228,6 @@ test("the verdict is read only for a lanes App pull request nothing else holds",
     pull(1, { author: { __typename: "User", login: "kyle-sexton" } }),
     pull(2, { labels: labels("do-not-merge") }),
     pull(3, { isDraft: true }),
-    pull(4, { discussion: { comments: [said("kyle-sexton", "do not merge", "2026-10-23T10:00:00Z")] } }),
     pull(5, { discussion: { disabledBy: { __typename: "User", login: "kyle-sexton" } } }),
   ]);
   assert.deepEqual(writes, []);
@@ -2546,7 +2386,7 @@ test("an event run still disarms an armed pull request that now holds", async ()
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
   const pulls = [
     pull(1, { autoMergeRequest: armed, labels: labels("do-not-merge") }),
-    pull(2, { autoMergeRequest: armed, discussion: { comments: [said("kyle-sexton", "do not merge", "2026-10-23T10:00:00Z")] } }),
+    pull(2, { autoMergeRequest: armed, labels: labels("needs-human") }),
     pull(3, { autoMergeRequest: armed }),
   ];
   for (const [number, expected] of [[1, [{ mutation: "disarm", id: "PR_1" }]], [2, [{ mutation: "disarm", id: "PR_2" }]], [3, []]]) {
@@ -3480,11 +3320,11 @@ test("review rounds stopped as not converging at the head close the pull request
     "another account's comment": { statuses: stopped, comments: [someone] },
     "no failing address-feedback status": { statuses: [unblock("pr-unblock/fix-ci", "failure")], comments: [lanesSaid(stoppedNote())] },
     "a status alone": { statuses: [unblock("pr-unblock/address-feedback", "failure", BOT, "Lane stopped: feedback-not-converging")], comments: [] },
-    "a member's veto comment": { statuses: stopped, comments: [lanesSaid(stoppedNote()), said("kyle-sexton", "do not merge", "2026-10-23T10:30:00Z")] },
+    "the do-not-merge label": { statuses: stopped, comments: [lanesSaid(stoppedNote())], labeled: labels("do-not-merge") },
     "a hold path": { statuses: stopped, comments: [lanesSaid(stoppedNote())], files: [{ filename: "docs/held.md" }] },
   };
-  for (const [why, { statuses, comments, files }] of Object.entries(held)) {
-    const result = await run([pull(1, { verdict: PASSED, statuses, discussion: { comments }, ...(files && { files }) })]);
+  for (const [why, { statuses, comments, files, labeled }] of Object.entries(held)) {
+    const result = await run([pull(1, { verdict: PASSED, statuses, discussion: { comments }, ...(files && { files }), ...(labeled && { labels: labeled }) })]);
     assert.deepEqual(result.closed, [], why);
     assert.ok(!result.writes.some(({ mutation }) => mutation === "arm"), why);
   }
@@ -3695,7 +3535,7 @@ test("merge-holds.mjs holds no hold path from the command line with PATH_HOLDS f
   const gate = [".github/scripts/pr-merge/clear-escalations.mjs"];
   const off = cli([gate], "false");
   assert.equal(off.status, 0, off.stdout);
-  assert.ok(off.stdout.split("\n").includes("#7: no member veto and no hold path."), off.stdout);
+  assert.ok(off.stdout.split("\n").includes("#7: no hold path."), off.stdout);
   assert.ok(off.stdout.includes("#7: path holds are off (merge.diff-check.path-holds), so nothing holds it for this: it changes .github/scripts/pr-merge/clear-escalations.mjs, a hold path."), off.stdout);
   for (const on of [undefined, "true"]) {
     const held = cli([gate], on);
@@ -3962,124 +3802,21 @@ test("a refused dequeue warns and leaves the label add standing", async () => {
   assert.ok(lines.includes(holdNotice("refused:dequeue-failed")));
 });
 
-test("a refused pull request whose label the lane puts back while queued is dequeued", async () => {
-  const laneComment = lanesSaid(laneNote(MISSING_REASON));
-  const posted = { ...lanesSaid(personNote(LANE_HOLD_NOTE), "2026-10-23T10:05:00Z"), databaseId: 78, createdAt: "2026-10-23T10:05:00Z" };
-  const { code, notes, writes, lines } = await run([laneHeld(1, { discussion: { comments: [laneComment, posted] }, queued: true })]);
-  assert.equal(code, 0);
-  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } }]);
-  assert.deepEqual(writes, [{ mutation: "dequeue", id: "PR_1" }]);
-  assert.ok(lines.includes(holdNotice("dequeued")));
-});
-
 test("a refusal that adds no label reads no queue entry", async () => {
   const { calls } = await run([pull(1, { verdict: MISSING })]);
   assert.deepEqual(queueReads(calls), []);
 });
 
-const VETO_AT = "2026-10-23T09:00:00Z";
-const LABELED_AT = "2026-10-23T09:30:00Z";
-const NOTED_AT = "2026-10-23T09:30:02Z";
-const vetoed = (login = "kyle-sexton", association = "OWNER") => said(login, "Please do not merge this yet.", VETO_AT, association);
-const vetoLabel = { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["do-not-merge"] } };
-const vetoComment = (vetoes) => ({ method: "POST", path: `${ISSUES}/1/comments`, body: { body: vetoNote(vetoes) } });
-const vetoDelete = { method: "DELETE", path: `${ISSUES}/1/labels/do-not-merge` };
-const vetoNoteComment = { ...lanesSaid(vetoNote(["kyle-sexton"])), createdAt: NOTED_AT };
-const ownedTimeline = [labelEvent(APP_USER, LABELED_AT, { name: "do-not-merge" }), restSaid(APP_USER, vetoNote(["kyle-sexton"]), NOTED_AT)];
-
-test("a member's veto comment adds do-not-merge, then the lane's veto comment, and dequeues a queued one", async () => {
-  const { code, notes, writes, lines } = await run([pull(1, { discussion: { comments: [vetoed()] }, queued: true })]);
-  assert.equal(code, 0);
-  assert.deepEqual(notes, [vetoLabel, vetoComment(["kyle-sexton"])]);
-  assert.ok(notes[1].body.body.startsWith(`${VETO_MARKER}\n`));
-  assert.deepEqual(writes, [{ mutation: "dequeue", id: "PR_1" }]);
-  assert.ok(lines.includes("enable-auto-merge: #1 labeled do-not-merge: kyle-sexton asked not to merge it"), lines.join("\n"));
-  const review = { ...vetoed("other-member", "MEMBER"), createdAt: undefined, submittedAt: VETO_AT };
-  assert.deepEqual((await run([pull(1, { discussion: { reviews: [review] } })])).notes, [vetoLabel, vetoComment(["other-member"])]);
-  const inline = await run([pull(1, { discussion: { inline: [vetoed("collab", "COLLABORATOR")] } })]);
-  assert.deepEqual(inline.notes, [vetoLabel, vetoComment(["collab"])]);
-});
-
-test("a veto label is not added while report-only, on an event run, or when a person removed it after the veto", async () => {
-  const report = await run([pull(1, { discussion: { comments: [vetoed()] } })], { REPORT_ONLY: "true" });
-  assert.deepEqual(report.notes, []);
-  assert.ok(report.lines.includes("enable-auto-merge: #1 would label do-not-merge (report-only): kyle-sexton asked not to merge it"), report.lines.join("\n"));
-  const event = await run([pull(1, { discussion: { comments: [vetoed()] } })], { EVENT_NAME: "pull_request_target", EVENT_PR: "1" });
-  assert.deepEqual(event.notes, []);
-  const removed = await run([pull(1, { discussion: { comments: [vetoed()] }, unlabeled: [unlabeled("2026-10-23T09:45:00Z", "User", "do-not-merge")] })]);
-  assert.deepEqual(removed.notes, []);
-  const earlier = await run([pull(1, { discussion: { comments: [vetoed()] }, unlabeled: [unlabeled("2026-10-23T08:00:00Z", "User", "do-not-merge")] })]);
-  assert.deepEqual(earlier.notes, [vetoLabel, vetoComment(["kyle-sexton"])]);
-  const held = await run([pull(1, { labels: labels("do-not-merge"), discussion: { comments: [vetoed()] } })]);
-  assert.deepEqual(held.notes, []);
-});
-
-test("a non-member's or a bot's veto-like comment adds nothing", async () => {
-  const { notes, calls } = await run([
-    pull(1, { discussion: { comments: [said("someone", "do not merge", VETO_AT, "CONTRIBUTOR")] } }),
-    pull(2, { discussion: { comments: [said("drive-by", "do not merge", VETO_AT, "NONE")] } }),
-    pull(3, { discussion: { comments: [said("codex", "do not merge", VETO_AT, "OWNER", "Bot")] } }),
-  ]);
-  assert.deepEqual(notes, []);
-  assert.ok(!calls.some(({ body }) => body?.query === UNLABELED_QUERY));
-});
-
-test("the member's lifting comment takes the lane's own veto label off, and the pull request is judged unlabeled", async () => {
+test("no comment adds or lifts do-not-merge: a person's label stays and a member's comment writes nothing", async () => {
+  const veto = said("kyle-sexton", "Please do not merge this yet.", "2026-10-23T09:00:00Z");
   const lift = said("kyle-sexton", "Fine now, go ahead.", "2026-10-23T09:50:00Z");
-  const { code, notes, writes, lines } = await run([pull(1, { labels: labels("do-not-merge"), discussion: { comments: [vetoed(), vetoNoteComment, lift] }, timeline: ownedTimeline })]);
-  assert.equal(code, 0);
-  assert.deepEqual(notes, [vetoDelete]);
-  assert.ok(lines.includes("enable-auto-merge: #1 lifted do-not-merge: no member veto stands"), lines.join("\n"));
-  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
-  const report = await run([pull(1, { labels: labels("do-not-merge"), discussion: { comments: [vetoed(), vetoNoteComment, lift] }, timeline: ownedTimeline })], { REPORT_ONLY: "true" });
-  assert.deepEqual(report.notes, []);
-  assert.ok(report.lines.includes("enable-auto-merge: #1 would lift do-not-merge (report-only): no member veto stands"), report.lines.join("\n"));
-});
-
-test("the veto label stays while another member's veto stands", async () => {
-  const lift = said("kyle-sexton", "Fine now, go ahead.", "2026-10-23T09:50:00Z");
-  const { notes, writes } = await run([
-    pull(1, { labels: labels("do-not-merge"), discussion: { comments: [vetoed(), vetoed("other-member", "MEMBER"), vetoNoteComment, lift] }, timeline: ownedTimeline }),
-  ]);
-  assert.deepEqual(notes, []);
-  assert.deepEqual(writes, []);
-});
-
-test("a do-not-merge the lane did not add for a veto never comes off here", async () => {
-  const lift = said("kyle-sexton", "Fine now, go ahead.", "2026-10-23T09:50:00Z");
-  const discussion = { comments: [vetoed(), vetoNoteComment, lift] };
-  const bodyHold = await run([pull(1, { labels: labels("do-not-merge"), discussion: { comments: [vetoed(), lift] }, timeline: [labelEvent(APP_USER, LABELED_AT, { name: "do-not-merge" })] })]);
-  assert.deepEqual(bodyHold.notes, []);
-  assert.ok(!bodyHold.calls.some(({ path }) => /\/timeline\?/.test(path)));
-  const late = [labelEvent(APP_USER, "2026-10-22T09:00:00Z", { name: "do-not-merge" }), restSaid(APP_USER, vetoNote(["kyle-sexton"]), NOTED_AT)];
-  assert.deepEqual((await run([pull(1, { labels: labels("do-not-merge"), discussion, timeline: late })])).notes, []);
-  const relabeled = [...ownedTimeline, labelEvent({ login: "kyle-sexton", type: "User" }, "2026-10-23T09:40:00Z", { name: "do-not-merge" })];
-  const session = await run([pull(1, { labels: labels("do-not-merge"), discussion, timeline: relabeled })]);
-  assert.deepEqual(session.notes, []);
-  assert.ok(session.lines.includes("enable-auto-merge: #1 keeps do-not-merge: the lanes App did not add it for a member veto"), session.lines.join("\n"));
-  const unread = await run([pull(1, { labels: labels("do-not-merge"), discussion })]);
-  assert.deepEqual(unread.notes, []);
-  assert.equal(unread.code, 0);
-  assert.ok(unread.lines.some((line) => String(line).startsWith("enable-auto-merge: #1 keeps do-not-merge: its timeline did not read")), unread.lines.join("\n"));
-});
-
-test("vetoLabelOwned pairs the lanes App's label with its veto comment", () => {
-  const login = "melodic-automation-lanes[bot]";
-  assert.equal(vetoLabelOwned(ownedTimeline, login), true);
-  assert.equal(vetoLabelOwned([ownedTimeline[0], restSaid(APP_USER, vetoNote(["kyle-sexton"]), "2026-10-23T09:32:00Z")], login), false);
-  assert.equal(vetoLabelOwned([restSaid(APP_USER, vetoNote(["kyle-sexton"]), "2026-10-23T09:29:59Z"), ownedTimeline[0]], login), false);
-  assert.equal(vetoLabelOwned([ownedTimeline[0], restSaid(KYLE, vetoNote(["kyle-sexton"]), NOTED_AT)], login), false);
-  assert.equal(vetoLabelOwned([ownedTimeline[0], restSaid(APP_USER, "a note", NOTED_AT)], login), false);
-  assert.equal(vetoLabelOwned([], login), false);
-  assert.equal(vetoLabelOwned([...ownedTimeline, restSaid(KYLE, "Holding: applied the `do-not-merge` label for a regression.", "2026-10-23T09:45:00Z")], login), false);
-  assert.equal(vetoLabelOwned([...ownedTimeline, restSaid(KYLE, "Fine now, go ahead.", "2026-10-23T09:45:00Z")], login), true);
-  assert.equal(vetoLabelOwned(ownedTimeline, login, "## Summary\nHold: waiting on #1\n"), false);
-  assert.equal(vetoLabelOwned(ownedTimeline, login, "x\nHold: a human merges this\n"), false);
-  assert.equal(vetoLabelOwned(ownedTimeline, login, "## Summary\nno hold here\n"), true);
-  const member = (user, body, at) => ({ ...restSaid(user, body, at), author_association: "OWNER" });
-  const reveto = [...ownedTimeline, member(KYLE, "Still do not merge, waiting on #5.", "2026-10-23T09:40:00Z"), member({ login: "b", id: 6, type: "User" }, "Please do not merge this yet.", "2026-10-23T09:41:00Z")];
-  assert.equal(vetoLabelOwned(reveto, login), true);
-  assert.equal(vetoLabelOwned([...ownedTimeline, { ...restSaid(KYLE, "do not merge", "2026-10-23T09:40:00Z"), author_association: "CONTRIBUTOR" }], login), false);
+  const commented = await run([pull(1, { discussion: { comments: [veto] }, queued: true })]);
+  assert.deepEqual(commented.notes, []);
+  assert.ok(!commented.writes.some(({ mutation }) => mutation === "dequeue"), "a comment dequeues nothing");
+  const labeled = await run([pull(1, { labels: labels("do-not-merge"), discussion: { comments: [veto, lift] } })]);
+  assert.deepEqual(labeled.notes, []);
+  assert.deepEqual(labeled.writes, []);
+  assert.ok(!labeled.calls.some(({ path }) => /\/timeline\?/.test(String(path))), "no timeline is read to lift it");
 });
 
 import { recordMergeRisk, unratedLine } from "./merge-risk-line.mjs";
@@ -4202,13 +3939,10 @@ test("into a merge queue, the async merge enqueues the bottom layer with no merg
   assert.deepEqual(merges, [{ number: 7, body: { sha: HEAD, merge_action: "merge_queue", bypass_rules: false } }]);
 });
 
-test("a held stack bottom layer is not merged: a hold label, a body hold, a member veto, or a CI Status not green at its head", async () => {
+test("a held stack bottom layer is not merged: a hold label, or a CI Status not green at its head", async () => {
   const stack = stackOf([[1, 1]]);
-  const veto = said("kyle-sexton", "Please do not merge this yet.", "2026-10-23T09:00:00Z");
   for (const held of [
     pull(1, { stack, ci: GREEN, labels: labels("do-not-merge") }),
-    pull(1, { stack, ci: GREEN, body: "Closes #5\n\nHold: a human merges this\n" }),
-    pull(1, { stack, ci: GREEN, discussion: { comments: [veto] } }),
     pull(1, { stack, ci: [ciRun(3, "in_progress")] }),
     pull(1, { stack, ci: [ciRun(3, "completed", "failure")] }),
     pull(1, { stack }),
