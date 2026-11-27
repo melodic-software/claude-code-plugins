@@ -18,7 +18,13 @@
     "list-sub-items": false,
     "capabilities": true,
     "change-link": true,
-    "add-recurrence": false
+    "add-recurrence": false,
+    "put-artifact": false,
+    "list-artifacts": false,
+    "get-artifact": false,
+    "link-relates": false,
+    "unlink-relates": false,
+    "list-relates": false
   },
   "features": {
     "cross_repo_edges": false,

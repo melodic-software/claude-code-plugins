@@ -14,6 +14,8 @@
 - [Edit title / body](#edit-title--body)
 - [List labels](#list-labels)
 - [Comment on item / edit a comment](#comment-on-item--edit-a-comment)
+- [Issue artifacts](#issue-artifacts)
+- [Related items ("Relates to")](#related-items-relates-to)
 - [PR closing-keyword mechanics](#pr-closing-keyword-mechanics)
 - [Open linked PRs](#open-linked-prs)
 - [Label-removal provenance](#label-removal-provenance)
@@ -383,6 +385,34 @@ gh issue comment <N> --repo <owner>/<repo> --body "<text>"
 gh issue comment <N> --repo <owner>/<repo> --body-file <path>   # the form `/work-items:track edit --comment-file` uses
 gh api --method PATCH "repos/{owner}/{repo}/issues/comments/<CID>" -f body="<text>"
 ```
+
+## Issue artifacts
+
+Rich Markdown documents, plans, responsive HTML reports (`embedded_html`), and reference links
+belong in GitHub Issue Artifacts via the seam verbs `put-artifact`, `list-artifacts`, and
+`get-artifact` (`../../CONTRACT.md` "Verbs"). All three feature-detect `gh issue artifact` at
+runtime and exit `6` with `{available: false, fallback: "comment"}` when the CLI subcommand or
+repository endpoint (`403`/`404` on an existing issue) is unavailable, so callers fall back to an
+issue comment without failing on older `gh` installs.
+
+- **Quirk handled by `get-artifact`:** `gh issue artifact view` rejects combining `--version` and
+  `--json`. `get-artifact --version <n>` reads metadata via `view --json ...` (without `--version`)
+  and streams the revision's raw body via `gh issue artifact download <n> <art> --version <v>
+  --output -`.
+- **Upsert & non-destructive history:** `put-artifact` matches an existing artifact by exact name
+  and calls `gh issue artifact edit` to append a new revision rather than creating duplicates.
+- **Responsive HTML:** Keep `embedded_html` reports responsive for narrow side-panel viewers.
+- **Pointer**: [GitHub CLI manual](https://cli.github.com/manual) (`gh issue artifact --help`).
+
+## Related items ("Relates to")
+
+Non-blocking cross-references use the seam verbs `link-relates`, `unlink-relates`, and
+`list-relates` (`../../CONTRACT.md` "Verbs") instead of `link-blocks`. Writes invoke GraphQL
+`addRelatesTo` / `removeRelatesTo` (symmetric: both issues reflect the edge immediately), and
+`list-relates` paginates REST `GET /repos/{owner}/{repo}/issues/{number}/relates_to` (so listing
+also runs in GraphQL-refusing cloud sessions). When unavailable (cloud GraphQL refusal on writes,
+missing mutation, or HTTP `403`/`404` on an existing issue), each verb exits `6` with
+`{available: false, fallback: "refs-comment"}` so callers fall back to a `Refs` mention.
 
 ## PR closing-keyword mechanics
 

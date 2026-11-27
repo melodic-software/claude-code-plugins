@@ -54,10 +54,12 @@ readonly EX_USAGE=2
 readonly EX_CONFIG=3
 readonly EX_AUTH=4
 readonly EX_NOT_FOUND=5
+readonly EX_CAPABILITY=6
 readonly EX_CONFLICT=7
 readonly EX_UNAVAILABLE=8
 
 WIT_GH_OUT=""
+WIT_GH_ERR=""
 
 wit_usage_error() {
   printf '%s: %s\n' "$(basename "${BASH_SOURCE[${#BASH_SOURCE[@]} - 1]}")" "$1" >&2
@@ -125,6 +127,113 @@ wit_run_gh() {
 
 wit_run_gh_native() {
   WIT_GH_NATIVE_TRY=1 wit_run_gh "$@"
+}
+
+wit_gh_capture() {
+  local writer="$1" rc errfile
+  shift
+  errfile="$(mktemp)"
+  if [[ "$writer" == "write" ]]; then
+    WIT_GH_OUT="$(gh_write "$@" 2>"$errfile")"
+  else
+    WIT_GH_OUT="$(gh "$@" 2>"$errfile")"
+  fi
+  rc=$?
+  WIT_GH_ERR="$(<"$errfile")"
+  rm -f "$errfile"
+  WIT_GH_OUT="$(printf '%s' "$WIT_GH_OUT" | wit_strip_cr)"
+  return "$rc"
+}
+
+wit_gh_issue_exists() {
+  local out
+  out="$(gh api "repos/$1/$2/issues/$3" --jq '.number' 2>/dev/null)" || return 1
+  [[ "$(wit_strip_cr <<<"$out")" =~ ^[0-9]+$ ]]
+}
+
+wit_gh_is_feature_unavailable() {
+  local err="$1" owner="$2" repo="$3" number="$4" check_404="${5:-1}"
+  [[ "$err" == *"rate limit"* ]] && return 1
+  case "$err" in
+  *"HTTP 403"* | *"403 Forbidden"* | *"unknown command"* | *"unknown flag"* | *"doesn't exist on type"* | *"Cannot query field"*)
+    return 0
+    ;;
+  *"HTTP 404"* | *"Not Found"*)
+    [[ "$check_404" == "1" ]] && wit_gh_issue_exists "$owner" "$repo" "$number" && return 0
+    return 1
+    ;;
+  *)
+    return 1
+    ;;
+  esac
+}
+
+wit_gh_emit_unavailable() {
+  local verb="$1" id="$2" fallback="$3" reason="$4" extra_json="${5:-}"
+  [[ -n "$extra_json" ]] || extra_json='{}'
+  printf '%s: %s; fallback: %s\n' "$verb" "$reason" "$fallback" >&2
+  jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg id "$id" --arg reason "$reason" \
+    --arg fallback "$fallback" --argjson extra "$extra_json" \
+    '({schema_version: $sv, id: $id, available: false, reason: $reason, fallback: $fallback} + $extra)'
+  exit "$EX_CAPABILITY"
+}
+
+wit_gh_mutate_relates() {
+  local verb="$1" mutation="$2" id="$3" o1="$4" r1="$5" n1="$6" other="$7" o2="$8" r2="$9" n2="${10}"
+  local extra_unavail id_a id_b gql_err
+  extra_unavail="$(jq -cn --arg other "$other" '{related_to: $other, linked: false}')"
+  if [[ "$id" == "$other" ]]; then
+    wit_usage_error "cannot relate an item to itself: $id"
+  fi
+  if wit_gh_session_refuses_graphql; then
+    wit_gh_emit_unavailable "$verb" "$id" "refs-comment" \
+      "${mutation} requires GraphQL, unavailable in this Claude Code cloud session" "$extra_unavail"
+  fi
+  # shellcheck disable=SC2016  # GraphQL variables, not bash expansions
+  if ! wit_gh_capture read api graphql \
+    -f query='query($o1:String!,$r1:String!,$n1:Int!,$o2:String!,$r2:String!,$n2:Int!){a:repository(owner:$o1,name:$r1){issue(number:$n1){id}} b:repository(owner:$o2,name:$r2){issue(number:$n2){id}}}' \
+    -f o1="$o1" -f r1="$r1" -F n1="$n1" -f o2="$o2" -f r2="$r2" -F n2="$n2"; then
+    if wit_gh_is_feature_unavailable "$WIT_GH_ERR" "$o1" "$r1" "$n1" 0; then
+      wit_gh_emit_unavailable "$verb" "$id" "refs-comment" "$WIT_GH_ERR" "$extra_unavail"
+    fi
+    printf '%s\n' "$WIT_GH_ERR" >&2
+    exit "$(wit_map_gh_error "$WIT_GH_ERR")"
+  fi
+  id_a="$(jq -r '.data.a.issue.id // empty' <<<"$WIT_GH_OUT" 2>/dev/null)"
+  id_b="$(jq -r '.data.b.issue.id // empty' <<<"$WIT_GH_OUT" 2>/dev/null)"
+  if [[ -z "$id_a" ]]; then
+    printf '%s: issue not found: %s\n' "$verb" "$id" >&2
+    exit "$EX_NOT_FOUND"
+  fi
+  if [[ -z "$id_b" ]]; then
+    printf '%s: related issue not found: %s\n' "$verb" "$other" >&2
+    exit "$EX_NOT_FOUND"
+  fi
+  # shellcheck disable=SC2016  # GraphQL variables, not bash expansions
+  if ! wit_gh_capture write api graphql \
+    -f query="mutation(\$issueId:ID!,\$relatedIssueId:ID!){${mutation}(input:{issueId:\$issueId,relatedIssueId:\$relatedIssueId}){issue{number} relatedIssue{number}}}" \
+    -f issueId="$id_a" -f relatedIssueId="$id_b"; then
+    if wit_gh_is_feature_unavailable "$WIT_GH_ERR" "$o1" "$r1" "$n1" 1; then
+      wit_gh_emit_unavailable "$verb" "$id" "refs-comment" "$WIT_GH_ERR" "$extra_unavail"
+    fi
+    printf '%s\n' "$WIT_GH_ERR" >&2
+    exit "$(wit_map_gh_error "$WIT_GH_ERR")"
+  fi
+  gql_err="$(jq -r '[(.errors // [])[] | .message // empty] | join("; ")' <<<"$WIT_GH_OUT" 2>/dev/null)"
+  if [[ -n "$gql_err" ]]; then
+    if wit_gh_is_feature_unavailable "$gql_err" "$o1" "$r1" "$n1" 1; then
+      wit_gh_emit_unavailable "$verb" "$id" "refs-comment" "$gql_err" "$extra_unavail"
+    fi
+    printf '%s: %s\n' "$verb" "$gql_err" >&2
+    exit "$(wit_map_gh_error "$gql_err")"
+  fi
+  if [[ "$mutation" == "addRelatesTo" ]]; then
+    jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg id "$id" --arg other "$other" \
+      '{schema_version: $sv, id: $id, related_to: $other, available: true, linked: true, symmetric: true}'
+  else
+    jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg id "$id" --arg other "$other" \
+      '{schema_version: $sv, id: $id, related_to: $other, available: true, linked: false, unlinked: true, symmetric: true}'
+  fi
 }
 
 wit_resolve_repo() {
@@ -213,6 +322,9 @@ wit_parse_edge_args() {
   WIT_EDGE_NUMBER="$WIT_ID_NUMBER"
   wit_require_github_id "$other" || wit_usage_error "malformed or non-github --$option id: $other"
   WIT_EDGE_OTHER="$other"
+  WIT_EDGE_OTHER_OWNER="$WIT_ID_OWNER"
+  WIT_EDGE_OTHER_REPO="$WIT_ID_REPO"
+  WIT_EDGE_OTHER_NUMBER="$WIT_ID_NUMBER"
   WIT_EDGE_OTHER_URL="$(wit_issue_url "$WIT_ID_OWNER" "$WIT_ID_REPO" "$WIT_ID_NUMBER")"
 }
 

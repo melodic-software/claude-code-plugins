@@ -45,7 +45,8 @@ routes rather than halting unconditionally.
   **loud and actionable, never a silent default and never a raw mid-flow `exit 3`**, but it does not halt the
   invocation unconditionally:
   - **Seam coordination verbs** (`create-item`, `get-item`, `claim`, `renew-lease`, `release`, `reclaim`,
-    `link-blocks`, `add-sub-item`, `list-sub-items`, `list-items`, `list-frontier`, `capabilities`) cannot run
+    `link-blocks`, `add-sub-item`, `list-sub-items`, `list-items`, `list-frontier`, `put-artifact`,
+    `list-artifacts`, `get-artifact`, `link-relates`, `unlink-relates`, `list-relates`, `capabilities`) cannot run
     without a binding: the seam hard-errors `exit 3`
     (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Exit codes"). Before the first
     coordination verb, if no binding resolves, surface a message that distinguishes the two ways to
@@ -96,7 +97,7 @@ ways:
 
 | Kind | Where |
 |------|-------|
-| **Coordination**: create, claim (assignee + lease), renew/release/reclaim lease, dependency links, sub-items, child enumeration (`list-sub-items`), listing by state and one exact label (`list-items`), frontier selection (incl. `--parent`-scoped and `--label`-scoped), single-item fetch (identity/state/`parent_id`/`created_at`, with `--history` its close and reopen events, **not** body) | Seam verbs: the resolved `"$TRACKER" <verb>` dispatcher, contract in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` |
+| **Coordination**: create, claim (assignee + lease), renew/release/reclaim lease, dependency links (`link-blocks`), symmetric non-blocking links (`link-relates` / `unlink-relates` / `list-relates`), sub-items, child enumeration (`list-sub-items`), listing by state and one exact label (`list-items`), frontier selection (incl. `--parent`-scoped and `--label`-scoped), item artifacts (`put-artifact` / `list-artifacts` / `get-artifact`), single-item fetch (identity/state/`parent_id`/`created_at`, with `--history` its close and reopen events, **not** body) | Seam verbs: the resolved `"$TRACKER" <verb>` dispatcher, contract in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` |
 | **Provider mechanics**: list with filters, search, aggregate/count, close, label/assignee edits, comments, **reading an item's body** | The bound adapter's operations reference (GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`) |
 
 **Single-item fetch does not return a body.** `get-item` yields the normalized item object,
