@@ -80,7 +80,7 @@ LANES_APP_ID="$(jq -r --arg login "$identity" '.. | objects | select(.login? == 
 [[ "$LANES_APP_ID" =~ ^[1-9][0-9]*$ ]] || fail "no trusted-actor id for merge.agent-identity '$identity': '$LANES_APP_ID'"
 
 # shellcheck source=lib/ci-lanes-pr-hold-stubs.sh
-. "$ROOT/scripts/lib/ci-lanes-pr-hold-stubs.sh" "$identity" "$budget"
+. "$ROOT/scripts/lib/ci-lanes-pr-hold-stubs.sh" "$identity" "$budget" "$TMP_ROOT"
 QUEUE="refs/heads/gh-readonly-queue/main/pr-7-$SHA"
 
 export STUB_PULL STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE='' STUB_FILES='[["docs/guide.md"]]'

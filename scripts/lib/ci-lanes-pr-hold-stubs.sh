@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-identity="${1:?the agent identity}" budget="${2:?the merge-group wait budget}"
+identity="${1:?the agent identity}" budget="${2:?the merge-group wait budget}" TMP_ROOT="${3:?the test scratch directory}"
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -146,13 +146,13 @@ base_config() {
   rm -rf "$dir"
   mkdir -p "$dir/docs/conventions" "$dir/.github/scripts/pr-merge"
   [[ -n "${STUB_NO_CONFIG:-}" ]] ||
-    IDENTITY="$identity" yq '.merge."agent-identity" = strenv(IDENTITY)' <<<"$STUB_CONFIG" >"$dir/docs/conventions/pr-pipeline.yaml"
+    IDENTITY="$identity" yq '.merge."agent-identity" = strenv(IDENTITY)' <<<"${STUB_CONFIG:?}" >"$dir/docs/conventions/pr-pipeline.yaml"
   [[ -n "${STUB_NO_MODULE:-}" ]] || cp "${STUB_MODULE:-$MODULE}" "$dir/.github/scripts/pr-merge/merge-holds.mjs"
 }
 standards_stub() {
   rm -rf "$TMP_ROOT/standards"
   mkdir -p "$TMP_ROOT/standards/components/trusted-actors"
-  [[ -n "${STUB_NO_ACTORS:-}" ]] || cp "$STUB_ACTORS" "$TMP_ROOT/standards/components/trusted-actors/trusted-actors.json"
+  [[ -n "${STUB_NO_ACTORS:-}" ]] || cp "${STUB_ACTORS:?}" "$TMP_ROOT/standards/components/trusted-actors/trusted-actors.json"
 }
 
 WARM_CARRIED='{"carried-run-record":{"o/r|1":{"at":"2026-10-25T10:00:00Z","value":{}}},"carried-fail-head-ref":{},"carried-on-branch":{}}'
