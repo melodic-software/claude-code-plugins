@@ -41,8 +41,9 @@ it runs in (from git status).
 the merge base of <base> and HEAD (added-lines.sh). With no paths it audits the
 files that gained lines; with paths, only those of them that gained lines.
 
-A file whose first 10 lines match a line of the plugin's scripts/generated-marker.ere
-(sync-managed, @generated, or a whole-file "do not edit" notice) gets a
+A file whose first 10 lines hold a comment line matching a line of the plugin's
+scripts/generated-marker.ere (sync-managed, @generated, or a whole-file "do not edit"
+notice) gets a
 "Note: upstream" line before its summary. Exit: 0 on audit, 2 on unknown
 arguments, a missing --exclude-from file, or a base added-lines.sh refuses.
 EOF

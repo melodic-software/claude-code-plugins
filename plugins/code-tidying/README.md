@@ -220,10 +220,14 @@ runs outside Claude Code, so a `userConfig` posture never reaches it; unset read
 is `necessary`. Under `explanatory` (and `strict`, `balanced`, `conservative`) the lint does not
 run.
 
-A comment is a comment token of the pygments lexer for the file's name. The lint judges files whose
-extension `scripts/code-extensions.txt` lists, skips a file whose first 10 lines match a line of
-`scripts/generated-marker.ere`, and judges only the lines the change adds. That file counts
-`sync-managed` and `@generated` anywhere, and `do not edit` only as a whole-file notice: at the
+A comment is a comment token of the pygments lexer for the file's name in any letter case (`.jsonc`
+read as JSON, `.psd1` as PowerShell), or for an extensionless script, its shebang. The lint judges
+files whose extension `scripts/code-extensions.txt` lists and extensionless files whose first line
+matches `scripts/code-shebang.ere` (an sh, bash, dash, zsh, node or python3 shebang), skips a file
+whose first 10 lines hold a line matching `scripts/generated-marker.ere`, and judges only the lines
+the change adds. Each of that file's lines starts with a comment token (`#`, `//`, `/*`, `*`, `<!--`,
+`--`, `;` or `%`), so a string or a description that mentions a marker skips nothing. It counts
+`sync-managed` and `@generated` anywhere in the comment, and `do not edit` only as a whole-file notice: at the
 end of the line, before punctuation or `this file`, `this copy`, `by hand`, `manually` or
 `directly`, or on a line that also says `generated`. A hand-written `# do not edit the order
 below` is judged. Under

@@ -27,10 +27,13 @@ run, default 2) come from the team file and the personal override; a userConfig 
 never reaches a git hook. explanatory (and strict, balanced, conservative)
 runs nothing; auto and aggressive read as necessary.
 
-Judges the files whose extension code-extensions.txt lists, except one whose first 10
-lines match a generated-marker.ere line (sync-managed, @generated, or a whole-file
+Judges the files whose extension code-extensions.txt lists (in any letter case), and
+extensionless files whose first line is a code-shebang.ere line (an sh, bash, dash,
+zsh, node or python3 shebang), except one whose first 10 lines hold a comment line
+matching a generated-marker.ere line (sync-managed, @generated, or a whole-file
 "do not edit" notice; each skip is named on stderr), through the pygments lexer for
-the file's name, or POSIX and Bash token rules for a shell script. Findings print as
+the file's name or shebang (.jsonc read as JSON, .psd1 as PowerShell), or POSIX and
+Bash token rules for a shell script. Findings print as
 <path>:<line>: <message> on stderr; block exits 1, report exits 0. A file the comment
 reader fails on is named on stderr while the other files are still judged, and blocks
 like any tool failure. An ADR pointer's record is looked up in comment_adr_dir where
@@ -52,6 +55,7 @@ asset() {
 judge="$(asset comment-lint.py git-hooks)"
 settings="$(asset comment-settings.sh scripts)"
 extensions="$(asset code-extensions.txt scripts)"
+shebang="$(asset code-shebang.ere scripts)"
 marker="$(asset generated-marker.ere scripts)"
 
 checks_init pre-commit "$@" || exit 0
@@ -104,6 +108,9 @@ code_ext() {
   shopt -u nocasematch
   return "$rc"
 }
+script() {
+  [[ "${1##*/}" != *.* ]] && grep -qE -f "$shebang" < <(head -n 1 "$texts/$1")
+}
 glob_ere() {
   local g="$1" out="" c i
   for ((i = 0; i < ${#g}; i++)); do
@@ -143,16 +150,17 @@ excluded_by() {
 }
 made=""
 while IFS= read -r -d '' f; do
-  code_ext "${f##*/}" || continue
-  if glob="$(excluded_by "$f")"; then
-    printf 'code-tidying: comment lint skipped %s (comment_lint_exclude: %s)\n' "$f" "$glob" >&2
-    continue
-  fi
+  code_ext "${f##*/}" || [[ "${f##*/}" != *.* ]] || continue
   dir="$texts/${f%/*}"
   [[ "$f" == */* ]] || dir="$texts"
   [[ "$dir" == "$made" ]] || mkdir -p "$dir"
   made="$dir"
   checks_file_text "$f" >"$texts/$f" || continue
+  code_ext "${f##*/}" || script "$f" || continue
+  if glob="$(excluded_by "$f")"; then
+    printf 'code-tidying: comment lint skipped %s (comment_lint_exclude: %s)\n' "$f" "$glob" >&2
+    continue
+  fi
   if generated "$texts/$f"; then
     printf 'code-tidying: comment lint skipped %s (a generated or sync-managed marker in its first 10 lines)\n' "$f" >&2
     continue

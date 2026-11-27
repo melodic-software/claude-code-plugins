@@ -113,17 +113,46 @@ assert_equal "output is deterministic" "$a" "$b"
 
 union="$TEST_TMPDIR/union"
 mkrepo "$union"
-for ext in cs ts tsx mts cts js jsx mjs cjs py pyi sh bash ps1 psm1 go rs java rb lua sql c h cpp hpp yaml yml toml; do
+for ext in cs ts tsx mts cts js jsx mjs cjs py pyi sh bash ps1 psm1 go rs java rb lua sql c h cpp hpp yaml yml toml awk css scss html htm xml jsonc psd1; do
   printf 'x\n' >"$union/f.$ext"
 done
 printf 'x\n' >"$union/notes.txt"
+printf 'root = true\n' >"$union/.editorconfig"
+printf 'x\n' >"$union/UPPER.CSS"
+mkdir -p "$union/bin"
+printf '#!/usr/bin/env bash\nx=1\n' >"$union/bin/tool"
+printf '#!/usr/bin/env -S node --no-warnings\n' >"$union/bin/run"
+printf '#!/usr/bin/perl\n' >"$union/bin/old"
+printf 'x\n' >"$union/NOTES"
 out=$(cd "$union" && bash "$SCRIPT")
-assert_equal "every listed extension is code" "rung=uncommitted base=none files=28" "$(printf '%s\n' "$out" | head -1)"
+assert_equal "every listed extension and shebang script is code" "rung=uncommitted base=none files=40" "$(printf '%s\n' "$out" | head -1)"
+for name in .editorconfig UPPER.CSS bin/tool bin/run; do
+  assert_contains "$name is listed" $'\n'"$out"$'\n' $'\n'"$name"$'\n'
+done
+assert_absent "a perl script is excluded" "$out" "bin/old"
+assert_absent "an extensionless file with no shebang is excluded" "$out" "NOTES"
 lines=$'\n'"$out"$'\n'
-for ext in cs ts tsx mts cts js jsx mjs cjs py pyi sh bash ps1 psm1 go rs java rb lua sql c h cpp hpp yaml yml toml; do
+for ext in cs ts tsx mts cts js jsx mjs cjs py pyi sh bash ps1 psm1 go rs java rb lua sql c h cpp hpp yaml yml toml awk css scss html htm xml jsonc psd1; do
   assert_contains "characterization: f.$ext listed" "$lines" $'\n'"f.$ext"$'\n'
 done
 assert_absent "a .txt file is excluded" "$out" "notes.txt"
+
+sub="$TEST_TMPDIR/sub"
+mkrepo "$sub"
+mkdir -p "$sub/bin"
+printf '#!/bin/sh\nx=1\n' >"$sub/bin/tool"
+printf '#!/usr/bin/perl\n' >"$sub/bin/old"
+commit_all "$sub" init
+out=$(cd "$sub/bin" && bash "$SCRIPT")
+assert_equal "the repository rung from a subdirectory reads a script's shebang" "rung=repository base=main files=1
+tool" "$out"
+git -C "$sub" checkout -q -b feature
+printf 'x=2\n' >>"$sub/bin/tool"
+printf 'y\n' >>"$sub/bin/old"
+commit_all "$sub" feat
+out=$(cd "$sub/bin" && bash "$SCRIPT")
+assert_equal "the branch rung from a subdirectory reads a script's shebang from the root" "rung=branch base=main files=1
+bin/tool" "$out"
 
 lone="$TEST_TMPDIR/lone"
 mkdir -p "$lone"

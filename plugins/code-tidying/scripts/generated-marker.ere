@@ -1,6 +1,6 @@
-sync-managed
-@generated
-do not edit[[:space:]]*([[:punct:]]|$)
-do not edit[[:space:]]+(this file|this copy|by hand|manually|directly)
-(^|[^[:alnum:]_])generated[^[:alnum:]_].*do not edit
-do not edit.*[^[:alnum:]_]generated([^[:alnum:]_]|$)
+^[[:blank:]]*(#|//|/\*|\*|<!--|--|;|%)(.*[^[:alnum:]_])?sync-managed
+^[[:blank:]]*(#|//|/\*|\*|<!--|--|;|%).*@generated
+^[[:blank:]]*(#|//|/\*|\*|<!--|--|;|%).*do not edit[[:space:]]*([[:punct:]]|$)
+^[[:blank:]]*(#|//|/\*|\*|<!--|--|;|%).*do not edit[[:space:]]+(this file|this copy|by hand|manually|directly)
+^[[:blank:]]*(#|//|/\*|\*|<!--|--|;|%)(.*[^[:alnum:]_])?generated[^[:alnum:]_].*do not edit
+^[[:blank:]]*(#|//|/\*|\*|<!--|--|;|%).*do not edit.*[^[:alnum:]_]generated([^[:alnum:]_]|$)

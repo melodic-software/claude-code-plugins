@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/code-tidying/skills/remove-comments/actions/audit.md plugins/code-tidying/scripts/generated-marker.ere
+# test-scope: plugins/code-tidying/skills/remove-comments/actions/audit.md plugins/code-tidying/scripts/generated-marker.ere plugins/code-tidying/scripts/code-extensions.txt plugins/code-tidying/scripts/code-shebang.ere
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -902,6 +902,29 @@ if [[ "$cost_added" =~ ^[0-9]+$ ]] && ((cost_added <= 10)); then
 else
   fail "--added-since detection calls track the added lines, not the file length" "at most 10" "$cost_added"
 fi
+
+shared="$TEST_TMPDIR/shared"
+mkdir -p "$shared"
+printf '#!/usr/bin/env bash\nx=1\n' >"$shared/tool"
+printf '#!/usr/bin/perl\n' >"$shared/old"
+printf 'a { }\n' >"$shared/UPPER.CSS"
+printf '<p>x</p>\n' >"$shared/page.html"
+printf 'x\n' >"$shared/legacy.kt"
+kept="$(
+  # shellcheck source=lib/comment-shapes.sh
+  source "$SCRIPT_DIR/lib/comment-shapes.sh"
+  for f in tool old UPPER.CSS page.html legacy.kt; do cr_is_code_file "$shared/$f" && printf '%s ' "$f"; done
+)"
+assert_contains "cr_is_code_file reads the shared extension list and shebang admission" "$kept" "tool UPPER.CSS page.html "
+assert_not_contains "cr_is_code_file admits no perl script and no unlisted extension" "$kept" "old"
+assert_not_contains "cr_is_code_file drops an extension the shared list lacks" "$kept" "legacy.kt"
+html="$(
+  # shellcheck source=lib/comment-shapes.sh
+  source "$SCRIPT_DIR/lib/comment-shapes.sh"
+  cr_comment_text '<p>x</p> <!-- a note -->'
+  printf '%s' "$REPLY"
+)"
+assert_contains "cr_comment_text reads an HTML comment's text" "[$html]" "[ a note ]"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed, %d host skip(s).\n' "$CASE_NUM" "$SKIPPED"
