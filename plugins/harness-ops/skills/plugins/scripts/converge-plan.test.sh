@@ -133,6 +133,18 @@ assert_eq "counts: worktree, blocked-absent, blocked-home, blocked-catalog" "2 1
   "$(jq -r '.counts | "\(.worktree) \(.["blocked-absent"]) \(.["blocked-home"]) \(.["blocked-catalog"])"' "$PLAN")"
 assert_eq "counts: actionable" "4" "$(jq -r '.counts.actionable' "$PLAN")"
 assert_eq "counts: rows" "9" "$(jq -r '.counts.rows' "$PLAN")"
+assert_eq "question calls: a blocked row in the path gets no question" "[[0,1]]" \
+  "$(jq -c --arg p "$P_OK" '.groups[] | select(.projectPath == $p) | .question_calls' "$PLAN")"
+assert_eq "question calls: a path with no runnable row asks nothing" "[]" \
+  "$(jq -c --arg p "$P_GONE" '.groups[] | select(.projectPath == $p) | .question_calls' "$PLAN")"
+jq -n --arg p "$P_OK" '
+  {marketplace: {name: "mk"}, catalog_versions: {}, installed: [],
+   divergences: [("a", "b", "c", "d", "e") | {id: "\(.)@mk", versionsMatch: false, highest: "1.2.0", userHolds: true, scopes: [
+     {scope: "user", version: "1.2.0", projectPath: null, class: "actionable"},
+     {scope: "project", version: "1.0.0", projectPath: $p, projectPathPresent: true, projectPathIsHome: false,
+      linkedWorktree: false, projectEnabledEntry: "absent", class: "actionable"}]}]}' >"$TEST_TMPDIR/five-report.json"
+assert_eq "question calls: five runnable rows in one path take a further call for the fifth" "[[0,1,2,3],[4]]" \
+  "$("$SCRIPT" --from "$TEST_TMPDIR/five-report.json" | jq -c '.groups[] | select(.projectPath != null) | .question_calls')"
 
 WT_COMMIT="$TEST_TMPDIR/wt-commit"
 tracked_repo "$WT_COMMIT" '{"mu@mk":true}'

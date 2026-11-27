@@ -144,8 +144,8 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
    one to offer.
 
 4. **Resolve an `ask` or held install gap.** When a block has a non-empty `install_gap` and
-   `stopped_before_install: true` (the report says so under `Action needed`), run the chunked
-   "install and enable" offer from
+   `stopped_before_install: true` (the report says so under `Action needed`), ask the questions
+   its `install_offer` lists, worded per
    [context/sync-install-enable.md](context/sync-install-enable.md), then re-enter for Steps 4 and
    5 against the same run. The re-entry installs each pick and enables any the CLI installed
    disabled by default:
@@ -156,7 +156,7 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
    ```
 
    An empty id list is legal and means "install nothing, still complete Step 5". A dismissed or
-   unanswered chunk declines only its own ids: leave them out of the list and keep the picks from answered chunks. When nothing was answered, the list is empty: re-enter with `--only-install ""`, and the report lists
+   unanswered question declines only its own ids: leave them out of the list and keep the picks from answered questions. When nothing was answered, the list is empty: re-enter with `--only-install ""`, and the report lists
    the declined gap under `Action needed`. The report that
    call prints supersedes the first one and covers the whole run. When the first pass stopped
    before install it skipped the cache-content check, and this re-entry runs that check after the
@@ -287,15 +287,11 @@ record; for option types and fixed options, see
 [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration) and
 [Limit a field to fixed options](https://code.claude.com/docs/en/plugins/manifest-reference#limit-a-field-to-fixed-options)):
 
-- `ask` (default). Offer every not-yet-installed catalog plugin in `AskUserQuestion` chunks of at
-  most 4 options per question and at most 4 questions per call, with a further call past 16, each
-  chunk's question text distinct (answers are keyed by it). A chunk of 1, whether a gap of 1 or
-  the one left over from a gap of 5, 9, 13 and so on, is a single-select Install/Skip question
-  with no hand-added Other option. The limits are the tool's, per
-  [Handle approvals and user input: limitations](https://code.claude.com/docs/en/agent-sdk/user-input#limitations)
-  (as of 2026-11-10; recheck if that section changes them). Then install and enable each pick,
-  including one the CLI installs disabled by default. An unanswered or dismissed chunk counts as
-  declined
+- `ask` (default). Offer every not-yet-installed catalog plugin by asking the questions the
+  digest's `install_offer` lists, one `AskUserQuestion` call per entry
+  ([context/sync-install-enable.md](context/sync-install-enable.md) Step 4 holds how each question
+  reads). Then install and enable each pick, including one the CLI installs disabled by default.
+  An unanswered or dismissed question counts as declined
 - `all`. Install every not-yet-installed catalog plugin automatically; one the CLI installs
   disabled by default stays off and is reported
 - `none`. Report them in "Action needed" only, never install

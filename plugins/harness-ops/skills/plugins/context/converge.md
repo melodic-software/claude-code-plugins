@@ -39,7 +39,8 @@ applies Step 2's rules to every lagging pin:
 "<skill-dir>/scripts/converge-plan.sh" [--marketplace <name>]
 ```
 
-It prints one JSON object: `counts`, and `groups[]` of `{projectPath, rows[]}` sorted by path. A
+It prints one JSON object: `counts`, and `groups[]` of `{projectPath, rows[], question_calls}`
+sorted by path, `question_calls` being Step 3's questions grouped per call. A
 group whose `projectPath` is `null` holds the user-scope rows, which take no `cd`. Each row carries
 `id`, `scope`, `version`, `highest`, `class`, `strategy`, `command`, `default`, `warning` and `why`.
 The script is read-only and never runs a `claude plugin` command. Its `class` field is Step 2's
@@ -248,13 +249,11 @@ headed by its `projectPath`: one line per row with the id, `version` → `highes
 exact `command`, and the `why`. A row with a `warning` shows it, and a row whose `default` is `false`
 is never marked as the proposed choice. A row whose `alternative` is not `null` also shows that
 object's `strategy`, `command` and `warning` exactly as printed; never build or re-derive an
-alternative command. Then ask with `AskUserQuestion`, one question per runnable row in that path's
-batch, each with its own distinct text (answers are keyed by it): **approve** (apply the proposed
-strategy), **choose the other strategy** (only where `alternative` is not `null`: run its
-`command`, shown with its `warning`), or **skip**. The tool takes at most 4 questions per call, per
-[Handle approvals and user input: limitations](https://code.claude.com/docs/en/agent-sdk/user-input#limitations)
-(as of 2026-11-10; recheck if that section changes it), so a path with more than 4
-runnable rows takes successive calls, all inside that path's batch.
+alternative command. Then ask the questions the group's `question_calls` lists: each entry is one
+`AskUserQuestion` call and each number in it the index of one runnable row in that group's `rows`,
+asked as its own question with its own distinct text (answers are keyed by it): **approve** (apply
+the proposed strategy), **choose the other strategy** (only where `alternative` is not `null`: run
+its `command`, shown with its `warning`), or **skip**. Every call stays inside that path's batch.
 
 A group with no runnable row (every row is `blocked-*`, or a `worktree` row with `command: null`) is
 reported in one line per class, with no question.

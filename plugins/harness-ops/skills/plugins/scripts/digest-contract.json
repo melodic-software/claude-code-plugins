@@ -38,6 +38,7 @@
     "moved_during_run": [],
     "noop_unverified": 0,
     "install_gap": [],
+    "install_offer": [],
     "installed": [],
     "installed_with_unset_user_config": [],
     "install_enable_deferred": false,

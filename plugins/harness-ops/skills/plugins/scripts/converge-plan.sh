@@ -230,10 +230,13 @@ PLAN_PROGRAM="$ROWS_PROGRAM"'
                     "blocked-home": (.["blocked-home"] // 0),
                     "blocked-catalog": (.["blocked-catalog"] // 0)})),
      groups: ($rows | sort_by([.projectPath // "", .id, .scope]) | group_by(.projectPath)
-              | map({projectPath: .[0].projectPath, rows: map(del(.projectPath))}))}'
+              | map({projectPath: .[0].projectPath, rows: map(del(.projectPath))}
+                    | . + {question_calls: ([.rows | to_entries[] | select(.value.command != null) | .key]
+                                            | question_calls)}))}'
 
 plan=""
-if ! jq_to plan -c --argjson committed "$committed" "$PLAN_PROGRAM" <<<"$report"; then
+if ! jq_to plan -c -L "$script_src_dir" --argjson committed "$committed" \
+  'include "question-groups"; '"$PLAN_PROGRAM" <<<"$report"; then
   echo "ERROR: could not plan the report" >&2
   exit 2
 fi

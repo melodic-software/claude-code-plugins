@@ -566,6 +566,8 @@ assert_eq "ask: stops before Step 4" "true" \
   "$(jq -r '.marketplaces[0].stopped_before_install' <<<"$out")"
 assert_eq "ask: the gap is reported" "beta@market1" \
   "$(jq -r '.marketplaces[0].install_gap[0]' <<<"$out")"
+assert_eq "ask: the gap is offered as one call of one question" '[[["beta@market1"]]]' \
+  "$(jq -c '.marketplaces[0].install_offer' <<<"$out")"
 assert_eq "ask: nothing installed" "0" "$(grep -c 'plugin install' "$case_dir/claude.log")"
 assert_eq "ask: the checker does not run before the installs" "0" "$(wc -l <"$case_dir/cc.log" | tr -d ' ')"
 assert_eq "ask: stopping before Step 4 leaves the cache check null" "null" \
@@ -580,6 +582,7 @@ assert_eq "--only-install: it covers the run's marketplace without being told" "
 assert_eq "--only-install: the chosen id is installed" "1" \
   "$(grep -c 'plugin install beta@market1' "$case_dir/claude.log")"
 assert_eq "--only-install: reuses the same run directory" "$run_dir" "$(jq -r '.run_dir' <<<"$out2")"
+assert_eq "--only-install: a re-entry offers nothing more" "[]" "$(jq -c '.marketplaces[0].install_offer' <<<"$out2")"
 assert_eq "--only-install: the first pass's sweep row survives into the second digest" "alpha@market1" \
   "$(jq -r '.marketplaces[0].user_sweep.updated[0].id' <<<"$out2")"
 assert_eq "--only-install: and its project_root does too" "$(jq -r '.marketplaces[0].project_root' <<<"$out")" \
@@ -3139,6 +3142,20 @@ assert_eq "snapshot ledger: a pass stopped after its first read has no interval"
   "pre-refresh.m.json||" \
   "$(ledger_of "pre-refresh" pre)"
 assert_eq "snapshot ledger: an empty run directory resolves nothing" "||" "$(ledger_of "" pre)"
+
+offer_shape() {
+  jq -r -n -L "$SCRIPT_DIR" --argjson n "$1" 'include "question-groups";
+    [range(1; $n + 1)] | install_offer | map(map(length) | join("+")) | join(" | ")'
+}
+assert_eq "install offer: a gap of 1 is one call of one single-id question" "1" "$(offer_shape 1)"
+assert_eq "install offer: a gap of 4 is one full question" "4" "$(offer_shape 4)"
+assert_eq "install offer: a gap of 5 leaves a single-id question in the same call" "4+1" "$(offer_shape 5)"
+assert_eq "install offer: a gap of 13 is four questions in one call" "4+4+4+1" "$(offer_shape 13)"
+assert_eq "install offer: a gap of 17 needs a further call for the 17th" "4+4+4+4 | 1" "$(offer_shape 17)"
+assert_eq "install offer: ids keep catalog order across questions and calls" '[[["a","b","c","d"],["e"]]]' \
+  "$(jq -c -n -L "$SCRIPT_DIR" 'include "question-groups"; ["a","b","c","d","e"] | install_offer')"
+assert_eq "install offer: an empty gap offers nothing" "[]" \
+  "$(jq -c -n -L "$SCRIPT_DIR" 'include "question-groups"; [] | install_offer')"
 
 paths_fixture
 EXTRA_ENV=(HOME="$case_dir/home" CLAUDE_STUB_KEY_CWD=1 CC_STUB_CLEAN=1)

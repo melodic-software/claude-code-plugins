@@ -2277,7 +2277,7 @@ emit_marketplace_block() {
     unset_cfg "${unset_cfg:-[]}" \
     monitors "${monitors:-[]}" errors "$errs" other_paths "$OTHER_PATHS_JSON" windows "{$windows}"
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to block -c \
+  jq_to block -c -L "$SCRIPT_DIR" \
     --arg name "$mp" \
     --arg lastUpdated "$CATALOG_LAST_UPDATED" \
     --arg refresh_out "$REFRESH_OUT" \
@@ -2287,6 +2287,7 @@ emit_marketplace_block() {
     --arg t_mp_s "$T_MP_S" --arg t_mp_e "$T_MP_E" \
     --argjson cli_calls "$CLI_CALLS" --argjson cli_ms "$CLI_MS" \
     --arg resolution "$CLOCK_RESOLUTION" --slurpfile contract "$DIGEST_CONTRACT" '
+    include "question-groups";
     # Seconds to three decimals; an empty stamp pair is a step that did not run.
     # Steps round DOWN and the total rounds UP, so the total is never below the
     # sum of its steps after rounding. Clamped at zero so a wall clock stepped
@@ -2325,6 +2326,7 @@ emit_marketplace_block() {
      moved_during_run: $moved,
      noop_unverified: $noop_unverified,
      install_gap: $install_gap,
+     install_offer: (if $stopped == true then $install_gap | install_offer else [] end),
      installed: $inst,
      installed_with_unset_user_config: $unset_cfg,
      install_enable_deferred: $deferred,

@@ -55,19 +55,16 @@ guarantee) must key off user-scope completeness. Apply the configured
 policy. The `${user_config.install_new}` token in SKILL.md's command renders the actual value;
 that render, not this step's prose, is what to branch on:
 
-- **`ask`** (default): present every entry through `AskUserQuestion` multi-selects worded
-  as "install and enable", in chunks of at most 4 options per question and at most 4 questions per
-  call, with a further call past 16 entries. Each chunk's question text is distinct, because
-  answers are keyed by question text. A chunk of 1, whether a gap of 1 or the one left over from a
-  gap of 5, 9, 13 and so on, is one single-select Install/Skip question, with no hand-added Other
-  option. The limits are the tool's, per
-  [Handle approvals and user input: limitations](https://code.claude.com/docs/en/agent-sdk/user-input#limitations)
-  (as of 2026-11-10; recheck if that section changes them). Then `claude plugin install <id> -s user` for each the user picks. A
+- **`ask`** (default): ask the questions the digest block's `install_offer` lists: each entry is
+  one `AskUserQuestion` call, each inner list one question, each id one option. Word each question
+  as "install and enable" and give each its own question text, because answers are keyed by
+  question text. A question of several ids is a multi-select; a question of one id is a
+  single-select Install/Skip question, with no hand-added Other option. Then `claude plugin install <id> -s user` for each the user picks. A
   pick is the user's choice, so a pick the CLI reports as disabled by default is then enabled with
   `claude plugin enable <id> -s user`; a pick installed enabled gets no `enable`, which exits 1
   for a plugin that is already enabled. Do not show catalog defaults in the prompt: the CLI's
-  notice, not the catalog's `defaultEnabled`, decides which picks it enables. A dismissed or unanswered prompt
-  (or chunk) means no picks for its entries; the other chunks' picks still go in the id list, and
+  notice, not the catalog's `defaultEnabled`, decides which picks it enables. A dismissed or unanswered call
+  (or question) means no picks for its ids; the other questions' picks still go in the id list, and
   when nothing was answered re-enter with `--only-install ""` (SKILL.md Step 4), which installs
   nothing and still completes Step 5, and the report lists the declined gap under "Action needed". Under `ask`
   the only persistent opt-out is `enabledPlugins: false`; a decline is re-offered on the next run
@@ -75,6 +72,12 @@ that render, not this step's prose, is what to branch on:
   marketplace target the script holds the gap instead (`install_held: "all-target"`): run the `ask`
   offer above
 - **`none`**: install nothing; list the entries under "Action needed" in the report only
+
+`scripts/question-groups.jq` does the grouping for `install_offer` and for `converge-plan.sh`'s
+`question_calls`. Its two constants copy the tool's per-call limits from
+[Handle approvals and user input: limitations](https://code.claude.com/docs/en/agent-sdk/user-input#limitations):
+at most 4 options per question and 4 questions per call (as of 2026-11-27; recheck when that
+section changes either number, and change the constant there, nowhere else).
 
 **A headless run launched with `--setting-sources` that omits `user` silently reverts this policy to
 `ask`** (the flag: [CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags)).
