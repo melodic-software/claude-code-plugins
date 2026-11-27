@@ -47,9 +47,9 @@ file puts them, and it removes the retyping error that a per-step transcript inv
 What the model still owns, because the script cannot:
 
 - **The `install_new` policy.** The `user_config.install_new` placeholder substitutes only when Claude Code
-  renders SKILL.md; a `context/*.md` spoke is read raw. SKILL.md's "Configured value" line is the
-  rendered value, and the model passes its text verbatim, single-quoted, as `--install-new`; the
-  script reads the option's own unrendered token as the default `ask`. On `ask` with a non-empty install gap
+  renders SKILL.md; a `context/*.md` spoke is read raw. SKILL.md's command carries the token,
+  single-quoted, as `--install-new`, so it arrives rendered; the script reads the option's own
+  unrendered token as the default `ask`. On `ask` with a non-empty install gap
   the script reports the gap and stops before Step 4, because only the model can run the chunked
   prompt; it then re-enters with `--only-install <ids> --run-dir <the digest's run_dir>`, which
   performs Step 4, Step 5, and, when this pass skipped it, Step 5b against the same run journal

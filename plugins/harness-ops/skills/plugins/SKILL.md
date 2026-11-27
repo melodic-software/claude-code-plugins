@@ -78,8 +78,9 @@ except `sync`, which one script runs and which loads its file on the triggers un
 "Running `sync`". Each Description names the territory an action covers, never its algorithm, the steps, their
 ordering, and their failure handling live only in the linked file.
 
-One block below is a deliberate exception to that index-only rule and has to live in the hub
-rather than in a spoke: the **`install_new` render**, because we rely on `${user_config.*}` being
+One part below is a deliberate exception to that index-only rule and has to live in the hub
+rather than in a spoke: the **`${user_config.*}` tokens** in step 1's command and the
+**Configured value** line, because we rely on `${user_config.*}` being
 substituted only when Claude Code renders the *skill*; a spoke opened later as a file read is plain
 bytes, so the same token in a spoke would arrive as a literal placeholder with no error to warn
 anyone.
@@ -109,16 +110,16 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
    "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-run.sh \
      [--marketplace <name> | --all] \
      --journal-root "${CLAUDE_PLUGIN_DATA}/plugins-sync/runs" \
-     --install-new '<policy>' --source-pull '<pull>' --quiet-auto-update '<names>' \
+     --install-new '${user_config.install_new}' \
+     --source-pull '${user_config.directory_source_pull}' \
+     --quiet-auto-update '${user_config.quiet_auto_update_marketplaces}' \
      [--allow-downgrade] [--update-other-paths] --render
    ```
 
-   `<policy>`, `<pull>` and `<names>` are the text of the **Configured value** lines under
-   "userConfig: `install_new`", "userConfig: `directory_source_pull`" and "userConfig:
-   `quiet_auto_update_marketplaces`" below, copied verbatim inside the single quotes, whether
-   that text is a word or the unset placeholder token: the quotes keep the shell from expanding
-   a token, and the script reads each option's own token as its default. Pass `--source-pull
-   never` instead when the session is autonomous or you cannot tell a human is present. A
+   Run the three option values as they appear here: each holds the configured value, or the
+   unset placeholder token, which the single quotes keep from the shell and the script reads as
+   that option's default. Pass `--source-pull never` instead when the session is autonomous or
+   you cannot tell a human is present. A
    policy or pull value the script does not know runs as `ask` and is named back in the
    digest's `install_new_invalid` or `source_pull_invalid` for the report, on the first pass and
    on an `--only-install` re-entry alike.
@@ -308,8 +309,9 @@ resolves the gap through the ask offer and the `--only-install` re-entry. The in
 [context/gotchas.md](context/gotchas.md)'s "`--all` with `install_new: all` was a mass install of
 every catalog".
 
-**Configured value: `${user_config.install_new}`**. We treat this line as rendering the configured
-word into the skill content before the model sees it, but **only when the key is explicitly set**
+Step 1 of "Running `sync`" carries `${user_config.install_new}` in its command. We treat that token
+as rendering the configured word into the skill content before the model sees it, but **only when
+the key is explicitly set**
 in a scope Claude Code reads `pluginConfigs` from, read live from
 [settings reference: pluginConfigs](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
 with the precedence
@@ -328,11 +330,10 @@ the docs pointer for the `default` field and the substitution surfaces, the rech
 [context/scope-semantics.md](context/scope-semantics.md) "`userConfig`: an unset key renders the
 literal placeholder". Read it when the rendered value looks wrong or before re-running the probe.
 Substitution into content happens in what Claude Code renders, and never in a file a spoke read
-returns, which is why the **Configured value** line lives here and cannot move to a spoke. So for
-the common default-config user, with no `pluginConfigs` set anywhere, the **Configured value** line
-above still shows that literal placeholder token. Pass the line's text as it stands, per step 1 of
-"Running `sync`": `sync-run.sh` reads the token as the default and flags only a set word it does
-not know.
+returns, which is why the command lives here and cannot move to a spoke. So for the common
+default-config user, with no `pluginConfigs` set anywhere, the command still carries that literal
+placeholder token; `sync-run.sh` reads it as the default and flags only a set word it does not
+know. The other options' tokens render the same way.
 
 ## userConfig: `directory_source_pull`
 
@@ -351,8 +352,6 @@ An autonomous or ambiguous session behaves as `never` whatever the value: no hum
 offer there. The script applies the same rule on its own when `CLAUDE_CODE_REMOTE` is set. A word
 other than these two runs as `ask` and is named in the report.
 
-**Configured value: `${user_config.directory_source_pull}`**.
-
 ## userConfig: `update_other_paths`
 
 Whether `sync` also updates the lagging project and local records of every other present path. A
@@ -368,9 +367,7 @@ default, `false`.
 
 Comma-separated marketplace names whose `Marketplace:` line shows `autoUpdate: off` without the
 suggestion to enable it, for a marketplace the user keeps off on purpose. A `string`, default
-empty, which keeps the suggestion everywhere. Pass the line's text as `--quiet-auto-update`.
-
-**Configured value: `${user_config.quiet_auto_update_marketplaces}`**.
+empty, which keeps the suggestion everywhere. Step 1's command passes it as `--quiet-auto-update`.
 
 For the option fields, the picker and where a value is stored, see
 [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).

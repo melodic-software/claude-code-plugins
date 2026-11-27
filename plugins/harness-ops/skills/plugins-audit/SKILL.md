@@ -35,16 +35,16 @@ audit never passes `--allow-downgrade`; when the user gives it, say the audit ig
 ```bash
 "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-run.sh \
   [--marketplace <name> | --all] --audit \
-  --install-new '<policy>' --quiet-auto-update '<names>' [--update-other-paths] --render
+  --install-new '${user_config.install_new}' \
+  --quiet-auto-update '${user_config.quiet_auto_update_marketplaces}' [--update-other-paths] --render
 ```
 
 That path is exact and the script lives in the `plugins` skill, so run it as written with no search
 for it.
 
-- `<policy>` and `<names>` are the text of the **Configured value** lines under "userConfig:
-  `install_new`" and "userConfig: `quiet_auto_update_marketplaces`", copied verbatim inside the
-  single quotes, a word or the unset placeholder token alike: the quotes keep the shell from
-  expanding a token, and the script reads each option's own token as its default.
+- Run the two option values as they appear here: each holds the configured value, or the unset
+  placeholder token, which the single quotes keep from the shell and the script reads as that
+  option's default.
 - Pass `--update-other-paths` only when the **Configured value** line under "userConfig:
   `update_other_paths`" reads `true`.
 - Never pass `--journal-root`, `--pull-source` or `--only-install`: they are `sync` requests.
@@ -61,12 +61,6 @@ and paste the rendered report by its rules.
 prediction is computed against an unrefreshed catalog and carries that catalog's `lastUpdated`. An
 audit that predicts zero updates has not established that the fleet is current.
 
-## userConfig: `install_new`
-
-The new-catalog-plugin policy `sync` would apply, which the audit predicts against.
-
-**Configured value: `${user_config.install_new}`**.
-
 ## userConfig: `update_other_paths`
 
 Whether `sync` also updates the lagging records of every other present path, which the audit then
@@ -74,12 +68,6 @@ predicts one by one.
 
 **Configured value: `${user_config.update_other_paths}`**. The unset placeholder token means the
 default, `false`.
-
-## userConfig: `quiet_auto_update_marketplaces`
-
-Marketplace names whose `autoUpdate: off` line drops the suggestion to enable it.
-
-**Configured value: `${user_config.quiet_auto_update_marketplaces}`**.
 
 ## Next
 

@@ -480,7 +480,7 @@ When a `userConfig` key is set in none of the three `pluginConfigs` sources, we 
 render as leaving that key's placeholder token unchanged, with the manifest's `default` not
 substituted into skill content. A sibling key that is set, and `${CLAUDE_PLUGIN_ROOT}`, substitute
 in the same render, so the unchanged token is the unset signal and not a substitution failure.
-`SKILL.md`'s **Configured value** line reads that token as "unset, use the default `ask`". Our
+`sync-run.sh` reads that token in `SKILL.md`'s command as "unset, use the default `ask`". Our
 probe settles a point the plugins reference leaves open: the reference does not say whether the
 default substitutes into skill content, so the two do not conflict.
 
