@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.12.3] - 2026-11-27
+
+### Changed
+
+- Synced shared `reference/detector-findings.md` with `portability-ok` annotations from `docs/contracts/detector-findings/README.md` and annotated surviving ecosystem specifics under ADR 0101 (#17746); no behavior change.
+
 ## [5.12.2] - 2026-11-26
 
 ### Changed
