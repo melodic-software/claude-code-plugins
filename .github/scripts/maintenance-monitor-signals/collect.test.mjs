@@ -932,7 +932,18 @@ test("openLanePrs counts only open, non-draft, unheld PRs by agentIdentity and r
     [/\/issues\/96\d\d\/comments/, []],
     ...routes(),
   ]);
-  assert.equal((await collect(input(truncated))).openLanePrs, null);
+  const truncatedData = await collect(input(truncated));
+  assert.equal(truncatedData.openLanePrs, null);
+  assert.ok(truncatedData.gaps.some((g) => g.startsWith("stalled stops:")));
+  assert.ok(!truncatedData.gaps.some((g) => g.startsWith("open pull requests:")));
+
+  const failedOpenList = fakeApi([
+    [GRAPHQL, Object.assign(new Error("HTTP 502"), { status: 502 })],
+    ...routes(),
+  ]);
+  const failedData = await collect(input(failedOpenList));
+  assert.equal(failedData.openLanePrs, undefined);
+  assert.ok(failedData.gaps.some((g) => g.startsWith("open pull requests:")));
 });
 
 test("stalled stops: a freshly stopped PR behind more than 20 idle ones is read and listed", async () => {
