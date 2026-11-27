@@ -303,7 +303,7 @@ checks_changed_names() {
   return "$rc"
 }
 
-# shellcheck disable=SC2120 # the guardrails content scan passes --include-exact-renames
+# shellcheck disable=SC2120 # checks that judge a file's name or location pass --include-exact-renames
 checks_files() {
   checks_merge_own_files "$@" && return 0
   checks_changed_names "$@"

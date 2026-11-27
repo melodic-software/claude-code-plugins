@@ -405,6 +405,17 @@ git -C "$REPO" config --local checks.spelling.typos-check.declined true
 expect "a decline of the retired typos-check entry carries to lint" "declined	lint" \
   "$(node "$INSTALL" verify --repo "$REPO" | cut -f1,2)"
 
+new_repo
+printf 'clean words\n' >"$REPO/notes.md"
+git -C "$REPO" commit -q -am clean --no-verify
+git -C "$REPO" mv notes.md moved.md
+expect "an exact rename to a correct name passes" "0|" "$(check "$REPO")"
+git -C "$REPO" mv moved.md teh-notes.md
+out="$(check "$REPO")"
+name_typo="\`teh\` should be \`the\`"
+expect "an exact rename to a misspelled file name still fails on the name" "1|yes" \
+  "${out%%|*}|$([[ "$out" == *"$name_typo"* ]] && echo yes)"
+
 # spellchecker:on
 echo "lint: $PASS passed, $FAIL failed"
 ((FAIL == 0))
