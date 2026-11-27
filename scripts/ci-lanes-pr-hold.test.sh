@@ -759,6 +759,14 @@ pin() { jq -nc --arg sha "$1" --arg at "${2:-2026-10-23T09:00:00Z}" --arg id "IC
 STUB_PULL="$(pull 'Closes #1' "$KYLE")"
 export STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
 STUB_ISSUE="[$(pin "$SHA")]" expect "in the merge queue, a trusted pull request the lanes App armed at this head passes its pin" 0 2 "#7: no pin hold: the lanes App pinned no other head."
+for kill in "KILL=true" "REPO_KILL=true"; do
+  export "${kill?}"
+  STUB_ISSUE="[$(pin "$SHA")]" expect "in the merge queue, with $kill, a trusted pull request the lanes App pinned is held by the kill switch" 1 1 \
+    "::error::#7: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), and the lanes App armed this pull request (its newest pin record is a pin), so it does not merge"
+  if [[ "$(readers)" -eq 0 ]]; then ok "with $kill, the kill switch holds a pinned trusted pull request before the verdict reader runs"; else fail "with $kill, a pinned trusted pull request ran the verdict reader"; fi
+  STUB_ISSUE='' expect "in the merge queue, with $kill, a session-armed trusted pull request with no lanes App pin is not held by the kill switch" 0 2 "$NOT_HELD"
+  unset KILL REPO_KILL
+done
 STUB_ISSUE="[$(pin "$OLD")]" expect "in the merge queue, a trusted pull request armed at X and pushed to Y is refused at Y" 1 2 "::error::#7: its head is not $OLD, the head the lanes App pinned when it armed auto-merge"
 STUB_ISSUE="[$(pin "$OLD")]" STUB_EVIDENCE="$(evidence verify:fail)" expect "in the merge queue, the moved pin refuses before the verdict reader runs" 1 2 "its head is not $OLD"
 if [[ "$(readers)" -eq 0 ]]; then ok "a moved pin refuses with no verdict reader run"; else fail "a moved pin still ran the verdict reader"; fi
@@ -772,11 +780,13 @@ STUB_ISSUE="[$(pin "$OLD")]" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APP
   expect "in the merge queue, an approval of the pinned head lifts no pin hold at the new head" 1 2 "its head is not $OLD"
 STUB_ISSUE="[$(comment kyle-sexton User OWNER 2026-10-23T09:00:00Z "<!-- babysit-merge-pin sha=$OLD -->")]" \
   expect "in the merge queue, a pin line a person wrote is no lanes App pin" 0 2 "#7: no pin hold: the lanes App pinned no other head."
-STUB_COMMENTS_FAIL=1 expect "in the merge queue, issue comments that do not read fail closed, after gh_read's three tries" 1 4 "could not read the issue comments of #7"
+STUB_COMMENTS_FAIL=1 expect "in the merge queue, issue comments that do not read fail closed, after gh_read's three tries, before any review read" 1 3 "could not read the issue comments of #7"
 unpin() { jq -nc --arg sha "$1" --arg at "${2:-2026-10-23T09:30:00Z}" --arg login "${3:-melodic-automation-lanes[bot]}" --arg type "${4:-Bot}" \
   '{user: {login: $login, type: $type}, author_association: "NONE", created_at: $at, node_id: "IC_unpin",
     body: "<!-- babysit-merge-unpin sha=\($sha) -->\nThe unattended merge path disarmed native auto-merge at head `\($sha)`."}'; }
 STUB_ISSUE="[$(pin "$OLD"),$(unpin "$SHA")]" expect "in the merge queue, the lanes App's newer unpin retires a moved pin, so a person's arm at the new head is not pin-held" 0 2 "#7: no pin hold: the lanes App pinned no other head."
+STUB_ISSUE="[$(pin "$OLD"),$(unpin "$SHA")]" KILL=true \
+  expect "in the merge queue, with the kill switch on, a trusted pull request whose newest lanes App record is an unpin is not held by the kill switch" 0 2 "#7: no pin hold: the lanes App pinned no other head."
 STUB_ISSUE="[$(pin "$OLD"),$(unpin "$SHA")]" STUB_EVIDENCE="$(evidence verify:fail)" \
   expect "in the merge queue, past the unpin the other holds still apply" 1 2 "pr-verify's reader refuses this head (verify:fail: why)"
 STUB_ISSUE="[$(unpin "$SHA" 2026-10-23T08:00:00Z),$(pin "$OLD")]" expect "in the merge queue, a pin newer than the unpin holds again" 1 2 "its head is not $OLD"

@@ -1,3 +1,4 @@
+// test-scope: plugins/source-control/.claude-plugin/plugin.json
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -5,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 import { ARM_MUTATION, DETAIL_QUERY, DISARM_MUTATION, PULLS_QUERY, WAKE_OUTPUT, decideTrusted, main, pinBody, pythonLaneSource, pythonVerify } from "./enable-auto-merge.mjs";
-import { LANES_APP_LOGIN, pinHold } from "./merge-holds.mjs";
+import { COMMENT_EDITED_QUERY, LANES_APP_LOGIN, PULL_OPENED_QUERY, pinHold } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -50,6 +51,41 @@ function recorded(number, overrides = {}) {
 const clean = (overrides = {}) =>
   recorded("19361", { number: 500, id: "PR_500", headRefOid: CLEAN_HEAD, body: "Closes #499\n\n## Summary\n\nDone.", files: CLEAN_FILES, ...overrides });
 
+const COST_LINK = `https://github.com/${REPO}/issues/500#issuecomment-7`;
+const COST_COMMENT = {
+  issue_url: `https://api.github.com/repos/${REPO}/issues/500`,
+  user: { login: "kyle-sexton", id: 153232337, type: "User" },
+  performed_via_github_app: null,
+  body: '**Decision recorded.** Cost: approve it for #500.\nRow: https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L10\nOwner, verbatim: "Approve it."',
+  node_id: "IC_7",
+  created_at: "2026-11-27T12:00:00Z",
+};
+const BASE_TIP = "3".repeat(40);
+const costReads = (method, path, body) => {
+  if (method === "POST" && path === "/graphql" && body.query === PULL_OPENED_QUERY) {
+    return { data: { repository: { pullRequest: { createdAt: "2026-11-27T10:00:00Z", baseRefName: "main", headRefName: "fix/cost", closingIssuesReferences: { totalCount: 1, nodes: [{ number: 499, repository: { nameWithOwner: REPO } }] } } } } };
+  }
+  if (method === "POST" && path === "/graphql" && body.query === COMMENT_EDITED_QUERY) {
+    return { data: { node: { lastEditedAt: null } } };
+  }
+  const answers = {
+    [`/repos/${REPO}/issues/comments/7`]: COST_COMMENT,
+    [`/repos/${REPO}/git/ref/heads/main`]: { ref: "refs/heads/main", object: { type: "commit", sha: BASE_TIP } },
+    [`/repos/${REPO}/compare/${BASE_TIP}...${CLEAN_HEAD}`]: { files: [{ filename: "infra/main.tf" }] },
+    [`/repos/${REPO}/activity?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100`]: [{ after: CLEAN_HEAD, timestamp: "2026-11-27T10:45:00Z", activity_type: "push", ref: "refs/heads/fix/cost" }],
+    [`/repos/${REPO}/actions/runs/9/jobs?filter=all&per_page=100&page=1`]: { jobs: [{ id: 90, name: "PR Review / review-status", completed_at: "2026-11-27T11:00:00Z" }] },
+    [`/repos/${REPO}/check-runs/90/annotations?per_page=100&page=1`]: [{ annotation_level: "notice", message: `claude-lane-hold lane=claude-review sha=${CLEAN_HEAD} criteria=cost label=needs-human` }],
+  };
+  if (method === "GET" && path in answers) {
+    return answers[path];
+  }
+  const runs = /^\/repos\/melodic-software\/claude-code-plugins\/actions\/workflows\/([a-z-]+)\.yml\/runs\?event=pull_request&branch=fix%2Fcost&per_page=100&page=1$/.exec(path);
+  if (method === "GET" && runs) {
+    return { workflow_runs: runs[1] === "pr-review-hosted" ? [{ id: 9, head_sha: CLEAN_HEAD, head_repository: { full_name: REPO }, created_at: "2026-11-27T10:50:00Z" }] : [] };
+  }
+  return undefined;
+};
+
 const pass = (head) => ({ refusal: null, needsHuman: false, head, atHead: ["pass"], earlierFails: [], ignored: 0, detail: null, supersededAtHead: false });
 const refused = (head, refusal) => ({ ...pass(head), refusal, atHead: refusal === "verify:fail" ? ["fail"] : [] });
 
@@ -89,6 +125,10 @@ async function run(pulls, { env = {}, verdicts = {}, laneSource, fail = {} } = {
     if (method === "GET" && files) {
       const found = pulls.find((candidate) => candidate.number === Number(files[1]));
       return found.files.slice((Number(files[2]) - 1) * 100, Number(files[2]) * 100).map((filename) => ({ filename }));
+    }
+    const cost = costReads(method, path, body);
+    if (cost !== undefined) {
+      return cost;
     }
     throw new Error(`unexpected call ${method} ${path}`);
   };
@@ -135,6 +175,23 @@ test("a clean trusted-author pull request with a pr-verify PASS at its head is a
   assert.equal(armedHeads(result), 1, result.lines.join("\n"));
   assert.deepEqual(result.verified, [500]);
   assert.match(leftLine(result, 500), new RegExp(`armed at ${CLEAN_HEAD}`));
+});
+
+test("a trusted pull request changing infra/main.tf is refused without a recorded cost decision, and armed once its body links one", async () => {
+  const unrecorded = await run([clean({ files: ["infra/main.tf"] })]);
+  assert.equal(armedHeads(unrecorded), 0, unrecorded.lines.join("\n"));
+  assert.match(leftLine(unrecorded, 500), /left: it changes infra\/main\.tf, a cost path$/);
+  const recordedDecision = await run([clean({ files: ["infra/main.tf"], body: `Closes #499\n\nCost decision: ${COST_LINK}` })]);
+  assert.equal(armedHeads(recordedDecision), 1, recordedDecision.lines.join("\n"));
+  assert.match(leftLine(recordedDecision, 500), new RegExp(`armed at ${CLEAN_HEAD}`));
+});
+
+test("a member's 'Please do not merge this yet.' after the PASS refuses the trusted arm", async () => {
+  const veto = { author: { __typename: "User", login: "kyle-sexton" }, authorAssociation: "MEMBER", body: "Please do not merge this yet.", createdAt: "2026-11-27T14:30:00Z", lastEditedAt: null };
+  const result = await run([clean({ comments: [veto] })]);
+  assert.equal(armedHeads(result), 0, result.lines.join("\n"));
+  assert.equal(pinPosts(result).length, 0, "no pin posts for a vetoed pull request");
+  assert.match(leftLine(result, 500), /left: kyle-sexton asked not to merge it$/);
 });
 
 const OLD_HEAD = "a".repeat(40);
@@ -468,7 +525,8 @@ test("a lanes App pull request on the trusted list takes the lanes path, its dec
 });
 
 test("decideTrusted refuses a stacked pull request and arms only past every check", () => {
-  const facts = { files: { paths: CLEAN_FILES, capped: false }, laneSources: [], verify: pass(CLEAN_HEAD), comments: [] };
+  const none = { totalCount: 0, nodes: [] };
+  const facts = { files: { paths: CLEAN_FILES, capped: false }, laneSources: [], verify: pass(CLEAN_HEAD), comments: [], discussion: { comments: none, reviews: none, reviewThreads: none } };
   const bot = "melodic-automation-lanes";
   assert.deepEqual(decideTrusted(clean(), "needs-human", facts, bot), { action: "arm", reason: "pr-verify passed its head and no hold stands", pin: true });
   assert.equal(decideTrusted(clean(), "needs-human", { ...facts, comments: [lanesComment(pinBody(CLEAN_HEAD))] }, bot).pin, false);

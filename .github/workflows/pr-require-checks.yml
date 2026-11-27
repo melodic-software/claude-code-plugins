@@ -5353,27 +5353,34 @@ jobs:
               exit 0
             fi
             if [ "$judged" = true ]; then
-              echo "#$pr is not the lanes App's, but pr-verify judges its author (merge.verify-authors: $authors): the lanes App pin and a pr-verify FAIL at its head hold it; the kill switch, member veto and hold paths stay the lanes App's."
+              echo "#$pr is not the lanes App's, but pr-verify judges its author (merge.verify-authors: $authors): the lanes App pin, the kill switch once the lanes App armed it, and a pr-verify FAIL at its head hold it; member veto and hold paths stay the lanes App's."
             else
-              echo "#$pr is not the lanes App's, and pr-verify does not judge its author (merge.verify-authors: $authors): only the lanes App pin holds it."
+              echo "#$pr is not the lanes App's, and pr-verify does not judge its author (merge.verify-authors: $authors): only the lanes App pin and, once the lanes App armed it, the kill switch hold it."
             fi
+            raw=$(read_api "the issue comments of #$pr" "repos/$GITHUB_REPOSITORY/issues/$pr/comments?per_page=100" --paginate) || exit 1
+            jq -c '.[]' <<<"$raw" >"$RUNNER_TEMP/pin-comments.jsonl" || { echo "::error::the issue comments of #$pr do not parse."; exit 1; }
           fi
           # The kill switch, by the base checkout's merge-holds.mjs switchHold:
           # it answers JSON null or the hold's reason, and anything else fails
-          # closed.
+          # closed. Another author's pull request passes its issue comments, so
+          # an arm the lanes App pinned holds too.
           printf '%s\n' "$pull" >"$RUNNER_TEMP/lanes-pull.json"
+          comments_file=
+          [ "$lanes" = true ] || comments_file=$RUNNER_TEMP/pin-comments.jsonl
           # shellcheck disable=SC2016 # JavaScript, not shell
-          if [ "$lanes" = true ] && { [ ! -s "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs" ] ||
+          if [ ! -s "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs" ] ||
             ! switched=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
               import { pathToFileURL } from "node:url";
-              const { switchHold } = await import(pathToFileURL(process.argv[2]).href);
+              const [, pull, module, comments] = process.argv;
+              const { fromRest, switchHold } = await import(pathToFileURL(module).href);
               const { LANES_APP_ID: appId, LANES_DISABLED: disabled, LANES_REPO_DISABLED: repoDisabled } = process.env;
-              const reason = switchHold(JSON.parse(readFileSync(process.argv[1], "utf8")), { appId, disabled, repoDisabled });
+              const items = comments ? readFileSync(comments, "utf8").split("\n").filter((line) => line.trim()).map((line) => fromRest(JSON.parse(line))) : null;
+              const reason = switchHold(JSON.parse(readFileSync(pull, "utf8")), { appId, disabled, repoDisabled, items });
               if (reason !== null && (typeof reason !== "string" || !reason)) {
                 throw new Error("no verdict");
               }
-              console.log(JSON.stringify(reason));' "$RUNNER_TEMP/lanes-pull.json" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs") ||
-            [ -z "$switched" ] || ! reason=$(jq -er 'if . == null then "" else strings end' <<<"$switched"); }; then
+              console.log(JSON.stringify(reason));' "$RUNNER_TEMP/lanes-pull.json" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs" ${comments_file:+"$comments_file"}) ||
+            [ -z "$switched" ] || ! reason=$(jq -er 'if . == null then "" else strings end' <<<"$switched"); then
             echo "::error::merge-holds.mjs in the hold config (the default branch's tip at run time, or the base commit for another base) could not judge the lanes kill switch for #$pr; re-run this run."
             exit 1
           fi
@@ -5478,8 +5485,6 @@ jobs:
           # verdict reader reports for its head. A reader that does not judge
           # it, or any other refusal, leaves it to merge.
           if [ "$lanes" = false ]; then
-            raw=$(read_api "the issue comments of #$pr" "repos/$GITHUB_REPOSITORY/issues/$pr/comments?per_page=100" --paginate) || exit 1
-            jq -c '.[]' <<<"$raw" >"$RUNNER_TEMP/pin-comments.jsonl" || { echo "::error::the issue comments of #$pr do not parse."; exit 1; }
             # shellcheck disable=SC2016 # JavaScript, not shell
             held=$(node --input-type=module -e 'import { execFileSync } from "node:child_process";
               import { readFileSync } from "node:fs";

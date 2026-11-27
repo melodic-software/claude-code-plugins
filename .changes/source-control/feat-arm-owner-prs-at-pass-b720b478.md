@@ -1,5 +1,5 @@
 ---
-bump: none
+bump: patch
 ---
 
-No release: only tests under the plugin change, pinning the floor counts after `babysit_verify_evidence.py` gained a repository `gate` floor row in `docs/conventions/pr-pipeline.yaml`.
+`babysit_postmerge.py` reads a pull request whose newest lanes App pin record is a `babysit-merge-unpin` comment as unpinned, matching the merge queue's pin hold, instead of falling back to the older pin.

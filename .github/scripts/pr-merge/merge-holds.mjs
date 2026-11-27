@@ -1294,15 +1294,24 @@ export function labelHolds(labels, tracker, number) {
   ].filter(Boolean);
 }
 
-export function switchHold(pull, { appId, disabled, repoDisabled } = {}) {
+export function switchHold(pull, { appId, disabled, repoDisabled, items = null } = {}) {
   const id = Number(appId);
-  if (!/^[1-9][0-9]*$/.test(String(appId)) || pull?.user?.type !== "Bot" || pull?.user?.id !== id) {
+  if (!/^[1-9][0-9]*$/.test(String(appId))) {
+    return null;
+  }
+  const app = pull?.user?.type === "Bot" && pull?.user?.id === id;
+  const pin = app || !Array.isArray(items) ? undefined : newestPin(items);
+  if (!app && (pin === undefined || !PIN_RE.test(pinLine(pin)))) {
     return null;
   }
   if (disabled === "false" && repoDisabled === "false") {
     return null;
   }
-  return `#${pull.number}: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure.`;
+  const switched = "the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false')";
+  const after = "once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure.";
+  return app
+    ? `#${pull.number}: ${switched}, so no lanes App pull request merges; it merges ${after}`
+    : `#${pull.number}: ${switched}, and the lanes App armed this pull request (its newest pin record is a pin), so it does not merge; it merges ${after}`;
 }
 
 export function queueHolds({ pull, tracker = null, lanes = {} } = {}) {

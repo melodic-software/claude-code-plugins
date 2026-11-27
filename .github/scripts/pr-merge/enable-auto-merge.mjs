@@ -927,7 +927,7 @@ export function pythonLaneSource(env, spawn = spawnSync) {
   };
 }
 
-export const TRUSTED_READS = Object.freeze(["files", "lane-source", "verify", "comments"]);
+export const TRUSTED_READS = Object.freeze(["files", "cost", "lane-source", "verify", "comments"]);
 const PASSES = Object.freeze(["pass", "pass-notes"]);
 
 export function trustedHoldReason(pull, humanGated) {
@@ -1009,6 +1009,15 @@ function judgeUnheld(pull, facts, bot) {
   if (facts.files.paths.length === 0) {
     return none(EMPTY_DIFF_REASON);
   }
+  if (costHold(facts.files.paths, null) !== null) {
+    if (!("cost" in facts)) {
+      return { action: "cost", reason: "its cost decision is not read yet" };
+    }
+    const cost = costHold(facts.files.paths, facts.cost);
+    if (cost !== null) {
+      return none(cost);
+    }
+  }
   if (!("laneSources" in facts)) {
     return { action: "lane-source", reason: "its lane-source paths are not checked yet" };
   }
@@ -1030,6 +1039,10 @@ function judgeUnheld(pull, facts, bot) {
   }
   if (!Array.isArray(facts.comments)) {
     return none("its comments could not be read, so its pin cannot be checked");
+  }
+  const vetoed = discussionHold(facts.discussion);
+  if (vetoed !== null) {
+    return none(vetoed);
   }
   return { action: "arm", reason: "pr-verify passed its head and no hold stands", pin: !pinned(facts.comments, bot, pull.headRefOid) };
 }
@@ -1736,16 +1749,21 @@ export async function main({ env = process.env, github, actions, laneReads, veri
           ({ action, reason } = { action: "none", reason: NO_TIME_LEFT });
           break;
         }
-        const key = { files: "files", "lane-source": "laneSources", verify: "verify", comments: "comments" }[action];
+        const key = { files: "files", cost: "cost", "lane-source": "laneSources", verify: "verify", comments: "comments" }[action];
         try {
+          if (action === "comments") {
+            facts.discussion = await discussionOf(pull.number);
+          }
           facts[key] =
             action === "files"
               ? await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number)
-              : action === "lane-source"
-                ? laneSource(facts.files.paths)
-                : action === "verify"
-                  ? await trustedVerify(pull)
-                  : ((await discussionOf(pull.number))?.comments?.nodes ?? null);
+              : action === "cost"
+                ? await costDecision(github, repo[0], pull.number, pull.body, humans, pull.headRefOid, actions)
+                : action === "lane-source"
+                  ? laneSource(facts.files.paths)
+                  : action === "verify"
+                    ? await trustedVerify(pull)
+                    : (facts.discussion?.comments?.nodes ?? null);
         } catch (error) {
           facts[key] = null;
           if (!readerStopped(error)) {
