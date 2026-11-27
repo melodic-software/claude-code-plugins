@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# fixture-isolation-scope: the harness under test builds git fixtures, so this
+# fixture-isolation-scope: the harness under test builds git fixtures, so this suite clears the inherited git environment itself
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 
 set -uo pipefail
