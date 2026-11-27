@@ -1,5 +1,6 @@
 # shellcheck shell=bash
 # test-scope: plugins/toolchain/hooks/hooks.json plugins/toolchain/lib/tree-result.mjs plugins/toolchain/scripts/record-result.mjs plugins/toolchain/.claude-plugin/plugin.json
+# test-scope: plugins/toolchain/lib/prerequisites.mjs plugins/toolchain/lib/prerequisites.ps1 plugins/toolchain/lib/prerequisites.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_TURN_END_RESULT_GATE \
   CLAUDE_PLUGIN_OPTION_RESULT_GATE_ENABLED CLAUDE_PROJECT_DIR
