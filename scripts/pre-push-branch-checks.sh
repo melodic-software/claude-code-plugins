@@ -8,6 +8,15 @@ gate="$SCRIPT_DIR/check-changelog-fragments.sh"
 self="$(basename "$0")"
 remote="${1:-origin}"
 zero=0000000000000000000000000000000000000000
+started="${EPOCHREALTIME:-}"
+
+report_time() {
+  [[ -n "$started" && -n "${EPOCHREALTIME:-}" ]] || return 0
+  local ms=$(((${EPOCHREALTIME//[!0-9]/} - ${started//[!0-9]/}) / 1000))
+  ((ms <= 3000)) ||
+    echo "$self: this push's checks took ${ms} ms, over the 3 s hook budget (owner-decisions L413); report it so the slow check is made faster or moved to CI." >&2
+}
+trap report_time EXIT
 
 top="$(git rev-parse --show-toplevel 2>/dev/null)" && cd "$top" || exit 0
 head_sha="$(git rev-parse HEAD 2>/dev/null)" || exit 0
@@ -87,7 +96,7 @@ work="$(mktemp -d "${TMPDIR:-/tmp}/pre-push-checks.XXXXXX")" || {
   echo "$self: mktemp failed; the whole-branch checks are left to CI." >&2
   exit "$blocked"
 }
-trap 'rm -rf "$work"' EXIT
+trap 'rm -rf "$work"; report_time' EXIT
 
 names=(changelog-parity plugin-options-docs plugin-contracts marketplace catalog cheatsheet)
 tools=(bash python3 node node node node)
