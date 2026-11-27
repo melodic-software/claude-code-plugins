@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.0.6] - 2026-11-27
+
+### Fixed
+
+- `worktree-claim.sh handover` releases the lock instead of passing it to the new session when the worktree's branch is `[gone]` upstream, matching `claim --all-unclaimed`. Before, each session handover re-locked every finished worktree it held, and the nightly reap skipped them while the new session ran: 302 landed worktrees on one host were held this way.
+
 ## [15.0.5] - 2026-11-27
 
 ### Fixed

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "\"/plugins/docs-hygiene/skills/setup/scripts/setup-apply.mjs\" --check"}}], "why": "the quoted script path the skill gives"},
+    {"answer": [{"tool": "Bash", "input": {"command": "node /plugins/docs-hygiene/skills/setup/scripts/setup-apply.mjs --check"}}], "why": "through node"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git rev-parse --show-toplevel && ./setup-apply.mjs --check"}}], "why": "after another command"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no tool call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat docs/conventions/docs-hygiene.yaml"}}], "why": "reads the file instead of running the check"},
+    {"answer": [{"tool": "Bash", "input": {"command": "\"/plugins/docs-hygiene/skills/setup/scripts/setup-apply.mjs\" compress_articles=cut"}}], "why": "the apply call, not --check"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/plugins/docs-hygiene/skills/setup/scripts/setup-apply.mjs --check"}}], "why": "the text in another tool's input"}
+  ]
+}

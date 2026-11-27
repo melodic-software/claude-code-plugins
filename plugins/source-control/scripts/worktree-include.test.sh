@@ -214,4 +214,83 @@ assert_exit "diff fails closed when .worktreeinclude is a directory (exit 3)" 3 
 run_inc sync-back "$WT_BADINC" --copy "app.env"
 assert_exit "sync-back fails closed when .worktreeinclude is a directory (exit 3)" 3 "$?"
 
+count_objects() {
+  find "$1/.git/objects" -type f ! -name 'packs' 2>/dev/null | wc -l | tr -d ' '
+}
+
+REPO_CI="$(mkfixture)"
+printf '*.env\n' >"$REPO_CI/.gitignore"
+printf '*.env\n' >"$REPO_CI/.worktreeinclude"
+git -C "$REPO_CI" add .gitignore .worktreeinclude
+git -C "$REPO_CI" commit -qm "include env files"
+printf 'main-notes-v1\n' >"$REPO_CI/notes.env"
+printf 'same-size-a\n' >"$REPO_CI/keys.env"
+printf 'doomed\n' >"$REPO_CI/gone.env"
+WT_CI="$TEST_TMPDIR/wt-ci"
+git -C "$REPO_CI" worktree add -q -b feat/ci "$WT_CI" main >/dev/null 2>&1
+WT_CI_GITDIR="$(git -C "$WT_CI" rev-parse --absolute-git-dir)"
+
+OBJECTS_BEFORE="$(count_objects "$REPO_CI")"
+run_inc copy --from "$REPO_CI" --to "$WT_CI"
+assert_exit "carried manifest: copy exits 0" 0 "$?"
+assert_file_exists "carried manifest: copy writes carried.index in the worktree gitdir" "$WT_CI_GITDIR/carried.index"
+assert_eq "carried-index: copy adds no object to the object store" "$OBJECTS_BEFORE" "$(count_objects "$REPO_CI")"
+
+printf 'main-notes-v2-edited-after-copy\n' >"$REPO_CI/notes.env"
+run_inc diff "$WT_CI" --main-root "$REPO_CI" --worktree-only
+assert_exit "carried-index: untouched copy passes after main's copy changes" 0 "$?"
+
+rm -f "$WT_CI/gone.env"
+run_inc diff "$WT_CI" --main-root "$REPO_CI" --worktree-only
+assert_exit "carried manifest: a carried file deleted in the worktree is no loss" 0 "$?"
+
+printf 'worktree-edit\n' >"$WT_CI/notes.env"
+run_inc diff "$WT_CI" --main-root "$REPO_CI" --worktree-only
+assert_exit "carried manifest: edited copy exits 1" 1 "$?"
+assert_contains "carried-index: edited copy is MODIFIED" "$OUT" $'MODIFIED\tnotes.env\t'
+
+cp -p "$WT_CI/keys.env" "$TEST_TMPDIR/keys.ref"
+sleep 1
+printf 'same-size-b\n' >"$WT_CI/keys.env"
+touch -r "$TEST_TMPDIR/keys.ref" "$WT_CI/keys.env"
+run_inc diff "$WT_CI" --main-root "$REPO_CI" --worktree-only
+assert_contains "carried-index: same-size edit with a preserved mtime is MODIFIED" "$OUT" $'MODIFIED\tkeys.env\t'
+
+run_inc sync-back "$WT_CI" --main-root "$REPO_CI" --copy notes.env
+assert_exit "carried-index: sync-back refuses when main's file changed since the copy" 2 "$?"
+assert_eq "carried manifest: refused sync-back leaves main's newer edit" "main-notes-v2-edited-after-copy" "$(cat "$REPO_CI/notes.env")"
+
+run_inc sync-back "$WT_CI" --main-root "$REPO_CI" --copy keys.env
+assert_exit "carried manifest: sync-back copies a file main left unchanged" 0 "$?"
+run_inc diff "$WT_CI" --main-root "$REPO_CI" --worktree-only
+assert_not_contains "carried manifest: a synced-back file no longer reads MODIFIED" "$OUT" $'\tkeys.env\t'
+
+printf 'fresh\n' >"$WT_CI/fresh.env"
+run_inc diff "$WT_CI" --main-root "$REPO_CI" --worktree-only
+assert_contains "carried manifest: an included file absent from the manifest is NEW" "$OUT" $'NEW\tfresh.env\t'
+
+rm -f "$WT_CI_GITDIR/carried.index"
+run_inc diff "$WT_CI" --main-root "$REPO_CI" --worktree-only
+assert_exit "carried manifest: no manifest exits 1" 1 "$?"
+assert_eq "carried-index: no manifest gives one NO-MANIFEST row" "NO-MANIFEST" "$(printf '%s\n' "$OUT" | cut -f1 | sort -u)"
+
+REPO_CE="$(mkfixture)"
+printf '*.env\n' >"$REPO_CE/.gitignore"
+printf '*.env\n' >"$REPO_CE/.worktreeinclude"
+git -C "$REPO_CE" add .gitignore .worktreeinclude
+git -C "$REPO_CE" commit -qm "include env files"
+WT_CE="$TEST_TMPDIR/wt-ce"
+git -C "$REPO_CE" worktree add -q -b feat/ce "$WT_CE" main >/dev/null 2>&1
+run_inc diff "$WT_CE" --main-root "$REPO_CE" --worktree-only
+assert_exit "carried manifest: no manifest and no included file in the worktree is clean" 0 "$?"
+
+printf 'same\n' >"$REPO_CE/app.env"
+cp -p "$REPO_CE/app.env" "$WT_CE/app.env"
+run_inc diff "$WT_CE" --main-root "$REPO_CE" --worktree-only
+assert_exit "carried manifest: no manifest and copies matching main is clean" 0 "$?"
+printf 'changed\n' >"$WT_CE/app.env"
+run_inc diff "$WT_CE" --main-root "$REPO_CE" --worktree-only
+assert_exit "carried manifest: no manifest and a copy differing from main exits 1" 1 "$?"
+assert_eq "carried manifest: a differing copy without a manifest gives one NO-MANIFEST row" "NO-MANIFEST" "$(printf '%s\n' "$OUT" | cut -f1 | sort -u)"
+
 [[ $FAILED -eq 0 ]] || exit 1

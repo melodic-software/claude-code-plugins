@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=PASS)\n\nLint: `npm run lint:md` lints the whole tree; it exited 0 before and after the edit.", "why": "the schema's summary line"},
+    {"answer": "| File | Action | Lint |\n|---|---|---|\n| onboarding.md | compressed | lint: PASS |", "why": "a table row"},
+    {"answer": "- `onboarding.md`: compressed, `lint=PASS` (`bash scripts/lint-md.sh` exit 0)", "why": "code-formatted fields"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, lint=unresolved)\n\nThe lint output names no file.", "why": "treats a clean whole-tree run as unresolved"},
+    {"answer": "onboarding.md: reverted (compression_pct=21.4%, lint=PASS)", "why": "a revert that ships no compression"},
+    {"answer": "onboarding.md: compressed\n\nlint=PASS", "why": "the action and the lint result on separate lines"},
+    {"answer": "The lint script passed, so I kept the edit.", "why": "prose without the lint field"}
+  ]
+}

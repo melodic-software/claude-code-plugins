@@ -1,5 +1,5 @@
 ---
-description: "Verify that markdownlint-cli2, the lint gate /docs-hygiene:compress requires, resolves and runs for this repository, and validate the compress_articles setting: the userConfig value and the repository's docs/conventions/docs-hygiene.yaml; write that file after confirmation. Use when: 'set up docs-hygiene', 'is docs-hygiene ready', 'compress stopped because markdownlint-cli2 is missing', 'set compress_articles for this repo', or before the first compress run. Actions: check (read-only, default), apply (writes docs/conventions/docs-hygiene.yaml only). Installs nothing. Re-runnable and safe."
+description: "Validate the /docs-hygiene:compress settings for this repository: the compress_articles userConfig value and the repository's docs/conventions/docs-hygiene.yaml; write that file after confirmation. Use when: 'set up docs-hygiene', 'is docs-hygiene ready', 'set compress_articles for this repo', or before the first compress run. Actions: check (read-only, default), apply (writes docs/conventions/docs-hygiene.yaml only). Installs nothing. Re-runnable and safe."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
@@ -8,18 +8,13 @@ shell: bash
 
 ## Purpose
 
-Setup for `/docs-hygiene:compress`. It has two parts:
-
-- **The one external prerequisite**, `markdownlint-cli2`, which `compress` runs as its post-edit
-  ship gate and stops without. `check` resolves the binary, runs it, and reports the remediation.
-  Installing is the operator's.
-- **The `compress_articles` setting**, which decides whether `compress` may remove `a`, `an` and
-  `the`. It has two homes: the plugin's native `userConfig` option, which Claude Code prompts for
-  and stores, and which this skill reads but never writes; and one tracked consumer file,
-  `docs/conventions/docs-hygiene.yaml`, the repository layer (keys, values and layers:
-  [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md);
-  schema: `${CLAUDE_PLUGIN_ROOT}/schemas/docs-hygiene.schema.json`). A value set in the file wins
-  over the user's `userConfig` value.
+Setup for `/docs-hygiene:compress`: the **`compress_articles` setting**, which decides whether
+`compress` may remove `a`, `an` and `the`. It has two homes: the plugin's native `userConfig`
+option, which Claude Code prompts for and stores, and which this skill reads but never writes; and
+one tracked consumer file, `docs/conventions/docs-hygiene.yaml`, the repository layer (keys, values
+and layers: [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md);
+schema: `${CLAUDE_PLUGIN_ROOT}/schemas/docs-hygiene.schema.json`). A value set in the file wins
+over the user's `userConfig` value.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check, then writes the
 repository file and nothing else. With complete `<key>=<value>` arguments nothing asks a question;
@@ -29,25 +24,9 @@ Official contract for `userConfig`: <https://code.claude.com/docs/en/plugins/man
 
 ## `check` (read-only)
 
-Report a PASS/INFO/WARN/FAIL table with one remediation line per FAIL. Modify nothing.
+Report a PASS/INFO/WARN table. Modify nothing.
 
-1. **Resolve `markdownlint-cli2`** the way `compress` does: first `command -v markdownlint-cli2`
-   (on `PATH`), then `node_modules/.bin/markdownlint-cli2` under the repository root. Report which
-   one resolved. FAIL when neither does.
-2. **Run it.** Execute the resolved binary with `--help` and no other argument. The probe must
-   read no markdownlint configuration and touch no file, so never pass `--version` or any argument
-   but `--help`. Judge the output, never the exit code: PASS when the first line of stdout is the
-   tool's version banner, naming `markdownlint-cli2` and its version. A shim can resolve and still
-   be broken (a missing Node interpreter, a dangling target), so resolution without the banner is
-   FAIL, with the stderr text in the remediation line.
-   - **Pointer**: when the probe's argument handling, help output or exit code is in question,
-     fetch [markdownlint-cli2: Command Line](https://github.com/DavidAnson/markdownlint-cli2#command-line)
-     and the argument parsing in
-     [`markdownlint-cli2.mjs` at v0.24.0](https://github.com/DavidAnson/markdownlint-cli2/blob/v0.24.0/markdownlint-cli2.mjs)
-     live; this decision was derived for markdownlint-cli2 v0.12.0 and later. **As of**:
-     2026-11-04. **Recheck trigger**: a markdownlint-cli2 release changes its argument parsing,
-     its help banner or the exit code of `--help`.
-3. **Repository settings.** Run `"${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" --check` from the
+1. **Repository settings.** Run `"${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" --check` from the
    project root and report each line it prints under its own INFO, PASS or WARN prefix: INFO when
    `docs/conventions/docs-hygiene.yaml` is absent, with no other line; otherwise a WARN for each
    problem in the file (a value outside the key's list, a key set twice, an empty or null value, a
@@ -59,24 +38,19 @@ Report a PASS/INFO/WARN/FAIL table with one remediation line per FAIL. Modify no
    `/docs-hygiene:compress`, which names it and drops that layer, so these rows are WARNs. `apply`
    fixes only a value that is outside the list, empty or null, and leaves an unknown key's line as
    written; every other WARN needs a hand edit first.
-4. **Effective `compress_articles`.** Read the rendered `${user_config.compress_articles}`; a
+2. **Effective `compress_articles`.** Read the rendered `${user_config.compress_articles}`; a
    literal unexpanded token means unset. Do not inspect or edit `settings.json`,
    `settings.local.json`, managed settings or `pluginConfigs`. Resolve as `compress` does
    (`${CLAUDE_PLUGIN_ROOT}/reference/config.md`), highest layer first, and state the value and the
    layer that supplied it:
-   1. Step 3 printed `PASS compress_articles: <value>` with `keep` or `cut`: the file's value.
-   2. Step 3 printed `WARN compress_articles: dropped`: the file layer is dropped, and no valid
+   1. Step 1 printed `PASS compress_articles: <value>` with `keep` or `cut`: the file's value.
+   2. Step 1 printed `WARN compress_articles: dropped`: the file layer is dropped, and no valid
       layer sits above it, so the value is `keep` (default). Never use the `userConfig` value in
       its place.
    3. Otherwise (no file, or the key unset in it): the `userConfig` value when it is `keep` or `cut`.
       Any other `userConfig` value is named (`userConfig`, `compress_articles`, the value) and
       dropped, and the value is `keep` (default).
    4. Otherwise `keep` (default).
-
-Remediation for a `markdownlint-cli2` FAIL: install it explicitly, `npm install --save-dev
-markdownlint-cli2` in the repository or a global install, then rerun `check`. Without it
-`/docs-hygiene:compress` stops at its entry point before touching a file. No other skill in this
-plugin needs the binary.
 
 To change the `userConfig` value of `compress_articles`, reconfigure through Claude Code's native
 flow, interactively with `/plugin configure docs-hygiene@<marketplace>` or by a headless route, as
@@ -166,14 +140,10 @@ To set the value for the whole repository instead, use `apply`.
 
 ## Gotchas
 
-- **A missing binary is not a lint failure.** `compress` never ships unverified output, so absence
-  stops it; `check` is how to see why before that happens.
 - **Never install on the operator's behalf.** This skill runs no `npm`, no `npx`, and no download.
-- **`apply` does not fix a missing binary.** It writes only the settings file.
 
 ## What this skill does NOT do
 
-- Run `markdownlint-cli2` over repository files. The only execution is the `--help` liveness probe.
-- Check the consuming repository's markdownlint configuration. Which rules a repository adopts is its
-  own decision.
+- Resolve or run the repository's markdown linter. `/docs-hygiene:compress` resolves it from the
+  repository at run time.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.

@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "\"/plugins/docs-hygiene/skills/setup/scripts/setup-apply.mjs\" --check"}}], "why": "the read-only check"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "docs/conventions/docs-hygiene.yaml", "old_string": "cut", "new_string": "keep"}}], "why": "check edits the repository file"}
+  ]
+}

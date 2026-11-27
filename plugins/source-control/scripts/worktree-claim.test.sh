@@ -506,8 +506,8 @@ else
 fi
 
 registry_entry() {
-  printf '{"pid":%s,"sessionId":"%s","procStart":"%s","cwd":"/x","kind":"interactive"}\n' \
-    "$3" "$4" "$5" >"$1/sessions/$2.json"
+  printf '{"pid":%s,"sessionId":"%s","procStart":"%s","cwd":"%s","kind":"interactive"}\n' \
+    "$3" "$4" "$5" "${6:-/x}" >"$1/sessions/$2.json"
 }
 
 batch_agrees() {
@@ -669,6 +669,119 @@ if [[ "$(uname -s)" == Linux && -r "/proc/$$/stat" ]] && command -v jq >/dev/nul
   assert_exit "stale --batch through the jq stub is exit 0" 0 "$?"
   assert_contains "stale --batch still reports the live session" "$OUT" $'1\t'"$EXT/wt-lv-live"$'\t'
   assert_eq "stale --batch reads the session registry once" 1 "$(wc -l <"$JQ_COUNT_LOG" | tr -d ' ')"
+
+  SL_CFG="$TEST_TMPDIR/sessionless-config"
+  mkdir -p "$SL_CFG/projects/-proj" "$SL_CFG/sessions"
+  sessionless_reason() {
+    local now since
+    printf -v now '%(%s)T' -1
+    TZ=UTC0 printf -v since '%(%Y-%m-%dT%H:%M:%SZ)T' "$((now - $1))"
+    printf 'worktree-create.sh: lane active on %s since %s; unlock when the owning lane is done' \
+      "${2:-$STALE_HOST}" "$since"
+  }
+  run_sl() {
+    local name="$1" CFG="$SL_CFG"
+    shift
+    run_stale "$name" "$@"
+  }
+  clear_sl_registry() { rm -f "$SL_CFG"/sessions/*.json; }
+
+  stale_lock wt-sl-old "$(sessionless_reason 10800)"
+  run_sl wt-sl-old
+  assert_exit "sessionless: an old lock with no live session or transcript is stale" 0 "$?"
+  assert_contains "stale: the session-less evidence says no live session works there" "$OUT" "no live session"
+
+  stale_lock wt-sl-recent "$(sessionless_reason 600)"
+  run_sl wt-sl-recent
+  assert_exit "sessionless: a lock set within the idle window is not provable" 1 "$?"
+
+  stale_lock wt-sl-live "$(sessionless_reason 10800)"
+  mkdir -p "$EXT/wt-sl-live/sub"
+  registry_entry "$SL_CFG" sl-live "$$" sl-live-sid "$OWN_START" "$EXT/wt-sl-live/sub"
+  run_sl wt-sl-live
+  assert_exit "sessionless: a live session whose cwd is inside the worktree blocks the proof" 1 "$?"
+  assert_contains "stale: the live-cwd refusal names the process" "$OUT" "process $$"
+  registry_entry "$SL_CFG" sl-live "$DEAD_PID" sl-live-sid 12345 "$EXT/wt-sl-live/sub"
+  run_sl wt-sl-live
+  assert_exit "stale: a dead session's cwd inside the worktree does not block the proof" 0 "$?"
+  clear_sl_registry
+
+  if command -v cygpath >/dev/null 2>&1; then
+    skip_case "sessionless: cygpath is on PATH, so a C: cwd converts here"
+  else
+    registry_entry "$SL_CFG" sl-win "$$" sl-win-sid "$OWN_START" 'C:\\code'
+    run_sl wt-sl-old
+    assert_exit "sessionless: a C:\\ cwd without cygpath is not provable" 1 "$?"
+    assert_contains "stale: the non-POSIX refusal names cygpath" "$OUT" "cygpath"
+    clear_sl_registry
+  fi
+
+  stale_lock wt-sl-foreign "$(sessionless_reason 10800 otherhost)"
+  run_sl wt-sl-foreign
+  assert_exit "sessionless: a lock from another host is not provable" 1 "$?"
+
+  stale_lock wt-sl-sub "$(sessionless_reason 10800)"
+  mkdir -p "$SL_CFG/projects/-proj/sl-parent/subagents"
+  printf '{"type":"user","cwd":"%s/deep"}\n' "$EXT/wt-sl-sub" >"$SL_CFG/projects/-proj/sl-parent/subagents/agent-1.jsonl"
+  run_sl wt-sl-sub
+  assert_exit "sessionless: a subagent transcript at depth 4 working inside blocks the proof" 1 "$?"
+  assert_contains "stale: the transcript refusal names the transcript" "$OUT" "agent-1.jsonl"
+  run_sl wt-sl-old
+  assert_exit "stale: a recent transcript elsewhere does not block the proof" 0 "$?"
+
+  printf '{"pid":%s,"sessionId":"sl-nocwd","procStart":"%s","kind":"interactive"}\n' "$$" "$OWN_START" >"$SL_CFG/sessions/sl-nocwd.json"
+  run_sl wt-sl-old
+  assert_exit "sessionless: a live session that records no cwd blocks the proof" 1 "$?"
+  assert_contains "stale: the no-cwd refusal names the session" "$OUT" "sl-nocwd records no cwd"
+  clear_sl_registry
+
+  stale_lock 'wt-sl-q"x' "$(sessionless_reason 10800)"
+  jq -cn --arg p "$EXT/wt-sl-q\"x/sub" '{type:"user",cwd:$p}' >"$SL_CFG/projects/-proj/sl-quote.jsonl"
+  run_sl 'wt-sl-q"x'
+  assert_exit "sessionless: a transcript working in a worktree whose path holds a quote blocks the proof" 1 "$?"
+
+  stale_lock wt-sl-file "$(sessionless_reason 10800)"
+  jq -cn --arg p "$EXT/wt-sl-file/notes.md" '{type:"assistant",cwd:"/elsewhere",message:{content:[{type:"tool_use",input:{file_path:$p}}]}}' >"$SL_CFG/projects/-proj/sl-file.jsonl"
+  run_sl wt-sl-file
+  assert_exit "sessionless: a transcript naming the worktree only in a file path blocks the proof" 1 "$?"
+  jq -cn --arg p "$EXT/wt-sl-file-2/notes.md" '{type:"assistant",cwd:"/elsewhere",message:{content:[{type:"tool_use",input:{file_path:$p}}]}}' >"$SL_CFG/projects/-proj/sl-file.jsonl"
+  run_sl wt-sl-file
+  assert_exit "stale: a sibling worktree whose name extends this one's does not block the proof" 0 "$?"
+
+  stale_lock wt-sl-proc "$(sessionless_reason 10800)"
+  bash -c 'cd "$1" && exec sleep 30' _ "$EXT/wt-sl-proc" &
+  SL_PROC_PID=$!
+  run_sl wt-sl-proc
+  assert_exit "sessionless: a process whose cwd is inside the worktree blocks the proof" 1 "$?"
+  assert_contains "stale: the process refusal names the process" "$OUT" "process $SL_PROC_PID"
+  kill "$SL_PROC_PID" 2>/dev/null
+  wait "$SL_PROC_PID" 2>/dev/null
+  run_sl wt-sl-proc
+  assert_exit "stale: the worktree proves stale once that process exits" 0 "$?"
+
+  live_tree sl-named '3 hours ago'
+  registry_entry "$LIVE_CFG" sl-named "$$" sl-named "$OWN_START" "$EXT/wt-sl-named"
+  run_live sl-named
+  assert_exit "sessionless: a session-named lock reads live while its process runs (four-column registry)" 1 "$?"
+
+  batch_agrees "session-less locks" "$SL_CFG" "$EXT/wt-sl-old" "$EXT/wt-sl-recent" "$EXT/wt-sl-sub" "$EXT/wt-sl-foreign"
+
+  stale_lock wt-sl-edge "$(sessionless_reason 7140)"
+  run_sl wt-sl-edge
+  assert_exit "stale: a lock one minute inside the idle window is not provable" 1 "$?"
+
+  printf '{}\n' >"$SL_CFG/projects/-proj/sl-locked.jsonl"
+  chmod 000 "$SL_CFG/projects/-proj/sl-locked.jsonl"
+  if [[ -r "$SL_CFG/projects/-proj/sl-locked.jsonl" ]]; then
+    skip_case "unreadable-transcript fixture: chmod 000 is not enforced here (uid $(id -u))"
+  else
+    run_sl wt-sl-old
+    assert_exit "stale: a recent transcript that cannot be read is not provable" 1 "$?"
+    assert_contains "stale: the unreadable-transcript refusal says so" "$OUT" "could not be read"
+  fi
+  rm -f "$SL_CFG/projects/-proj/sl-locked.jsonl"
+  PATH="$DARWIN_BIN:$PATH_SAVED" run_sl wt-sl-old
+  assert_exit "stale: a session-less lock off Linux is not provable" 1 "$?"
 else
   skip_case "live registry cases: no Linux /proc or no jq on this host"
 fi
@@ -811,6 +924,12 @@ run_claim claim --all-unclaimed --include-gone --repo-dir "$W5_REPO" --session-i
 assert_exit "--all-unclaimed --include-gone locks [gone] branch (exit 0)" 0 "$?"
 assert_contains "--include-gone locks the [gone] branch" \
   "$(git -C "$W5_REPO" worktree list --porcelain | awk -v RS= '/wt-gone/')" "session s-batch since"
+
+run_claim handover "$W5_EXT/wt-gone" --repo-dir "$W5_REPO" --session-id s-batch --to s-next
+assert_exit "handover of a [gone] branch releases instead (exit 0)" 0 "$?"
+assert_contains "handover names the [gone] release" "$OUT" "is [gone] upstream"
+assert_not_contains "handover leaves the [gone] tree unlocked" \
+  "$(git -C "$W5_REPO" worktree list --porcelain | awk -v RS= '/wt-gone/')" "locked"
 
 run_claim report --include-gone --repo-dir "$W5_REPO"
 assert_exit "--include-gone outside claim is usage (exit 2)" 2 "$?"

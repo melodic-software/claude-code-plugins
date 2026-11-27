@@ -64,7 +64,7 @@ export const TRANSCRIPT_JOB_IDS = {
   "intake-triage.yml": legs("refine-issue"),
   "maintenance-audit-lane-runs.yml": legs("assess-units", AUDIT_UNITS),
   "maintenance-measure-skill-edit.yml": ["generate-edit-key", "generate-edit", "generate-edit-fallback"],
-  "maintenance-scan-architecture.yml": legs("find-candidates"),
+  "maintenance-scan-architecture-find.yml": legs("find-candidates"),
   "maintenance-tidy-code-upkeep.yml": legs("sweep-areas"),
   "post-merge-test-mutation.yml": [...legs("generate"), ...legs("triage")],
   "pr-review-main.yml": legs("review", REVIEW_CHUNKS),
@@ -87,6 +87,7 @@ export const TRANSCRIPT_NAMES = [...new Set(Object.values(TRANSCRIPT_JOB_IDS).fl
  * pull-listing.test.mjs reads the workflows and fails when a caller is missing here.
  */
 export const TRANSCRIPT_CALLERS = {
+  "maintenance-scan-architecture-find.yml": ["maintenance-scan-architecture.yml"],
   "pr-run-activity-read.yml": ["intake-triage.yml", "pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"],
   "ci-workflows/pr-review-cli.yml": ["pr-review-hosted.yml", "pr-review-security-hosted.yml"],
 };

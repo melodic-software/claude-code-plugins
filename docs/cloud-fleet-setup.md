@@ -100,9 +100,9 @@ and fans out as sync PRs) and which own their copy `locally-owned`; read the man
 than a copy of it. Repo-specific steps go in a never-synced `.claude/cloud-bootstrap.local.sh`,
 never in an edit to a materialized script.
 
-Out of scope: the three archived repos, and `kyle-sexton/prereq-cancelled-verify` +
-`kyle-sexton/autonomy-demo-scratch` (a session can attach repos from only one owner; audit those
-from a session started on a `kyle-sexton` repo if they ever matter).
+Out of scope: the three archived repos, and personal `kyle-sexton/*` repositories (a session can
+attach repos from only one owner; audit those from a session started on a `kyle-sexton` repo if
+they ever matter).
 
 ## Step 1: the shared environment (claude.ai UI, one time)
 

@@ -1,8 +1,8 @@
 const KEY_ONLY = ["Write the key's credit-stop marker", "Scan the key's credit-stop marker for credentials", "Upload the key's credit-stop marker"];
 const HEADER = `  find-candidates:
     name: Find Candidates
-    needs: gate
-    if: needs.gate.outputs.run == 'true' && needs.gate.outputs.next-leg != 'subscription' && github.run_attempt == '1'
+    needs: check-key-credit
+    if: needs.check-key-credit.outputs.next-leg != 'subscription'
 `;
 const NEXT_OUTPUTS = "      next-leg: ${{ steps.next.outputs.next-leg }}\n      next-reason: ${{ steps.next.outputs.next-reason }}\n";
 const CREDENTIAL_CALL = `          credential-set: \${{ secrets.AUTOMATIONS_CLAUDE_API_KEY != '' }}
@@ -15,7 +15,7 @@ const shared = (leg) => [
 ];
 
 export default {
-  workflow: ".github/workflows/maintenance-scan-architecture.yml",
+  workflow: ".github/workflows/maintenance-scan-architecture-find.yml",
   key: "find-candidates",
   legs: [
     {
@@ -26,10 +26,10 @@ export default {
           HEADER,
           `  find-candidates-subscription:
     name: Find Candidates Subscription
-    needs: [gate, find-candidates]
+    needs: [check-key-credit, find-candidates]
     if: >-
-      \${{ !cancelled() && needs.gate.outputs.run == 'true' && github.run_attempt == '1'
-      && (needs.find-candidates.outputs.next-leg == 'subscription' || needs.gate.outputs.next-leg == 'subscription') }}
+      \${{ !cancelled() && (needs.find-candidates.outputs.next-leg == 'subscription'
+      || needs.check-key-credit.outputs.next-leg == 'subscription') }}
 `,
           1,
         ],
@@ -44,7 +44,7 @@ export default {
           CREDENTIAL_CALL,
           `          credential-set: \${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           fallback-set: \${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          reason: \${{ needs.find-candidates.outputs.next-reason || needs.gate.outputs.next-reason }}`,
+          reason: \${{ needs.find-candidates.outputs.next-reason || needs.check-key-credit.outputs.next-reason }}`,
           1,
         ],
         [API_KEY, "          subscription-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}\n          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}\n", 1],
@@ -82,10 +82,10 @@ export default {
           HEADER,
           `  find-candidates-fallback:
     name: Find Candidates Fallback
-    needs: [gate, find-candidates-subscription]
+    needs: find-candidates-subscription
     if: >-
-      \${{ !cancelled() && needs.gate.outputs.run == 'true' && github.run_attempt == '1'
-      && (needs.find-candidates-subscription.outputs.next-leg == 'fallback' || needs.find-candidates-subscription.outputs.credential-present == 'false') }}
+      \${{ !cancelled() && (needs.find-candidates-subscription.outputs.next-leg == 'fallback'
+      || needs.find-candidates-subscription.outputs.credential-present == 'false') }}
 `,
           1,
         ],

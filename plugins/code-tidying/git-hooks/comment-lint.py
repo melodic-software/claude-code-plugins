@@ -38,6 +38,10 @@ hunk, the removed lines touch one base run and the added lines one run, and the 
 no more lines of their run than the removed lines hold of the base run. A path that appears in
 more than one diff, or whose hunks do not fit its text, pairs no line.
 
+With <keep-opening> (NUL-separated paths), each of those paths' opening comment block is not
+judged: the comment lines with no code after an optional line-1 shebang and any blank or
+set - lines, up to the first other line.
+
 A path the comment reader fails on is named on stderr and not judged; the others still are.
 
 Exit: 0 judged; 2 usage; 3 pygments is not importable; 4 grep -E rejected an allow pattern;
@@ -103,6 +107,7 @@ LEADING_NUMBER = re.compile(r"\d+")
 EXIT_HEADING = re.compile(r"^#+\s*(?:exit(?:\s+codes)?|exits)\s*:?(?:\s+(\d).*)?$", re.IGNORECASE)
 EXIT_ENTRY = re.compile(r"^#+\s+\d+\b[^\w\n]*\w")
 HASH_INDENT = re.compile(r"^#+(\s*)")
+SET_LINE = re.compile(r"^\s*set\s+-")
 PS_HELP = re.compile(
     r"^\s*(?:#\s*)?\.(?:SYNOPSIS|DESCRIPTION|PARAMETER|EXAMPLE|INPUTS|OUTPUTS|NOTES|LINK|COMPONENT"
     r"|ROLE|FUNCTIONALITY|FORWARDHELPTARGETNAME|FORWARDHELPCATEGORY|REMOTEHELPRUNSPACE|EXTERNALHELP)\b",
@@ -359,6 +364,13 @@ def _header(lines: list[_Line], run_of: dict[int, list[int]], source: list[str])
     return run_of.get(start, [])
 
 
+def _opening(lines: list[_Line], run_of: dict[int, list[int]], source: list[str]) -> set[int]:
+    n = 2 if source and source[0].startswith("#!") else 1
+    while n <= len(source) and (not source[n - 1].strip() or SET_LINE.match(source[n - 1])):
+        n += 1
+    return set() if n >= len(lines) or lines[n].code else set(run_of.get(n, []))
+
+
 def _hash_indent(comment: str) -> int:
     match = HASH_INDENT.match(comment)
     return len(match.group(1)) if match else -1
@@ -523,7 +535,7 @@ def _reworded(n: int, lines: list[_Line], run_of: dict, span_of: dict, base: lis
     return sum(c <= x < c + d for x in news[0]) <= sum(a <= m < a + k for m in olds[0])
 
 
-def findings(path: str, text: str, added, posture: str, allow: list[str], repo: Path | None = None, adr_dir: str = ADR_DIR, max_lines: int = CLASS_C_MAX_LINES, hunks: list | None = None):
+def findings(path: str, text: str, added, posture: str, allow: list[str], repo: Path | None = None, adr_dir: str = ADR_DIR, max_lines: int = CLASS_C_MAX_LINES, hunks: list | None = None, keep_opening: bool = False):
     """The finding lines for the comments on <added> lines of <path>; None when no lexer reads it."""
     lexer, tokens = _lex(path, text)
     if lexer is None:
@@ -538,11 +550,13 @@ def findings(path: str, text: str, added, posture: str, allow: list[str], repo: 
         old, span_of = found
         base = _layout(_CENSUS.tokens("\n".join(old), lexer), len(old))
         base_runs = _runs(base)
+    opening = _opening(lines, run_of, source) if keep_opening else set()
     candidates = []
     for first, last in added:
         for n in range(max(first, 1), min(last, len(lines) - 1) + 1):
             if (
                 not lines[n].comment
+                or n in opening
                 or _same_trailing(n, lines, span_of, base)
                 or _reworded(n, lines, run_of, span_of, base, base_runs)
             ):
@@ -571,6 +585,10 @@ def _ranges(path: Path) -> dict[str, list[tuple[int, int]]]:
     return out
 
 
+def _paths(raw: bytes) -> list[str]:
+    return [p for p in raw.decode("utf-8", "surrogateescape").split("\0") if p]
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="comment-lint.py",
@@ -585,6 +603,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--adr-dir", default=ADR_DIR)
     parser.add_argument("--class-c-max-lines", type=int, default=CLASS_C_MAX_LINES)
     parser.add_argument("--diff", type=Path)
+    parser.add_argument("--keep-opening", type=Path)
     args = parser.parse_args(argv)
     try:
         import pygments  # noqa: F401
@@ -599,17 +618,14 @@ def main(argv: list[str]) -> int:
         allow = [p for p in args.allow.read_text(encoding="utf-8").splitlines() if p]
     ranges = _ranges(args.ranges)
     hunks = _hunks(args.diff)
-    paths = [
-        p
-        for p in sys.stdin.buffer.read().decode("utf-8", "surrogateescape").split("\0")
-        if p
-    ]
+    paths = _paths(sys.stdin.buffer.read())
+    keep = set(_paths(args.keep_opening.read_bytes())) if args.keep_opening else set()
     out, unjudged = [], False
     for path in paths:
         text = (args.root / path).read_text(encoding="utf-8", errors="replace")
         try:
             got = findings(
-                path, text, ranges.get(path, []), args.posture, allow, args.records, args.adr_dir, args.class_c_max_lines, hunks.get(path)
+                path, text, ranges.get(path, []), args.posture, allow, args.records, args.adr_dir, args.class_c_max_lines, hunks.get(path), path in keep
             )
         except ValueError as err:
             print(

@@ -20,8 +20,10 @@ code-tidying comment-lint: fail a comment a change adds outside the comment post
 Reads the team file <home>/code-tidying.yaml: comment_lint (off, the default, report or
 block), comment_lint_allow (extended regular expressions a comment may match),
 comment_lint_exclude (path globs of files the lint skips, each skip named on stderr:
-* and ? stay within one path segment, ** spans segments) and comment_adr_dir (the
-decision-record folder, default docs/adr).
+* and ? stay within one path segment, ** spans segments), comment_lint_keep_opening
+(path globs, same syntax, of files whose opening comment block passes: the contiguous
+comment lines after an optional shebang and any blank or set - lines) and
+comment_adr_dir (the decision-record folder, default docs/adr).
 comment_posture and class_c_max_lines (the most lines a linked comment paragraph may
 run, default 2) come from the team file and the personal override; a userConfig value
 never reaches a git hook. explanatory (and strict, balanced, conservative)
@@ -148,6 +150,18 @@ excluded_by() {
   done
   return 1
 }
+keep_res=()
+while IFS= read -r g; do
+  keep_res+=("$(glob_ere "$g")")
+done < <(checks_bash_run "$settings" --list comment_lint_keep_opening .)
+keeps_opening() {
+  local re
+  for re in ${keep_res[@]+"${keep_res[@]}"}; do
+    [[ "$1" =~ $re ]] && return 0
+  done
+  return 1
+}
+: >"$CHECKS_TMP/keep-opening"
 made=""
 while IFS= read -r -d '' f; do
   code_ext "${f##*/}" || [[ "${f##*/}" != *.* ]] || continue
@@ -166,6 +180,7 @@ while IFS= read -r -d '' f; do
     continue
   fi
   printf '%s\0' "$f" >>"$CHECKS_TMP/paths"
+  keeps_opening "$f" && printf '%s\0' "$f" >>"$CHECKS_TMP/keep-opening"
 done < <(checks_files)
 [[ -s "$CHECKS_TMP/paths" ]] || exit 0
 
@@ -197,7 +212,7 @@ checks_changed_lines --skip-reindent
 checks_diff -U0 --text --diff-filter=ACMR --src-prefix=a/ --dst-prefix=b/ --inter-hunk-context=0 >"$CHECKS_TMP/diff" 2>/dev/null ||
   : >"$CHECKS_TMP/diff"
 checks_bash_run "$settings" --list comment_lint_allow . >"$CHECKS_TMP/allow"
-python3 "$judge" --posture "$posture" --root "$texts" --records "$records" --adr-dir "$adr_dir" ${budget[@]+"${budget[@]}"} --ranges "$CHECKS_TMP/ranges" --diff "$CHECKS_TMP/diff" --allow "$CHECKS_TMP/allow" \
+python3 "$judge" --posture "$posture" --root "$texts" --records "$records" --adr-dir "$adr_dir" ${budget[@]+"${budget[@]}"} --ranges "$CHECKS_TMP/ranges" --diff "$CHECKS_TMP/diff" --allow "$CHECKS_TMP/allow" --keep-opening "$CHECKS_TMP/keep-opening" \
   <"$CHECKS_TMP/paths" >"$CHECKS_TMP/findings" 2>"$CHECKS_TMP/judge.err"
 rc=$?
 ((rc == 3)) && pygments_missing

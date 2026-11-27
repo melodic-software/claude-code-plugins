@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "docs-hygiene:rename-references"}}], "why": "qualified name"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "rename-references", "args": "ledger-sync ledger-bridge"}}], "why": "bare name with args"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no Skill call"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "docs-hygiene:audit-noise"}}], "why": "a sibling skill"},
+    {"answer": [{"tool": "Grep", "input": {"pattern": "rename-references"}}], "why": "the name in another tool's input"}
+  ]
+}

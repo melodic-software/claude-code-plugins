@@ -5,7 +5,7 @@
       "id": 1,
       "name": "default-compress-preserves-content",
       "prompt": "Compress this doc: read evals/fixtures/verbose-onboarding-snippet.md relative to the skill directory and tighten it. Drop the flavor but keep everything load-bearing. [The level reader has already been run for this case and printed `verification: standard (the plugin team file's verification key at origin/main)`; this run uses that line and does not run the reader again.]",
-      "expected_output": "Runs the default action: snapshot, mechanical compression backend (caveman or in-session Edit), a separate semantic-diff pass, revert of any semantic loss, then markdownlint. Filler ('basically', 'really', 'just', 'honestly', 'perhaps') is cut; the zero-warnings directive, the `MAX_UPLOAD_MB=25` value, and the 25 MB rejection threshold are preserved verbatim.",
+      "expected_output": "Runs the default action: snapshot, mechanical compression backend (caveman or in-session Edit), a separate semantic-diff pass, revert of any semantic loss, then markdown lint. Filler ('basically', 'really', 'just', 'honestly', 'perhaps') is cut; the zero-warnings directive, the `MAX_UPLOAD_MB=25` value, and the 25 MB rejection threshold are preserved verbatim.",
       "files": [
         "evals/fixtures/verbose-onboarding-snippet.md"
       ],
@@ -13,7 +13,7 @@
         "Output removes filler/hedging words (e.g. 'basically', 'really', 'just', 'honestly', 'perhaps')",
         "The literal `MAX_UPLOAD_MB=25` and the 25 MB rejection threshold are preserved, not dropped or altered",
         "The 'warnings are treated as errors / block the merge' directive is preserved as content, not cut as flavor",
-        "The run includes a semantic-diff verification step and a markdownlint check, not just a raw edit"
+        "The run includes a semantic-diff verification step and a markdown lint check, not just a raw edit"
       ]
     },
     {
@@ -99,7 +99,7 @@
         "After the audit, no AskUserQuestion runs on scope or concurrency: the skill reports the defaults it took (top-10 COMPRESS-classified highest-yield-first, 2 concurrent subagents, always-loaded files excluded) in one line, each with its override",
         "Always-loaded files stay excluded unless the user opts in explicitly",
         "No file is edited before the user's explicit final confirmation",
-        "Per-file hard rules (semantic-diff dispatch, revert pass, markdownlint, <3% rule) still apply to the confirmed run"
+        "Per-file hard rules (semantic-diff dispatch, revert pass, markdown lint, <3% rule) still apply to the confirmed run"
       ]
     },
     {
@@ -163,12 +163,12 @@
       "name": "articles-userconfig-cut-keeps-caveman",
       "narration": true,
       "prompt": "/docs-hygiene:compress docs/onboarding.md [The caveman plugin is installed. No docs/conventions/docs-hygiene.yaml. The docs-hygiene userConfig option compress_articles is set to cut, so SKILL.md's userConfig line substitutes to cut.] [The level reader has already been run for this case and printed `verification: standard (the plugin team file's verification key at origin/main)`; this run uses that line and does not run the reader again.]",
-      "expected_output": "The per-user level sets cut, so the run keeps the earlier behavior: Step A detects caveman, Step B runs /caveman:caveman-compress on a temp copy, and articles may be removed. The semantic-diff pass, revert pass and markdownlint still run. The summary's last line reads compress_articles: cut (userConfig).",
+      "expected_output": "The per-user level sets cut, so the run keeps the earlier behavior: Step A detects caveman, Step B runs /caveman:caveman-compress on a temp copy, and articles may be removed. The semantic-diff pass, revert pass and markdown lint still run. The summary's last line reads compress_articles: cut (userConfig).",
       "files": [],
       "expectations": [
         "Runs caveman detection and uses /caveman:caveman-compress as the backend because caveman is installed",
         "Treats articles as flavor that may be cut",
-        "Still runs the separate semantic-diff pass and markdownlint",
+        "Still runs the separate semantic-diff pass and markdown lint",
         "The last summary line names compress_articles as cut from userConfig"
       ]
     },

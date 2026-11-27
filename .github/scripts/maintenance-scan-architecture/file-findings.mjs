@@ -1,4 +1,5 @@
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
@@ -88,13 +89,15 @@ export function summary({ filed, skipped }) {
   ].join("\n");
 }
 
-async function main(command, env) {
+export async function main(command, env) {
+  if (command === "check" && !env.CHECKED_FILE) throw new Error("check needs CHECKED_FILE, a path apart from the read-only opened findings");
   const { kept: clean, dropped } = withoutSecurityDefects(readItems(readFileSync(env.FINDINGS_FILE, "utf8")));
   if (dropped > 0) console.log(`::warning::dropped ${dropped} item(s) that name a security defect; run /architecture:improve with a person present to review them privately`);
   const { kept: items, dropped: shaped } = withoutTrustedShapes(clean);
   if (shaped > 0) console.log(`::warning::dropped ${shaped} item(s) shaped like an issue another script trusts (an Upstream drift: title or an HTML comment marker in the body)`);
   if (command === "check") {
-    writeFileSync(env.FINDINGS_FILE, `${JSON.stringify({ items })}\n`);
+    mkdirSync(path.dirname(env.CHECKED_FILE), { recursive: true });
+    writeFileSync(env.CHECKED_FILE, `${JSON.stringify({ items })}\n`, { flag: "wx" });
     console.log(`::notice::the findings hold ${items.length} well-formed item(s)`);
     return;
   }

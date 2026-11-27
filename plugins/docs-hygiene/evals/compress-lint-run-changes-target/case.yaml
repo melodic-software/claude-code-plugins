@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: compress-lint-run-changes-target
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: edited-target
+    type: tool_used
+    tool: Edit
+    input_match: 'onboarding\.md'
+    min: 1
+    arm: with-only
+  - name: named-changed-target
+    type: regex
+    pattern: '(?=[\s\S]*\bchanged\b[^\n]*onboarding\.md|[\s\S]*onboarding\.md[^\n]*\bchanged\b)[\s\S]*\bcompressed\b[^\n]*\blint\W{1,4}unresolved\b'
+    target: last_message
+    arm: with-only
+  - name: no-restore-to-original
+    type: tool_used
+    tool: Bash
+    input_match: '\bgit\s+(?:checkout|restore|reset|stash)\b'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: no-shipped-linter
+    type: tool_used
+    tool: Bash
+    input_match: '(?<!\.)markdownlint'
+    min: 0
+    max: 0
+    arm: both
