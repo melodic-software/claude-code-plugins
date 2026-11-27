@@ -17,7 +17,6 @@ PENDING=(
   fleet
   plugin-profiles
   themes
-  toolchain
 )
 
 f=""
