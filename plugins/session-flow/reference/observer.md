@@ -29,10 +29,27 @@ session: a trigger while one is in flight starts none, except a gate check, whic
 request, has no tools and writes nothing to the transcript. The prompt asks for at most one fault in
 four categories (`process`, `decision`, `verification`, `instruction`), plus `request` (a skipped or
 unanswered part of the person's latest request, or drift from the session's stated goal) with
-`observer_request_check` on (off by default), each tied to a rule or owner
-decision the session's own instructions or conversation state, and defaults to `finding: none`. The
-reply is labeled lines, parsed leniently; a reply with no rule, an unknown category or a field over
-`observer_field_max` (240) characters counts as `parse_failed`.
+`observer_request_check` on, `skill` (work done by hand or another way where a listed skill or a
+written rule assigns it to a skill, or a skill run that hit a case its steps miss, ran inefficiently
+or ended without its `## Next`) with `observer_skill_check` on, and `improvement` (a step that ran
+far longer than it should, a bug or failure seen and not raised, or work against a principle the
+repository's loaded docs state) with `observer_improvement_check` on, all three off by default. Each
+finding is tied to a rule or owner decision the session's own instructions or conversation state,
+and a check defaults to `finding: none`. The reply is labeled lines, parsed leniently; a reply with
+no rule, an unknown category or a field over `observer_field_max` (240) characters counts as
+`parse_failed`. An optional last line routes the fix: `fix: session` (a dedicated session, with a
+ready command as harness findings carry, never auto-sent) or `fix: issue` (file it under the
+repository's filing rules); a missing or unknown line means here, and never fails the parse.
+
+**Repository layer.** At session start the module runs `lib/observer-team.mjs`, which reads two
+files from the default branch only, through `lib/default-branch-file.sh`, so a branch cannot change
+the rules it is checked by: the `observer` map of the repository's `session-flow.yaml` (`skill_check`,
+`improvement_check`, `defer_kinds`, `codify_threshold`; schema `schemas/session-flow.schema.json`),
+each of which wins over the user option of the same name with the `observer_` prefix, and the
+`## Observer guidance` section of `session-flow.md` in the same convention home, added to every
+check before the person's `observer_guidance`, each cut to `observer_guidance_max`. An invalid
+repository value is dropped, the user's value stands, and an `option_invalid` row names it as
+`team:<key>`. An unreadable default branch leaves the user's options in force.
 
 **Stale and repeated replies.** A reply that arrives after the next turn started, or after the
 session ended, is dropped as `stale`; its row's `held` says whether it carried a finding. Findings already reported (the last `observer_list_max`, default 50, across sessions) and
@@ -80,7 +97,9 @@ needs `observer_turn_end_check` on. The first main turn after an observer submit
 turn; when its start text matches the note, `/observer off` or Turn off before it starts aborts it,
 and when it does not, the turn runs and its usage row reads `matched: false`. The band keeps a delivered finding, marked sent, with
 Send hidden and Noted, Dispute, Why and Dismiss working; a refused delivery leaves it unsent and
-records the error. `observer_guidance` steers what checks look for; it does not choose what is sent:
+records the error. A category in `observer_defer_kinds` (empty by default) found while a main turn
+runs is written to the ledger and band at once but held, and every finding held that turn goes in
+one observer turn when it ends; its `auto_sent` row carries `deferred`, the count sent. `observer_guidance` steers what checks look for; it does not choose what is sent:
 to stop sending, turn auto-send off.
 
 **Gate.** With `observer_gate_check` on, a Bash command matching `observer_gate_pattern` waits for a
@@ -91,7 +110,7 @@ unchanged. No finding, a fork error or `observer_gate_timeout_seconds` (default 
 run: an observer fault never blocks work.
 
 **Harness checks.** With `observer_harness_check` on (off by default), the pure module
-`hooks/observer-harness.ts` (event in, findings out) runs six scripted checks on the main thread
+`hooks/observer-harness.ts` (event in, findings out) runs seven scripted checks on the main thread
 that call no model, so they cost no tokens:
 
 - *Hook latency*: at each turn's end, reads `<observer_hook_log_dir>/sessions/<session>.jsonl`,
@@ -110,6 +129,10 @@ that call no model, so they cost no tokens:
   error, so a different loop on the same tool is never hidden as a repeat; a success resets the count. `0` turns it off.
 - *Context*: each upward crossing of an `observer_context_percents` value.
 - *Rate limit*: a window at or past `observer_rate_limit_percent`, once per reset.
+- *Codify*: after a live finding is shown, counts the `shown` usage rows of this machine's sessions
+  whose `rule` matches it (case-insensitive, trailing period dropped); at `observer_codify_threshold`
+  (default 3, `0` off) across two or more sessions, it reports one finding routed to a dedicated
+  session running `/corrections:codify <rule>`, once per rule across sessions.
 
 Findings use category `harness` and go through the same ledger, band, remembered lists and usage
 rows as a live check's, with a `harness` field naming the check. Each names its fix: `here` (in
@@ -131,7 +154,8 @@ gate rows carry trigger `gate`, outcome `refused`, `none`, `timeout`, `error` or
 `allowed_after_refusals`, and `repeat`. A `parse_failed` row, check or gate, adds `reason`
 (`no_finding`, `no_rule`, `bad_category` or `field_too_long:<field>`) and, when the reply had a
 finding, the `lengths` of its finding, rule and evidence; never the reply text. A `shown` check row
-and a `refused` gate row carry the finding's `category`. That file is
+and a `refused` gate row carry the finding's `category`; a `shown` check row also carries its
+redacted `rule`, which the codify check counts. That file is
 how a day's cost is read, and its presence tells the catch-up this session had live checks.
 
 **Storage and retention.** One usage file per session and per machine, each with one writer, so no
@@ -304,6 +328,10 @@ Declared in the plugin manifest; the module and the SessionStart hook read the s
 | `observer_gate_timeout_seconds` | `30` | Longest hold; the command then runs. |
 | `observer_gate_refusals` | `1` | Times the same command is refused before it runs. |
 | `observer_request_check` | `false` | Add the `request` category to the live checks. |
+| `observer_skill_check` | `false` | Add the `skill` category; the repository's `observer.skill_check` wins. |
+| `observer_improvement_check` | `false` | Add the `improvement` category; the repository's `observer.improvement_check` wins. |
+| `observer_defer_kinds` | `""` | Categories auto-send holds to the turn's end; the repository's `observer.defer_kinds` wins. |
+| `observer_codify_threshold` | `3` | Rule findings across sessions before a codify finding; `0` is off; the repository's `observer.codify_threshold` wins. |
 | `observer_harness_check` | `false` | Run the scripted harness checks (see "Harness checks"); they call no model. |
 | `observer_hook_log_dir` | `.observability/claude` | Folder of session-telemetry's per-session hook log, absolute or relative to the project. |
 | `observer_hook_p95_ms` | `1000` | Hook p95 latency budget in milliseconds. |

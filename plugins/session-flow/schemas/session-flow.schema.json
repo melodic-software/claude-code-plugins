@@ -68,6 +68,21 @@
       "default": "light",
       "description": "How much independent checking this plugin's skills run: off, light (the default: skip the verifier dispatch), standard (run it) or strict (also run the optional passes). Read from the default branch's committed copy only, so a branch cannot lower it. Levels: docs/contracts/verification-level/README.md."
     },
+    "observer": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The repository's values for the session observer's live checks, read from the default branch at session start; each key wins over the user option of the same name with the observer_ prefix. The repository's guidance prose for the checks goes in the \"## Observer guidance\" section of session-flow.md in the same convention home.",
+      "properties": {
+        "skill_check": { "type": "boolean", "description": "Add the skill category (observer_skill_check)." },
+        "improvement_check": { "type": "boolean", "description": "Add the improvement category (observer_improvement_check)." },
+        "defer_kinds": {
+          "type": "array",
+          "items": { "enum": ["process", "decision", "verification", "instruction", "request", "skill", "improvement", "harness"] },
+          "description": "Categories auto-send holds until the turn ends (observer_defer_kinds)."
+        },
+        "codify_threshold": { "type": "integer", "minimum": 0, "description": "Findings citing one rule across sessions before a codify finding; 0 is off (observer_codify_threshold)." }
+      }
+    },
     "verification_skills": {
       "type": "object",
       "additionalProperties": { "enum": ["off", "light", "standard", "strict"] },
