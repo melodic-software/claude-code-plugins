@@ -13,13 +13,30 @@ set -uo pipefail
 
 script_src="${BASH_SOURCE[0]}"
 case "$script_src" in
-*/*) script_src_dir="${script_src%/*}" ;;
-*) script_src_dir="." ;;
+  */*) script_src_dir="${script_src%/*}" ;;
+  *) script_src_dir="." ;;
 esac
 PLUGIN_ROOT_DEFAULT=""
 if builtin pushd "$script_src_dir/../../.." >/dev/null 2>&1; then
   PLUGIN_ROOT_DEFAULT="$PWD"
   builtin popd >/dev/null 2>&1 || true
+fi
+
+INSTALLED_JSON="${FLEET_STATE_INSTALLED_JSON:-$HOME/.claude/plugins/installed_plugins.json}"
+MARKETPLACES_JSON="${FLEET_STATE_MARKETPLACES_JSON:-$HOME/.claude/plugins/known_marketplaces.json}"
+USER_SETTINGS="${FLEET_STATE_USER_SETTINGS:-$HOME/.claude/settings.json}"
+
+if [[ $# -eq 1 && "$1" == --fingerprint ]]; then
+  fp_root="${CLAUDE_PROJECT_DIR:-}"
+  if [[ -z "$fp_root" ]]; then
+    fp_root=$(git rev-parse --show-toplevel 2>/dev/null) || fp_root=""
+    fp_root="git:${fp_root//$'\r'/}"
+  fi
+  printf '%s=%q\n' PWD "$PWD" HOME "${HOME:-}" OSTYPE "${OSTYPE:-}" \
+    project_root "$fp_root" plugin_root "${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT_DEFAULT}" \
+    installed "$INSTALLED_JSON" marketplaces "$MARKETPLACES_JSON" user_settings "$USER_SETTINGS" \
+    catalog_dir "${FLEET_STATE_CATALOG_DIR:-}"
+  exit 0
 fi
 
 HOOK_UTILS="$PLUGIN_ROOT_DEFAULT/hooks/hook-utils.sh"
@@ -40,14 +57,10 @@ else
   exit 2
 fi
 
-INSTALLED_JSON="${FLEET_STATE_INSTALLED_JSON:-$HOME/.claude/plugins/installed_plugins.json}"
-MARKETPLACES_JSON="${FLEET_STATE_MARKETPLACES_JSON:-$HOME/.claude/plugins/known_marketplaces.json}"
-USER_SETTINGS="${FLEET_STATE_USER_SETTINGS:-$HOME/.claude/settings.json}"
-
 case_insensitive_os="false"
 case "${OSTYPE:-}" in
-msys* | cygwin* | win32) case_insensitive_os="true" ;;
-*) ;;
+  msys* | cygwin* | win32) case_insensitive_os="true" ;;
+  *) ;;
 esac
 
 native_cwd_to() {
@@ -61,6 +74,66 @@ native_cwd_to() {
   printf -v "$1" '%s' "$__nc_v"
 }
 
+# shellcheck disable=SC2016  # jq programs: every $var is a jq variable
+SELECTOR_TABLE=(
+  'installed-user|installed:array|id|$block.installed[]? | select(.scope == "user")'
+  'user-enable-state|installed:array|id state|$block.installed[]? | select(.scope == "user")
+     | {id, state: (if ($block.enabled // {})[.id] == false then "off" else "on" end)}'
+  'update-candidates-user|installed:array catalog_versions:object|id version|$block.catalog_versions as $cvs | ($block.delisted // []) as $delisted
+     | $block.installed[]? | select(.scope == "user")
+     | select((($cvs[.id]) == null or ($cvs[.id]) != .version)
+              and (proven_downgrade(.version; $cvs[.id]) | not)
+              and (.id as $id | $delisted | index($id) | not))'
+  'update-candidates-project|installed:array catalog_versions:object|id scope version|$block.catalog_versions as $cvs | ([($block.delisted_project // [])[].id]) as $delisted
+     | $block.installed[]? | select(.currentProject == true)
+     | select((proven_downgrade(.version; $cvs[.id]) | not)
+              and (.id as $id | $delisted | index($id) | not))'
+  'update-candidates-other-paths|installed:array catalog_versions:object|id scope projectPath version catalog home label|$block.catalog_versions as $cvs
+     | [$block.installed[]? | select((.scope == "project" or .scope == "local") and .currentProject != true
+          and .projectPathPresent == true and (.projectPath // "") != "")
+        | select(($cvs[.id] | version_triple) as $c | (.version | version_triple) as $v
+                 | $c != null and $v != null and $v < $c)
+        | . + {catalog: $cvs[.id], home: (.projectPathIsHome == true)}]
+     | sort_by(.projectPath, .id, .scope)[]'
+  'downgrade-candidates|installed:array catalog_versions:object|id scope version catalog|$block.catalog_versions as $cvs | $block.installed[]?
+     | select(.scope == "user" or .currentProject == true)
+     | select(proven_downgrade(.version; $cvs[.id]))
+     | . + {catalog: $cvs[.id]}'
+  'current-project|installed:array|id scope|$block.installed[]? | select(.currentProject == true)'
+  'missing-user-install|missing_from_user_install:array|id|$block.missing_from_user_install[]? | {id: .}'
+  'missing-enabled|missing_from_enabled:array|id|$block.missing_from_enabled[]? | {id: .}'
+  'enable-targets|installed:array missing_from_enabled:array|id user local project projectPath|$block.missing_from_enabled[]? as $id
+     | [$block.installed[]? | select(.id == $id)] as $r
+     | {id: $id, user: any($r[]; .scope == "user"),
+        local: any($r[]; .scope == "local" and .currentProject == true),
+        project: any($r[]; .scope == "project" and .currentProject == true),
+        projectPath: (first($r[] | select(.scope == "project" and .currentProject == true) | .projectPath) // null)}'
+  'user-scope-orphans|user_scope_orphans:array|id|$block.user_scope_orphans[]? | {id: .}'
+)
+
+SELECTOR_NAMES=()
+SELECTOR_HELP=""
+for selector_entry in "${SELECTOR_TABLE[@]}"; do
+  IFS='|' read -r selector_name _ selector_cols _ <<<"$selector_entry"
+  SELECTOR_NAMES+=("$selector_name")
+  SELECTOR_HELP+="  $selector_name: ${selector_cols// /, }"$'\n'
+done
+
+selector_field() {
+  local entry name req cols
+  for entry in "${SELECTOR_TABLE[@]}"; do
+    IFS='|' read -r name req cols _ <<<"$entry"
+    [[ "$name" == "$1" ]] || continue
+    case "$2" in
+      required) printf '%s' "$req" ;;
+      columns) printf '%s' "$cols" ;;
+      *) ;;
+    esac
+    return 0
+  done
+  return 1
+}
+
 usage() {
   local text
   IFS= read -r -d '' text <<'EOF' || true
@@ -71,23 +144,26 @@ Usage:
   fleet-state.sh [--marketplace <name>] --ids <selector>
   fleet-state.sh --ids <selector> --from <report.json> [--marketplace <name>]
   fleet-state.sh --marketplaces
+  fleet-state.sh --fingerprint
 
 With neither --marketplace nor --all, the target is the marketplace this plugin
 was installed from. --ids prints one TAB-separated record per line instead of
 JSON; the first field is the <name>@<marketplace> id. --from projects --ids from
 a saved single-marketplace report instead of reading the fleet. --marketplaces
-prints every marketplace name, one per line.
-
-Selectors: installed-user, update-candidates-user, update-candidates-project,
-downgrade-candidates, current-project, missing-user-install, missing-enabled,
-user-scope-orphans.
+prints every marketplace name, one per line. --fingerprint prints, one
+name=value line each, the environment inputs a report depends on (the working
+directory, HOME, OSTYPE, the project root or git's top level, the plugin root
+and the FLEET_STATE_* paths) without reading any file; with the file list
+FLEET_STATE_READ_LIST=<file> collects during a report, it is every input.
 
 Exit: 0 ran to completion; 1 a single marketplace could not be resolved;
 2 usage error, jq missing, or a state file that does not match its expected shape.
 
 The output shapes are in context/script-contracts.md and context/scope-semantics.md.
+
+Selectors and their columns:
 EOF
-  printf '%s\n' "$text"
+  printf '%s%s' "$text" "$SELECTOR_HELP"
 }
 
 MODE="default"
@@ -97,47 +173,51 @@ LIST_MARKETPLACES=""
 FROM_REPORT=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --marketplaces)
-    LIST_MARKETPLACES="yes"
-    shift
-    ;;
-  --ids)
-    IDS_SELECTOR="${2:-}"
-    if [[ -z "$IDS_SELECTOR" ]]; then
-      echo "ERROR: --ids requires a selector" >&2
+    --marketplaces)
+      LIST_MARKETPLACES="yes"
+      shift
+      ;;
+    --ids)
+      IDS_SELECTOR="${2:-}"
+      if [[ -z "$IDS_SELECTOR" ]]; then
+        echo "ERROR: --ids requires a selector" >&2
+        exit 2
+      fi
+      shift 2
+      ;;
+    --from)
+      FROM_REPORT="${2:-}"
+      if [[ -z "$FROM_REPORT" ]]; then
+        echo "ERROR: --from requires a report path" >&2
+        exit 2
+      fi
+      shift 2
+      ;;
+    --marketplace)
+      MODE="single"
+      TARGET="${2:-}"
+      if [[ -z "$TARGET" ]]; then
+        echo "ERROR: --marketplace requires a name" >&2
+        exit 2
+      fi
+      shift 2
+      ;;
+    --all)
+      MODE="all"
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    --fingerprint)
+      echo "ERROR: --fingerprint takes no other argument" >&2
       exit 2
-    fi
-    shift 2
-    ;;
-  --from)
-    FROM_REPORT="${2:-}"
-    if [[ -z "$FROM_REPORT" ]]; then
-      echo "ERROR: --from requires a report path" >&2
+      ;;
+    *)
+      echo "ERROR: unknown argument: $1 (see --help)" >&2
       exit 2
-    fi
-    shift 2
-    ;;
-  --marketplace)
-    MODE="single"
-    TARGET="${2:-}"
-    if [[ -z "$TARGET" ]]; then
-      echo "ERROR: --marketplace requires a name" >&2
-      exit 2
-    fi
-    shift 2
-    ;;
-  --all)
-    MODE="all"
-    shift
-    ;;
-  -h | --help)
-    usage
-    exit 0
-    ;;
-  *)
-    echo "ERROR: unknown argument: $1 (see --help)" >&2
-    exit 2
-    ;;
+      ;;
   esac
 done
 
@@ -155,37 +235,10 @@ if [[ -n "$IDS_SELECTOR" && "$MODE" == "all" ]]; then
   exit 2
 fi
 
-ids_selector_valid() {
-  case "$1" in
-  installed-user | update-candidates-user | update-candidates-project | downgrade-candidates | current-project | missing-user-install | missing-enabled | user-scope-orphans)
-    return 0
-    ;;
-  *)
-    echo "ERROR: unknown --ids selector: $1" >&2
-    echo "  expected one of: installed-user, update-candidates-user," >&2
-    echo "                   update-candidates-project, downgrade-candidates," >&2
-    echo "                   current-project, missing-user-install," >&2
-    echo "                   missing-enabled, user-scope-orphans" >&2
-    return 1
-    ;;
-  esac
-}
-
-ids_selector_required_fields() {
-  case "$1" in
-  installed-user | current-project) echo 'installed:array' ;;
-  update-candidates-user | update-candidates-project | downgrade-candidates)
-    echo 'installed:array catalog_versions:object'
-    ;;
-  missing-user-install) echo 'missing_from_user_install:array' ;;
-  missing-enabled) echo 'missing_from_enabled:array' ;;
-  user-scope-orphans) echo 'user_scope_orphans:array' ;;
-  *) echo '' ;;
-  esac
-}
-
-if [[ -n "$IDS_SELECTOR" ]]; then
-  ids_selector_valid "$IDS_SELECTOR" || exit 2
+if [[ -n "$IDS_SELECTOR" ]] && ! selector_field "$IDS_SELECTOR" columns >/dev/null; then
+  echo "ERROR: unknown --ids selector: $IDS_SELECTOR" >&2
+  printf '  expected one of:\n%s' "$SELECTOR_HELP" >&2
+  exit 2
 fi
 
 if ! command -v jq >/dev/null 2>&1; then
@@ -205,32 +258,17 @@ PROJECTION_PROGRAM='
   def proven_downgrade($iv; $cv):
     ($iv | version_triple) as $i | ($cv | version_triple) as $c
     | ($i != null and $c != null and $c < $i);
-  if $selector == "" then $block
-    elif $selector == "installed-user" then ($block.installed[]? | select(.scope == "user") | .id)
-    elif $selector == "update-candidates-user" then
-      ($block.catalog_versions as $cvs | ($block.delisted // []) as $delisted
-       | $block.installed[]? | select(.scope == "user")
-       | .id as $id
-       | select((($cvs[$id]) == null or ($cvs[$id]) != .version)
-                and (proven_downgrade(.version; $cvs[$id]) | not)
-                and ($delisted | index($id) | not))
-       | $id)
-    elif $selector == "update-candidates-project" then
-      ($block.catalog_versions as $cvs | ([($block.delisted_project // [])[].id]) as $delisted
-       | $block.installed[]? | select(.currentProject == true)
-       | .id as $id
-       | select((proven_downgrade(.version; $cvs[$id]) | not)
-                and ($delisted | index($id) | not))
-       | "\(.id)\t\(.scope)")
-    elif $selector == "downgrade-candidates" then
-      ($block.catalog_versions as $cvs | $block.installed[]?
-       | select(.scope == "user" or .currentProject == true)
-       | select(proven_downgrade(.version; $cvs[.id]))
-       | "\(.id)\t\(.scope)\t\(.version)\t\($cvs[.id])")
-    elif $selector == "current-project" then ($block.installed[]? | select(.currentProject == true) | "\(.id)\t\(.scope)")
-    elif $selector == "missing-user-install" then $block.missing_from_user_install[]?
-    elif $selector == "missing-enabled" then $block.missing_from_enabled[]?
-    elif $selector == "user-scope-orphans" then $block.user_scope_orphans[]?
+  def tsv($cols):
+    . as $r | [$cols[] | $r[.] | if . == null then "" else tostring | gsub("[\t\n\r]"; " ") end] | join("\t");
+  if $selector == "" then $block'
+for selector_entry in "${SELECTOR_TABLE[@]}"; do
+  IFS='|' read -r selector_name _ selector_cols _ <<<"$selector_entry"
+  selector_cols_json="\"${selector_cols// /\",\"}\""
+  PROJECTION_PROGRAM+="
+    elif \$selector == \"$selector_name\" then (${selector_entry#*|*|*|}) | tsv([$selector_cols_json])"
+done
+# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+PROJECTION_PROGRAM+='
     else error("unknown selector: " + $selector) end'
 
 FS_FROM_NAME=""
@@ -251,7 +289,7 @@ if [[ -n "$FROM_REPORT" ]]; then
   fi
   FS_FROM_CHECK=""
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  if ! jq_to FS_FROM_CHECK -r --arg required "$(ids_selector_required_fields "$IDS_SELECTOR")" '
+  if ! jq_to FS_FROM_CHECK -r --arg required "$(selector_field "$IDS_SELECTOR" required)" '
         if type != "object" then "err:not a JSON object"
         elif has("marketplaces") then "err:this is an --all envelope, not a single-marketplace report"
         elif (.marketplace | type) != "object" or (.marketplace.name | type) != "string"
@@ -469,23 +507,23 @@ resolved_target=""
 location_target=""
 while IFS=$'\x1f' read -r tag f1 f2 f3 f4 f5; do
   case "$tag" in
-  ERR)
-    echo "ERROR: $f1" >&2
-    exit 2
-    ;;
-  CTX) ctx_json="$f1" ;;
-  NAME) mp_names+=("$f1") ;;
-  MP)
-    mp_keys+=("$f1")
-    mp_loc+=("$f2")
-    mp_au+=("$f3")
-    mp_lu+=("$f4")
-    mp_src+=("$f5")
-    ;;
-  PP) pp_lines+=("$f1") ;;
-  TARGET) resolved_target="$f1" ;;
-  LOCHIT) location_target="$f1" ;;
-  *) ;;
+    ERR)
+      echo "ERROR: $f1" >&2
+      exit 2
+      ;;
+    CTX) ctx_json="$f1" ;;
+    NAME) mp_names+=("$f1") ;;
+    MP)
+      mp_keys+=("$f1")
+      mp_loc+=("$f2")
+      mp_au+=("$f3")
+      mp_lu+=("$f4")
+      mp_src+=("$f5")
+      ;;
+    PP) pp_lines+=("$f1") ;;
+    TARGET) resolved_target="$f1" ;;
+    LOCHIT) location_target="$f1" ;;
+    *) ;;
   esac
 done <<<"$pass1"
 
@@ -511,18 +549,18 @@ for pp in ${pp_lines[@]+"${pp_lines[@]}"}; do
       pp_gitfile="${pp_gitfile//$'\r'/}"
       pp_gitfile="${pp_gitfile//\\//}"
       case "$pp_gitfile" in
-      gitdir:*/worktrees/*/modules/*) ;;
-      gitdir:*/worktrees/*)
-        pp_gd="${pp_gitfile#gitdir:}"
-        pp_gd="${pp_gd# }"
-        case "$pp_gd" in
-        /* | ?:/*) ;;
-        *) pp_gd="$pp_fs/$pp_gd" ;;
-        esac
-        read_set "$pp_gd/commondir"
-        [[ -f "$pp_gd/commondir" ]] && pp_linked="true"
-        ;;
-      *) ;;
+        gitdir:*/worktrees/*/modules/*) ;;
+        gitdir:*/worktrees/*)
+          pp_gd="${pp_gitfile#gitdir:}"
+          pp_gd="${pp_gd# }"
+          case "$pp_gd" in
+            /* | ?:/*) ;;
+            *) pp_gd="$pp_fs/$pp_gd" ;;
+          esac
+          read_set "$pp_gd/commondir"
+          [[ -f "$pp_gd/commondir" ]] && pp_linked="true"
+          ;;
+        *) ;;
       esac
     fi
     presence_tsv+="$pp"$'\t'"true"$'\t'"$pp_linked"$'\n'
@@ -604,6 +642,19 @@ PASS3_PROGRAM="$VERSION_TRIPLE_DEF"'
       | from_entries) as $cv
   | ($ci == "true") as $cib
   | ($home | gsub("\\\\"; "/") | sub("/+$"; "")) as $home_n
+  | ($inst[0].plugins | to_entries
+      | [.[] | select(.key | endswith("@" + $name)) | .value[]
+         | select(.scope == "project" or .scope == "local") | .projectPath | strings]
+      | unique
+      | map({key: .,
+             value: (gsub("\\\\"; "/") as $s
+               | {current: (if $cib then ($s | ascii_downcase) == ($cur | ascii_downcase) else $s == $cur end),
+                  home: (($s | sub("/+$"; "")) as $p
+                    | ($p | test("^/home/[^/]+$"))
+                      or ($p | test("^(/Users/[^/]+|/mnt/[a-z]/Users/[^/]+|[a-z]:/Users/[^/]+)$"; "i"))
+                      or ($home_n != "" and $home_n != "/"
+                          and (if $cib then ($p | ascii_downcase) == ($home_n | ascii_downcase) else $p == $home_n end)))})})
+      | from_entries) as $path_facts
   # Every install record for ids in this marketplace, flattened, with the
   # currentProject flag Windows-normalized on both sides.
   | ($inst[0].plugins | to_entries
@@ -617,11 +668,11 @@ PASS3_PROGRAM="$VERSION_TRIPLE_DEF"'
                 # The record'"'"'s cache directory, as recorded: the one place a
                 # consumer can read the installed build'"'"'s own manifest from.
                 installPath: (.installPath // null),
+                gitCommitSha: (.gitCommitSha // null),
                 projectPath: (.projectPath // null),
                 currentProject: (
                   if (.scope == "project" or .scope == "local") and (.projectPath // "" | length) > 0 and ($cur | length) > 0 then
-                    (.projectPath | gsub("\\\\"; "/")) as $p |
-                    if $cib then ($p | ascii_downcase) == ($cur | ascii_downcase) else $p == $cur end
+                    .projectPath | if type == "string" then $path_facts[.].current else gsub("\\\\"; "/") end
                   else null end
                 ),
                 projectPathPresent: (
@@ -635,11 +686,7 @@ PASS3_PROGRAM="$VERSION_TRIPLE_DEF"'
                 ),
                 projectPathIsHome: (
                   if (.scope == "project" or .scope == "local") and (.projectPath // "" | length) > 0 then
-                    (.projectPath | gsub("\\\\"; "/") | sub("/+$"; "")) as $p
-                    | ($p | test("^/home/[^/]+$"))
-                      or ($p | test("^(/Users/[^/]+|/mnt/[a-z]/Users/[^/]+|[a-z]:/Users/[^/]+)$"; "i"))
-                      or ($home_n != "" and $home_n != "/"
-                          and (if $cib then ($p | ascii_downcase) == ($home_n | ascii_downcase) else $p == $home_n end))
+                    $path_facts[.projectPath].home
                   else null end
                 ),
                 linkedWorktree: (
@@ -667,21 +714,28 @@ PASS3_PROGRAM="$VERSION_TRIPLE_DEF"'
                   else null end
                 )
               })) as $installed
+  | ([$installed[].version, $cv[]] | map(select(type == "string")) | unique
+      | map({key: ., value: version_triple}) | from_entries) as $vt
+  | def vtri: if type == "string" then $vt[.] else null end; .
   # A lagging project/local record in a linked worktree: `claude plugin update`
   # reports success there and leaves the record unchanged (#6713), so the record
   # is labeled instead of dropped. It stays in installed[] and in divergences[],
   # and the label never changes versionsMatch. "Lagging" is measured against the
-  # catalog version when it parses, else the highest version any record of the id
-  # holds; a version that does not parse is never labeled.
+  # catalog version when it parses, else the highest version of the id; a
+  # version that does not parse is never labeled.
+  # The highest version is the one rule every consumer reads: the highest
+  # parsable version over the records of the id not keyed to a user home, since no
+  # converge command runs from a home and a home pin must not set the target.
   | ($installed | group_by(.id)
-      | map({key: .[0].id, value: ([.[].version | version_triple | select(. != null)] | max)})
+      | map({key: .[0].id,
+             value: ([.[] | select(.projectPathIsHome != true) | .version | vtri | select(. != null)] | max)})
       | from_entries) as $highest
   | ($installed | map(
       . as $r
-      | (($cv[$r.id] | version_triple) // $highest[$r.id]) as $ref
+      | (($cv[$r.id] | vtri) // $highest[$r.id]) as $ref
       | $r + {label: (
-          if $r.linkedWorktree == true and ($r.version | version_triple) != null
-             and $ref != null and ($r.version | version_triple) < $ref
+          if $r.linkedWorktree == true and ($r.version | vtri) != null
+             and $ref != null and ($r.version | vtri) < $ref
           then "update ineffective, uninstall clears it" else null end)}
     )) as $installed
   | ([$catalog[0].plugins[]?.name // empty] | unique) as $catalog_names
@@ -735,17 +789,34 @@ PASS3_PROGRAM="$VERSION_TRIPLE_DEF"'
   # scope both pinned to the same version — normal, not actionable) from a
   # real version skew (some scope is behind another — the "run converge"
   # signal). A record count alone conflates the two.
-  | ($installed | group_by(.id)
+  # `class` says what converge can do with each pin, in precedence order: a home
+  # or an absent path blocks any command, a linked worktree takes no update, and
+  # a catalog below `highest` would roll an update back.
+  | def scope_class($catalog_lower):
+      if .projectPathIsHome == true then "blocked-home"
+      elif .scope != "user" and .projectPathPresent != true then "blocked-absent"
+      elif .linkedWorktree == true then "worktree"
+      elif $catalog_lower then "blocked-catalog"
+      else "actionable" end;
+    ($installed | group_by(.id)
       | map(select(length > 1))
-      | map({
-          id: .[0].id,
+      | map(.[0].id as $id
+          | $highest[$id] as $hi
+          | ($cv[$id] | vtri) as $cat
+          | ($hi != null and $cat != null and $cat < $hi) as $catalog_lower
+          | {
+          id: $id,
+          highest: (if $hi == null then null
+                    else first(.[] | select(.projectPathIsHome != true and (.version | vtri) == $hi) | .version) end),
+          userHolds: ($hi != null and any(.[]; .scope == "user" and (.version | vtri) == $hi)),
           scopes: map({scope, version, projectPath, projectPathPresent, projectPathIsHome, linkedWorktree,
-                       projectEnabledEntry, label}),
+                       projectEnabledEntry, label, class: scope_class($catalog_lower)}),
           versionsMatch: ((map(.version) | unique | length) == 1)
         })) as $divergences
   | {
       marketplace: {name: $name, autoUpdate: ($au == "true"), lastUpdated: $lastUpdated,
-                    source: (if $src == "" then null else $src end)},
+                    source: (if $src == "" then null else $src end),
+                    installLocation: (if $loc == "" then null else $loc end)},
       project_root: (if ($cur | length) > 0 then $cur else null end),
       catalog: $catalog_names,
       catalog_versions: $cv,
@@ -819,10 +890,10 @@ emit_marketplace() {
     cv_rel="${cv_src#./}"
     cv_rel="${cv_rel//\\//}"
     case "/$cv_rel/" in
-    */../*)
-      cv_rel=""
-      ;;
-    *) ;;
+      */../*)
+        cv_rel=""
+        ;;
+      *) ;;
     esac
     cv_manifest=""
     [[ -z "$cv_rel" ]] || read_set "$manifest_base/$cv_rel/.claude-plugin/plugin.json"
@@ -863,6 +934,7 @@ emit_marketplace() {
     --arg au "$auto_update_json" \
     --arg lastUpdated "$last_updated" \
     --arg src "$source_text" \
+    --arg loc "$install_location" \
     --arg cur "$current_project_norm" \
     --arg ci "$case_insensitive_os" \
     --arg home "${HOME:-}" \
@@ -913,41 +985,41 @@ if [[ "$MODE" == "default" && -z "$resolved_target" ]]; then
 fi
 
 case "$MODE" in
-default)
-  TARGET="$resolved_target"
-  if [[ -z "$TARGET" ]]; then
-    echo "ERROR: could not resolve the default marketplace. This plugin's install dir" >&2
-    echo "  ${norm_root:-<unresolved>}" >&2
-    echo "resolved through none of the three stages: exact installPath, version-agnostic" >&2
-    echo ".../cache/<marketplace>/<plugin> prefix, and (for a root outside the cache) a" >&2
-    echo ".claude-plugin/marketplace.json walk-up or a known marketplace installLocation." >&2
-    echo "Either the session's loaded version differs from the installed one and the cache" >&2
-    echo "layout is not the expected .../cache/<marketplace>/<plugin>/<version> shape, or" >&2
-    echo "the root is not under the cache at all (a local dev checkout, --plugin-dir, or a" >&2
-    echo "marketplace checkout) and carries no marketplace.json naming a marketplace that" >&2
-    echo "known_marketplaces.json knows. Pass --marketplace <name> explicitly." >&2
-    exit 1
-  fi
-  emit_one "$TARGET" || exit $?
-  ;;
-single)
-  emit_one "$TARGET" || exit $?
-  ;;
-all)
-  result='{"marketplaces":{'
-  sep=""
-  for n in ${mp_names[@]+"${mp_names[@]}"}; do
-    [[ -n "$n" ]] || continue
-    emit_marketplace "$n" || true
-    json_string_to key_json "$n"
-    result+="$sep$key_json:$FS_BLOCK"
-    sep=","
-  done
-  result+='}}'
-  printf '%s\n' "$result"
-  ;;
-*)
-  echo "ERROR: unreachable mode: $MODE" >&2
-  exit 2
-  ;;
+  default)
+    TARGET="$resolved_target"
+    if [[ -z "$TARGET" ]]; then
+      echo "ERROR: could not resolve the default marketplace. This plugin's install dir" >&2
+      echo "  ${norm_root:-<unresolved>}" >&2
+      echo "resolved through none of the three stages: exact installPath, version-agnostic" >&2
+      echo ".../cache/<marketplace>/<plugin> prefix, and (for a root outside the cache) a" >&2
+      echo ".claude-plugin/marketplace.json walk-up or a known marketplace installLocation." >&2
+      echo "Either the session's loaded version differs from the installed one and the cache" >&2
+      echo "layout is not the expected .../cache/<marketplace>/<plugin>/<version> shape, or" >&2
+      echo "the root is not under the cache at all (a local dev checkout, --plugin-dir, or a" >&2
+      echo "marketplace checkout) and carries no marketplace.json naming a marketplace that" >&2
+      echo "known_marketplaces.json knows. Pass --marketplace <name> explicitly." >&2
+      exit 1
+    fi
+    emit_one "$TARGET" || exit $?
+    ;;
+  single)
+    emit_one "$TARGET" || exit $?
+    ;;
+  all)
+    result='{"marketplaces":{'
+    sep=""
+    for n in ${mp_names[@]+"${mp_names[@]}"}; do
+      [[ -n "$n" ]] || continue
+      emit_marketplace "$n" || true
+      json_string_to key_json "$n"
+      result+="$sep$key_json:$FS_BLOCK"
+      sep=","
+    done
+    result+='}}'
+    printf '%s\n' "$result"
+    ;;
+  *)
+    echo "ERROR: unreachable mode: $MODE" >&2
+    exit 2
+    ;;
 esac

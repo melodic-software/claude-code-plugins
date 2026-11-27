@@ -28,8 +28,8 @@ assert_exit() {
 }
 assert_contains() {
   case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3 — got: $2" ;;
+    *"$3"*) pass "$1" ;;
+    *) fail "$1" "expected to contain: $3 — got: $2" ;;
   esac
 }
 
@@ -310,7 +310,7 @@ case_dir=$(new_case_dir)
 nongit_proj="$case_dir/plain-project"
 mkdir -p "$nongit_proj/.claude"
 write "$nongit_proj/.claude/settings.json" '{"enabledPlugins":{"alpha@market1": true}}'
-nongit_native=$(cd "$nongit_proj" && (pwd -W 2>/dev/null || pwd))
+nongit_native=$(cd "$nongit_proj" && (pwd -W 2>/dev/null || pwd) )
 native_nongit_path="${nongit_native//\//\\}"
 write "$case_dir/installed_plugins.json" "$(
   jq -cn --arg p "$native_nongit_path" \
@@ -348,7 +348,7 @@ proj_dir="$case_dir/real-project"
 fake_home="$case_dir/elsewhere-home"
 mkdir -p "$proj_dir/.claude" "$fake_home"
 write "$proj_dir/.claude/settings.json" '{"enabledPlugins":{"alpha@market1": true}}'
-proj_native=$(cd "$proj_dir" && (pwd -W 2>/dev/null || pwd))
+proj_native=$(cd "$proj_dir" && (pwd -W 2>/dev/null || pwd) )
 native_proj_path="${proj_native//\//\\}"
 write "$case_dir/installed_plugins.json" "$(
   jq -cn --arg p "$native_proj_path" \
@@ -629,8 +629,8 @@ out=$(run_state "$case_dir" "FLEET_STATE_HOOK_UTILS=$case_dir/evil-hook-utils.sh
 rc=$?
 assert_exit "hook-utils override ignored: runs to completion (exit 0)" 0 "$rc"
 case "$out" in
-*PWNED-HOOK-UTILS-SOURCED*) fail "hook-utils override ignored: caller-supplied path must NOT be sourced" "decoy marker present in output" ;;
-*) pass "hook-utils override ignored: caller-supplied path not sourced" ;;
+  *PWNED-HOOK-UTILS-SOURCED*) fail "hook-utils override ignored: caller-supplied path must NOT be sourced" "decoy marker present in output" ;;
+  *) pass "hook-utils override ignored: caller-supplied path not sourced" ;;
 esac
 
 CASE_NUM=$((CASE_NUM + 1))
@@ -644,8 +644,8 @@ out=$(run_state "$case_dir" "BASH_FUNC_cd%%=() { builtin cd \"$case_dir/evilroot
 rc=$?
 assert_exit "exported cd shadow ignored: runs to completion (exit 0)" 0 "$rc"
 case "$out" in
-*PWNED-CD-SHADOW-SOURCED*) fail "exported cd shadow ignored: hijacked cd must NOT redirect source" "decoy marker present in output" ;;
-*) pass "exported cd shadow ignored: hook-utils resolved from real script location" ;;
+  *PWNED-CD-SHADOW-SOURCED*) fail "exported cd shadow ignored: hijacked cd must NOT redirect source" "decoy marker present in output" ;;
+  *) pass "exported cd shadow ignored: hook-utils resolved from real script location" ;;
 esac
 
 CASE_NUM=$((CASE_NUM + 1))
@@ -668,8 +668,8 @@ chmod +x "$attack_bin_dir/dirname"
 ARGS=(--marketplace market1)
 out=$(run_state "$case_dir" "PATH=$attack_bin_dir")
 case "$out" in
-*PWNED-DIRNAME-PATH-SOURCED*) fail "hostile PATH dirname ignored: PATH-planted dirname must NOT redirect source" "decoy marker present in output" ;;
-*) pass "hostile PATH dirname ignored: hook-utils resolved without an external dirname" ;;
+  *PWNED-DIRNAME-PATH-SOURCED*) fail "hostile PATH dirname ignored: PATH-planted dirname must NOT redirect source" "decoy marker present in output" ;;
+  *) pass "hostile PATH dirname ignored: hook-utils resolved without an external dirname" ;;
 esac
 
 CASE_NUM=$((CASE_NUM + 1))
@@ -679,8 +679,8 @@ write "$case_dir/catalog/market1.json" '{"plugins": []}'
 ARGS=(--marketplace market1)
 out=$(run_state "$case_dir" 'BASH_FUNC_source%%=() { echo "PWNED-SOURCE-SHADOW"; }')
 case "$out" in
-*PWNED-SOURCE-SHADOW*) fail "exported source shadow ignored: hijacked source must NOT run" "decoy marker present in output" ;;
-*) pass "exported source shadow ignored: real hook-utils sourced via builtin" ;;
+  *PWNED-SOURCE-SHADOW*) fail "exported source shadow ignored: hijacked source must NOT run" "decoy marker present in output" ;;
+  *) pass "exported source shadow ignored: real hook-utils sourced via builtin" ;;
 esac
 
 CASE_NUM=$((CASE_NUM + 1))
@@ -702,8 +702,8 @@ out=$(run_state "$case_dir")
 rc=$?
 assert_exit "large catalog (500 plugins): exit 0, no argv-length crash" 0 "$rc"
 case "$out" in
-*"Argument list too long"*) fail "large catalog: no 'Argument list too long'" "found in output: $out" ;;
-*) pass "large catalog: no 'Argument list too long'" ;;
+  *"Argument list too long"*) fail "large catalog: no 'Argument list too long'" "found in output: $out" ;;
+  *) pass "large catalog: no 'Argument list too long'" ;;
 esac
 catalog_len=$(jq '.catalog | length' <<<"$out" 2>/dev/null)
 assert_eq "large catalog: full 500-entry catalog reported, not truncated" "$big_n" "$catalog_len"
@@ -801,11 +801,11 @@ out=$(PATH="$case_dir/crlf-bin:$PATH" run_ids "$case_dir")
 rc=$?
 assert_exit "--ids CR regression: exit 0 under a CRLF-emitting jq" 0 "$rc"
 case "$out" in
-"") fail "--ids CR regression: no CR survives into the emitted ids" \
-  "output was EMPTY — a CR assertion over no output proves nothing" ;;
-*$'\r'*) fail "--ids CR regression: no CR survives into the emitted ids" \
-  "output carried a CR: $(printf '%s' "$out" | od -An -c | tr -s ' ')" ;;
-*) pass "--ids CR regression: no CR survives into the emitted ids" ;;
+  "") fail "--ids CR regression: no CR survives into the emitted ids" \
+    "output was EMPTY — a CR assertion over no output proves nothing" ;;
+  *$'\r'*) fail "--ids CR regression: no CR survives into the emitted ids" \
+    "output carried a CR: $(printf '%s' "$out" | od -An -c | tr -s ' ')" ;;
+  *) pass "--ids CR regression: no CR survives into the emitted ids" ;;
 esac
 assert_eq "--ids CR regression: ids are byte-exact under a CRLF-emitting jq" \
   "alpha@market1
@@ -1021,8 +1021,8 @@ write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source":
 write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":[{"scope":"user","installPath":"y","version":"0.1.0"}]}}'
 ARGS=(--marketplace market1 --ids update-candidates-user)
 out=$(run_ids "$case_dir")
-assert_eq "update-candidates-user: emits an id behind the catalog version" \
-  "alpha@market1" "$out"
+assert_eq "update-candidates-user: emits an id behind the catalog version, with its installed version" \
+  "$(printf 'alpha@market1\t0.1.0')" "$out"
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -1059,7 +1059,8 @@ assert_eq "delisted: an empty plugins array yields no settings-only set" "[]" \
   "$(jq -c '.delisted_settings_only' <<<"$out" 2>/dev/null)"
 ARGS=(--marketplace market1 --ids update-candidates-user)
 out=$(run_ids "$case_dir")
-assert_eq "delisted: an empty plugins array does not withhold the install" "alpha@market1" "$out"
+assert_eq "delisted: an empty plugins array does not withhold the install" \
+  "$(printf 'alpha@market1\t0.1.0')" "$out"
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -1091,12 +1092,11 @@ ARGS=(--ids missing-enabled --from "$case_dir/report.json")
 assert_eq "delisted enable gap: missing-enabled emits no delisted id" "alpha@market1" "$(run_ids "$case_dir")"
 ARGS=(--ids update-candidates-project --from "$case_dir/report.json")
 assert_eq "delisted_project: withheld from update-candidates-project" \
-  "alpha@market1	project" "$(run_ids "$case_dir")"
+  "$(printf 'alpha@market1\tproject\t0.1.0')" "$(run_ids "$case_dir")"
 jq 'del(.delisted_project)' "$case_dir/report.json" >"$case_dir/report-old.json"
 ARGS=(--ids update-candidates-project --from "$case_dir/report-old.json")
 assert_eq "delisted_project: a saved report without the field fails open" \
-  "alpha@market1	project
-stale@market1	project" "$(run_ids "$case_dir")"
+  "$(printf 'alpha@market1\tproject\t0.1.0\nstale@market1\tproject\t0.2.0')" "$(run_ids "$case_dir")"
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -1121,7 +1121,7 @@ write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source":
 write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":[{"scope":"user","installPath":"y","version":"0.1.0"}]}}'
 ARGS=(--marketplace market1 --ids update-candidates-user)
 out=$(run_ids "$case_dir")
-assert_eq "downgrade guard: a forward move stays a candidate" "alpha@market1" "$out"
+assert_eq "downgrade guard: a forward move stays a candidate" "$(printf 'alpha@market1\t0.1.0')" "$out"
 ARGS=(--marketplace market1 --ids downgrade-candidates)
 out=$(run_ids "$case_dir")
 assert_eq "downgrade guard: a forward move is not a downgrade" "" "$out"
@@ -1133,7 +1133,7 @@ write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source":
 write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":[{"scope":"user","installPath":"y","version":"1.2.3"}]}}'
 ARGS=(--marketplace market1 --ids update-candidates-user)
 out=$(run_ids "$case_dir")
-assert_eq "downgrade guard: a null catalog version stays a candidate" "alpha@market1" "$out"
+assert_eq "downgrade guard: a null catalog version stays a candidate" "$(printf 'alpha@market1\t1.2.3')" "$out"
 ARGS=(--marketplace market1 --ids downgrade-candidates)
 out=$(run_ids "$case_dir")
 assert_eq "downgrade guard: a null catalog version is not a proven downgrade" "" "$out"
@@ -1146,7 +1146,7 @@ write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1
 ARGS=(--marketplace market1 --ids update-candidates-user)
 out=$(run_ids "$case_dir")
 assert_eq "downgrade guard: an unparsable catalog version stays a candidate" \
-  "alpha@market1" "$out"
+  "$(printf 'alpha@market1\t1.2.3')" "$out"
 ARGS=(--marketplace market1 --ids downgrade-candidates)
 out=$(run_ids "$case_dir")
 assert_eq "downgrade guard: an unparsable catalog version is not a proven downgrade" "" "$out"
@@ -1158,7 +1158,7 @@ write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source":
 write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":[{"scope":"user","installPath":"y","version":"1.2.3-beta"}]}}'
 ARGS=(--marketplace market1 --ids update-candidates-user)
 out=$(run_ids "$case_dir")
-assert_eq "downgrade guard: a prerelease tie stays a candidate" "alpha@market1" "$out"
+assert_eq "downgrade guard: a prerelease tie stays a candidate" "$(printf 'alpha@market1\t1.2.3-beta')" "$out"
 ARGS=(--marketplace market1 --ids downgrade-candidates)
 out=$(run_ids "$case_dir")
 assert_eq "downgrade guard: a prerelease tie is not a proven downgrade" "" "$out"
@@ -1196,12 +1196,9 @@ out_unfiltered=$(run_ids "$case_dir")
 ARGS=(--marketplace market1 --ids update-candidates-user)
 out_candidates=$(run_ids "$case_dir")
 assert_eq "fail-open proof: with no readable catalog version the sweep is not narrowed at all" \
-  "$out_unfiltered" "$out_candidates"
+  "$out_unfiltered" "$(cut -f1 <<<"$out_candidates")"
 assert_eq "fail-open proof: and that unnarrowed sweep is every user-scope id, not an empty list" \
-  "alpha@market1
-beta@market1
-gamma@market1
-delta@market1" "$out_candidates"
+  "$(printf 'alpha@market1\t0.1.0\nbeta@market1\t0.2.0\ngamma@market1\t0.3.0\ndelta@market1\t0.4.0')" "$out_candidates"
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -1217,7 +1214,7 @@ write "$case_dir/installed_plugins.json" '{
 ARGS=(--marketplace market1 --ids update-candidates-user)
 out=$(run_ids "$case_dir")
 assert_eq "fail-open proof: a partially-readable catalog withholds only the proved id" \
-  "beta@market1" "$out"
+  "$(printf 'beta@market1\t0.2.0')" "$out"
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -1536,7 +1533,7 @@ out_ids=$(env FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
   FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
   bash "$SCRIPT" --marketplace market1 --ids update-candidates-user 2>/dev/null)
 assert_eq "production manifest_base: the traversing id stays an update candidate, the resolved one is withheld" \
-  "escape@market1" "$out_ids"
+  "$(printf 'escape@market1\t0.0.1')" "$out_ids"
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -1581,7 +1578,7 @@ if [[ -L "$case_dir/checkout/linkdir" ]] &&
     FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
     bash "$SCRIPT" --marketplace market1 --ids update-candidates-user 2>/dev/null)
   assert_eq "symlink escape: the id is NOT withheld — it stays an update candidate" \
-    "evil@market1" "$out_ids"
+    "$(printf 'evil@market1\t9.9.9')" "$out_ids"
 else
   printf 'SKIP: symlink escape (this platform did not produce a real symlink)\n'
 fi
@@ -1668,9 +1665,9 @@ out=$(PATH="$case_dir/crlf-bin:$PATH" run_state "$case_dir")
 rc=$?
 assert_exit "--marketplaces CR regression: exit 0 under a CRLF-emitting jq" 0 "$rc"
 case "$out" in
-*$'\r'*) fail "--marketplaces CR regression: no CR survives into the emitted names" \
-  "found a CR in: $(printf '%s' "$out" | od -An -c | tr -s ' ')" ;;
-*) pass "--marketplaces CR regression: no CR survives into the emitted names" ;;
+  *$'\r'*) fail "--marketplaces CR regression: no CR survives into the emitted names" \
+    "found a CR in: $(printf '%s' "$out" | od -An -c | tr -s ' ')" ;;
+  *) pass "--marketplaces CR regression: no CR survives into the emitted names" ;;
 esac
 assert_eq "--marketplaces CR regression: names are byte-exact under a CRLF-emitting jq" \
   "market1
@@ -1694,20 +1691,6 @@ assert_eq "--all: every marketplace block carries project_root" \
   "2" "$(jq -r '[.marketplaces[] | select(.project_root != null)] | length' <<<"$out" 2>/dev/null)"
 assert_eq "--all: and every block reports the SAME resolved root" \
   "1" "$(jq -r '[.marketplaces[].project_root] | unique | length' <<<"$out" 2>/dev/null)"
-
-CASE_NUM=$((CASE_NUM + 1))
-case_dir=$(new_case_dir)
-seed_ids_case "$case_dir"
-ARGS=(--marketplace market1 --ids no-such-selector)
-out=$(run_state "$case_dir")
-assert_contains "--ids help text names installed-user" "$out" "installed-user"
-assert_contains "--ids help text names update-candidates-user" "$out" "update-candidates-user"
-assert_contains "--ids help text names update-candidates-project" "$out" "update-candidates-project"
-assert_contains "--ids help text names downgrade-candidates" "$out" "downgrade-candidates"
-assert_contains "--ids help text names current-project" "$out" "current-project"
-assert_contains "--ids help text names missing-user-install" "$out" "missing-user-install"
-assert_contains "--ids help text names missing-enabled" "$out" "missing-enabled"
-assert_contains "--ids help text names user-scope-orphans" "$out" "user-scope-orphans"
 
 count_creations() {
   local trace="$1" forks execs
@@ -1783,7 +1766,7 @@ ARGS=(--marketplace market1 --ids update-candidates-user)
 out=$(run_traced "$case_dir" "$case_dir/trace-ids.log")
 ids_count=$(count_creations "$case_dir/trace-ids.log")
 assert_eq "process budget: --ids projects from the same single pass (plugin1 is behind 0.1.0)" \
-  "plugin1@market1" "$out"
+  "$(printf 'plugin1@market1\t0.0.1')" "$out"
 if [[ "$ids_count" -ge 1 && "$ids_count" -le 12 ]]; then
   pass "process budget: an --ids projection costs at most 12 process creations (measured $ids_count)"
 else
@@ -1812,9 +1795,8 @@ rc=$?
 assert_exit "--from: the saved report itself is produced" 0 "$rc"
 write "$case_dir/report.json" "$report"
 
-for sel in installed-user update-candidates-user update-candidates-project \
-  downgrade-candidates current-project \
-  missing-user-install missing-enabled user-scope-orphans; do
+help_selectors() { bash "$SCRIPT" --help | sed -n 's/^  \([a-z-]*\): .*/\1/p'; }
+for sel in $(help_selectors); do
   ARGS=(--marketplace market1 --ids "$sel")
   live=$(run_state "$case_dir" "CLAUDE_PROJECT_DIR=$case_dir/sample-repo")
   ARGS=(--ids "$sel" --from "$case_dir/report.json")
@@ -1849,7 +1831,7 @@ assert_eq "--from: current-project keeps its second TAB field, one line per scop
 
 ARGS=(--ids update-candidates-project --from "$case_dir/current-project-report.json")
 assert_eq "--from: update-candidates-project keeps every in-repo record the catalog does not move backward" \
-  "$(printf 'alpha@market1\tproject\nalpha@market1\tlocal')" "$(run_state "$case_dir")"
+  "$(printf 'alpha@market1\tproject\t0.1.0\nalpha@market1\tlocal\t0.1.0')" "$(run_state "$case_dir")"
 ARGS=(--ids downgrade-candidates --from "$case_dir/current-project-report.json")
 assert_eq "--from: an equal catalog version yields no downgrade candidate" \
   "" "$(run_state "$case_dir")"
@@ -1872,7 +1854,7 @@ write "$case_dir/project-downgrade-report.json" '{
 }'
 ARGS=(--ids update-candidates-project --from "$case_dir/project-downgrade-report.json")
 assert_eq "--from: update-candidates-project withholds the in-repo record the catalog moves backward" \
-  "$(printf 'beta@market1\tlocal')" "$(run_state "$case_dir")"
+  "$(printf 'beta@market1\tlocal\t0.2.0')" "$(run_state "$case_dir")"
 ARGS=(--ids downgrade-candidates --from "$case_dir/project-downgrade-report.json")
 assert_eq "--from: downgrade-candidates names that in-repo record with its scope and both versions" \
   "$(printf 'alpha@market1\tproject\t0.1.0\t0.0.9')" "$(run_state "$case_dir")"
@@ -2040,6 +2022,176 @@ assert_eq "projectEnabledEntry: null for a user-scope record" "null" \
   "$(jq -r '.installed[] | select(.scope == "user") | .projectEnabledEntry' <<<"$out" 2>/dev/null)"
 assert_eq "projectEnabledEntry: carried on divergences[].scopes[] too" "true" \
   "$(jq -r '.divergences[] | select(.id == "t@market1") | .scopes[] | select(.scope == "project") | .projectEnabledEntry' <<<"$out" 2>/dev/null)"
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" low=1.5.0 even=2.0.0
+mkdir -p "$case_dir/repo" "$case_dir/main/.git/worktrees/wt" "$case_dir/wt"
+printf '../..\n' >"$case_dir/main/.git/worktrees/wt/commondir"
+printf 'gitdir: %s/main/.git/worktrees/wt\n' "$case_dir" >"$case_dir/wt/.git"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "low", "source": "./low"}, {"name": "even", "source": "./even"},
+  {"name": "homey"}, {"name": "flat"}]}'
+write "$case_dir/installed_plugins.json" "$(jq -cn --arg r "$case_dir/repo" --arg w "$case_dir/wt" --arg g "$case_dir/gone" '
+  def u($v): {scope: "user", installPath: "u", version: $v};
+  def p($path; $v): {scope: "project", projectPath: $path, installPath: "p", version: $v};
+  {version: 1, plugins: {
+    "low@market1": [u("2.0.0"), p($r; "1.0.0")],
+    "even@market1": [u("1.0.0"), p($r; "2.0.0"), p($w; "1.0.0"), p($g; "1.0.0"), p("/home/<user>"; "1.0.0")],
+    "homey@market1": [u("2.0.0"), p("/home/<user>"; "3.0.0"), p($r; "1.0.0")],
+    "flat@market1": [u("main"), p($r; "dev")]}}')"
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+div_field() { jq -r --arg id "$1" ".divergences[] | select(.id == \$id) | $2" <<<"$out" 2>/dev/null; }
+class_of() { div_field "$1" ".scopes[] | select(.scope == \"$2\" and (.projectPath // \"\") == \"$3\") | .class"; }
+assert_eq "highest: the highest parsable version over the records" "2.0.0" "$(div_field even@market1 .highest)"
+assert_eq "highest: a home pin above every other record does not set it" "2.0.0" "$(div_field homey@market1 .highest)"
+assert_eq "highest: null when no record version parses" "null" "$(div_field flat@market1 .highest)"
+assert_eq "userHolds: true when a user-scope record is at the highest" "true" "$(div_field low@market1 .userHolds)"
+assert_eq "userHolds: false when only a project pin is at the highest" "false" "$(div_field even@market1 .userHolds)"
+assert_eq "class: a present main-checkout pin is actionable" "actionable" "$(class_of even@market1 project "$case_dir/repo")"
+assert_eq "class: a linked-worktree pin is worktree" "worktree" "$(class_of even@market1 project "$case_dir/wt")"
+assert_eq "class: a pin whose path is not present is blocked-absent" "blocked-absent" "$(class_of even@market1 project "$case_dir/gone")"
+assert_eq "class: a pin keyed to a user home is blocked-home" "blocked-home" "$(class_of even@market1 project "/home/<user>")"
+assert_eq "class: a user-scope record with the catalog at the highest is actionable" "actionable" "$(class_of even@market1 user "")"
+assert_eq "class: a catalog below the highest blocks every pin of the id" "blocked-catalog blocked-catalog" \
+  "$(class_of low@market1 user "") $(class_of low@market1 project "$case_dir/repo")"
+assert_eq "class: no parsable highest leaves the catalog check out" "actionable" "$(class_of flat@market1 project "$case_dir/repo")"
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/table-report.json" '{
+  "marketplace": {"name": "market1"},
+  "project_root": "/p/here",
+  "catalog_versions": {"a@market1": "0.2.0", "b@market1": "0.1.0", "c@market1": "0.5.0"},
+  "installed": [
+    {"id": "a@market1", "scope": "user", "version": "0.1.0", "currentProject": null},
+    {"id": "b@market1", "scope": "project", "version": "0.3.0", "currentProject": true, "projectPath": "/p/here"},
+    {"id": "e@market1", "scope": "local", "version": "1.0.0", "currentProject": true, "projectPath": "/p/here"},
+    {"id": "c@market1", "scope": "local", "version": "0.4.0", "currentProject": false, "projectPath": "/p/other",
+     "projectPathPresent": true, "projectPathIsHome": false, "label": "update ineffective, uninstall clears it"}
+  ],
+  "enabled": {"a@market1": false},
+  "missing_from_user_install": ["d@market1"],
+  "missing_from_enabled": ["a@market1", "b@market1", "e@market1"],
+  "user_scope_orphans": ["b@market1", "c@market1"],
+  "delisted": [],
+  "delisted_project": [],
+  "divergences": []
+}'
+declare -A table_rows=(
+  ["installed-user"]='a@market1'
+  ["user-enable-state"]=$'a@market1\toff'
+  ["update-candidates-user"]=$'a@market1\t0.1.0'
+  ["update-candidates-project"]=$'e@market1\tlocal\t1.0.0'
+  ["update-candidates-other-paths"]=$'c@market1\tlocal\t/p/other\t0.4.0\t0.5.0\tfalse\tupdate ineffective, uninstall clears it'
+  ["downgrade-candidates"]=$'b@market1\tproject\t0.3.0\t0.1.0'
+  ["current-project"]=$'b@market1\tproject\ne@market1\tlocal'
+  ["missing-user-install"]='d@market1'
+  ["missing-enabled"]=$'a@market1\nb@market1\ne@market1'
+  ["enable-targets"]=$'a@market1\ttrue\tfalse\tfalse\t\nb@market1\tfalse\tfalse\ttrue\t/p/here\ne@market1\tfalse\ttrue\tfalse\t'
+  ["user-scope-orphans"]=$'b@market1\nc@market1'
+)
+help_out=$(bash "$SCRIPT" --help)
+listed=$(help_selectors | sort | tr '\n' ' ')
+assert_eq "selector table: --help lists exactly the selectors this test covers" \
+  "$(printf '%s\n' "${!table_rows[@]}" | sort | tr '\n' ' ')" "$listed"
+for sel in $(help_selectors); do
+  cols=$(sed -n "s/^  $sel: //p" <<<"$help_out")
+  ncols=$(($(tr -cd ',' <<<"$cols" | wc -c) + 1))
+  ARGS=(--ids "$sel" --from "$case_dir/table-report.json")
+  out=$(run_ids "$case_dir")
+  assert_eq "selector table: $sel emits its rows" "${table_rows[$sel]}" "$out"
+  assert_eq "selector table: every $sel row has the $ncols columns --help lists ($cols)" "" \
+    "$(awk -F'\t' -v n="$ncols" 'NF != n' <<<"$out")"
+  case "$out" in
+    *$'\r'*) fail "selector table: $sel output carries no CR" "$(od -c <<<"$out" | head -3)" ;;
+    *) pass "selector table: $sel output carries no CR" ;;
+  esac
+done
+ARGS=(--ids no-such-selector --from "$case_dir/table-report.json")
+out=$(run_state "$case_dir")
+assert_exit "selector table: an unknown selector exits 2" 2 "$?"
+missing_names=""
+for sel in $(help_selectors); do
+  [[ "$out" == *"  $sel: "* ]] || missing_names+="$sel "
+done
+assert_eq "selector table: the rejection lists every selector with its columns" "" "$missing_names"
+jq '.enabled = {}' "$case_dir/table-report.json" >"$case_dir/unmentioned-report.json"
+ARGS=(--ids user-enable-state --from "$case_dir/unmentioned-report.json")
+assert_eq "user-enable-state: a user install the settings never mention is on" $'a@market1\ton' "$(run_ids "$case_dir")"
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+mkdir -p "$case_dir/repo/sub" "$case_dir/elsewhere"
+git -C "$case_dir/repo" init -q -b main
+fp_env=(HOME="$case_dir/home" CLAUDE_PROJECT_DIR="$case_dir/repo" CLAUDE_PLUGIN_ROOT="$case_dir/root"
+  FLEET_STATE_INSTALLED_JSON="$case_dir/i.json" FLEET_STATE_MARKETPLACES_JSON="$case_dir/m.json"
+  FLEET_STATE_USER_SETTINGS="$case_dir/u.json" FLEET_STATE_CATALOG_DIR="$case_dir/catalog")
+fingerprint() { (cd "${FP_CWD:-$case_dir/repo}" && env "${fp_env[@]}" "$@" bash "$SCRIPT" --fingerprint); }
+base_fp=$(fingerprint)
+assert_eq "fingerprint: unchanged inputs give the same fingerprint" "$base_fp" "$(fingerprint)"
+for change in HOME="$case_dir/home2" CLAUDE_PROJECT_DIR="$case_dir/elsewhere" CLAUDE_PLUGIN_ROOT="$case_dir/root2" \
+  FLEET_STATE_INSTALLED_JSON="$case_dir/i2.json" FLEET_STATE_MARKETPLACES_JSON="$case_dir/m2.json" \
+  FLEET_STATE_USER_SETTINGS="$case_dir/u2.json" FLEET_STATE_CATALOG_DIR="$case_dir/catalog2"; do
+  if [[ "$(fingerprint "$change")" == "$base_fp" ]]; then
+    fail "fingerprint: changing ${change%%=*} changes it" "unchanged: $base_fp"
+  else
+    pass "fingerprint: changing ${change%%=*} changes it"
+  fi
+done
+if [[ "$(FP_CWD="$case_dir/elsewhere" fingerprint)" == "$base_fp" ]]; then
+  fail "fingerprint: changing the working directory changes it" "unchanged: $base_fp"
+else
+  pass "fingerprint: changing the working directory changes it"
+fi
+fp_env=("${fp_env[@]/#CLAUDE_PROJECT_DIR=*/CLAUDE_PROJECT_DIR=}")
+FP_CWD="$case_dir/repo/sub"
+in_repo_fp=$(fingerprint)
+assert_contains "fingerprint: with no CLAUDE_PROJECT_DIR it names git's top level" "$in_repo_fp" "project_root=git:$case_dir/repo"
+mv "$case_dir/repo/.git" "$case_dir/repo/.git-away"
+if [[ "$(fingerprint)" == "$in_repo_fp" ]]; then
+  fail "fingerprint: the same working directory no longer in a git work tree changes it" "unchanged: $in_repo_fp"
+else
+  pass "fingerprint: the same working directory no longer in a git work tree changes it"
+fi
+FP_CWD=""
+ARGS=(--fingerprint --marketplace market1)
+out=$(run_state "$case_dir")
+assert_exit "fingerprint: combined with another argument is a usage error" 2 "$?"
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+mkdir -p "$case_dir/home" "$case_dir/cur/.claude" "$case_dir/wt" "$case_dir/main/.git/worktrees/wt" \
+  "$case_dir/catalog/market1/a/.claude-plugin" "$case_dir/catalog/market1/b/.claude-plugin"
+write "$case_dir/main/.git/worktrees/wt/commondir" '../..'
+write "$case_dir/wt/.git" "gitdir: $case_dir/main/.git/worktrees/wt"
+write "$case_dir/cur/.claude/settings.json" '{"enabledPlugins": {"a@market1": true, "b@market1": false}}'
+write "$case_dir/catalog/market1/a/.claude-plugin/plugin.json" '{"version": "2.0.0"}'
+write "$case_dir/catalog/market1/b/.claude-plugin/plugin.json" '{"version": "1.0.0"}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "a", "source": "./a"}, {"name": "b", "source": "./b"}, {"name": "c", "source": {"source": "github", "repo": "x/c"}}]}'
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"a@market1": true}}'
+write "$case_dir/installed_plugins.json" "{\"version\": 2, \"plugins\": {
+  \"a@market1\": [
+    {\"scope\": \"user\", \"installPath\": \"u\", \"version\": \"1.5.0\"},
+    {\"scope\": \"project\", \"projectPath\": \"$case_dir/cur\", \"installPath\": \"p\", \"version\": \"1.0.0\"},
+    {\"scope\": \"local\", \"projectPath\": \"$case_dir/cur\", \"installPath\": \"l\", \"version\": \"1.5.0\"},
+    {\"scope\": \"project\", \"projectPath\": \"$case_dir/wt\", \"installPath\": \"w\", \"version\": \"1.0.0\"},
+    {\"scope\": \"project\", \"projectPath\": \"$case_dir/home\", \"installPath\": \"h\", \"version\": \"3.0.0\"},
+    {\"scope\": \"project\", \"projectPath\": \"/home/<user>\", \"installPath\": \"s\", \"version\": \"1.0.0\"},
+    {\"scope\": \"local\", \"projectPath\": \"/mnt/d/USERS/someone/\", \"installPath\": \"m\", \"version\": \"v1.2.3\"},
+    {\"scope\": \"project\", \"projectPath\": \"$case_dir/gone\", \"installPath\": \"g\", \"version\": \"not-a-version\"}
+  ],
+  \"b@market1\": [
+    {\"scope\": \"project\", \"projectPath\": \"$case_dir/cur\", \"installPath\": \"p\", \"version\": \"1.2.0\"},
+    {\"scope\": \"project\", \"projectPath\": \"$case_dir/wt\", \"installPath\": \"w\", \"version\": 7},
+    {\"scope\": \"user\", \"installPath\": \"u\", \"version\": \"1.2.0\"}
+  ]}}"
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir" CLAUDE_PROJECT_DIR="$case_dir/cur" HOME="$case_dir/home")
+assert_exit "pinned report: exit 0" 0 "$?"
+assert_eq "pinned report: byte-identical to fixtures/fleet-state-pin.json with the case dir as <CASE>" \
+  "$(<"$SCRIPT_DIR/fixtures/fleet-state-pin.json")" "${out//"$case_dir"/<CASE>}"
 
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]] && exit 0

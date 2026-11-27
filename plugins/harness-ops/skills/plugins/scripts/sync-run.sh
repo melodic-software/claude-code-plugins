@@ -8,12 +8,15 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DIGEST_CONTRACT="$SCRIPT_DIR/digest-contract.json"
+RUN_RECORD_DECL="$SCRIPT_DIR/run-record.json"
+STEPS_DECL="$SCRIPT_DIR/steps.json"
 FLEET_STATE="${SYNC_RUN_FLEET_STATE:-$SCRIPT_DIR/fleet-state.sh}"
 CACHE_CHECK="${SYNC_RUN_CACHE_CHECK:-$SCRIPT_DIR/cache-content-check.sh}"
 NORMALIZE="${SYNC_RUN_NORMALIZE:-$SCRIPT_DIR/normalize-enabled-plugins.sh}"
 CLAUDE_BIN="${SYNC_RUN_CLAUDE_BIN:-claude}"
 MARKETPLACES_JSON="${FLEET_STATE_MARKETPLACES_JSON:-$HOME/.claude/plugins/known_marketplaces.json}"
-STALE_PARENT_ROWS=10
+STALE_PARENT_ROWS=3
 DIVERGENCE_PATH_IDS=3
 
 JQ_CAPTURE="$SCRIPT_DIR/jq-capture.sh"
@@ -24,6 +27,8 @@ else
   echo "ERROR: jq-capture.sh not found at $JQ_CAPTURE" >&2
   exit 2
 fi
+# shellcheck source=snapshot-ledger.sh
+source "$SCRIPT_DIR/snapshot-ledger.sh"
 
 export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 
@@ -48,9 +53,9 @@ clock_into() {
   local __var="$1"
   local t
   case "$CLOCK_RESOLUTION" in
-  microseconds) t="${EPOCHREALTIME:-}" ;;
-  nanoseconds) t=$(LC_ALL=C date +%s.%N) ;;
-  *) t=$(date +%s) ;;
+    microseconds) t="${EPOCHREALTIME:-}" ;;
+    nanoseconds) t=$(LC_ALL=C date +%s.%N) ;;
+    *) t=$(date +%s) ;;
   esac
   printf -v "$__var" '%s' "${t//,/.}"
 }
@@ -102,6 +107,8 @@ issuing it, and leaves nothing behind.
 its refresh, only when the checkout is clean, tracking, not ahead and behind.
 --update-other-paths updates the lagging records of every other present path, one
 call per record; without it they are counted in the report and left alone.
+--install-new, --source-pull and --quiet-auto-update each also take their
+userConfig key's unrendered ${user_config.<key>} token, read as the default.
 
 Exit: 0 the run completed (per-marketplace and per-id failures are in the digest);
 2 usage error, jq missing, or a run-level failure that left no digest.
@@ -117,77 +124,77 @@ need_value() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --marketplace)
-    need_value $# "--marketplace requires a name"
-    TARGET_MP="$2"
-    shift 2
-    ;;
-  --all)
-    ALL=1
-    shift
-    ;;
-  --audit)
-    MODE="audit"
-    shift
-    ;;
-  --allow-downgrade)
-    ALLOW_DOWNGRADE=1
-    shift
-    ;;
-  --render)
-    RENDER=1
-    shift
-    ;;
-  --install-new)
-    need_value $# "--install-new requires a value"
-    INSTALL_NEW="$2"
-    shift 2
-    ;;
-  --journal-root)
-    need_value $# "--journal-root requires a directory"
-    JOURNAL_ROOT="$2"
-    shift 2
-    ;;
-  --run-dir)
-    need_value $# "--run-dir requires a directory"
-    RUN_DIR="$2"
-    shift 2
-    ;;
-  --only-install)
-    need_value $# "--only-install requires an id list (an empty string is legal)"
-    ONLY_INSTALL="$2"
-    ONLY_INSTALL_MODE=1
-    shift 2
-    ;;
-  --source-pull)
-    need_value $# "--source-pull requires a value"
-    SOURCE_PULL="$2"
-    shift 2
-    ;;
-  --pull-source)
-    need_value $# "--pull-source requires marketplace names"
-    PULL_SOURCES="$2"
-    PULL_SOURCES_SET=1
-    shift 2
-    ;;
-  --quiet-auto-update)
-    need_value $# "--quiet-auto-update requires marketplace names"
-    QUIET_AUTO_UPDATE="$2"
-    shift 2
-    ;;
-  --update-other-paths)
-    UPDATE_OTHER_PATHS=1
-    shift
-    ;;
-  -h | --help)
-    usage
-    exit 0
-    ;;
-  *)
-    echo "ERROR: unknown argument: $1" >&2
-    usage >&2
-    exit 2
-    ;;
+    --marketplace)
+      need_value $# "--marketplace requires a name"
+      TARGET_MP="$2"
+      shift 2
+      ;;
+    --all)
+      ALL=1
+      shift
+      ;;
+    --audit)
+      MODE="audit"
+      shift
+      ;;
+    --allow-downgrade)
+      ALLOW_DOWNGRADE=1
+      shift
+      ;;
+    --render)
+      RENDER=1
+      shift
+      ;;
+    --install-new)
+      need_value $# "--install-new requires a value"
+      INSTALL_NEW="$2"
+      shift 2
+      ;;
+    --journal-root)
+      need_value $# "--journal-root requires a directory"
+      JOURNAL_ROOT="$2"
+      shift 2
+      ;;
+    --run-dir)
+      need_value $# "--run-dir requires a directory"
+      RUN_DIR="$2"
+      shift 2
+      ;;
+    --only-install)
+      need_value $# "--only-install requires an id list (an empty string is legal)"
+      ONLY_INSTALL="$2"
+      ONLY_INSTALL_MODE=1
+      shift 2
+      ;;
+    --source-pull)
+      need_value $# "--source-pull requires a value"
+      SOURCE_PULL="$2"
+      shift 2
+      ;;
+    --pull-source)
+      need_value $# "--pull-source requires marketplace names"
+      PULL_SOURCES="$2"
+      PULL_SOURCES_SET=1
+      shift 2
+      ;;
+    --quiet-auto-update)
+      need_value $# "--quiet-auto-update requires marketplace names"
+      QUIET_AUTO_UPDATE="$2"
+      shift 2
+      ;;
+    --update-other-paths)
+      UPDATE_OTHER_PATHS=1
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "ERROR: unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
   esac
 done
 
@@ -196,19 +203,28 @@ if ((ALL == 1)) && [[ -n "$TARGET_MP" ]]; then
   exit 2
 fi
 
-case "$INSTALL_NEW" in
-all | none | ask) ;;
-*)
-  INSTALL_NEW_INVALID="$INSTALL_NEW"
+if [[ "$INSTALL_NEW" == "\${user_config.install_new}" ]]; then
   INSTALL_NEW="ask"
-  ;;
+fi
+if [[ "$SOURCE_PULL" == "\${user_config.directory_source_pull}" ]]; then
+  SOURCE_PULL="ask"
+fi
+if [[ "$QUIET_AUTO_UPDATE" == "\${user_config.quiet_auto_update_marketplaces}" ]]; then
+  QUIET_AUTO_UPDATE=""
+fi
+case "$INSTALL_NEW" in
+  all | none | ask) ;;
+  *)
+    INSTALL_NEW_INVALID="$INSTALL_NEW"
+    INSTALL_NEW="ask"
+    ;;
 esac
 case "$SOURCE_PULL" in
-ask | never) ;;
-*)
-  SOURCE_PULL_INVALID="$SOURCE_PULL"
-  SOURCE_PULL="ask"
-  ;;
+  ask | never) ;;
+  *)
+    SOURCE_PULL_INVALID="$SOURCE_PULL"
+    SOURCE_PULL="ask"
+    ;;
 esac
 apply_pull_policy() {
   if [[ -n "${CLAUDE_CODE_REMOTE:-}" ]]; then
@@ -258,6 +274,34 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
+RR_RUN_FIELDS=()
+RR_MP_FIELDS=()
+RR_DECL=""
+# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+if ! jq_to RR_DECL -r 'to_entries[] | .key as $s | .value | to_entries[]
+    | "\($s) \(.key) \(.value.var) \(.value.kind)"' "$RUN_RECORD_DECL" 2>/dev/null || [[ -z "$RR_DECL" ]]; then
+  echo "ERROR: the run record declaration is unreadable: $RUN_RECORD_DECL" >&2
+  exit 2
+fi
+while read -r RR_SCOPE RR_SPEC; do
+  if [[ "$RR_SCOPE" == run ]]; then RR_RUN_FIELDS+=("$RR_SPEC"); else RR_MP_FIELDS+=("$RR_SPEC"); fi
+done <<<"$RR_DECL"
+
+MP_STEPS=()
+STEPS_LIST=""
+if ! jq_to STEPS_LIST -r '.[] | "\(.name) \(.modes | join(",")) \(.stop_on_failed_read) \(.window)"' \
+  "$STEPS_DECL" 2>/dev/null || [[ -z "$STEPS_LIST" ]]; then
+  echo "ERROR: the step table is unreadable: $STEPS_DECL" >&2
+  exit 2
+fi
+mapfile -t MP_STEPS <<<"$STEPS_LIST"
+snapshot_ledger_load "$STEPS_DECL" || {
+  echo "ERROR: the step table names no snapshots: $STEPS_DECL" >&2
+  exit 2
+}
+STEP_MODE="$MODE"
+((ONLY_INSTALL_MODE == 0)) || STEP_MODE="reentry"
+
 json_lines() {
   local __var="$1"
   local __file="$2"
@@ -265,7 +309,7 @@ json_lines() {
     printf -v "$__var" '%s' '[]'
     return 0
   fi
-  jq_to "$__var" -R -s -c 'gsub("\r"; "") | split("\n") | map(select(length > 0))' <"$__file"
+  jq_to "$__var" -R -s -c 'gsub("\r"; "") | split("\n") | map(select(length > 0) | split("\t")[0])' <"$__file"
 }
 
 json_array_of() {
@@ -285,7 +329,7 @@ json_strings_of() {
     printf -v "$__var" '%s' '[]'
     return 0
   fi
-  jq_to "$__var" -c -R -s 'split("\n") | map(select(length > 0))' <<<"$(printf '%s\n' "$@")"
+  jq_to "$__var" -c -R -s 'split("\u0000") | map(select(length > 0))' < <(printf '%s\0' "$@")
 }
 
 json_object_file() {
@@ -374,17 +418,6 @@ if [[ -n "${SYNC_RUN_VERSION_DIRECTION:-}" ]]; then
   exit 0
 fi
 
-version_at() {
-  local __var="$1"
-  local report="$2"
-  local id="$3"
-  local scope="$4"
-  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to "$__var" -r --arg id "$id" --arg sc "$scope" \
-    'first(.installed[]? | select(.id == $id and .scope == $sc
-      and ($sc == "user" or .currentProject == true)) | .version) // ""' "$report"
-}
-
 CLI_OUT=""
 CLI_RC=0
 CLI_CWD=""
@@ -401,6 +434,7 @@ run_cli() {
   local sink="$RUN_DIR/.last-cli-out"
   local t_s
   local t_e
+  CLI_LABEL="$label"
   clock_into t_s
   {
     echo "\$ $label"
@@ -431,11 +465,28 @@ run_cli() {
   fi
 }
 
-predict_cli() {
-  local label="$1"
-  echo "would run: $label" >>"$JOURNAL_LOG"
-  CLI_RC=0
-  CLI_OUT="would run: $label"
+CLI_LABEL=""
+CLI_PREDICTED="false"
+CLI_ROW=""
+cli_call() {
+  local label="$1" j_label j_out out rc
+  shift
+  if [[ "$MODE" == "audit" ]]; then
+    CLI_LABEL="${label/ --json/}"
+    echo "would run: $CLI_LABEL" >>"$JOURNAL_LOG"
+    CLI_RC=0
+    CLI_OUT="would run: $CLI_LABEL"
+    CLI_PREDICTED="true"
+    rc="null"
+  else
+    run_cli "$label" "$@"
+    CLI_PREDICTED="false"
+    rc="$CLI_RC"
+  fi
+  trunc out "$CLI_OUT"
+  json_string_to j_label "$CLI_LABEL"
+  json_string_to j_out "$out"
+  CLI_ROW="{\"label\":$j_label,\"rc\":$rc,\"output\":$j_out,\"predicted\":$CLI_PREDICTED}"
 }
 
 object_lines_to() {
@@ -518,16 +569,16 @@ cli_move_result() {
   if [[ -n "$json" ]]; then
     jq_to outcome -r '.updateOutcome // ""' <<<"$json"
     case "$outcome" in
-    updated) printf -v "$__var" '%s' "updated" ;;
-    up_to_date) printf -v "$__var" '%s' "noop" ;;
-    *) printf -v "$__var" '%s' "other" ;;
+      updated) printf -v "$__var" '%s' "updated" ;;
+      up_to_date) printf -v "$__var" '%s' "noop" ;;
+      *) printf -v "$__var" '%s' "other" ;;
     esac
     return 0
   fi
   case "$text" in
-  *"updated from"*) printf -v "$__var" '%s' "updated" ;;
-  *"already at the latest version"*) printf -v "$__var" '%s' "noop" ;;
-  *) printf -v "$__var" '%s' "other" ;;
+    *"updated from"*) printf -v "$__var" '%s' "updated" ;;
+    *"already at the latest version"*) printf -v "$__var" '%s' "noop" ;;
+    *) printf -v "$__var" '%s' "other" ;;
   esac
 }
 
@@ -583,8 +634,8 @@ install_disabled_notice() {
   local text
   cli_message text "$1"
   case "$text" in
-  *"disabled by default"* | *"Disabled by default"*) return 0 ;;
-  *) return 1 ;;
+    *"disabled by default"* | *"Disabled by default"*) return 0 ;;
+    *) return 1 ;;
   esac
 }
 
@@ -646,14 +697,14 @@ catalog_regression_rows() {
   local __interval_var="$1"
   local __rows_var="$2"
   local mp="$3"
-  local snaps=(pre-refresh pre mid post)
-  local i a b rows=""
+  local pairs la lb a b rows=""
   printf -v "$__interval_var" '%s' ""
   printf -v "$__rows_var" '%s' "[]"
-  for ((i = 0; i + 1 < ${#snaps[@]}; i++)); do
-    a="$RUN_DIR/${snaps[i]}.$mp.json"
-    b="$RUN_DIR/${snaps[i + 1]}.$mp.json"
-    [[ -f "$a" && -f "$b" ]] || continue
+  snapshot_intervals pairs "$mp"
+  while read -r la lb; do
+    [[ -n "$lb" ]] || continue
+    snapshot_file a "$la" "$mp"
+    snapshot_file b "$lb" "$mp"
     # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
     jq_to rows -c --slurpfile a "$a" --slurpfile b "$b" -n "$TRIPLE_DEF"'
       ($a[0].catalog_versions // {}) as $before | ($b[0].catalog_versions // {}) as $after
@@ -662,39 +713,17 @@ catalog_regression_rows() {
                   and ($after[.key] | triple) < (.value | triple))
          | "\(.key) \(.value) \($after[.key])"]' || continue
     if [[ -n "$rows" && "$rows" != "[]" ]]; then
-      printf -v "$__interval_var" '%s' "${snaps[i]}->${snaps[i + 1]}"
+      printf -v "$__interval_var" '%s' "$la->$lb"
       printf -v "$__rows_var" '%s' "$rows"
       return 0
     fi
-  done
+  done <<<"$pairs"
   return 0
 }
 
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
 ACTIONABLE_DEF='def actionable: select(.versionsMatch == false)
     | select(([.scopes[]? | select(.projectPathIsHome != true) | .version] | unique | length) > 1);'
-linked_worktree_paths() {
-  local __var="$1" post="$2" paths="" p fs line
-  local found=()
-  jq_to paths -r "$ACTIONABLE_DEF"'[.divergences[]? | actionable | .scopes[]?
-    | select(.projectPathIsHome != true and .projectPathPresent == true) | .projectPath]
-    | unique | .[]' "$post" || paths=""
-  while IFS= read -r p; do
-    p="${p//$'\r'/}"
-    [[ -n "$p" ]] || continue
-    fs="${p//\\//}"
-    [[ -f "$fs/.git" ]] || continue
-    line=""
-    IFS= read -r line <"$fs/.git" || true
-    line="${line//$'\r'/}"
-    case "$line" in
-    "gitdir:"*".git/worktrees/"*) found+=("$p") ;;
-    *) ;;
-    esac
-  done <<<"$paths"
-  json_strings_of "$__var" ${found[@]+"${found[@]}"}
-}
-
 would_pins() {
   local __var="$1"
   local ir_w
@@ -710,26 +739,25 @@ would_pins() {
 }
 
 divergence_block() {
-  local __var="$1" mp="$2" linked="[]"
-  local pre="$RUN_DIR/pre.$mp.json" mid="$RUN_DIR/mid.$mp.json" post="$RUN_DIR/post.$mp.json"
+  local __var="$1" mp="$2"
+  local pre mid post
+  snapshot_file pre pre "$mp"
+  snapshot_file mid mid "$mp"
+  snapshot_file post post "$mp"
   if [[ ! -f "$pre" || ! -f "$mid" || ! -f "$post" ]]; then
-    jq_to "$__var" -c -n '{pre: null, mid: null, post: null, new_total: null,
-      new_by_interval: {in_repo: null, user_sweep: null, concurrent: null}, pre_existing: null,
-      note: "a snapshot was missing, so the split could not be computed"}'
+    printf -v "$__var" '%s' '{"note":"a snapshot was missing, so the split could not be computed"}'
     return 0
   fi
-  linked_worktree_paths linked "$post"
-  [[ -n "$linked" ]] || linked="[]"
   local moved_rows
   local would
   would_pins would "$mp"
   json_array_of moved_rows ${MOVED_DURING[@]+"${MOVED_DURING[@]}"}
-  json_object_file "$RUN_DIR/.divergence-args.$mp.json" moved "$moved_rows" wt "$linked" would "$would"
+  json_object_file "$RUN_DIR/.divergence-args.$mp.json" moved "$moved_rows" would "$would"
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to "$__var" -c \
     --slurpfile p "$pre" --slurpfile m "$mid" --slurpfile q "$post" \
     --argjson cap "$DIVERGENCE_PATH_IDS" "$ACTIONABLE_DEF$TRIPLE_DEF"'
-    . as {$moved, $wt, $would}
+    . as {$moved, $would}
     # Under --audit nothing moved, so a pin sync would forward-update (Step 2 or
     # Step 3a) is read at the catalog version: it is not work for converge. So is a
     # pin Step 3a skipped, which `--update-other-paths` moves. A linked worktree
@@ -740,32 +768,35 @@ divergence_block() {
         | ([$would[] | . as $w
             | if .current == true then ($cur[] | select(.id == $w.id and .scope == $w.scope))
               else {id, scope, path} end]) as $wp
-        | .divergences |= map(.id as $id | .scopes |= map(
+        | .divergences |= map(.id as $id | (.scopes |= map(
             . as $s
             | if $s.linkedWorktree != true and $s.projectPathIsHome != true
-                 and ($s.projectPath as $pp | $wt | index($pp)) == null
                  and any($wp[]; .id == $id and .scope == $s.scope and .path == $s.projectPath)
                  and ($cv[$id] | triple) != null and ($s.version | triple) != null
                  and ($s.version | triple) < ($cv[$id] | triple)
               then .version = $cv[$id] else . end))
+          | ($cv[$id] | triple) as $c
+          | if $c != null and $c > (.highest | triple)
+               and any(.scopes[]; .projectPathIsHome != true and .version == $cv[$id])
+            then .highest = $cv[$id] else . end)
       end) as $qq
     # A pin at the project the run stands in is converge-actionable even when that
     # project is itself a linked worktree, so it is never classed `worktree`.
     | ([$qq.installed[]? | select(.currentProject == true) | .projectPath]) as $curp
     | def act: [.divergences[]? | actionable | .id];
+    # fleet-state.sh'"'"'s scope class, folded to the split the report shows: converge
+    # explains a blocked-catalog pin, so it counts with the actionable ones.
     def pin_class:
-      if .projectPathPresent == false then "blocked"
-      elif .projectPathPresent == true and (.projectPath as $pp | $curp | index($pp)) == null
-           and (.projectPath as $pp | $wt | index($pp)) != null then "worktree"
+      if .class == "blocked-absent" then "blocked"
+      elif .class == "worktree" and (.projectPath as $pp | $curp | index($pp)) == null then "worktree"
       else "actionable" end;
-    # Only a pin that differs from the row'"'"'s highest version is the skew converge or
-    # a worktree removal would settle; a pin already at it is not what makes the
-    # row actionable. An unparsable version stays in, the conservative direction.
-    # A pin keyed to a user home (`projectPathIsHome`) is dropped like in `actionable`:
-    # it never sets the highest version and never classes the row.
+    # Only a pin that differs from the row'"'"'s `highest` is the skew converge or a
+    # worktree removal would settle; a pin already at it is not what makes the row
+    # actionable. An unparsable version stays in, the conservative direction. A pin
+    # keyed to a user home is dropped like in `actionable` and never classes the row.
     def row_class:
       [.scopes[]? | select(.projectPathIsHome != true)] as $s
-      | ([$s[] | .version | triple | select(. != null)] | max) as $top
+      | (.highest | triple) as $top
       | [$s[] | select((.projectPath // "") != "")
          | select($top == null or (.version | triple) != $top)
          | pin_class] as $c
@@ -780,7 +811,7 @@ divergence_block() {
     def diverging_records:
       .id as $id
       | [.scopes[]? | select(.projectPathIsHome != true)] as $s
-      | ([$s[] | .version | triple | select(. != null)] | max) as $top
+      | (.highest | triple) as $top
       | [$s[] | select($top == null or (.version | triple) != $top)] as $d
       | (if ($d | length) > 0 then $d else $s end)
       | map({id: $id, scope, version, projectPath: (.projectPath // null),
@@ -871,93 +902,101 @@ settings_state() {
 }
 
 path_row() {
-  local j_id j_sc j_path j_old j_cat j_label j_result j_reason
+  local j_id j_sc j_path j_old j_cat j_rlabel j_result j_reason call=""
   local j_home="false"
   json_string_to j_id "$id"
   json_string_to j_sc "$scope"
   json_string_to j_path "$path"
   json_string_to j_old "$old"
   json_string_to j_cat "$cat"
-  json_string_to j_label "$label"
+  json_string_to j_rlabel "$rlabel"
   json_string_to j_result "$1"
   json_string_to j_reason "$2"
   [[ "$home" == "true" ]] && j_home="true"
-  printf '{"id":%s,"scope":%s,"path":%s,"old":%s,"catalog":%s,"label":%s,"home":%s,"result":%s,"reason":%s,"stopped":%s}\n' \
-    "$j_id" "$j_sc" "$j_path" "$j_old" "$j_cat" "$j_label" "$j_home" "$j_result" "$j_reason" "$3"
+  [[ "${4:-}" == call ]] && call=",${CLI_ROW:1:${#CLI_ROW}-2}"
+  printf '{"id":%s,"scope":%s,"path":%s,"old":%s,"catalog":%s,"record_label":%s,"home":%s,"result":%s,"reason":%s,"stopped":%s%s}\n' \
+    "$j_id" "$j_sc" "$j_path" "$j_old" "$j_cat" "$j_rlabel" "$j_home" "$j_result" "$j_reason" "$3" "$call"
 }
+
+PU_DIR="" PU_BEFORE="" PU_STOPPED="" PU_OUTCOME="" PU_REASON=""
+path_update_reset() { PU_DIR="" PU_BEFORE="" PU_STOPPED=""; }
+path_update() {
+  local cwd="$1" dir="$1" shown="$2" id="$3" scope="$4" label after=""
+  PU_OUTCOME="" PU_REASON=""
+  [[ "$MODE" == "sync" ]] || dir=""
+  if [[ -n "$dir" && "$dir" == "$PU_STOPPED" ]]; then
+    PU_OUTCOME=not_tried
+    PU_REASON="not tried: the .claude/ settings in this path changed after an earlier call"
+    return 0
+  fi
+  if [[ -n "$dir" && "$dir" != "$PU_DIR" ]]; then
+    PU_DIR="$dir"
+    settings_state PU_BEFORE "$dir"
+  fi
+  label="claude plugin update $id -s $scope --json"
+  if [[ -n "$shown" ]]; then
+    label="(cd \"$shown\" && $label)"
+    CLI_CWD="$cwd"
+  fi
+  cli_call "$label" plugin update "$id" -s "$scope" --json
+  CLI_CWD=""
+  if [[ "$CLI_PREDICTED" == "true" ]]; then
+    PU_OUTCOME=would
+    return 0
+  fi
+  [[ -z "$dir" ]] || settings_state after "$dir"
+  if [[ -n "$dir" && "$after" != "$PU_BEFORE" ]]; then
+    PU_STOPPED="$dir"
+    PU_OUTCOME=stopped
+    PU_REASON="the .claude/ settings in this path changed after this call, so the path was stopped"
+  elif ((CLI_RC != 0)); then
+    PU_OUTCOME=failed
+    PU_REASON=$(cli_outcome_line "$CLI_OUT")
+  else
+    PU_OUTCOME=called
+  fi
+}
+
+# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+POST_RECORD_DEF='def post_record($p; $id; $sc; $path):
+    first($p.installed[]? | select(.id == $id and .scope == $sc
+      and (if $path == null then ($sc == "user" or .currentProject == true) else .projectPath == $path end)));'
 
 other_paths_step() {
   local mp="$1"
-  local cands=""
-  local path id scope old cat label home fs reason
-  local before=""
-  local after=""
-  local cur=""
-  local stopped=""
-  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  if ! jq_to cands -r "$TRIPLE_DEF"'
-    .catalog_versions as $cv
-    | [.installed[]? | select((.scope == "project" or .scope == "local") and .currentProject != true
-         and .projectPathPresent == true and (.projectPath // "") != "")
-       | select(($cv[.id] | triple) as $c | (.version | triple) as $v | $c != null and $v != null and $v < $c)
-       | {projectPath, id, scope, version, cat: $cv[.id], label: (.label // ""),
-          home: (.projectPathIsHome == true | tostring)}]
-    | sort_by(.projectPath, .id, .scope)[]
-    | [.projectPath, .id, .scope, .version, .cat, .label, .home] | join("\u001f")' "$RUN_DIR/mid.$mp.json"; then
-    mp_error "other-paths selection failed, step not run"
+  local cands="$RUN_DIR/ids.other-paths.$mp.txt"
+  local path id scope old cat rlabel home
+  if ! project_ids update-candidates-other-paths "$RUN_DIR/mid.$mp.json" "$cands"; then
+    mp_error "other-paths projection failed, step not run: $(proj_err)"
     return 0
   fi
   if ((UPDATE_OTHER_PATHS == 0)); then
-    printf '%s\n' "$cands" | jq -c -R 'select(. != "") | gsub("\r"; "") | split("\u001f")
-      | {path: .[0], id: .[1], scope: .[2]}' >"$RUN_DIR/.other-paths-skipped.$mp.jsonl" ||
-      mp_error "other-paths count failed"
+    jq -c -R 'select(. != "") | split("\t") | {path: .[2], id: .[0], scope: .[1]}' "$cands" \
+      >"$RUN_DIR/.other-paths-skipped.$mp.jsonl" || mp_error "other-paths count failed"
     return 0
   fi
-  while IFS=$'\x1f' read -r path id scope old cat label home; do
-    path="${path//$'\r'/}" id="${id//$'\r'/}" scope="${scope//$'\r'/}" old="${old//$'\r'/}"
-    cat="${cat//$'\r'/}" label="${label//$'\r'/}" home="${home//$'\r'/}"
+  path_update_reset
+  while IFS=$'\t' read -r id scope path old cat home rlabel; do
     [[ -n "$id" ]] || continue
-    if [[ "$MODE" == "audit" ]]; then
-      predict_cli "(cd \"$path\" && claude plugin update $id -s $scope)"
-      PATH_ROWS+=("$(path_row would "" false)")
-      continue
-    fi
-    fs="${path//\\//}"
-    if [[ "$path" != "$cur" ]]; then
-      cur="$path"
-      settings_state before "$fs"
-    fi
-    if [[ "$path" == "$stopped" ]]; then
-      PATH_ROWS+=("$(path_row failed "not tried: the .claude/ settings in this path changed after an earlier call" true)")
-      continue
-    fi
-    CLI_CWD="$fs"
-    run_cli "(cd \"$path\" && claude plugin update $id -s $scope --json)" plugin update "$id" -s "$scope" --json
-    CLI_CWD=""
-    settings_state after "$fs"
-    if [[ "$after" != "$before" ]]; then
-      stopped="$path"
-      PATH_ROWS+=("$(path_row failed "the .claude/ settings in this path changed after this call, so the path was stopped" true)")
-      continue
-    fi
-    if ((CLI_RC != 0)); then
-      reason=$(cli_outcome_line "$CLI_OUT")
-      PATH_ROWS+=("$(path_row failed "exit $CLI_RC: $reason" false)")
-      continue
-    fi
-    PATH_ROWS+=("$(path_row called "" false)")
-  done <<<"$cands"
+    path_update "${path//\\//}" "$path" "$id" "$scope"
+    case "$PU_OUTCOME" in
+      not_tried) PATH_ROWS+=("$(path_row failed "$PU_REASON" true)") ;;
+      stopped) PATH_ROWS+=("$(path_row failed "$PU_REASON" true call)") ;;
+      would) PATH_ROWS+=("$(path_row would "" false call)") ;;
+      failed) PATH_ROWS+=("$(path_row failed "exit $CLI_RC: $PU_REASON" false call)") ;;
+      *) PATH_ROWS+=("$(path_row called "" false call)") ;;
+    esac
+  done <"$cands"
 }
 
 finalize_other_paths() {
   local mp="$1" rows result=""
-  local file="$RUN_DIR/other-paths.$mp.json" rows_file="$RUN_DIR/.other-paths-rows.$mp.json"
-  local post="$RUN_DIR/post.$mp.json" pre="$RUN_DIR/pre.$mp.json"
+  local rows_file="$RUN_DIR/.other-paths-rows.$mp.json"
+  local post pre
+  snapshot_file post post "$mp"
+  snapshot_file pre pre "$mp"
   local skipped="$RUN_DIR/.other-paths-skipped.$mp.jsonl"
-  if ((ONLY_INSTALL_MODE == 1)); then
-    [[ -f "$file" ]] && OTHER_PATHS_JSON=$(<"$file")
-    return 0
-  fi
+  ((ONLY_INSTALL_MODE == 0)) || return 0
   json_array_of rows ${PATH_ROWS[@]+"${PATH_ROWS[@]}"}
   printf '%s\n' "$rows" >"$rows_file"
   [[ -f "$post" ]] || post="$rows_file"
@@ -965,23 +1004,21 @@ finalize_other_paths() {
   [[ -f "$skipped" ]] || skipped=/dev/null
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to result -c -n --slurpfile rows "$rows_file" --slurpfile post "$post" --slurpfile pre "$pre" \
-    --slurpfile skipped "$skipped" "$TRIPLE_DEF"'
+    --slurpfile skipped "$skipped" "$TRIPLE_DEF$POST_RECORD_DEF"'
     ($post[0] | if type == "object" then . else {} end) as $q
     | ($pre[0] | if type == "object" then . else {} end) as $p
     | [$rows[0][] | select(.result == "called")
-       | . as $r
-       | . + {new: (first($q.installed[]? | select(.id == $r.id and .scope == $r.scope
-                     and .projectPath == $r.path) | .version) // null)}
+       | . + {new: (post_record($q; .id; .scope; .path).version // null)}
        | . + {moved: ((.new | triple) != null and (.old | triple) < (.new | triple))}] as $called
     | {updated: [$called[] | select(.moved) | {id, scope, path, old, new}],
-       not_moved: [$called[] | select((.moved | not) and (.label != "" or .home))
+       not_moved: [$called[] | select((.moved | not) and (.record_label != "" or .home))
                    | {id, scope, path, version: (.new // .old), catalog,
-                      label: (if .label != "" then .label else "user home" end)}],
+                      label: (if .record_label != "" then .record_label else "user home" end)}],
        failed: ([$rows[0][] | select(.result == "failed") | {id, scope, path, reason, stopped}]
-                + [$called[] | select((.moved | not) and .label == "" and (.home | not))
+                + [$called[] | select((.moved | not) and .record_label == "" and (.home | not))
                    | {id, scope, path, stopped: false,
                       reason: ("the record did not move: still at \(.new // "an unread version"), the catalog reads \(.catalog)")}]),
-       would_update: [$rows[0][] | select(.result == "would") | {id, scope, path, old, catalog}],
+       would_update: [$rows[0][] | select(.result == "would") | {id, scope, path, old, catalog, label}],
        skipped: {records: ($skipped | length), paths: ($skipped | map(.path) | unique | length)},
        catalog_moved: (($p.catalog_versions // {}) as $a | ($q.catalog_versions // {}) as $b
                        | [$a | keys[] | select($b[.] != null and $a[.] != null and $a[.] != $b[.])] | length)}' || result=""
@@ -990,9 +1027,10 @@ finalize_other_paths() {
   else
     mp_error "other-paths read-back failed"
   fi
-  printf '%s\n' "$OTHER_PATHS_JSON" >"$file"
 }
 
+declare -A STEP_S=() STEP_E=()
+STEP_WINDOW_S="" STEP_WINDOW_E=""
 reset_marketplace_state() {
   MP_ERRORS=()
   IR_UPDATED=() IR_FAILED=() IR_WOULD=() IR_LIVE=()
@@ -1002,65 +1040,115 @@ reset_marketplace_state() {
   WITHHELD=() DOWNGRADED=() INSTALLED_ROWS=() ENABLED_ROWS=() PROJECT_ROWS=() RECOVERED_ROWS=()
   INSTALL_GAP="[]" ENABLE_GAP="[]" NORMALIZE_JSON="null" CACHE_JSON="null"
   SELF_UPDATED="false" SELF_UPDATE="null" INSTALL_DEFERRED="false" STOPPED_BEFORE_INSTALL="false"
-  REFRESH_RC="null" REFRESH_OUT="" REFRESH_REASON="" REFRESH_PREDICTED="false" REFRESH_FAILED=0
+  INSTALL_HELD="null"
+  REFRESH_RC="null" REFRESH_OUT="" REFRESH_REASON="" REFRESH_PREDICTED="false" REFRESH_LABEL="" REFRESH_FAILED=0
   REFRESH_SKIP_JSON="null"
   CATALOG_LAST_UPDATED="" PROJECT_ROOT_JSON="null" SOURCE_PULL_JSON="null"
-  T_PRR_S="" T_PRR_E="" T_MU_S="" T_MU_E="" T_IR_S="" T_IR_E="" T_OP_S="" T_OP_E="" T_US_S="" T_US_E=""
-  T_PI_S="" T_PI_E="" T_IE_S="" T_IE_E="" T_CC_S="" T_CC_E="" T_PR_S="" T_PR_E=""
-  T_FN_S="" T_MP_S="" T_MP_E=""
+  STEP_S=() STEP_E=() T_MP_S="" T_MP_E="" GAP_COUNT=0 ENABLE_GAP_COUNT=0
   CACHE_CHECK_RAN=0
   CLI_CALLS=0 CLI_MS=0
 }
 reset_marketplace_state
 
-persist_first_pass_rows() {
-  local mp="$1" ir_f us_f errs persisted
-  json_array_of ir_f ${IR_FAILED[@]+"${IR_FAILED[@]}"}
-  json_array_of us_f ${US_FAILED[@]+"${US_FAILED[@]}"}
-  json_strings_of errs ${MP_ERRORS[@]+"${MP_ERRORS[@]}"}
-  json_object_file "$RUN_DIR/.first-pass-args.$mp.json" \
-    errors "$errs" ir_failed "$ir_f" us_failed "$us_f" source_pull "$SOURCE_PULL_JSON" \
-    refresh_skipped "$REFRESH_SKIP_JSON"
-  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to persisted -c \
-    --arg refresh_rc "$REFRESH_RC" \
-    --arg refresh_out "$REFRESH_OUT" \
-    --arg refresh_reason "$REFRESH_REASON" \
-    --arg refresh_predicted "$REFRESH_PREDICTED" \
-    '{errors, ir_failed, us_failed, source_pull,
-      refresh: {rc: (if $refresh_rc == "null" or $refresh_rc == "" then null
-                     else ($refresh_rc | tonumber? // $refresh_rc) end),
-                output: $refresh_out,
-                reason: $refresh_reason,
-                predicted: ($refresh_predicted == "true"),
-                skipped: .refresh_skipped}}' "$RUN_DIR/.first-pass-args.$mp.json"
-  printf '%s\n' "$persisted" >"$RUN_DIR/first-pass.$mp.json"
+record_fields_to() {
+  local __rf_var="$1" __rf_spec __rf_name __rf_v __rf_kind __rf_val __rf_ref __rf_out="" __rf_sep=""
+  shift
+  for __rf_spec in "$@"; do
+    read -r __rf_name __rf_v __rf_kind <<<"$__rf_spec"
+    __rf_ref="${__rf_v}[@]"
+    case "$__rf_kind" in
+      string) json_string_to __rf_val "${!__rf_v}" ;;
+      flag) if [[ "${!__rf_v}" == 1 ]]; then __rf_val=true; else __rf_val=false; fi ;;
+      strings) json_strings_of __rf_val ${!__rf_ref+"${!__rf_ref}"} ;;
+      rows) json_array_of __rf_val ${!__rf_ref+"${!__rf_ref}"} ;;
+      *) __rf_val="${!__rf_v:-null}" ;;
+    esac
+    __rf_out+="$__rf_sep\"$__rf_name\":$__rf_val"
+    __rf_sep=","
+  done
+  printf -v "$__rf_var" '{%s}' "$__rf_out"
 }
 
-restore_first_pass_rows() {
-  local mp="$1" lines line
-  local sidecar="$RUN_DIR/first-pass.$mp.json"
-  [[ -f "$sidecar" ]] || return 0
-  jq_to lines -r '.errors[]?' "$sidecar"
-  while IFS= read -r line; do
-    [[ -n "$line" ]] && MP_ERRORS+=("$line")
-  done <<<"$lines"
-  jq_to lines -c '.ir_failed[]?' "$sidecar"
-  while IFS= read -r line; do
-    [[ -n "$line" ]] && IR_FAILED+=("$line")
-  done <<<"$lines"
-  jq_to lines -c '.us_failed[]?' "$sidecar"
-  while IFS= read -r line; do
-    [[ -n "$line" ]] && US_FAILED+=("$line")
-  done <<<"$lines"
-  jq_to REFRESH_OUT -r '.refresh.output // ""' "$sidecar"
-  jq_to REFRESH_REASON -r '.refresh.reason // ""' "$sidecar"
-  jq_to REFRESH_PREDICTED -r 'if .refresh.predicted == true then "true" else "false" end' "$sidecar"
-  jq_to REFRESH_RC -r 'if .refresh.rc == null then "null" else (.refresh.rc | tostring) end' "$sidecar"
-  jq_to REFRESH_SKIP_JSON -c '.refresh.skipped // null' "$sidecar"
-  [[ -n "$REFRESH_SKIP_JSON" ]] || REFRESH_SKIP_JSON="null"
-  jq_to SOURCE_PULL_JSON -c '.source_pull // null' "$sidecar"
-  [[ -n "$SOURCE_PULL_JSON" ]] || SOURCE_PULL_JSON="null"
+restore_fields() {
+  local mp="$1" spec name var kind val
+  shift
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  local at='(if $mp == "" then .run else .marketplaces[$mp] end)[$n]'
+  for spec in "$@"; do
+    read -r name var kind <<<"$spec"
+    case "$kind" in
+      strings) mapfile -d '' -t "$var" < <(jq -j --arg mp "$mp" --arg n "$name" "${at}[] | (., \"\\u0000\")" "$RUN_RECORD") ;;
+      rows) mapfile -t "$var" < <(jq -c --arg mp "$mp" --arg n "$name" "${at}[]" "$RUN_RECORD") ;;
+      flag)
+        jq_to val -r --arg mp "$mp" --arg n "$name" "$at" "$RUN_RECORD"
+        if [[ "$val" == true ]]; then printf -v "$var" 1; else printf -v "$var" 0; fi
+        ;;
+      string) jq_to "$var" -r --arg mp "$mp" --arg n "$name" "$at" "$RUN_RECORD" ;;
+      *) jq_to "$var" -c --arg mp "$mp" --arg n "$name" "$at" "$RUN_RECORD" ;;
+    esac
+  done
+}
+
+# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+RUN_RECORD_CHECK_JQ='
+  def type_of: {string: "string", flag: "boolean", strings: "array", rows: "array"}[.];
+  def bad($decl; $where):
+    . as $o
+    | [$decl | to_entries[] | .key as $k | (.value.kind | type_of) as $t
+       | select(($o | has($k) | not) or ($t != null and ($o[$k] | type) != $t)) | "\($where).\($k)"];
+  if type != "object" or (.run | type) != "object" or (.marketplaces | type) != "object" then
+    "it is not a run record object"
+  else
+    ((.run | bad($d[0].run; "run"))
+     + [.marketplaces | to_entries[] | .key as $m
+        | if (.value | type) == "object" then (.value | bad($d[0].marketplace; "marketplaces.\($m)"))[]
+          else "marketplaces.\($m)" end]) as $b
+    | if $b == [] then "" else "fields missing or of the wrong type: \($b | join(", "))" end
+  end'
+
+RUN_RECORD_OK=0
+run_record_load() {
+  local reason=""
+  if [[ ! -f "$RUN_RECORD" ]]; then
+    reason="run.json is missing"
+  elif ! jq_to reason -r --slurpfile d "$RUN_RECORD_DECL" "$RUN_RECORD_CHECK_JQ" "$RUN_RECORD" 2>/dev/null; then
+    reason="run.json is not valid JSON"
+  fi
+  if [[ -n "$reason" ]]; then
+    run_error "run record unusable ($reason): this re-entry ran on its own flags and defaults, without the first pass's flags, timings or rows"
+    return 0
+  fi
+  RUN_RECORD_OK=1
+  restore_fields "" "${RR_RUN_FIELDS[@]}"
+  [[ -z "${CLAUDE_CODE_REMOTE:-}" ]] || apply_pull_policy
+}
+
+run_record_restore_mp() {
+  local mp="$1" rec
+  if ((RUN_RECORD_OK == 1)); then
+    if jq -e --arg mp "$mp" '.marketplaces | has($mp)' "$RUN_RECORD" >/dev/null 2>&1; then
+      restore_fields "$mp" "${RR_MP_FIELDS[@]}"
+    else
+      mp_error "the run record holds no first-pass entry for this marketplace, so its first-pass rows are not shown"
+    fi
+  fi
+  [[ -z "${SYNC_RUN_RECORD_ECHO:-}" ]] || {
+    record_fields_to rec "${RR_MP_FIELDS[@]}"
+    run_record_append "$RUN_DIR/.run-record-echo.jsonl" "$mp" "$rec"
+  }
+}
+
+run_record_append() {
+  local key
+  json_string_to key "$2"
+  printf '{%s:%s}\n' "$key" "$3" >>"$1"
+}
+
+run_record_write() {
+  local record
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  jq_to record -c -s --argjson run "$3" '{run: $run, marketplaces: (add // {})}' "$2" &&
+    printf '%s\n' "$record" >"$1"
 }
 
 name_listed() {
@@ -1238,14 +1326,19 @@ inputs_older_than() {
   done <<<"$1"
 }
 
-SNAPSHOT_KEY="$PWD|${HOME:-}|${CLAUDE_PROJECT_DIR:-}|$CLAUDE_PLUGIN_ROOT|${FLEET_STATE_INSTALLED_JSON:-}"
-SNAPSHOT_KEY+="|${FLEET_STATE_MARKETPLACES_JSON:-}|${FLEET_STATE_USER_SETTINGS:-}|${FLEET_STATE_CATALOG_DIR:-}"
+SNAPSHOT_KEY=""
+snapshot_key() {
+  [[ -z "$SNAPSHOT_KEY" ]] || return 0
+  SNAPSHOT_KEY=$("$FLEET_STATE" --fingerprint 2>/dev/null) && [[ -n "$SNAPSHOT_KEY" ]] ||
+    SNAPSHOT_KEY="unread fingerprint $$ $EPOCHREALTIME"
+}
 STORE_MARGIN_S=2
 [[ ! "${SYNC_FLEET_STATE_STORE_MARGIN_S:-}" =~ ^[0-9]{1,6}$ ]] || STORE_MARGIN_S=$((10#$SYNC_FLEET_STATE_STORE_MARGIN_S))
 fleet_snapshot() {
   local mp="$1" out="$2" label="$3"
   local c="$RUN_DIR/fs-cache.$mp"
   local rc text list_pre="" list_post fp_pre="" fp_post stored t_s t_e
+  snapshot_key
   local key="$SNAPSHOT_KEY"
   slurp_to text "$c.key"
   if [[ "$text" == "$key" && -f "$c.list" ]]; then
@@ -1306,11 +1399,10 @@ withheld_add() {
 }
 
 us_failed_add() {
-  local reason out
+  local reason
   reason=$(cli_outcome_line "$CLI_OUT")
-  trunc out "$CLI_OUT"
-  US_FAILED+=("$(jq -c -n --arg id "$1" --argjson rc "$CLI_RC" --arg out "$out" \
-    --arg reason "$reason" '{id: $id, rc: $rc, output: $out, reason: $reason}')")
+  US_FAILED+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$1" --arg reason "$reason" \
+    '$call + {id: $id, reason: $reason}')")
 }
 
 ir_stopped_add() {
@@ -1319,92 +1411,100 @@ ir_stopped_add() {
 }
 
 run_marketplace() {
-  local mp="$1"
+  local mp="$1" __st_spec __st_name __st_modes __st_stop __st_window __st_rc __st_s __st_e
   reset_marketplace_state
   clock_into T_MP_S
-  ((ONLY_INSTALL_MODE == 1)) || : >"$RUN_DIR/moves.$mp.tsv"
-
-  local rc dg_rc id scope old new result row out reason
-  local pre_refresh="$RUN_DIR/pre-refresh.$mp.json"
-
-  if ((ONLY_INSTALL_MODE == 0)); then
-    if [[ ! -f "$pre_refresh" ]]; then
-      clock_into T_PRR_S
-      fleet_read "$mp" "$pre_refresh" pre-refresh
-      rc=$?
-      clock_into T_PRR_E
-      if ((rc != 0)); then
-        emit_marketplace_block "$mp"
-        return 0
-      fi
-    elif [[ "$mp" == "$MAIN_READ_MP" ]]; then
-      T_PRR_S="$MAIN_READ_S"
-      T_PRR_E="$MAIN_READ_E"
-      T_MP_S="$MAIN_READ_S"
-    fi
-
-    if [[ "$MODE" == "audit" ]]; then
-      predict_cli "claude plugin marketplace update $mp"
-      REFRESH_PREDICTED="true"
-      REFRESH_RC="null"
-      trunc REFRESH_OUT "$CLI_OUT"
-    else
-      clock_into T_MU_S
-      if ((PULL_SOURCES_SET == 1)) && name_listed "$mp" "$PULL_SOURCES"; then
-        source_fast_forward "$mp" "$pre_refresh"
-      fi
-      refresh_skip_check "$mp"
-      if [[ "$REFRESH_SKIP_JSON" != "null" ]]; then
-        clock_into T_MU_E
-      else
-        run_cli "claude plugin marketplace update $mp" plugin marketplace update "$mp"
-        clock_into T_MU_E
-        REFRESH_RC="$CLI_RC"
-        trunc REFRESH_OUT "$CLI_OUT"
-        REFRESH_REASON=$(cli_outcome_line "$CLI_OUT")
-        if ((CLI_RC != 0)); then
-          REFRESH_FAILED=1
-          mp_error "marketplace refresh failed (exit $CLI_RC): ${REFRESH_REASON}, so the catalog may be stale and install/enable maintenance is deferred"
-        fi
-      fi
-    fi
+  if ((ONLY_INSTALL_MODE == 1)); then
+    run_record_restore_mp "$mp"
   else
-    if [[ -f "$RUN_DIR/pre.$mp.json" ]]; then
-      jq_to CATALOG_LAST_UPDATED -r '.marketplace.lastUpdated // ""' "$RUN_DIR/pre.$mp.json"
-      jq_to PROJECT_ROOT_JSON -c '.project_root' "$RUN_DIR/pre.$mp.json"
-      [[ -n "$PROJECT_ROOT_JSON" ]] || PROJECT_ROOT_JSON="null"
-    fi
-    if ((ALLOW_DOWNGRADE == 0)) && [[ -f "$RUN_DIR/downgrades.$mp.txt" ]]; then
-      while IFS=$'\t' read -r id scope old new; do
-        id="${id//$'\r'/}"
-        [[ -n "$id" ]] || continue
-        withheld_add "$id" "${scope//$'\r'/}" "${old//$'\r'/}" "${new//$'\r'/}"
-      done <"$RUN_DIR/downgrades.$mp.txt"
-    fi
-    restore_first_pass_rows "$mp"
+    : >"$RUN_DIR/moves.$mp.tsv"
   fi
-
-  if ((ONLY_INSTALL_MODE == 0)); then
-    clock_into T_IR_S
-    fleet_read "$mp" "$RUN_DIR/pre.$mp.json" pre
-    rc=$?
-    if ((rc != 0)); then
-      emit_marketplace_block "$mp"
-      return 0
+  for __st_spec in "${MP_STEPS[@]}"; do
+    read -r __st_name __st_modes __st_stop __st_window <<<"$__st_spec"
+    [[ ",$__st_modes," == *",$STEP_MODE,"* ]] || continue
+    STEP_WINDOW_S="" STEP_WINDOW_E=""
+    clock_into __st_s
+    case "$__st_name" in
+      pre_refresh_read) step_pre_refresh_read "$mp" ;;
+      marketplace_update) step_marketplace_update "$mp" ;;
+      in_repo_update) step_in_repo_update "$mp" ;;
+      other_paths) step_other_paths "$mp" ;;
+      user_sweep) step_user_sweep "$mp" ;;
+      pre_install_read) step_pre_install_read "$mp" ;;
+      install_enable) step_install_enable "$mp" ;;
+      cache_content_check) step_cache_content_check "$mp" ;;
+      post_read) step_post_read "$mp" ;;
+      finalize) step_finalize "$mp" ;;
+      *)
+        run_error "steps.json names a step this script does not have: $__st_name"
+        false
+        ;;
+    esac
+    __st_rc=$?
+    clock_into __st_e
+    if ((__st_rc != 1)); then
+      STEP_S[$__st_name]="${STEP_WINDOW_S:-$__st_s}"
+      [[ "$__st_window" == to_block_end ]] || STEP_E[$__st_name]="${STEP_WINDOW_E:-$__st_e}"
     fi
-    jq_to CATALOG_LAST_UPDATED -r '.marketplace.lastUpdated // ""' "$RUN_DIR/pre.$mp.json"
-    jq_to PROJECT_ROOT_JSON -c '.project_root' "$RUN_DIR/pre.$mp.json"
-    [[ -n "$PROJECT_ROOT_JSON" ]] || PROJECT_ROOT_JSON="null"
+    ((__st_rc == 2)) && [[ "$__st_stop" == true ]] && break
+  done
+  emit_marketplace_block "$mp"
+}
 
-    project_ids update-candidates-project "$RUN_DIR/pre.$mp.json" "$RUN_DIR/ids.pre.$mp.txt"
-    rc=$?
-    if ((rc != 0)); then
-      mp_error "in-repo projection failed (exit $rc), step not run: $(proj_err)"
-    else
-      local live_path=""
-      if [[ "$MODE" == "audit" ]]; then
-        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-        jq_to live_path -r '
+step_pre_refresh_read() {
+  local mp="$1" pre_refresh="$RUN_DIR/pre-refresh.$1.json"
+  if [[ ! -f "$pre_refresh" ]]; then
+    fleet_read "$mp" "$pre_refresh" pre-refresh || return 2
+  elif [[ "$mp" == "$MAIN_READ_MP" ]]; then
+    STEP_WINDOW_S="$MAIN_READ_S" STEP_WINDOW_E="$MAIN_READ_E" T_MP_S="$MAIN_READ_S"
+  else
+    return 1
+  fi
+  return 0
+}
+
+step_marketplace_update() {
+  local mp="$1"
+  if [[ "$MODE" == "audit" ]]; then
+    cli_call "claude plugin marketplace update $mp" plugin marketplace update "$mp"
+    REFRESH_LABEL="$CLI_LABEL"
+    REFRESH_PREDICTED="$CLI_PREDICTED"
+    trunc REFRESH_OUT "$CLI_OUT"
+    return 1
+  fi
+  if ((PULL_SOURCES_SET == 1)) && name_listed "$mp" "$PULL_SOURCES"; then
+    source_fast_forward "$mp" "$RUN_DIR/pre-refresh.$mp.json"
+  fi
+  refresh_skip_check "$mp"
+  [[ "$REFRESH_SKIP_JSON" == "null" ]] || return 0
+  cli_call "claude plugin marketplace update $mp" plugin marketplace update "$mp"
+  REFRESH_LABEL="$CLI_LABEL"
+  REFRESH_RC="$CLI_RC"
+  trunc REFRESH_OUT "$CLI_OUT"
+  REFRESH_REASON=$(cli_outcome_line "$CLI_OUT")
+  if ((CLI_RC != 0)); then
+    REFRESH_FAILED=1
+    mp_error "marketplace refresh failed (exit $CLI_RC): ${REFRESH_REASON}, so the catalog may be stale and install/enable maintenance is deferred"
+  fi
+  return 0
+}
+
+step_in_repo_update() {
+  local mp="$1" rc id scope old new result
+  fleet_read "$mp" "$RUN_DIR/pre.$mp.json" pre || return 2
+  jq_to CATALOG_LAST_UPDATED -r '.marketplace.lastUpdated // ""' "$RUN_DIR/pre.$mp.json"
+  jq_to PROJECT_ROOT_JSON -c '.project_root' "$RUN_DIR/pre.$mp.json"
+  [[ -n "$PROJECT_ROOT_JSON" ]] || PROJECT_ROOT_JSON="null"
+
+  project_ids update-candidates-project "$RUN_DIR/pre.$mp.json" "$RUN_DIR/ids.pre.$mp.txt"
+  rc=$?
+  if ((rc != 0)); then
+    mp_error "in-repo projection failed (exit $rc), step not run: $(proj_err)"
+  else
+    local live_path=""
+    if [[ "$MODE" == "audit" ]]; then
+      # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+      jq_to live_path -r '
           def fold: gsub("\\\\"; "/") | rtrimstr("/");
           (.marketplace.source // "") as $s | (.project_root // "" | fold) as $r
           # fleet-state folds the project root to lower case after the drive letter
@@ -1415,144 +1515,107 @@ run_marketplace() {
               ($s | sub("^directory:"; "") | fold) as $p
               | if eqp($p; $r) or eqp(($p | .[0:($r | length) + 1]); $r + "/") then $p else "" end
             else "" end' "$RUN_DIR/pre.$mp.json"
-      fi
-      local ir_root=""
-      local ir_before=""
-      local ir_after=""
-      local ir_stopped=0
-      jq_to ir_root -r '.project_root // ""' "$RUN_DIR/pre.$mp.json"
-      ir_root="${ir_root//\\//}"
-      if [[ "$MODE" == "sync" && -n "$ir_root" ]]; then
-        settings_state ir_before "$ir_root"
-      fi
-      while IFS=$'\t' read -r id scope; do
-        id="${id//$'\r'/}"
-        scope="${scope//$'\r'/}"
-        [[ -n "$id" ]] || continue
-        if ((ir_stopped == 1)); then
-          ir_stopped_add "$id" "$scope" "$ir_root" \
-            "not tried: the .claude/ settings in this path changed after an earlier call"
-          continue
-        fi
-        version_at old "$RUN_DIR/pre.$mp.json" "$id" "$scope"
-        if [[ "$MODE" == "audit" && -n "$live_path" ]]; then
-          IR_LIVE+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" --arg path "$live_path" \
-            '{id: $id, scope: $sc, installed: $old, path: $path}')")
-          continue
-        fi
-        if [[ "$MODE" == "audit" ]]; then
-          predict_cli "claude plugin update $id -s $scope"
-          IR_WOULD+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" \
-            '{id: $id, scope: $sc, installed: $old}')")
-          continue
-        fi
-        run_cli "claude plugin update $id -s $scope --json" plugin update "$id" -s "$scope" --json
-        if [[ -n "$ir_root" ]]; then
-          settings_state ir_after "$ir_root"
-          if [[ "$ir_after" != "$ir_before" ]]; then
-            ir_stopped=1
-            ir_stopped_add "$id" "$scope" "$ir_root" \
-              "the .claude/ settings in this path changed after this call, so the path was stopped"
-            continue
-          fi
-        fi
-        if ((CLI_RC != 0)); then
-          reason=$(cli_outcome_line "$CLI_OUT")
-          trunc out "$CLI_OUT"
-          IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --argjson rc "$CLI_RC" \
-            --arg out "$out" --arg reason "$reason" \
-            '{id: $id, scope: $sc, rc: $rc, output: $out, reason: $reason}')")
-          continue
-        fi
-        cli_update_result result new "$CLI_OUT"
-        printf 'in_repo\t%s\t%s\t%s\t%s\t%s\n' "$id" "$scope" "${old:--}" "${new:--}" "$result" \
-          >>"$RUN_DIR/moves.$mp.tsv"
-      done <"$RUN_DIR/ids.pre.$mp.txt"
     fi
-    clock_into T_IR_E
-  fi
-
-  if ((ONLY_INSTALL_MODE == 0)); then
-    clock_into T_US_S
-    fleet_read "$mp" "$RUN_DIR/mid.$mp.json" mid
-    rc=$?
-    if ((rc != 0)); then
-      emit_marketplace_block "$mp"
-      return 0
-    fi
-
-    T_OP_S="$T_US_S"
-    other_paths_step "$mp"
-    clock_into T_OP_E
-    T_US_S="$T_OP_E"
-
-    project_ids downgrade-candidates "$RUN_DIR/mid.$mp.json" "$RUN_DIR/downgrades.$mp.txt"
-    dg_rc=$?
-    if ((dg_rc != 0)); then
-      mp_error "downgrade projection failed (exit $dg_rc): $(proj_err)"
-      : >"$RUN_DIR/downgrades.$mp.txt"
-    fi
-
-    project_ids update-candidates-user "$RUN_DIR/mid.$mp.json" "$RUN_DIR/ids.mid.$mp.txt"
-    rc=$?
-    if ((rc != 0)); then
-      mp_error "user-scope projection failed (exit $rc), sweep not run: $(proj_err)"
-    else
-      local sweep_rows=""
-      # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-      jq_to sweep_rows -r --rawfile ids "$RUN_DIR/ids.mid.$mp.txt" '
-        . as $s
-        | $ids | gsub("\r"; "") | split("\n")[] | select(length > 0) as $id
-        | $id + "\u001f"
-          + (first($s.installed[]? | select(.id == $id and .scope == "user") | .version) // "" | tostring)' \
-        "$RUN_DIR/mid.$mp.json" || sweep_rows=$(<"$RUN_DIR/ids.mid.$mp.txt")
-      sweep_rows="${sweep_rows//$'\r'/}"
-      while IFS=$'\x1f' read -r id old; do
-        [[ -n "$id" ]] || continue
-        if [[ "$MODE" == "audit" ]]; then
-          predict_cli "claude plugin update $id -s user"
-          US_WOULD+=("$(jq -c -n --arg id "$id" --arg old "$old" '{id: $id, installed: $old}')")
-          continue
-        fi
-        run_cli "claude plugin update $id -s user --json" plugin update "$id" -s user --json
-        if ((CLI_RC != 0)); then
-          us_failed_add "$id"
-          continue
-        fi
-        cli_update_result result new "$CLI_OUT"
-        printf 'user_sweep\t%s\t%s\t%s\t%s\t%s\n' "$id" user "${old:--}" "${new:--}" "$result" \
-          >>"$RUN_DIR/moves.$mp.tsv"
-      done <<<"$sweep_rows"
-    fi
-
-    while IFS=$'\t' read -r id scope old new; do
-      id="${id//$'\r'/}"
+    local ir_root=""
+    jq_to ir_root -r '.project_root // ""' "$RUN_DIR/pre.$mp.json"
+    ir_root="${ir_root//\\//}"
+    path_update_reset
+    while IFS=$'\t' read -r id scope old; do
       [[ -n "$id" ]] || continue
-      scope="${scope//$'\r'/}"
-      old="${old//$'\r'/}"
-      new="${new//$'\r'/}"
-      if ((ALLOW_DOWNGRADE == 1)) && [[ "$MODE" == "sync" ]]; then
-        run_cli "claude plugin update $id -s $scope --json   # downgrade $old -> $new" \
-          plugin update "$id" -s "$scope" --json
-        if ((CLI_RC != 0)); then
-          us_failed_add "$id"
-          continue
-        fi
-        local applied=""
-        local applied_result=""
-        cli_move_result applied_result "$CLI_OUT"
-        [[ "$applied_result" == "updated" ]] && cli_reported_version applied "$CLI_OUT"
-        [[ -n "$applied" ]] || applied="$new"
-        printf 'user_sweep\t%s\t%s\t%s\t%s\t%s\n' "$id" "$scope" "${old:--}" "${applied:--}" updated \
-          >>"$RUN_DIR/moves.$mp.tsv"
-      else
-        withheld_add "$id" "$scope" "$old" "$new"
+      if [[ -n "$live_path" ]]; then
+        IR_LIVE+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" --arg path "$live_path" \
+          '{id: $id, scope: $sc, installed: $old, path: $path}')")
+        continue
       fi
-    done <"$RUN_DIR/downgrades.$mp.txt"
-    clock_into T_US_E
+      path_update "$ir_root" "" "$id" "$scope"
+      case "$PU_OUTCOME" in
+        not_tried | stopped) ir_stopped_add "$id" "$scope" "$ir_root" "$PU_REASON" ;;
+        would)
+          IR_WOULD+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$id" --arg sc "$scope" --arg old "$old" \
+            '$call + {id: $id, scope: $sc, installed: $old}')")
+          ;;
+        failed)
+          IR_FAILED+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$id" --arg sc "$scope" \
+            --arg reason "$PU_REASON" '$call + {id: $id, scope: $sc, reason: $reason}')")
+          ;;
+        *)
+          cli_update_result result new "$CLI_OUT"
+          printf 'in_repo\t%s\t%s\t%s\t%s\t%s\n' "$id" "$scope" "${old:--}" "${new:--}" "$result" \
+            >>"$RUN_DIR/moves.$mp.tsv"
+          ;;
+      esac
+    done <"$RUN_DIR/ids.pre.$mp.txt"
+  fi
+  return 0
+}
+
+step_other_paths() {
+  fleet_read "$1" "$RUN_DIR/mid.$1.json" mid || return 2
+  other_paths_step "$1"
+  return 0
+}
+
+step_user_sweep() {
+  local mp="$1" rc dg_rc id scope old new result
+  project_ids downgrade-candidates "$RUN_DIR/mid.$mp.json" "$RUN_DIR/downgrades.$mp.txt"
+  dg_rc=$?
+  if ((dg_rc != 0)); then
+    mp_error "downgrade projection failed (exit $dg_rc): $(proj_err)"
+    : >"$RUN_DIR/downgrades.$mp.txt"
   fi
 
-  clock_into T_PI_S
+  project_ids update-candidates-user "$RUN_DIR/mid.$mp.json" "$RUN_DIR/ids.mid.$mp.txt"
+  rc=$?
+  if ((rc != 0)); then
+    mp_error "user-scope projection failed (exit $rc), sweep not run: $(proj_err)"
+  else
+    while IFS=$'\t' read -r id old; do
+      [[ -n "$id" ]] || continue
+      cli_call "claude plugin update $id -s user --json" plugin update "$id" -s user --json
+      if [[ "$CLI_PREDICTED" == "true" ]]; then
+        US_WOULD+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$id" --arg old "$old" \
+          '$call + {id: $id, installed: $old}')")
+        continue
+      fi
+      if ((CLI_RC != 0)); then
+        us_failed_add "$id"
+        continue
+      fi
+      cli_update_result result new "$CLI_OUT"
+      printf 'user_sweep\t%s\t%s\t%s\t%s\t%s\n' "$id" user "${old:--}" "${new:--}" "$result" \
+        >>"$RUN_DIR/moves.$mp.tsv"
+    done <"$RUN_DIR/ids.mid.$mp.txt"
+  fi
+
+  while IFS=$'\t' read -r id scope old new; do
+    id="${id//$'\r'/}"
+    [[ -n "$id" ]] || continue
+    scope="${scope//$'\r'/}"
+    old="${old//$'\r'/}"
+    new="${new//$'\r'/}"
+    if ((ALLOW_DOWNGRADE == 1)) && [[ "$MODE" == "sync" ]]; then
+      cli_call "claude plugin update $id -s $scope --json   # downgrade $old -> $new" \
+        plugin update "$id" -s "$scope" --json
+      if ((CLI_RC != 0)); then
+        us_failed_add "$id"
+        continue
+      fi
+      local applied=""
+      local applied_result=""
+      cli_move_result applied_result "$CLI_OUT"
+      [[ "$applied_result" == "updated" ]] && cli_reported_version applied "$CLI_OUT"
+      [[ -n "$applied" ]] || applied="$new"
+      printf 'user_sweep\t%s\t%s\t%s\t%s\t%s\n' "$id" "$scope" "${old:--}" "${applied:--}" updated \
+        >>"$RUN_DIR/moves.$mp.tsv"
+    else
+      withheld_add "$id" "$scope" "$old" "$new"
+    fi
+  done <"$RUN_DIR/downgrades.$mp.txt"
+  return 0
+}
+
+step_pre_install_read() {
+  local mp="$1" rc
   fleet_read "$mp" "$RUN_DIR/pre-install.$mp.json" pre-install
   rc=$?
   if ((rc == 0)); then
@@ -1572,61 +1635,62 @@ run_marketplace() {
     fi
   fi
 
-  local gap_count
-  local enable_gap_count
-  jq_to gap_count -r 'length' <<<"$INSTALL_GAP"
-  jq_to enable_gap_count -r 'length' <<<"$ENABLE_GAP"
-  clock_into T_PI_E
+  jq_to GAP_COUNT -r 'length' <<<"$INSTALL_GAP"
+  jq_to ENABLE_GAP_COUNT -r 'length' <<<"$ENABLE_GAP"
+  return 0
+}
 
+step_install_enable() {
+  local mp="$1"
   recover_pending "$mp"
-
   if ((REFRESH_FAILED == 1)); then
     INSTALL_DEFERRED="true"
-  elif [[ "$MODE" == "sync" && "$INSTALL_NEW" == "ask" ]] && ((gap_count > 0)) && ((ONLY_INSTALL_MODE == 0)); then
+  elif [[ "$MODE" == "sync" && "$INSTALL_NEW" == "ask" ]] && ((GAP_COUNT > 0)) && ((ONLY_INSTALL_MODE == 0)); then
     STOPPED_BEFORE_INSTALL="true"
-  elif ((gap_count > 0)) || ((enable_gap_count > 0)) || ((ONLY_INSTALL_MODE == 1)); then
-    clock_into T_IE_S
-    run_install_step "$mp" "$gap_count"
+  elif ((ALL == 1)) && [[ "$INSTALL_NEW" == "all" ]] && ((GAP_COUNT > 0)) && ((ONLY_INSTALL_MODE == 0)); then
+    STOPPED_BEFORE_INSTALL="true"
+    INSTALL_HELD='"all-target"'
+  elif ((GAP_COUNT > 0)) || ((ENABLE_GAP_COUNT > 0)) || ((ONLY_INSTALL_MODE == 1)); then
+    clock_into STEP_WINDOW_S
+    run_install_step "$mp" "$GAP_COUNT"
     run_enable_step "$mp"
-    clock_into T_IE_E
+    return 0
   fi
+  return 1
+}
 
-  if [[ "$STOPPED_BEFORE_INSTALL" != "true" ]]; then
-    clock_into T_CC_S
-    cache_content_block "$mp"
-    if ((CACHE_CHECK_RAN == 1)); then
-      clock_into T_CC_E
-    else
-      T_CC_S=""
-    fi
-  fi
+step_cache_content_check() {
+  [[ "$STOPPED_BEFORE_INSTALL" != "true" ]] || return 1
+  cache_content_block "$1"
+  ((CACHE_CHECK_RAN == 1)) || return 1
+  return 0
+}
 
-  clock_into T_PR_S
-  fleet_read "$mp" "$RUN_DIR/post.$mp.json" post
-  clock_into T_PR_E
+step_post_read() {
+  fleet_read "$1" "$RUN_DIR/post.$1.json" post || return 2
+  return 0
+}
 
-  clock_into T_FN_S
+step_finalize() {
+  local mp="$1" own row
   finalize_moves "$mp"
   finalize_other_paths "$mp"
-
-  local own
   own=$(own_plugin_name)
   if [[ -n "$own" ]]; then
     for row in ${IR_UPDATED[@]+"${IR_UPDATED[@]}"} ${US_UPDATED[@]+"${US_UPDATED[@]}"} \
       ${DOWNGRADED[@]+"${DOWNGRADED[@]}"} ${MOVED_DURING[@]+"${MOVED_DURING[@]}"}; do
       case "$row" in
-      *"\"id\":\"$own@"*)
-        SELF_UPDATED="true"
-        if [[ "$SELF_UPDATE" == "null" ]]; then
-          jq_to SELF_UPDATE -c '{id, scope, old, new}' <<<"$row"
-        fi
-        ;;
-      *) ;;
+        *"\"id\":\"$own@"*)
+          SELF_UPDATED="true"
+          if [[ "$SELF_UPDATE" == "null" ]]; then
+            jq_to SELF_UPDATE -c '{id, scope, old, new}' <<<"$row"
+          fi
+          ;;
+        *) ;;
       esac
     done
   fi
-
-  emit_marketplace_block "$mp"
+  return 0
 }
 
 PENDING_FILE=""
@@ -1656,45 +1720,45 @@ pending_remove() {
 }
 
 recover_pending() {
-  local mp="$1" id state
+  local mp="$1" id state snap states="$RUN_DIR/user-enable-state.$1.tsv"
+  local -A user_state=()
   [[ -n "$PENDING_FILE" && -f "$PENDING_FILE" && "$MODE" == "sync" ]] || return 0
-  [[ -f "$RUN_DIR/pre-install.$mp.json" ]] || return 0
+  snapshot_file snap pre-install "$mp"
+  [[ -f "$snap" ]] || return 0
+  project_ids user-enable-state "$snap" "$states" || return 0
+  while IFS=$'\t' read -r id state; do
+    [[ -n "$id" ]] && user_state["$id"]="${state//$'\r'/}"
+  done <"$states"
   while IFS= read -r id; do
     id="${id//$'\r'/}"
     [[ -n "$id" && "$id" == *"@$mp" ]] || continue
     case ",${ONLY_INSTALL// /,}," in *",$id,"*) continue ;; *) ;; esac
-    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-    jq_to state -r --arg id "$id" '
-      (any(.installed[]?; .id == $id and .scope == "user")) as $in
-      | .enabled[$id] as $en
-      | if ($in | not) then "absent" elif $en == false then "off" else "on" end' \
-      "$RUN_DIR/pre-install.$mp.json" || continue
+    state="${user_state[$id]:-absent}"
     case "$state" in
-    off)
-      enable_one "$id" user
-      if ((CLI_RC == 0)); then
-        pending_remove "$id"
-        RECOVERED_ROWS+=("$(jq -c -n --arg id "$id" '{id: $id, outcome: "enabled"}')")
-      else
-        RECOVERED_ROWS+=("$(jq -c -n --arg id "$id" '{id: $id, outcome: "enable_failed"}')")
-      fi
-      ;;
-    *) pending_remove "$id" ;;
+      off)
+        enable_one "$id" user
+        if ((CLI_RC == 0)); then
+          pending_remove "$id"
+          RECOVERED_ROWS+=("$(jq -c -n --arg id "$id" '{id: $id, outcome: "enabled"}')")
+        else
+          RECOVERED_ROWS+=("$(jq -c -n --arg id "$id" '{id: $id, outcome: "enable_failed"}')")
+        fi
+        ;;
+      *) pending_remove "$id" ;;
     esac
   done <"$PENDING_FILE"
 }
 
 install_one() {
-  local id="$1" out reason unset_cfg="null" disabled="false"
-  run_cli "claude plugin install $id -s user --json" plugin install "$id" -s user --json
-  reason=$(cli_outcome_line "$CLI_OUT")
+  local id="$1" reason="" unset_cfg="null" disabled="false"
+  cli_call "claude plugin install $id -s user --json" plugin install "$id" -s user --json
+  [[ "$CLI_PREDICTED" == "true" ]] || reason=$(cli_outcome_line "$CLI_OUT")
   install_disabled_notice "$CLI_OUT" && disabled="true"
   INSTALLED_DISABLED="$disabled"
-  trunc out "$CLI_OUT"
   unset_user_config_of unset_cfg "$CLI_OUT"
-  INSTALLED_ROWS+=("$(jq -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
+  INSTALLED_ROWS+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$id" \
     --argjson unset "$unset_cfg" --argjson disabled "$disabled" --arg reason "$reason" \
-    '{id: $id, rc: $rc, output: $out, unset_user_config: $unset, disabled_by_default: $disabled, reason: $reason}')")
+    '$call + {id: $id, unset_user_config: $unset, disabled_by_default: $disabled, reason: $reason}')")
 }
 
 run_install_step() {
@@ -1722,11 +1786,6 @@ run_install_step() {
     while IFS= read -r id; do
       id="${id//$'\r'/}"
       [[ -n "$id" ]] || continue
-      if [[ "$MODE" == "audit" ]]; then
-        predict_cli "claude plugin install $id -s user"
-        installed_any=1
-        continue
-      fi
       install_one "$id"
       ((CLI_RC == 0)) && installed_any=1
     done <"$RUN_DIR/ids.pre-install.$mp.txt"
@@ -1753,13 +1812,20 @@ run_install_step() {
 
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to NORMALIZE_JSON -c -n --argjson rc "$nrc" --arg out "$nout" --arg mode "$MODE" \
-    --argjson prc "$prc" --arg pout "$pout" \
-    '{rc: $rc, output: $out, checked_only: ($mode == "audit"),
-      project_report: (if $pout == "" then null else {rc: $prc, output: $pout} end)}'
+    --argjson prc "$prc" --arg pout "$pout" --slurpfile contract "$DIGEST_CONTRACT" '
+    def num($k): first(capture("(^| )" + $k + "=(?<n>[0-9]+)") | .n | tonumber) // null;
+    def fields:
+      ([split("\n")[] | gsub("\r"; "") | select(. != "")][0] // "") as $l
+      | ($l | startswith("refused:")) as $refused
+      | {status: (if $l == "" then null elif $refused then "refused" else ($l | split(" ")[0]) end),
+         moved: ($l | num("moved")), keys: ($l | num("keys")),
+         reason: (if $refused then ($l | ltrimstr("refused:") | ltrimstr(" ")) else null end)};
+    $contract[0].shapes.normalize * ({rc: $rc, output: $out, checked_only: ($mode == "audit")} + ($out | fields)
+      + {project_report: (if $pout == "" then null else {rc: $prc, output: $pout} + ($pout | fields) end)})'
 }
 
 run_enable_step() {
-  local mp="$1" rc id row has_user has_local has_project ppath
+  local mp="$1" rc id has_user has_local has_project ppath
 
   fleet_snapshot "$mp" "$RUN_DIR/pre-enable.$mp.json" pre-enable
   rc=$?
@@ -1768,7 +1834,7 @@ run_enable_step() {
     return 0
   fi
 
-  project_ids missing-enabled "$RUN_DIR/pre-enable.$mp.json" "$RUN_DIR/ids.pre-enable.$mp.txt"
+  project_ids enable-targets "$RUN_DIR/pre-enable.$mp.json" "$RUN_DIR/ids.pre-enable.$mp.txt"
   rc=$?
   if ((rc != 0)); then
     mp_error "enable projection failed (exit $rc), Step 5 not run: $(proj_err)"
@@ -1776,19 +1842,8 @@ run_enable_step() {
   fi
   json_lines ENABLE_GAP "$RUN_DIR/ids.pre-enable.$mp.txt"
 
-  while IFS= read -r id; do
-    id="${id//$'\r'/}"
+  while IFS=$'\t' read -r id has_user has_local has_project ppath; do
     [[ -n "$id" ]] || continue
-    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-    jq_to row -r --arg id "$id" '
-      [.installed[]? | select(.id == $id)] as $r
-      | [(any($r[]; .scope == "user") | tostring),
-         (any($r[]; .scope == "local" and .currentProject == true) | tostring),
-         (any($r[]; .scope == "project" and .currentProject == true) | tostring),
-         (first($r[] | select(.scope == "project" and .currentProject == true) | .projectPath) // "")]
-      | @tsv' "$RUN_DIR/pre-enable.$mp.json"
-    IFS=$'\t' read -r has_user has_local has_project ppath <<<"$row"
-
     local enabled_here=0
     if [[ "$has_user" == "true" ]]; then
       enable_one "$id" user
@@ -1805,19 +1860,11 @@ run_enable_step() {
 }
 
 enable_one() {
-  local id="$1" scope="$2" out reason
-  if [[ "$MODE" == "audit" ]]; then
-    predict_cli "claude plugin enable $id -s $scope"
-    ENABLED_ROWS+=("$(jq -c -n --arg id "$id" --arg sc "$scope" \
-      '{id: $id, scope: $sc, rc: null, predicted: true}')")
-    return 0
-  fi
-  run_cli "claude plugin enable $id -s $scope" plugin enable "$id" -s "$scope"
-  reason=$(cli_outcome_line "$CLI_OUT")
-  trunc out "$CLI_OUT"
-  ENABLED_ROWS+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --argjson rc "$CLI_RC" --arg out "$out" \
-    --arg reason "$reason" \
-    '{id: $id, scope: $sc, rc: $rc, output: $out, reason: $reason, predicted: false}')")
+  local id="$1" scope="$2" reason=""
+  cli_call "claude plugin enable $id -s $scope" plugin enable "$id" -s "$scope"
+  [[ "$CLI_PREDICTED" == "true" ]] || reason=$(cli_outcome_line "$CLI_OUT")
+  ENABLED_ROWS+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$id" --arg sc "$scope" --arg reason "$reason" \
+    '$call + {id: $id, scope: $sc, reason: $reason}')")
 }
 
 cache_content_block() {
@@ -1858,20 +1905,19 @@ cache_content_block() {
 
 finalize_moves() {
   local mp="$1" kind id scope old new result dir row line post_v ncat nlabel joined=""
-  local post="$RUN_DIR/post.$mp.json"
+  local post pre after_step2
+  snapshot_file post post "$mp"
+  snapshot_file pre pre "$mp"
   [[ -f "$RUN_DIR/moves.$mp.tsv" ]] || return 0
   if [[ -f "$post" ]]; then
     # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-    jq_to joined -r --rawfile moves "$RUN_DIR/moves.$mp.tsv" '
+    jq_to joined -r --rawfile moves "$RUN_DIR/moves.$mp.tsv" "$POST_RECORD_DEF"'
       . as $p
       | $moves | gsub("\r"; "") | split("\n")[] | select(length > 0)
-      | . as $line | split("\t") as $f | $f[1] as $id | $f[2] as $sc
-      | [$line,
-         (first($p.installed[]? | select(.id == $id and .scope == $sc
-            and ($sc == "user" or .currentProject == true)) | .version) // "" | tostring),
-         ($p.catalog_versions[$id]? // "" | tostring),
-         (first($p.installed[]? | select(.id == $id and .scope == $sc and .currentProject == true)
-            | .label) // "" | tostring)]
+      | . as $line | split("\t") as $f | $f[1] as $id
+      | (post_record($p; $id; $f[2]; null) // {}) as $r
+      | [$line, ($r.version // "" | tostring), ($p.catalog_versions[$id]? // "" | tostring),
+         (if $r.currentProject == true then $r.label // "" else "" end | tostring)]
       | join("\u001f")' "$post" 2>/dev/null || joined=""
   fi
   [[ -n "$joined" ]] || joined=$(<"$RUN_DIR/moves.$mp.tsv")
@@ -1920,12 +1966,10 @@ finalize_moves() {
       "$result" == "updated" && -n "$new" && -n "$old" && -f "$post" ]]; then
       local moved=""
       if [[ "$post_v" == "$old" && "$new" != "$old" ]]; then
-        local after_step2="$post"
-        [[ -f "$RUN_DIR/mid.$mp.json" ]] && after_step2="$RUN_DIR/mid.$mp.json"
-        if [[ -f "$RUN_DIR/pre.$mp.json" ]]; then
+        if [[ -f "$pre" ]] && snapshot_as_of after_step2 "$mp" mid; then
           # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
           jq_to moved -r -n --arg id "$id" --arg sc "$scope" \
-            --slurpfile pre "$RUN_DIR/pre.$mp.json" --slurpfile post "$after_step2" \
+            --slurpfile pre "$pre" --slurpfile post "$after_step2" \
             '[$post[0].installed[]? | select(.id == $id and .scope == $sc and .currentProject != true)
               | . as $r | select(([$pre[0].installed[]? | select(.id == $id and .scope == $sc
                   and .projectPath == $r.projectPath) | .version] | first) != $r.version)
@@ -1945,15 +1989,15 @@ finalize_moves() {
       version_direction_to dir "$old" "$new"
     fi
     case "$dir" in
-    same) continue ;;
-    backward)
-      downgrade_row_to row "$id" "$scope" "$old" "$new"
-      DOWNGRADED+=("$row")
-      ;;
-    *)
-      move_row_to row "$id" "$scope" "$old" "$new" "$dir"
-      if [[ "$kind" == "in_repo" ]]; then IR_UPDATED+=("$row"); else US_UPDATED+=("$row"); fi
-      ;;
+      same) continue ;;
+      backward)
+        downgrade_row_to row "$id" "$scope" "$old" "$new"
+        DOWNGRADED+=("$row")
+        ;;
+      *)
+        move_row_to row "$id" "$scope" "$old" "$new" "$dir"
+        if [[ "$kind" == "in_repo" ]]; then IR_UPDATED+=("$row"); else US_UPDATED+=("$row"); fi
+        ;;
     esac
   done <<<"$joined"
 }
@@ -1962,17 +2006,8 @@ report_extras() {
   local __var="$1"
   local mp="$2"
   local src=""
-  for src in "$RUN_DIR/post.$mp.json" "$RUN_DIR/pre-install.$mp.json" "$RUN_DIR/pre.$mp.json" \
-    "$RUN_DIR/pre-refresh.$mp.json"; do
-    [[ -f "$src" ]] && break
-    src=""
-  done
-  if [[ -z "$src" ]]; then
-    jq_to "$__var" -c -n '{auto_update: null, catalog_source: null, user_scope_orphans: [],
-      user_home_records: {total: 0, paths: []},
-      delisted: [], delisted_project: [], delisted_settings_only: [],
-      stale_project_records: {total: null, paths: null, by_parent: [], more_parents: 0, list_file: null},
-      in_repo_records: null, in_repo_ids: [], divergences_here: null}'
+  if ! snapshot_latest src "$mp"; then
+    printf -v "$__var" '%s' '{}'
     return 0
   fi
   local list_file=""
@@ -1989,8 +2024,19 @@ report_extras() {
     --argjson left_to_step3a "$([[ "$MODE" == "audit" || "$UPDATE_OTHER_PATHS" == 0 ]] && echo true || echo false)" \
     "$ACTIONABLE_DEF$TRIPLE_DEF"'
     def parent: capture("^(?<p>.*[/\\\\])[^/\\\\]+[/\\\\]*$").p // .;
-    ([.divergences[]? | actionable | .id]) as $act
-    | .catalog_versions as $cv
+    # One pass: parent groups that are siblings, more of them than the cap, merge
+    # into their own parent with summed counts, so they take one row, not many.
+    def fold_siblings:
+      if length <= $cap then .
+      else group_by(.parent | parent)
+        | map(if length > $cap and (.[0].parent | parent) != .[0].parent
+              then [{parent: (.[0].parent | parent), count: (map(.count) | add), paths: (map(.paths) | add)}]
+              else . end)
+        | add
+        | group_by(.parent)
+        | map({parent: .[0].parent, count: (map(.count) | add), paths: (map(.paths) | add)})
+      end;
+    .catalog_versions as $cv
     | ([.installed[]? | select(.currentProject == true) | .id]) as $here
     | ([.installed[]? | select(.projectPathPresent == false)]) as $absent
     # A home record still below the catalog, or with no version to compare: the
@@ -2011,6 +2057,7 @@ report_extras() {
        stale_project_records: (($absent | group_by(.projectPath | parent)
                                 | map({parent: (.[0].projectPath | parent), count: length,
                                        paths: (map(.projectPath) | unique | length)})
+                                | fold_siblings
                                 | sort_by(-.count, .parent)) as $groups
                                | {total: ($absent | length),
                                   paths: ($absent | map(.projectPath) | unique | length),
@@ -2020,8 +2067,7 @@ report_extras() {
                                   more_parents: ([0, ($groups | length) - $cap] | max),
                                   list_file: (if $list_file == "" then null else $list_file end)}),
        in_repo_records: ($here | length),
-       in_repo_ids: $here,
-       divergences_here: ($act | map(select(. as $i | $here | index($i))) | length)}' "$src"
+       in_repo_ids: $here}' "$src"
 }
 
 source_checkout() {
@@ -2092,29 +2138,29 @@ monitor_count_at() {
       jq_to __mc_kind -r 'if .present == true then "true" else "false" end' <<<"$__mc_spec" 2>/dev/null || __mc_kind="unreadable"
     fi
     case "$__mc_kind" in
-    true)
-      # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-      jq_to __mc_n -r '
+      true)
+        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+        jq_to __mc_n -r '
         .value
         | if type == "array" then "array:\(length)"
           elif type == "string" then "path:\(.)"
           else "other" end' <<<"$__mc_spec" 2>/dev/null || __mc_n="other"
-      case "$__mc_n" in
-      array:*) __mc_n="${__mc_n#array:}" ;;
-      path:*)
-        __mc_path="${__mc_n#path:}"
-        __mc_path="${__mc_path#./}"
-        __mc_n="0"
-        [[ -f "$__mc_root/$__mc_path" ]] &&
-          jq_to __mc_n -r 'if type == "array" then length else 0 end' "$__mc_root/$__mc_path" 2>/dev/null
+        case "$__mc_n" in
+          array:*) __mc_n="${__mc_n#array:}" ;;
+          path:*)
+            __mc_path="${__mc_n#path:}"
+            __mc_path="${__mc_path#./}"
+            __mc_n="0"
+            [[ -f "$__mc_root/$__mc_path" ]] &&
+              jq_to __mc_n -r 'if type == "array" then length else 0 end' "$__mc_root/$__mc_path" 2>/dev/null
+            ;;
+          *) __mc_n="0" ;;
+        esac
         ;;
-      *) __mc_n="0" ;;
-      esac
-      ;;
-    false) ;;
-    *)
-      __mc_kind="unreadable"
-      ;;
+      false) ;;
+      *)
+        __mc_kind="unreadable"
+        ;;
     esac
   fi
   if [[ "$__mc_kind" != "true" && "$__mc_kind" != "unreadable" && -f "$__mc_root/monitors/monitors.json" ]]; then
@@ -2175,10 +2221,15 @@ source_pull_field() {
 
 emit_marketplace_block() {
   local mp="$1" ir_u ir_f ir_w ir_l us_u us_f us_w wh dg moved inst en pr rec errs
-  local unset_cfg installed_disabled monitors
-  [[ -n "$T_FN_S" ]] || clock_into T_FN_S
-  if ((ONLY_INSTALL_MODE == 0)); then
-    persist_first_pass_rows "$mp"
+  local unset_cfg monitors spec name window windows="" sep=""
+  for spec in "${MP_STEPS[@]}"; do
+    read -r name _ _ window <<<"$spec"
+    [[ "$window" != to_block_end || -n "${STEP_S[$name]:-}" ]] || clock_into "STEP_S[$name]"
+  done
+  if [[ "$MODE" == "sync" ]] && ((ONLY_INSTALL_MODE == 0)); then
+    local rec
+    record_fields_to rec "${RR_MP_FIELDS[@]}"
+    run_record_append "$RUN_DIR/.run-record.jsonl" "$mp" "$rec"
   fi
   local reg_interval reg_rows div extras block checkout pull
 
@@ -2196,10 +2247,12 @@ emit_marketplace_block() {
   json_array_of en ${ENABLED_ROWS[@]+"${ENABLED_ROWS[@]}"}
   json_array_of pr ${PROJECT_ROWS[@]+"${PROJECT_ROWS[@]}"}
   json_array_of rec ${RECOVERED_ROWS[@]+"${RECOVERED_ROWS[@]}"}
-  json_strings_of errs ${MP_ERRORS[@]+"${MP_ERRORS[@]}"}
-
   catalog_regression_rows reg_interval reg_rows "$mp"
-  divergence_block div "$mp"
+  divergence_block div "$mp" || {
+    div='{"note":"the divergence computation failed"}'
+    mp_error "divergence computation failed"
+  }
+  json_strings_of errs ${MP_ERRORS[@]+"${MP_ERRORS[@]}"}
   report_extras extras "$mp"
   jq_to checkout -r '.catalog_source // ""' <<<"$extras"
   source_checkout checkout "$checkout"
@@ -2207,17 +2260,17 @@ emit_marketplace_block() {
   monitor_rows monitors "$mp"
   jq_to unset_cfg -c '[.[] | select(.unset_user_config != null)
     | {id, options_unset: .unset_user_config.options_unset, required: .unset_user_config.required}]' <<<"$inst"
-  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to installed_disabled -c -s '
-    .[0] as $inst | .[1] as $en
-    | [$en[] | select(.predicted == false and .rc == 0 and .scope == "user") | .id] as $on
-    | [$inst[] | select(.rc == 0 and .disabled_by_default == true) | .id | select(IN($on[]) | not)]' \
-    <<<"$inst"$'\n'"$en"
   [[ -n "$div" ]] || div='{}'
   [[ -n "$extras" ]] || extras='{}'
   [[ -n "$reg_rows" ]] || reg_rows='[]'
 
   clock_into T_MP_E
+  for spec in "${MP_STEPS[@]}"; do
+    read -r name _ _ window <<<"$spec"
+    [[ "$window" != to_block_end || -z "${STEP_S[$name]:-}" ]] || STEP_E[$name]="$T_MP_E"
+    windows+="$sep\"$name\":[\"${STEP_S[$name]:-}\",\"${STEP_E[$name]:-}\"]"
+    sep=","
+  done
   local args_file="$RUN_DIR/.block-args.$mp.json"
   local err_file="$RUN_DIR/.block-err.$mp"
   local block_rc=0
@@ -2230,32 +2283,24 @@ emit_marketplace_block() {
     moved "$moved" noop_unverified "$NOOP_UNVERIFIED" \
     install_gap "$INSTALL_GAP" inst "$inst" \
     enable_gap "$ENABLE_GAP" en "$en" pr "$pr" rec "$rec" \
-    deferred "$INSTALL_DEFERRED" stopped "$STOPPED_BEFORE_INSTALL" \
+    deferred "$INSTALL_DEFERRED" stopped "$STOPPED_BEFORE_INSTALL" held "$INSTALL_HELD" \
     normalize "$NORMALIZE_JSON" cache "$CACHE_JSON" reg_rows "$reg_rows" \
     div "$div" self_updated "$SELF_UPDATED" self_update "$SELF_UPDATE" \
     extras "$extras" checkout "${checkout:-null}" pull "${pull:-null}" \
-    unset_cfg "${unset_cfg:-[]}" installed_disabled "${installed_disabled:-[]}" \
-    monitors "${monitors:-[]}" errors "$errs" other_paths "$OTHER_PATHS_JSON"
+    unset_cfg "${unset_cfg:-[]}" \
+    monitors "${monitors:-[]}" errors "$errs" other_paths "$OTHER_PATHS_JSON" windows "{$windows}"
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to block -c \
+  jq_to block -c -L "$SCRIPT_DIR" \
     --arg name "$mp" \
     --arg lastUpdated "$CATALOG_LAST_UPDATED" \
     --arg refresh_out "$REFRESH_OUT" \
     --arg refresh_reason "$REFRESH_REASON" \
+    --arg refresh_label "$REFRESH_LABEL" \
     --arg reg_interval "$reg_interval" \
-    --arg t_prr_s "$T_PRR_S" --arg t_prr_e "$T_PRR_E" \
-    --arg t_mu_s "$T_MU_S" --arg t_mu_e "$T_MU_E" \
-    --arg t_ir_s "$T_IR_S" --arg t_ir_e "$T_IR_E" \
-    --arg t_op_s "$T_OP_S" --arg t_op_e "$T_OP_E" \
-    --arg t_us_s "$T_US_S" --arg t_us_e "$T_US_E" \
-    --arg t_pi_s "$T_PI_S" --arg t_pi_e "$T_PI_E" \
-    --arg t_ie_s "$T_IE_S" --arg t_ie_e "$T_IE_E" \
-    --arg t_cc_s "$T_CC_S" --arg t_cc_e "$T_CC_E" \
-    --arg t_pr_s "$T_PR_S" --arg t_pr_e "$T_PR_E" \
-    --arg t_fn_s "$T_FN_S" \
     --arg t_mp_s "$T_MP_S" --arg t_mp_e "$T_MP_E" \
     --argjson cli_calls "$CLI_CALLS" --argjson cli_ms "$CLI_MS" \
-    --arg resolution "$CLOCK_RESOLUTION" '
+    --arg resolution "$CLOCK_RESOLUTION" --slurpfile contract "$DIGEST_CONTRACT" '
+    include "question-groups";
     # Seconds to three decimals; an empty stamp pair is a step that did not run.
     # Steps round DOWN and the total rounds UP, so the total is never below the
     # sum of its steps after rounding. Clamped at zero so a wall clock stepped
@@ -2267,32 +2312,24 @@ emit_marketplace_block() {
       if $s == "" or $e == "" then null else ([0, ((ms($s; $e) | ceil) / 1000)] | max) end;
     . as {$refresh_rc, $refresh_predicted, $refresh_skipped, $project_root, $ir_u, $ir_f, $ir_w, $ir_l,
           $us_u, $us_f, $us_w, $wh, $dg, $moved, $noop_unverified, $install_gap, $inst,
-          $enable_gap, $en, $pr, $rec, $deferred, $stopped, $normalize, $cache, $reg_rows,
+          $enable_gap, $en, $pr, $rec, $deferred, $stopped, $held, $normalize, $cache, $reg_rows,
           $div, $self_updated, $self_update, $extras, $checkout, $pull, $unset_cfg,
-          $installed_disabled, $monitors, $errors, $other_paths}
-    | {pre_refresh_read: dur($t_prr_s; $t_prr_e),
-     marketplace_update: dur($t_mu_s; $t_mu_e),
-     in_repo_update: dur($t_ir_s; $t_ir_e),
-     other_paths: dur($t_op_s; $t_op_e),
-     user_sweep: dur($t_us_s; $t_us_e),
-     pre_install_read: dur($t_pi_s; $t_pi_e),
-     install_enable: dur($t_ie_s; $t_ie_e),
-     cache_content_check: dur($t_cc_s; $t_cc_e),
-     post_read: dur($t_pr_s; $t_pr_e),
-     finalize: dur($t_fn_s; $t_mp_e)} as $steps
+          $monitors, $errors, $other_paths, $windows}
+    | ($windows | map_values(dur(.[0]; .[1]))) as $steps
     | dur_up($t_mp_s; $t_mp_e) as $total
     # The time between and around the named steps, so the steps plus this
     # remainder account for the whole total.
     | (if $total == null then null
        else [0, ((($total * 1000) - ([$steps[] | select(. != null)] | add // 0) * 1000) | round) / 1000]
             | max end) as $unattributed
-    | $extras + {name: $name,
+    | $contract[0].marketplace * ($extras + {name: $name,
      timings: ($steps + {unattributed: $unattributed, total: $total, resolution: $resolution}),
      cli: {calls: $cli_calls, seconds: ($cli_ms / 1000)},
      catalog_last_updated: (if $lastUpdated == "" then null else $lastUpdated end),
      source_checkout: $checkout,
      source_pull: $pull,
      refresh: {rc: $refresh_rc, output: $refresh_out, reason: $refresh_reason, predicted: $refresh_predicted,
+               label: $refresh_label,
                skipped: $refresh_skipped},
      project_root: $project_root,
      in_repo: {updated: $ir_u, failed: $ir_f, would_update: $ir_w, live_read: $ir_l},
@@ -2302,11 +2339,12 @@ emit_marketplace_block() {
      moved_during_run: $moved,
      noop_unverified: $noop_unverified,
      install_gap: $install_gap,
+     install_offer: (if $stopped == true then $install_gap | install_offer else [] end),
      installed: $inst,
      installed_with_unset_user_config: $unset_cfg,
-     installed_disabled: $installed_disabled,
      install_enable_deferred: $deferred,
      stopped_before_install: $stopped,
+     install_held: $held,
      enable_gap: $enable_gap,
      enabled: $en,
      project_enable_rows: $pr,
@@ -2320,7 +2358,7 @@ emit_marketplace_block() {
      self_updated: $self_updated,
      self_update: $self_update,
      updated_with_monitors: $monitors,
-     errors: $errors}' "$args_file" 2>"$err_file" || block_rc=$?
+     errors: $errors})' "$args_file" 2>"$err_file" || block_rc=$?
   if ((block_rc == 0)) && [[ -n "$block" ]]; then
     printf '%s\n' "$block" >>"$RUN_DIR/.blocks.jsonl"
     return 0
@@ -2333,66 +2371,15 @@ emit_marketplace_block() {
 setup_run_dir
 pending_path
 
-SAVED_ALLOW_DOWNGRADE=""
-SAVED_INSTALL_NEW=""
-SAVED_INSTALL_NEW_INVALID=""
-if ((ONLY_INSTALL_MODE == 1)); then
-  if [[ -f "$RUN_DIR/flags.json" ]]; then
-    jq_to SAVED_ALLOW_DOWNGRADE -r '.allow_downgrade // false' "$RUN_DIR/flags.json" 2>/dev/null
-    [[ "$SAVED_ALLOW_DOWNGRADE" != "true" ]] || ALLOW_DOWNGRADE=1
-    jq_to SAVED_INSTALL_NEW -r '.install_new // ""' "$RUN_DIR/flags.json" 2>/dev/null
-    jq_to SAVED_INSTALL_NEW_INVALID -r '.install_new_invalid // ""' "$RUN_DIR/flags.json" 2>/dev/null
-    case "$SAVED_INSTALL_NEW" in
-    all | none | ask)
-      INSTALL_NEW="$SAVED_INSTALL_NEW"
-      INSTALL_NEW_INVALID="$SAVED_INSTALL_NEW_INVALID"
-      ;;
-    *) ;;
-    esac
-    SAVED_SOURCE_PULL=""
-    jq_to SAVED_SOURCE_PULL -r '.source_pull // ""' "$RUN_DIR/flags.json" 2>/dev/null
-    case "$SAVED_SOURCE_PULL" in
-    ask | never)
-      SOURCE_PULL="$SAVED_SOURCE_PULL"
-      jq_to SOURCE_PULL_INVALID -r '.source_pull_invalid // ""' "$RUN_DIR/flags.json" 2>/dev/null
-      jq_to SOURCE_PULL_OFF -r '.source_pull_off // ""' "$RUN_DIR/flags.json" 2>/dev/null
-      jq_to QUIET_AUTO_UPDATE -r '.quiet_auto_update // [] | join(",")' "$RUN_DIR/flags.json" 2>/dev/null
-      jq_to UPDATE_OTHER_PATHS -r 'if .update_other_paths == true then 1 else 0 end' "$RUN_DIR/flags.json" 2>/dev/null
-      [[ -z "${CLAUDE_CODE_REMOTE:-}" ]] || apply_pull_policy
-      ;;
-    *) ;;
-    esac
-  fi
-else
-  FLAG_AD="false"
-  ((ALLOW_DOWNGRADE == 0)) || FLAG_AD="true"
-  FLAG_IN=""
-  json_string_to FLAG_IN "$INSTALL_NEW"
-  FLAG_INV="null"
-  [[ -z "$INSTALL_NEW_INVALID" ]] || json_string_to FLAG_INV "$INSTALL_NEW_INVALID"
-  FLAG_SP=""
-  json_string_to FLAG_SP "$SOURCE_PULL"
-  FLAG_SPI="null"
-  [[ -z "$SOURCE_PULL_INVALID" ]] || json_string_to FLAG_SPI "$SOURCE_PULL_INVALID"
-  FLAG_SPO="null"
-  [[ -z "$SOURCE_PULL_OFF" ]] || json_string_to FLAG_SPO "$SOURCE_PULL_OFF"
-  FLAG_QAU="[]"
-  # shellcheck disable=SC2086  # word splitting on the comma-folded list is the point
-  json_strings_of FLAG_QAU ${QUIET_AUTO_UPDATE//,/ }
-  FLAG_UOP="false"
-  ((UPDATE_OTHER_PATHS == 0)) || FLAG_UOP="true"
-  printf '{"allow_downgrade":%s,"install_new":%s,"install_new_invalid":%s,"source_pull":%s,"source_pull_invalid":%s,"source_pull_off":%s,"quiet_auto_update":%s,"update_other_paths":%s}\n' \
-    "$FLAG_AD" "$FLAG_IN" "$FLAG_INV" "$FLAG_SP" "$FLAG_SPI" "$FLAG_SPO" "$FLAG_QAU" "$FLAG_UOP" >"$RUN_DIR/flags.json"
-fi
-
-FIRST_PASS_RUN="$RUN_DIR/first-pass-run.json"
+RUN_RECORD="$RUN_DIR/run.json"
 FIRST_PASS_TIMINGS="null"
-if ((ONLY_INSTALL_MODE == 1)) && [[ -f "$FIRST_PASS_RUN" ]]; then
-  jq_to FIRST_PASS_TIMINGS -c '.timings | select((.total | type) == "number")
-    | {total, resolution,
-       outside_marketplaces: (if (.outside_marketplaces | type) == "number" then .outside_marketplaces else null end)}' \
-    "$FIRST_PASS_RUN" 2>/dev/null || FIRST_PASS_TIMINGS="null"
-  [[ -n "$FIRST_PASS_TIMINGS" ]] || FIRST_PASS_TIMINGS="null"
+RUN_RECORD_ECHO_RUN=""
+if ((ONLY_INSTALL_MODE == 1)); then
+  run_record_load
+  [[ -z "${SYNC_RUN_RECORD_ECHO:-}" ]] || record_fields_to RUN_RECORD_ECHO_RUN "${RR_RUN_FIELDS[@]}"
+  : >"$RUN_DIR/.run-record-echo.jsonl"
+else
+  : >"$RUN_DIR/.run-record.jsonl"
 fi
 
 : >"$RUN_DIR/.blocks.jsonl"
@@ -2497,9 +2484,10 @@ T_RUN_E=""
 clock_into T_RUN_E
 
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-jq_to DIGEST -c -n \
+jq_to DIGEST -c -n -L "$SCRIPT_DIR" \
   --arg run_dir "$RUN_DIR" \
   --arg cwd "$PWD" \
+  --arg home "${HOME:-}" \
   --arg mode "$MODE" \
   --argjson allow_downgrade "$ALLOW_DOWNGRADE_JSON" \
   --arg install_new "$INSTALL_NEW" \
@@ -2511,7 +2499,8 @@ jq_to DIGEST -c -n \
   --arg t_run_s "$T_RUN_S" --arg t_run_e "$T_RUN_E" \
   --arg resolution "$CLOCK_RESOLUTION" \
   --argjson first "$FIRST_PASS_TIMINGS" \
-  --argjson errors "$RUN_ERRS" '
+  --argjson errors "$RUN_ERRS" --slurpfile contract "$DIGEST_CONTRACT" '
+  include "verdict";
   def ms_sum($a; $b): ((($a * 1000) + ($b * 1000)) | round) / 1000;
   # The combined total is only as fine as the coarser clock that timed it. The
   # rungs run fine to coarse here, not in the ladder'"'"'s try order.
@@ -2540,19 +2529,26 @@ jq_to DIGEST -c -n \
            resolution: coarser($first.resolution; $this.resolution),
            passes: [{pass: "first"} + $first, {pass: "only_install"} + $this]}
      end) as $timings
-  | {run_dir: $run_dir, cwd: $cwd, mode: $mode, allow_downgrade: $allow_downgrade,
+  | $contract[0].run * {run_dir: $run_dir, cwd: $cwd, home: (if $home == "" then null else $home end),
+     mode: $mode, allow_downgrade: $allow_downgrade,
      install_new: $install_new,
      install_new_invalid: (if $install_new_invalid == "" then null else $install_new_invalid end),
      source_pull: $source_pull,
      source_pull_invalid: (if $source_pull_invalid == "" then null else $source_pull_invalid end),
      quiet_auto_update: $quiet_auto_update,
      timings: $timings,
-     marketplaces: $marketplaces, errors: $errors}'
+     marketplaces: $marketplaces, errors: $errors}
+  | with_verdict'
 
 printf '%s\n' "$DIGEST" >"$RUN_DIR/digest.json"
 if [[ "$MODE" == "sync" ]] && ((ONLY_INSTALL_MODE == 0)); then
-  FIRST_PASS_OUT=""
-  jq_to FIRST_PASS_OUT -c '{timings}' <<<"$DIGEST" && printf '%s\n' "$FIRST_PASS_OUT" >"$FIRST_PASS_RUN"
+  RUN_RECORD_RUN=""
+  jq_to FIRST_PASS_TIMINGS -c '.timings | {total, resolution, outside_marketplaces}' <<<"$DIGEST" &&
+    record_fields_to RUN_RECORD_RUN "${RR_RUN_FIELDS[@]}" &&
+    run_record_write "$RUN_RECORD" "$RUN_DIR/.run-record.jsonl" "$RUN_RECORD_RUN" ||
+    echo "ERROR: the run record was not written; an --only-install re-entry of this run will report it unusable" >&2
+elif [[ -n "${SYNC_RUN_RECORD_ECHO:-}" ]] && ((ONLY_INSTALL_MODE == 1)); then
+  run_record_write "$SYNC_RUN_RECORD_ECHO" "$RUN_DIR/.run-record-echo.jsonl" "$RUN_RECORD_ECHO_RUN"
 fi
 
 REPORT=""
