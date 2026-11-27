@@ -1,0 +1,1 @@
+{"agentType": "discovery:researcher", "isBuiltIn": true, "description": "Sanitized captured subagent dispatch", "toolUseId": "toolu_cap_0001", "spawnDepth": 1, "requestShape": "foreground", "requestNonInteractive": true, "model": "claude-sonnet-4-6", "pickedEffortModel": "claude-opus-5-5", "finished": true}

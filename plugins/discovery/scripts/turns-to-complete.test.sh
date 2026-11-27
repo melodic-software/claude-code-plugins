@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/session-flow/scripts/*.py plugins/session-flow/.claude-plugin/plugin.json plugins/session-flow/vendor/gitleaks/gitleaks-rules.json plugins/session-flow/lib/state-key.sh
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -7,6 +8,10 @@ SUT="$SCRIPT_DIR/turns-to-complete.py"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 ROOT="$WORK/projects"
+EMPTY_PROJ="$WORK/empty-project"
+mkdir -p "$EMPTY_PROJ"
+export CLAUDE_PROJECT_DIR="$EMPTY_PROJ"
+cd "$EMPTY_PROJ" || exit 1
 
 # shellcheck source=../lib/test-helpers.sh
 source "$SCRIPT_DIR/../lib/test-helpers.sh"
@@ -126,13 +131,15 @@ expect_absent "the secret is not published" "$AWS_KEY" \
 
 CLAUDE_CONFIG_DIR="$WORK" expect "without --root the local configuration directory's projects are read" 0 \
   '^\| 2026-08-02 \| discovery:explorer \| 40 \| yes \|'
-expect "without --root each local source of the sources file is read" 0 \
+CLAUDE_CONFIG_DIR="$WORK" expect "without session-flow installed the header says local sources were read" 0 \
+  '^- Source: local sources \(session-flow not installed\)$'
+CLAUDE_CONFIG_DIR="$WORK" expect "without --root each local source of the sources file is read" 0 \
   '^\| 2026-08-02 \| discovery:explorer \| 40 \| yes \|' --sources-file "$WORK/sources.json"
 
-expect "--json names each source this skill does not read" 0 \
+CLAUDE_CONFIG_DIR="$WORK" expect "--json names each source this skill does not read" 0 \
   '"Not read by this skill: host-b-wsl \(remote; this skill reads this host.s sources only\)"' \
   --sources-file "$WORK/sources.json" --json
-expect "the markdown header names the unread remote source by placeholder" 0 \
+CLAUDE_CONFIG_DIR="$WORK" expect "the markdown header names the unread remote source by placeholder" 0 \
   '^- Not read by this skill: <host-2:wsl> \(remote; this skill reads this host.s sources only\)$' \
   --sources-file "$WORK/sources.json"
 CLAUDE_CONFIG_DIR="$WORK" expect_absent "with only local sources no unread source is named" 'Not read by this skill' --json
@@ -144,12 +151,12 @@ printf '{"schema":"transcript-sources/v1","sources":[%s,%s]}\n' \
   "{\"name\":\"host-a-wsl\",\"host\":\"host-a\",\"platform\":\"wsl\",\"config_dir\":\"$WORK\"}" \
   "{\"name\":\"host-a-windows\",\"host\":\"host-a\",\"platform\":\"windows\",\"config_dir\":\"$BLOCKED\"}" \
   >"$WORK/gap-sources.json"
-expect "the header names an unlistable projects directory as a gap with its retry" 0 \
+CLAUDE_CONFIG_DIR="$WORK" expect "the header names an unlistable projects directory as a gap with its retry" 0 \
   '^- Gap: <host-1:windows> unreadable: its projects directory could not be listed \(NotADirectoryError\)\. Retry: python3 ' \
   --sources-file "$WORK/gap-sources.json"
-expect "the other local source is still read" 0 \
+CLAUDE_CONFIG_DIR="$WORK" expect "the other local source is still read" 0 \
   '^\| 2026-08-02 \| discovery:explorer \| 40 \| yes \|' --sources-file "$WORK/gap-sources.json"
-expect "--json carries the gap verbatim in its header" 0 \
+CLAUDE_CONFIG_DIR="$WORK" expect "--json carries the gap verbatim in its header" 0 \
   "\"Gap: host-a-windows unreadable: .*Retry: python3 $SUT --sources-file $WORK/gap-sources.json --json --diagnostics-dir $WORK/diag\"" \
   --sources-file "$WORK/gap-sources.json" --json --diagnostics-dir "$WORK/diag"
 if compgen -G "$WORK/diag/*.json" >/dev/null && grep -q '"kind": "lookup"' "$WORK"/diag/*.json; then
@@ -158,7 +165,147 @@ else
   fail "--diagnostics-dir wrote no lookup record"
 fi
 printf '{"schema":"transcript-sources/v1"}\n' >"$WORK/bad-sources.json"
-expect "a malformed sources file exits 2" 2 'error: .*bad-sources.json' --sources-file "$WORK/bad-sources.json" --json
+CLAUDE_CONFIG_DIR="$WORK" expect "a malformed sources file exits 2" 2 'error: .*bad-sources.json' --sources-file "$WORK/bad-sources.json" --json
+
+SF_ROOT="$(cd "$SCRIPT_DIR/../../session-flow" && pwd)"
+FLEET="$WORK/fleet"
+HOST_A="$FLEET/host-a"
+HOST_B="$FLEET/host-b"
+mkdir -p "$HOST_A/projects/proj-a/sess-a/subagents" "$HOST_B/projects/proj-b/sess-b/subagents" \
+  "$HOST_A/plugins/data/session-flow-test-mp"
+python3 - "$HOST_A/projects/proj-a" "sess-a" "a1" "discovery:researcher" "2026-09-01" 12 <<'PY'
+import json, pathlib, sys
+proj, sid, name, atype, day, turns = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], int(sys.argv[6])
+(proj / f"{sid}.jsonl").write_text(
+    json.dumps({"type": "user", "uuid": "u0", "timestamp": f"{day}T01:00:00Z", "promptSource": "typed", "message": {"role": "user", "content": "hi"}}) + "\n" +
+    json.dumps({"type": "assistant", "uuid": "a0", "timestamp": f"{day}T01:00:05Z", "message": {"id": "main_0", "role": "assistant", "model": "claude-opus-5-5", "stop_reason": "end_turn", "content": [{"type": "text", "text": "ok"}]}}) + "\n",
+    encoding="utf-8",
+)
+sub = proj / sid / "subagents"
+(sub / f"agent-{name}.meta.json").write_text(json.dumps({"agentType": atype}) + "\n", encoding="utf-8")
+lines = [json.dumps({"type": "user", "timestamp": f"{day}T01:00:00Z", "message": {"role": "user", "content": "go"}})]
+for i in range(turns):
+    lines.append(json.dumps({"type": "assistant", "timestamp": f"{day}T01:00:01Z", "message": {"id": f"m_{i}", "role": "assistant", "stop_reason": "end_turn" if i == turns - 1 else "tool_use", "content": [{"type": "tool_use"}]}}))
+    lines.append(json.dumps({"type": "user", "timestamp": f"{day}T01:00:02Z", "message": {"role": "user", "content": [{"type": "tool_result"}]}}))
+(sub / f"agent-{name}.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+PY
+python3 - "$HOST_B/projects/proj-b" "sess-b" "b1" "discovery:explorer" "2026-09-02" 25 <<'PY'
+import json, pathlib, sys
+proj, sid, name, atype, day, turns = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], int(sys.argv[6])
+(proj / f"{sid}.jsonl").write_text(
+    json.dumps({"type": "user", "uuid": "u0", "timestamp": f"{day}T01:00:00Z", "promptSource": "typed", "message": {"role": "user", "content": "hi"}}) + "\n" +
+    json.dumps({"type": "assistant", "uuid": "a0", "timestamp": f"{day}T01:00:05Z", "message": {"id": "main_0", "role": "assistant", "model": "claude-opus-5-5", "stop_reason": "end_turn", "content": [{"type": "text", "text": "ok"}]}}) + "\n",
+    encoding="utf-8",
+)
+sub = proj / sid / "subagents"
+(sub / f"agent-{name}.meta.json").write_text(json.dumps({"agentType": atype}) + "\n", encoding="utf-8")
+lines = [json.dumps({"type": "user", "timestamp": f"{day}T01:00:00Z", "message": {"role": "user", "content": "go"}})]
+for i in range(turns):
+    lines.append(json.dumps({"type": "assistant", "timestamp": f"{day}T01:00:01Z", "message": {"id": f"m_{i}", "role": "assistant", "stop_reason": "end_turn" if i == turns - 1 else "tool_use", "content": [{"type": "tool_use"}]}}))
+    lines.append(json.dumps({"type": "user", "timestamp": f"{day}T01:00:02Z", "message": {"role": "user", "content": [{"type": "tool_result"}]}}))
+(sub / f"agent-{name}.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+PY
+
+FLEET_SOURCES="$FLEET/sources.json"
+printf '{"schema":"transcript-sources/v1","sources":[%s,%s]}\n' \
+  "{\"name\":\"host-a-wsl\",\"host\":\"host-a\",\"platform\":\"wsl\",\"config_dir\":\"$HOST_A\"}" \
+  "{\"name\":\"host-b-wsl\",\"host\":\"host-b\",\"platform\":\"wsl\",\"config_dir\":\"$HOST_B\",\"via\":[\"sh\",\"-c\"]}" \
+  >"$FLEET_SOURCES"
+
+printf '{"version":2,"plugins":{"session-flow@test-mp":[{"scope":"user","installPath":"%s"}]}}\n' "$SF_ROOT" \
+  >"$HOST_A/plugins/installed_plugins.json"
+printf '{"enabledPlugins":{"session-flow@test-mp":true}}\n' >"$HOST_A/settings.json"
+
+CLAUDE_CONFIG_DIR="$HOST_A" expect "without a store yet falls back to local sources and says why" 0 \
+  '^- Source: local sources \(no session-flow store yet; run /session-flow:audit-sessions to collect\)$' \
+  --sources-file "$FLEET_SOURCES"
+CLAUDE_CONFIG_DIR="$HOST_A" expect "fallback before collect names the unread remote host" 0 \
+  '^- Not read by this skill: <host-2:wsl> ' \
+  --sources-file "$FLEET_SOURCES"
+
+SF_DATA="$HOST_A/plugins/data/session-flow-test-mp"
+if ! python3 "$SF_ROOT/scripts/collect.py" collect --lock-name "test-ttc-$$" \
+  --data-dir "$SF_DATA" --sources-file "$FLEET_SOURCES" >/dev/null 2>&1; then
+  fail "collect.py failed to populate fleet store"
+fi
+
+CLAUDE_CONFIG_DIR="$HOST_A" expect "with session-flow store reads local host dispatch" 0 \
+  '^\| 2026-09-01 \| discovery:researcher \| 12 \| no \| n/a \|' \
+  --sources-file "$FLEET_SOURCES"
+CLAUDE_CONFIG_DIR="$HOST_A" expect "with session-flow store reads remote host dispatch too" 0 \
+  '^\| 2026-09-02 \| discovery:explorer \| 25 \| no \| n/a \|' \
+  --sources-file "$FLEET_SOURCES"
+CLAUDE_CONFIG_DIR="$HOST_A" expect "with session-flow store header says session-flow store" 0 \
+  '^- Source: session-flow store$' \
+  --sources-file "$FLEET_SOURCES"
+CLAUDE_CONFIG_DIR="$HOST_A" expect_absent "with every host collected the header names no unread source" \
+  'Not read by this skill' --sources-file "$FLEET_SOURCES"
+CLAUDE_CONFIG_DIR="$HOST_A" expect_absent "with every host collected --json header names no unread source" \
+  'Not read by this skill' --sources-file "$FLEET_SOURCES" --json
+
+printf '{"enabledPlugins":{"session-flow@test-mp":false}}\n' >"$HOST_A/settings.json"
+CLAUDE_CONFIG_DIR="$HOST_A" expect "disabled session-flow falls back to local sources" 0 \
+  '^- Source: local sources \(session-flow not installed\)$' \
+  --sources-file "$FLEET_SOURCES"
+CLAUDE_CONFIG_DIR="$HOST_A" expect_absent "disabled session-flow does not read remote host" \
+  '2026-09-02' --sources-file "$FLEET_SOURCES"
+
+PROJ_DIR="$WORK/project-enabled"
+mkdir -p "$PROJ_DIR/.claude"
+printf '{"enabledPlugins":{"other-plugin@test-mp":true}}\n' >"$HOST_A/settings.json"
+printf '{"enabledPlugins":{"session-flow@test-mp":true}}\n' >"$PROJ_DIR/.claude/settings.json"
+CLAUDE_CONFIG_DIR="$HOST_A" CLAUDE_PROJECT_DIR="$PROJ_DIR" expect \
+  "project .claude/settings.json enabling session-flow overrides user enabledPlugins map" 0 \
+  '^- Source: session-flow store$' --sources-file "$FLEET_SOURCES"
+CLAUDE_CONFIG_DIR="$HOST_A" CLAUDE_PROJECT_DIR="$PROJ_DIR" expect \
+  "project-enabled session-flow reads remote host dispatch from fleet store" 0 \
+  '^\| 2026-09-02 \| discovery:explorer \| 25 \| no \| n/a \|' --sources-file "$FLEET_SOURCES"
+
+printf '{"enabledPlugins":{"session-flow@test-mp":false}}\n' >"$PROJ_DIR/.claude/settings.local.json"
+CLAUDE_CONFIG_DIR="$HOST_A" CLAUDE_PROJECT_DIR="$PROJ_DIR" expect \
+  "project .claude/settings.local.json disabling session-flow overrides project settings.json" 0 \
+  '^- Source: local sources \(session-flow not installed\)$' --sources-file "$FLEET_SOURCES"
+
+rm -f "$PROJ_DIR/.claude/settings.local.json"
+printf '{"version":2,"plugins":{"session-flow@test-mp":[{"scope":"project","projectPath":"%s","installPath":"%s"}]}}\n' \
+  "$PROJ_DIR" "$SF_ROOT" >"$HOST_A/plugins/installed_plugins.json"
+CLAUDE_CONFIG_DIR="$HOST_A" CLAUDE_PROJECT_DIR="$PROJ_DIR" expect \
+  "project-scoped installed_plugins entry matches its projectPath" 0 \
+  '^- Source: session-flow store$' --sources-file "$FLEET_SOURCES"
+OTHER_PROJ="$WORK/other-project"
+mkdir -p "$OTHER_PROJ/.claude"
+printf '{"enabledPlugins":{"session-flow@test-mp":true}}\n' >"$OTHER_PROJ/.claude/settings.json"
+CLAUDE_CONFIG_DIR="$HOST_A" CLAUDE_PROJECT_DIR="$OTHER_PROJ" expect \
+  "project-scoped installed_plugins entry is skipped for another project" 0 \
+  '^- Source: local sources \(session-flow not installed\)$' --sources-file "$FLEET_SOURCES"
+
+printf '{"version":2,"plugins":{"session-flow@test-mp":[{"scope":"user","installPath":"%s"}]}}\n' "$SF_ROOT" \
+  >"$HOST_A/plugins/installed_plugins.json"
+printf '{"enabledPlugins":{"session-flow@test-mp":true}}\n' >"$HOST_A/settings.json"
+
+CLAUDE_CONFIG_DIR="$WORK" expect "explicit session-flow flags read the fleet store" 0 \
+  '^\| 2026-09-02 \| discovery:explorer \| 25 \| no \| n/a \|' \
+  --sources-file "$FLEET_SOURCES" \
+  --session-flow-script "$SF_ROOT/scripts/dispatches.py" \
+  --session-flow-data-dir "$SF_DATA"
+
+python3 - "$SF_DATA" <<'PY'
+import json, pathlib, sys
+data_dir = pathlib.Path(sys.argv[1])
+rec_path = next((data_dir / "audit-sessions" / "store" / "v2" / "host-b-wsl").glob("p-*/sess-b.json"))
+legacy = json.loads(rec_path.read_text(encoding="utf-8"))
+legacy["session_id"] = "sess-b-legacy"
+legacy["subagents"].pop("dispatches")
+(rec_path.parent / "sess-b-legacy.json").write_text(json.dumps(legacy), encoding="utf-8")
+PY
+CLAUDE_CONFIG_DIR="$HOST_A" expect "older store record lacking dispatches is named by placeholder in markdown header" 0 \
+  '^- Not read by this skill: <host-2:wsl> \(1 stored session record\(s\) lack per-dispatch rows' \
+  --sources-file "$FLEET_SOURCES"
+
+mkdir -p "$SF_DATA/audit-sessions/store/v2/host-a-wsl/p-000000000000"
+printf '{"schema":"session-record/v0"}\n' >"$SF_DATA/audit-sessions/store/v2/host-a-wsl/p-000000000000/bad.json"
+CLAUDE_CONFIG_DIR="$HOST_A" expect "corrupted session-flow store exits 2" 2 \
+  'error: session-flow store reader failed:' --sources-file "$FLEET_SOURCES"
 
 if [[ "$fails" -ne 0 ]]; then
   printf '%d failure(s)\n' "$fails" >&2
