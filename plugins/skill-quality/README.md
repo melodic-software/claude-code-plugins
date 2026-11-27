@@ -34,7 +34,7 @@ Other files cite them by number, as `check-skill.sh check N`:
 | 1 | Frontmatter parses, `description` present, `name` rules |
 | 2 | `description` + `when_to_use` within the listing-entry cap |
 | 2b | `description` alone within the spec field maximum |
-| 3 | Trigger-keyword preservation vs the base ref (advisory) |
+| 3 | Trigger-keyword preservation vs the base ref (advisory; skips `disable-model-invocation: true`, downgrades lexically covered drops to INFO) |
 | 4 | `SKILL.md` under the line cap |
 | 5 | Cited skill-internal files resolve; no backslash separators |
 | 6 | markdownlint clean |
@@ -43,7 +43,7 @@ Other files cite them by number, as `check-skill.sh check N`:
 | 9 | Stale-tracking metadata keys preserved |
 | 10 | Retired; numbering kept stable |
 | 11 | Gotchas surface present |
-| 12 | `description` carries "Use when" phrasing |
+| 12 | `description` carries "Use when" phrasing (inverted for `disable-model-invocation: true`, which expects a concise `<= 150`-char summary without triggers) |
 | 13 | No committed cache or build artifacts |
 | 14 | `evals/evals.json` presence |
 | 15 | Companion spoke directories referenced from `SKILL.md` |

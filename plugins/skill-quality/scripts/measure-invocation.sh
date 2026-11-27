@@ -76,6 +76,19 @@ load_listing() {
   printf '%s\n%s\n' "$desc" "$wtu"
 }
 
+is_dmi_true() {
+  local md="$1" fm raw val
+  fm="$(skill_frontmatter::extract <"$md")"
+  raw="$(skill_frontmatter::field disable-model-invocation <<<"$fm")"
+  raw="${raw#"${raw%%[![:space:]]*}"}"
+  raw="${raw%"${raw##*[![:space:]]}"}"
+  val="${raw,,}"
+  case "$val" in
+  true | yes | on | 1) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
 listing_tokens() {
   local text="$1"
   printf '%s\n' "$text" | skill_frontmatter::extract_triggers | sed "s/^'//;s/'$//" | tr '[:upper:]' '[:lower:]'
@@ -265,6 +278,17 @@ cmd_validate() {
     else
       warn "$f ($skill): no skill_dir; score cannot load a listing"
     fi
+    local vcomp vcomp_dir vcmd
+    while IFS= read -r vcomp; do
+      [[ -z "$vcomp" ]] && continue
+      vcomp_dir="$(jq -r --arg c "$vcomp" '.competitor_dirs[$c] // empty' "$f")"
+      if [[ -z "$vcomp_dir" && "$vcomp" == *:* ]]; then
+        vcomp_dir="plugins/${vcomp%%:*}/skills/${vcomp#*:}"
+      fi
+      if [[ -n "$vcomp_dir" ]] && vcmd="$(resolve_skill_md "$root" "$vcomp_dir")" && is_dmi_true "$vcmd"; then
+        warn "$f ($skill): competitor '$vcomp' sets disable-model-invocation: true and never competes in model auto-invocation"
+      fi
+    done < <(jq -r '.competitors[]?' "$f")
     ((verbose)) && note "$skill: $n queries (pos=$pos neg=$neg train=$train validation=$val)"
   done
   note "validated $nfiles probe file(s)"
@@ -349,6 +373,10 @@ cmd_score() {
       fi
       local cmd
       if cmd="$(resolve_skill_md "$root" "$comp_dir")"; then
+        if is_dmi_true "$cmd"; then
+          note "$skill: skipping competitor '$comp' (disable-model-invocation: true — excluded from model listing)"
+          continue
+        fi
         comp_listing["$comp"]="$(load_listing "$cmd")"
       elif [[ -n "$derived" ]]; then
         err "$skill: competitor '$comp' has no competitor_dirs entry and '$comp_dir' does not resolve; a partial rival set would inflate the rates"

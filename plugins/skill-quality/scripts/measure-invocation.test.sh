@@ -566,6 +566,36 @@ else
   fail "validate --copy-span x should exit 2 (rc=$rc): $out"
 fi
 
+mkdir -p "$TMP/dmi/skills/dmi-rival" "$TMP/dmi/probes"
+printf '%s\n' '---
+description: "Skill-authoring QA. Use when: '\''check this skill'\'', '\''lint my skill'\'', '\''is this SKILL.md valid'\'', '\''validate skill quality'\'', '\''check skill before publishing'\''."
+disable-model-invocation: true
+---
+
+# User-only setup fixture
+' >"$TMP/dmi/skills/dmi-rival/SKILL.md"
+jq '.competitors += ["fixture:dmi-rival"] | .competitor_dirs["fixture:dmi-rival"] = "dmi/skills/dmi-rival"' \
+  "$TMP/probes/target.json" >"$TMP/dmi/probes/target.json"
+out="$(run validate "$TMP/dmi/probes" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN:.*fixture:dmi-rival.*disable-model-invocation: true" <<<"$out"; then
+  pass "validate warns when a competitor sets disable-model-invocation: true"
+else
+  fail "validate should warn on a dmi:true competitor (rc=$rc): $out"
+fi
+dmi_score="$(run score "$TMP/dmi/probes" 2>"$TMP/dmi-score.err")"
+rc=$?
+dmi_tr="$(jq -r '.skills[0].splits.train.trigger_rate' <<<"$dmi_score")"
+dmi_winners="$(jq -r '.skills[0].cases[].winner' <<<"$dmi_score")"
+if [[ $rc -eq 0 ]] &&
+  grep -q "INFO: fixture:target: skipping competitor 'fixture:dmi-rival' (disable-model-invocation: true" "$TMP/dmi-score.err" &&
+  ! grep -q 'fixture:dmi-rival' <<<"$dmi_winners" &&
+  awk -v t="$dmi_tr" 'BEGIN { exit !(t+0 == 1) }'; then
+  pass "score skips disable-model-invocation: true competitors so user-only skills never beat model-invoked targets"
+else
+  fail "score should skip dmi:true competitor (rc=$rc train_tr=$dmi_tr) err=$(cat "$TMP/dmi-score.err")"
+fi
+
 if [[ $fails -gt 0 ]]; then
   printf 'measure-invocation.test.sh: %s failed\n' "$fails" >&2
   exit 1

@@ -5614,6 +5614,155 @@ else
   fail "check 31 should WARN on a default-baseline row in its own repository (rc=$rc): $out"
 fi
 
+make_skill dmi-clean-summary '---
+name: dmi-clean-summary
+description: "Verify prerequisites and print configuration guidance for the plugin. Read-only check."
+disable-model-invocation: true
+---
+
+## Purpose
+
+User-only skill with a concise summary and no trigger list.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-clean-summary 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  ! grep -q "no 'Use when:' trigger phrasing" <<<"$out" &&
+  ! grep -q 'carries trigger phrasing' <<<"$out" &&
+  grep -q "disable-model-invocation: true — 'Use when:' trigger phrasing not required (check 12)" <<<"$out"; then
+  pass "check 12 exempts disable-model-invocation: true skills from requiring Use when phrasing"
+else
+  fail "check 12 should exempt dmi:true clean summary (rc=$rc): $out"
+fi
+
+make_skill dmi-with-triggers '---
+name: dmi-with-triggers
+description: "Verify prerequisites. Use when: '\''set up plugin'\''."
+disable-model-invocation: true
+---
+
+## Purpose
+
+User-only skill carrying dead trigger prose.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-with-triggers 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: disable-model-invocation: true skill carries trigger phrasing' <<<"$out"; then
+  pass "check 12 WARNs when a disable-model-invocation: true skill carries Use when or quoted triggers"
+else
+  fail "check 12 should WARN on dmi:true skill with trigger phrasing (rc=$rc): $out"
+fi
+
+make_skill dmi-long-summary '---
+name: dmi-long-summary
+description: "Verify every repository prerequisite, inspect configuration layers across workspace and user scope, print diagnostic tables, and output detailed remediation guidance for operators running setup manually."
+disable-model-invocation: true
+---
+
+## Purpose
+
+User-only skill with an overly long summary.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-long-summary 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: disable-model-invocation: true description is .* (target <= 150 chars' <<<"$out"; then
+  pass "check 12 WARNs when a disable-model-invocation: true description exceeds 150 chars"
+else
+  fail "check 12 should WARN on dmi:true description over 150 chars (rc=$rc): $out"
+fi
+
+make_skill dmi-drop-triggers '---
+name: dmi-drop-triggers
+description: "Verify plugin setup. Use when: '\''old setup trigger'\''."
+disable-model-invocation: true
+---
+
+## Purpose
+
+Committed user-only skill carrying dead triggers.
+
+## Gotchas
+
+None known.
+'
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'add dmi-drop-triggers'
+make_skill dmi-drop-triggers '---
+name: dmi-drop-triggers
+description: "Verify plugin setup prerequisites and print configuration guidance."
+disable-model-invocation: true
+---
+
+## Purpose
+
+Updated user-only skill with dead triggers removed.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-drop-triggers 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  ! grep -q 'WARN: dropped trigger keyword' <<<"$out" &&
+  grep -q 'disable-model-invocation: true — trigger-keyword preservation (check 3) skipped' <<<"$out"; then
+  pass "check 3 skips trigger-preservation warnings when disable-model-invocation: true"
+else
+  fail "check 3 should skip dropped-trigger warning for dmi:true (rc=$rc): $out"
+fi
+
+make_skill redun-drop '---
+name: redun-drop
+description: "Audit markdown prose for AI tells. Use when: '\''audit markdown'\'', '\''de-slop this'\''."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Committed skill with one lexically redundant quoted trigger and one idiomatic hook.
+
+## Gotchas
+
+None known.
+'
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'add redun-drop'
+make_skill redun-drop '---
+name: redun-drop
+description: "Audit markdown prose for AI tells. Use when: '\''de-slop this'\''."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Working tree removes only the redundant quoted trigger whose words remain in prose.
+
+## Gotchas
+
+None known.
+'
+out="$(run redun-drop 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  ! grep -q 'WARN: dropped trigger keyword' <<<"$out" &&
+  grep -q "INFO: consolidated lexically covered trigger phrase(s).*audit markdown" <<<"$out"; then
+  pass "check 3 downgrades dropped quoted triggers to INFO when all words remain in the updated description"
+else
+  fail "check 3 should downgrade lexically covered trigger drops to INFO (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
