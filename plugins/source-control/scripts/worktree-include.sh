@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Exit codes:
 #   0  copy/sync-back succeeded; diff found no differences (or no .worktreeinclude)
-#   1  diff found one or more differences
-#   2  usage error, or sync-back rejected a path outside the intersection
+#   1  diff found one or more differences (--worktree-only: MODIFIED or NEW against the
+#      worktree's carried.index, or one NO-MANIFEST row when the worktree has none)
+#   2  usage error, or sync-back rejected a path outside the intersection or one main
+#      changed since the copy
 #   3  fail-closed unreadable (missing/unreadable worktree, main root, .worktreeinclude,
 #      git failure, or file read/compare failure)
 #   4  copy failed for one or more files
@@ -95,6 +97,88 @@ collect_included() {
   return 0
 }
 
+carried_index_path() {
+  local gd
+  gd="$(git -C "$1" rev-parse --absolute-git-dir 2>/dev/null)" || return 1
+  gd="${gd%$'\r'}"
+  [[ -n "$gd" ]] || return 1
+  printf '%s/carried.index' "$gd"
+}
+
+manifest_git() {
+  local manifest="$1" dir="$2"
+  shift 2
+  GIT_INDEX_FILE="$manifest" git -C "$dir" "$@"
+}
+
+write_manifest() {
+  local wt_dir="$1" list="$2" manifest tmp
+  manifest="$(carried_index_path "$wt_dir")" || return 1
+  tmp="$manifest.tmp"
+  rm -f "$tmp"
+  if manifest_git "$tmp" "$wt_dir" read-tree --empty 2>/dev/null &&
+    manifest_git "$tmp" "$wt_dir" update-index --add --info-only -z --stdin <"$list" 2>/dev/null &&
+    mv -f -- "$tmp" "$manifest"; then
+    return 0
+  fi
+  rm -f "$tmp"
+  return 1
+}
+
+load_manifest() {
+  local manifest="$1" dir="$2" line meta rel oid out
+  out="$(mktemp)" || return 1
+  if ! manifest_git "$manifest" "$dir" ls-files -s -z >"$out" 2>/dev/null; then
+    rm -f "$out"
+    return 1
+  fi
+  while IFS= read -r -d '' line; do
+    meta="${line%%$'\t'*}"
+    rel="${line#*$'\t'}"
+    oid="${meta#* }"
+    carried_oid["$rel"]="${oid%% *}"
+  done <"$out"
+  rm -f "$out"
+}
+
+manifest_rows() {
+  local wt_top="$1" wt_list="$2" manifest="$3" rel out i
+  local -A carried_oid=()
+  local -a dirty=() oids=()
+  if [[ ! -e "$manifest" ]]; then
+    [[ -s "$wt_list" ]] || return 0
+    diff_status+=("NO-MANIFEST")
+    diff_rel+=("")
+    return 0
+  fi
+  load_manifest "$manifest" "$wt_top" || die "diff: unreadable manifest: $manifest" 3
+  out="$(mktemp)" || die "diff: cannot create temp file" 3
+  if ! manifest_git "$manifest" "$wt_top" diff-files -z --name-only --diff-filter=MT >"$out" 2>/dev/null; then
+    rm -f "$out"
+    die "diff: git diff-files failed against $manifest" 3
+  fi
+  while IFS= read -r -d '' rel; do
+    [[ "$rel" != *$'\t'* && "$rel" != *$'\n'* ]] || die "diff: carried file path holds a tab or newline: $rel" 3
+    [[ -f "$wt_top/$rel" ]] && dirty+=("$rel")
+  done <"$out"
+  rm -f "$out"
+  if ((${#dirty[@]} > 0)); then
+    mapfile -t oids < <(printf '%s\n' "${dirty[@]}" | git -C "$wt_top" hash-object --stdin-paths 2>/dev/null)
+    ((${#oids[@]} == ${#dirty[@]})) || die "diff: failed hashing carried files in $wt_top" 3
+    for i in "${!dirty[@]}"; do
+      [[ "${oids[$i]}" == "${carried_oid[${dirty[$i]}]:-}" ]] && continue
+      diff_status+=("MODIFIED")
+      diff_rel+=("${dirty[$i]}")
+    done
+  fi
+  while IFS= read -r -d '' rel; do
+    [[ -n "$rel" && -z "${carried_oid[$rel]+x}" && -f "$wt_top/$rel" ]] || continue
+    [[ "$rel" != *$'\t'* && "$rel" != *$'\n'* ]] || die "diff: carried file path holds a tab or newline: $rel" 3
+    diff_status+=("NEW")
+    diff_rel+=("$rel")
+  done <"$wt_list"
+}
+
 valid_rel_path() {
   local p="$1"
   [[ -n "$p" ]] || return 1
@@ -108,18 +192,18 @@ do_copy() {
   local from_dir="" to_dir=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
-    --from)
-      [[ $# -ge 2 ]] || usage
-      from_dir="$2"
-      shift 2
-      ;;
-    --to)
-      [[ $# -ge 2 ]] || usage
-      to_dir="$2"
-      shift 2
-      ;;
-    -h | --help) usage ;;
-    *) die "copy: unknown argument: $1" 2 ;;
+      --from)
+        [[ $# -ge 2 ]] || usage
+        from_dir="$2"
+        shift 2
+        ;;
+      --to)
+        [[ $# -ge 2 ]] || usage
+        to_dir="$2"
+        shift 2
+        ;;
+      -h | --help) usage ;;
+      *) die "copy: unknown argument: $1" 2 ;;
     esac
   done
   [[ -n "$from_dir" && -n "$to_dir" ]] || die "copy requires --from <main-root> and --to <worktree>" 2
@@ -138,10 +222,14 @@ do_copy() {
     return 0
   fi
 
-  local list_file
+  local list_file carried_file
   list_file="$(mktemp)" || die "copy: cannot create temp file" 3
+  carried_file="$(mktemp)" || {
+    rm -f "$list_file"
+    die "copy: cannot create temp file" 3
+  }
   # shellcheck disable=SC2064
-  trap "rm -f '$list_file'" RETURN
+  trap "rm -f '$list_file' '$carried_file'" RETURN
   collect_included "$main_root" "$inc" "$list_file" || die "copy: failed to enumerate .worktreeinclude files in $main_root" 3
 
   local rel src dest copied=0 failed=0
@@ -158,11 +246,15 @@ do_copy() {
     fi
     if mkdir -p "$(dirname "$dest")" && cp -p -- "$src" "$dest"; then
       copied=$((copied + 1))
+      printf '%s\0' "$rel" >>"$carried_file"
     else
       failed=$((failed + 1))
       printf '%s: warning: failed to copy .worktreeinclude file: %s\n' "$PROG" "$rel" >&2
     fi
   done <"$list_file"
+
+  write_manifest "$wt_dir" "$carried_file" ||
+    printf '%s: warning: could not write carried.index for %s; its carried files will read NO-MANIFEST\n' "$PROG" "$wt_dir" >&2
 
   printf '%d\n' "$copied"
   if ((failed > 0)); then
@@ -176,30 +268,30 @@ do_diff() {
   local wt_arg="" main_arg="" worktree_only=0 unified=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
-    --main-root)
-      [[ $# -ge 2 ]] || usage
-      main_arg="$2"
-      shift 2
-      ;;
-    --worktree-only)
-      worktree_only=1
-      shift
-      ;;
-    --unified)
-      unified=1
-      shift
-      ;;
-    -h | --help) usage ;;
-    --)
-      shift
-      break
-      ;;
-    -*) die "diff: unknown argument: $1" 2 ;;
-    *)
-      [[ -z "$wt_arg" ]] || die "diff: unexpected argument: $1" 2
-      wt_arg="$1"
-      shift
-      ;;
+      --main-root)
+        [[ $# -ge 2 ]] || usage
+        main_arg="$2"
+        shift 2
+        ;;
+      --worktree-only)
+        worktree_only=1
+        shift
+        ;;
+      --unified)
+        unified=1
+        shift
+        ;;
+      -h | --help) usage ;;
+      --)
+        shift
+        break
+        ;;
+      -*) die "diff: unknown argument: $1" 2 ;;
+      *)
+        [[ -z "$wt_arg" ]] || die "diff: unexpected argument: $1" 2
+        wt_arg="$1"
+        shift
+        ;;
     esac
   done
   [[ -n "$wt_arg" ]] || wt_arg="."
@@ -236,35 +328,38 @@ do_diff() {
 
   local -A wt_seen=()
   local -a diff_status=() diff_rel=()
-  local rel cmp_rc
+  local rel cmp_rc manifest=""
 
-  while IFS= read -r -d '' rel; do
-    [[ -n "$rel" ]] || continue
-    wt_seen["$rel"]=1
-    if [[ "$rel" == *$'\t'* || "$rel" == *$'\n'* ]]; then
-      die "diff: carried file path holds a tab or newline: $rel" 3
-    fi
-    if [[ ! -f "$wt_top/$rel" ]]; then
-      continue
-    fi
-    [[ -r "$wt_top/$rel" ]] || die "diff: unreadable worktree file: $wt_top/$rel" 3
-    if [[ -e "$main_root/$rel" ]]; then
-      [[ -f "$main_root/$rel" && -r "$main_root/$rel" ]] || die "diff: unreadable main file: $main_root/$rel" 3
-      cmp -s -- "$wt_top/$rel" "$main_root/$rel"
-      cmp_rc=$?
-      if ((cmp_rc == 1)); then
-        diff_status+=("MODIFIED")
-        diff_rel+=("$rel")
-      elif ((cmp_rc > 1)); then
-        die "diff: failed comparing $rel" 3
+  if ((worktree_only)); then
+    manifest="$(carried_index_path "$wt_top")" || die "diff: cannot resolve the git dir of $wt_top" 3
+    manifest_rows "$wt_top" "$wt_list" "$manifest"
+  else
+    while IFS= read -r -d '' rel; do
+      [[ -n "$rel" ]] || continue
+      wt_seen["$rel"]=1
+      if [[ "$rel" == *$'\t'* || "$rel" == *$'\n'* ]]; then
+        die "diff: carried file path holds a tab or newline: $rel" 3
       fi
-    else
-      diff_status+=("NEW")
-      diff_rel+=("$rel")
-    fi
-  done <"$wt_list"
+      if [[ ! -f "$wt_top/$rel" ]]; then
+        continue
+      fi
+      [[ -r "$wt_top/$rel" ]] || die "diff: unreadable worktree file: $wt_top/$rel" 3
+      if [[ -e "$main_root/$rel" ]]; then
+        [[ -f "$main_root/$rel" && -r "$main_root/$rel" ]] || die "diff: unreadable main file: $main_root/$rel" 3
+        cmp -s -- "$wt_top/$rel" "$main_root/$rel"
+        cmp_rc=$?
+        if ((cmp_rc == 1)); then
+          diff_status+=("MODIFIED")
+          diff_rel+=("$rel")
+        elif ((cmp_rc > 1)); then
+          die "diff: failed comparing $rel" 3
+        fi
+      else
+        diff_status+=("NEW")
+        diff_rel+=("$rel")
+      fi
+    done <"$wt_list"
 
-  if ((worktree_only == 0)); then
     while IFS= read -r -d '' rel; do
       [[ -n "$rel" ]] || continue
       if [[ -n "${wt_seen[$rel]+x}" || -e "$wt_top/$rel" ]]; then
@@ -286,21 +381,23 @@ do_diff() {
   for i in "${!diff_rel[@]}"; do
     st="${diff_status[$i]}"
     rel="${diff_rel[$i]}"
-    if ((unified)); then
+    if [[ "$st" == NO-MANIFEST ]]; then
+      printf '%s\t\t%s\n' "$st" "$manifest"
+    elif ((unified)); then
       case "$st" in
-      MODIFIED)
-        diff -u -- "$main_root/$rel" "$wt_top/$rel"
-        d_rc=$?
-        ;;
-      NEW)
-        diff -u -- /dev/null "$wt_top/$rel"
-        d_rc=$?
-        ;;
-      ABSENT)
-        diff -u -- "$main_root/$rel" /dev/null
-        d_rc=$?
-        ;;
-      *) d_rc=2 ;;
+        MODIFIED)
+          diff -u -- "$main_root/$rel" "$wt_top/$rel"
+          d_rc=$?
+          ;;
+        NEW)
+          diff -u -- /dev/null "$wt_top/$rel"
+          d_rc=$?
+          ;;
+        ABSENT)
+          diff -u -- "$main_root/$rel" /dev/null
+          d_rc=$?
+          ;;
+        *) d_rc=2 ;;
       esac
       if ((d_rc > 1)); then
         die "diff: unified diff failed for $rel" 3
@@ -329,32 +426,32 @@ do_sync_back() {
   local -a to_copy=() to_remove=()
   while [[ $# -gt 0 ]]; do
     case "$1" in
-    --main-root)
-      [[ $# -ge 2 ]] || usage
-      main_arg="$2"
-      shift 2
-      ;;
-    --copy)
-      [[ $# -ge 2 ]] || usage
-      to_copy+=("$2")
-      shift 2
-      ;;
-    --remove)
-      [[ $# -ge 2 ]] || usage
-      to_remove+=("$2")
-      shift 2
-      ;;
-    -h | --help) usage ;;
-    --)
-      shift
-      break
-      ;;
-    -*) die "sync-back: unknown argument: $1" 2 ;;
-    *)
-      [[ -z "$wt_arg" ]] || die "sync-back: unexpected argument: $1" 2
-      wt_arg="$1"
-      shift
-      ;;
+      --main-root)
+        [[ $# -ge 2 ]] || usage
+        main_arg="$2"
+        shift 2
+        ;;
+      --copy)
+        [[ $# -ge 2 ]] || usage
+        to_copy+=("$2")
+        shift 2
+        ;;
+      --remove)
+        [[ $# -ge 2 ]] || usage
+        to_remove+=("$2")
+        shift 2
+        ;;
+      -h | --help) usage ;;
+      --)
+        shift
+        break
+        ;;
+      -*) die "sync-back: unknown argument: $1" 2 ;;
+      *)
+        [[ -z "$wt_arg" ]] || die "sync-back: unexpected argument: $1" 2
+        wt_arg="$1"
+        shift
+        ;;
     esac
   done
   [[ -n "$wt_arg" ]] || die "sync-back requires a <worktree> path" 2
@@ -412,6 +509,19 @@ do_sync_back() {
     [[ -f "$main_root/$rel" && ! -L "$main_root/$rel" ]] || die "sync-back: --remove target is not a regular file: $main_root/$rel" 2
   done
 
+  local manifest
+  local -A carried_oid=()
+  manifest="$(carried_index_path "$wt_top")" || die "sync-back: cannot resolve the git dir of $wt_top" 3
+  if [[ -e "$manifest" ]]; then
+    load_manifest "$manifest" "$wt_top" || die "sync-back: unreadable manifest: $manifest" 3
+    for rel in ${to_copy[@]+"${to_copy[@]}"} ${to_remove[@]+"${to_remove[@]}"}; do
+      main_unchanged_since_copy "$wt_top" "$main_root" "$rel" "${carried_oid[$rel]:-}" ||
+        die "sync-back: main's $rel changed since the copy; refusing to overwrite or remove it" 2
+    done
+  else
+    manifest=""
+  fi
+
   for rel in ${to_copy[@]+"${to_copy[@]}"}; do
     if ! mkdir -p "$(dirname "$main_root/$rel")" || ! cp -p -- "$wt_top/$rel" "$main_root/$rel"; then
       die "sync-back: failed to copy $rel to $main_root" 3
@@ -422,27 +532,43 @@ do_sync_back() {
     rm -f -- "$main_root/$rel" || die "sync-back: failed to remove $main_root/$rel" 3
     printf 'removed\t%s\t%s\n' "$rel" "$main_root/$rel"
   done
+  if [[ -n "$manifest" ]]; then
+    { ((${#to_copy[@]} == 0)) || manifest_git "$manifest" "$wt_top" update-index --add --info-only -- "${to_copy[@]}"; } &&
+      { ((${#to_remove[@]} == 0)) || manifest_git "$manifest" "$wt_top" update-index --force-remove -- "${to_remove[@]}"; } ||
+      printf '%s: warning: could not update %s; synced files still read MODIFIED\n' "$PROG" "$manifest" >&2
+  fi
   return 0
+}
+
+main_unchanged_since_copy() {
+  local wt_top="$1" main_root="$2" rel="$3" want="$4" have
+  if [[ -z "$want" ]]; then
+    [[ ! -e "$main_root/$rel" ]]
+    return
+  fi
+  [[ -f "$main_root/$rel" ]] || return 1
+  have="$(git -C "$wt_top" hash-object --path="$rel" -- "$main_root/$rel" 2>/dev/null)" || return 1
+  [[ "$have" == "$want" ]]
 }
 
 cmd="${1:-}"
 case "$cmd" in
-copy)
-  shift
-  do_copy "$@"
-  ;;
-diff)
-  shift
-  do_diff "$@"
-  ;;
-sync-back)
-  shift
-  do_sync_back "$@"
-  ;;
--h | --help | "")
-  usage
-  ;;
-*)
-  die "unknown verb: $cmd" 2
-  ;;
+  copy)
+    shift
+    do_copy "$@"
+    ;;
+  diff)
+    shift
+    do_diff "$@"
+    ;;
+  sync-back)
+    shift
+    do_sync_back "$@"
+    ;;
+  -h | --help | "")
+    usage
+    ;;
+  *)
+    die "unknown verb: $cmd" 2
+    ;;
 esac
