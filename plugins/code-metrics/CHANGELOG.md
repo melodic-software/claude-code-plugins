@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.4] - 2026-11-27
+
+### Changed
+
+- `setup apply` walks the key reference `reference/config.md` for each key's default and provenance; the config template keeps only the defaults.
+
 ## [2.0.3] - 2026-11-26
 
 ### Fixed
