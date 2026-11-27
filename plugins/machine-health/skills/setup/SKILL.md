@@ -335,8 +335,10 @@ creates a task itself. Offer the Desktop task first and the Task Scheduler fallb
 create one only after the owner's explicit yes to it in this conversation. Show what will be
 created before asking.
 
-**The owner's allow rules reach both routes.** A rule in the owner's settings runs without a prompt
-in a scheduled session too, so a run steered by the machine-derived text it reads could use it. In
+**The owner's allow rules reach both routes.** We treat every allow rule in the owner's settings
+as live in a scheduled run (for the Desktop route, read
+[Permissions for scheduled tasks](https://code.claude.com/docs/en/desktop-scheduled-tasks#permissions-for-scheduled-tasks)),
+so a run steered by the machine-derived text it reads could use it. In
 step 1 of either route, read the rules, read-only, through the PowerShell tool, and show the owner
 every rule that grants a shell, file-write or network action beside the proposed task:
 `$f = Join-Path ($env:CLAUDE_CONFIG_DIR ?? (Join-Path $HOME '.claude')) 'settings.json'; if (Test-Path -LiteralPath $f) { @((Get-Content -Raw -LiteralPath $f | ConvertFrom-Json).permissions.allow) -match '^(Bash|PowerShell|Monitor|Edit|Write|NotebookEdit|WebFetch|WebSearch|Agent|Workflow|mcp__)' } else { 'no user settings file' }`

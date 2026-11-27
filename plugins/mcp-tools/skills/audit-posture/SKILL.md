@@ -69,8 +69,12 @@ needed:
 - `--config <file>` for each file from `$ARGUMENTS`. Plugin-provided servers are not read unless
   passed this way: offer `--config <plugin-dir>/.mcp.json` for each installed plugin the operator
   wants covered.
-- `--claude-json <file>` when `CLAUDE_CONFIG_DIR` is set. The default is `$HOME/.claude.json`; when
-  the variable is set, ask the operator for the path instead of guessing.
+- `--claude-json <file>` when `CLAUDE_CONFIG_DIR` is set. The script reads `$HOME/.claude.json`
+  otherwise; when the variable is set, ask the operator for the path instead of guessing. For which
+  file holds user and local servers, read
+  [MCP installation scopes](https://code.claude.com/docs/en/mcp#mcp-installation-scopes); for what
+  the variable relocates, its row in
+  [environment variables](https://code.claude.com/docs/en/env-vars#variables).
 - `--project <dir>` and `--mcp-json <file>` when the audit targets a project other than the
   current one; `--managed-dir <dir>` when managed configuration lives outside the default system
   directory.
