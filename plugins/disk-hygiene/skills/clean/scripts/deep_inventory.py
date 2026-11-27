@@ -217,12 +217,14 @@ def bounded_tree_size(
     budget: int,
     mounts: frozenset[str] = frozenset(),
     root_dev: int | None = None,
+    skip: frozenset[str] = frozenset(),
 ) -> tuple[int, int, str | None]:
     """Bytes under ``path`` after visiting at most ``budget`` entries.
 
     Returns ``(size, entries_counted, incomplete_reason)``. The reason is None
     only when every descendant was read and counted; a spent budget, an
     unreadable directory or a skipped mount makes the size a lower bound.
+    Paths in ``skip`` are neither counted nor charged to the budget.
     """
     total, counted, incomplete = 0, 0, None
     stack = [path]
@@ -231,6 +233,8 @@ def bounded_tree_size(
         try:
             with os.scandir(current) as entries:
                 for entry in entries:
+                    if entry.path in skip:
+                        continue
                     if counted >= budget:
                         return total, counted, "entry-budget-spent"
                     counted += 1
@@ -627,7 +631,7 @@ def inventory_rows(
     ) -> dict[str, Any]:
         budget = max(0, min(store_entry_budget, remaining[0]))
         size, counted, incomplete = bounded_tree_size(
-            path, budget, mounts=mounts, root_dev=root_st.st_dev
+            path, budget, mounts=mounts, root_dev=root_st.st_dev, skip=skip
         )
         remaining[0] -= counted
         reason = store.get("reason") or "known-large store"

@@ -1122,6 +1122,32 @@ class BoundedStoreTest(TempTree):
         self.assertEqual(5, npm["coverage"]["entries_counted"])
         self.assertEqual(21, rows[str(self.root / "home")]["size"])
 
+    def test_partial_report_under_a_store_is_not_counted(self) -> None:
+        self.write("home/.claude/plugins/data/x/kept", "12")
+        partial = self.write("home/.claude/plugins/data/x/r.jsonl.1.ab.tmp", "x" * 100)
+        store = self.root / "home" / ".claude" / "plugins" / "data" / "x"
+        for target, deep in ((self.root / "home", True), (store.parents[2], False)):
+            with self.subTest(deep=deep):
+                rows = {
+                    r["name"]: r
+                    for r in di.inventory_rows(
+                        target,
+                        deep=deep,
+                        home=self.root / "home",
+                        tmp_dir=self.root / "no-tmp",
+                        now=NOW,
+                        running=set(),
+                        claude_dir=None,
+                        skip=frozenset({str(partial)}),
+                        bounded_stores=[".claude/plugins/data/*"],
+                    )
+                }
+                row = rows[str(store)]
+                self.assertEqual(
+                    (2, 1), (row["size"], row["coverage"]["entries_counted"])
+                )
+                self.assertEqual(2, rows[str(target)]["size"])
+
     @unittest.skipIf(os.name != "posix" or os.geteuid() == 0, "needs POSIX non-root")
     def test_shallow_walk_reports_an_unreadable_descendant(self) -> None:
         self.write("scan/child/ok", "12")
