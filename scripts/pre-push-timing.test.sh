@@ -142,4 +142,4 @@ if ((${hook_ms:-3000} < 2500)); then
   fi
 fi
 
-test_harness::report || exit 1
+test_harness::report
