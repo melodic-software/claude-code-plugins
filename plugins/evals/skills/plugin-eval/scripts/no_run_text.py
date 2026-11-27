@@ -361,13 +361,15 @@ def _trailing_comments(path, text, inside, parse):
 
 
 def comment_style(path, text="", hidden=False, parse=None):
-    """(`hash` or `slash`, the lines of `text` inside a heredoc, block scalar or multi-line
-    string, the trailing comments `_trailing_comments` finds) for a code, YAML or shell file;
-    None for markdown and any other type, whose comments a model may read as instructions, for an
-    eval file unless `hidden` (the agent under test never sees it), and for a cgo file, whose
-    preamble comment is C code."""
+    """(`hash`, `slash` or `ini`, the lines of `text` inside a heredoc, block scalar or multi-line
+    string, the trailing comments `_trailing_comments` finds) for a code, YAML, shell or
+    `.editorconfig` file; None for markdown and any other type, whose comments a model may read as
+    instructions, for an eval file unless `hidden` (the agent under test never sees it), and for a
+    cgo file, whose preamble comment is C code."""
     ext = os.path.splitext(path)[1].lower()
     kind = "hash" if ext in HASH_COMMENT_EXTS else "slash" if ext in SLASH_COMMENT_EXTS else None
+    if os.path.basename(path) == ".editorconfig":
+        kind = "ini"
     if "/evals/" in "/" + path and not hidden or ext == ".go" and 'import "C"' in text:
         return None
     inside = _string_block_lines(ext, text) if kind else None
@@ -377,7 +379,8 @@ def comment_style(path, text="", hidden=False, parse=None):
 
 
 def _comment_line_mask(lines, style):
-    """Per line, whether a comment (or nothing) fills it. A `/*` line that does not close opens a
+    """Per line, whether a comment (or nothing) fills it; an `ini` comment starts its line with
+    `#` or `;`, and a `#` after a value is part of it. A `/*` line that does not close opens a
     block whose lines count only when a later line in `lines` ends it with `*/`; code after a
     comment never counts."""
     mask = []
@@ -385,7 +388,9 @@ def _comment_line_mask(lines, style):
     opened = 0
     for line in lines:
         stripped = line.strip()
-        if style == "hash":
+        if style == "ini":
+            mask.append(not stripped or stripped.startswith(("#", ";")))
+        elif style == "hash":
             mask.append(
                 not stripped
                 or stripped.startswith("#")

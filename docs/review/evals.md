@@ -45,7 +45,8 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   terms" decided (or that word's last word, so `--lane` becomes `--area` for **focus area**), in
   either number, so that old and new are byte-identical once each swap is replaced, or only deletes
   lines a comment fills in a code, YAML or shell file (`#` for YAML, shell, Python, TOML and
-  PowerShell; `//` and `/* */` for JS, TS, JSONC, Go and C#; code before or after the comment
+  PowerShell; `//` and `/* */` for JS, TS, JSONC, Go and C#; `#` or `;` opening a line of
+  `.editorconfig`, whose comments only start a line; code before or after the comment
   disqualifies the line, and markdown is excluded because an HTML comment can carry instructions a
   model reads; so is a line inside a shell heredoc or multi-line quoted string, PowerShell here-string, YAML block scalar,
   Python, TOML or C# triple-quoted string, or JS, TS or Go backtick string, where a comment-shaped

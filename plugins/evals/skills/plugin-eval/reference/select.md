@@ -19,7 +19,8 @@ glossary's "Rejected terms" table decided (`docs/glossary.md`, else `GLOSSARY.md
 last word (`--lane` to `--area` for `focus area`), singular or plural, leaving old and new
 byte-identical once each swap is replaced, or deletes lines a comment fills in a code, YAML or
 shell file (`#` in YAML, shell, Python, TOML and PowerShell; `//` and `/* */` in JS, TS, JSONC,
-Go and C#; with no code before or after it; never markdown, whose HTML
+Go and C#; `#` or `;` opening a line of `.editorconfig`, where a later `#` is part of the value;
+with no code before or after it; never markdown, whose HTML
 comments a model can read, nor a line inside a shell heredoc or multi-line quoted string (`$'...'` included; a shell file whose quoting does not read cleanly gets no exemption), PowerShell here-string, YAML
 block scalar, or triple-quoted or backtick string). Decided terms come from the glossary at the merge base; a
 directive comment (`//go:build`, `/// <reference`, `# shellcheck`, `# coding:` and the like), a

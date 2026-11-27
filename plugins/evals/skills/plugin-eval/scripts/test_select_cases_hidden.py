@@ -340,6 +340,32 @@ class SelectCasesHiddenTest(unittest.TestCase):
         self.assertIn("one-basic", block.get("cases", "").split(), "the agent can read a skill folder")
 
 
+    def _editorconfig_select(self, rel, old, new):
+        _write(self.repo, rel, "root = true\n# Tabs for fixtures.\n; Kept as is.\n[*]\nindent_style = tab # x\n")
+        _commit_all(self.repo, "add editorconfig")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        return self._select(rel, old, new)
+
+    def test_editorconfig_hash_and_semicolon_comment_lines_are_no_run(self):
+        for old in ("# Tabs for fixtures.\n", "; Kept as is.\n"):
+            with self.subTest(old=old):
+                block = self._editorconfig_select("plugins/alpha/skills/one/.editorconfig", old, "")
+                self.assertNotIn("cases", block, "an .editorconfig comment line changes no setting")
+                self.assertIn("one-basic", block.get("affected-no-run", "").split())
+
+    def test_editorconfig_hash_after_a_value_is_not_a_comment(self):
+        block = self._editorconfig_select(
+            "plugins/alpha/skills/one/.editorconfig", "indent_style = tab # x", "indent_style = tab"
+        )
+        self.assertIn("one-basic", block.get("cases", "").split(), "the # is part of the value")
+
+    def test_editorconfig_comment_in_a_skill_evals_folder_still_runs(self):
+        block = self._editorconfig_select(
+            "plugins/alpha/skills/one/evals/.editorconfig", "# Tabs for fixtures.\n", ""
+        )
+        self.assertIn("one-basic", block.get("cases", "").split(), "an evals/ comment the agent can read")
+
+
 class ShellCommentStartTest(unittest.TestCase):
     def setUp(self):
         import no_run_text
