@@ -24,7 +24,7 @@ const WORKFLOW_TEXT = readFileSync(join(REPO_ROOT, ".github/workflows/maintenanc
 const FIND_TEXT = readFileSync(join(REPO_ROOT, ".github/workflows/maintenance-scan-architecture-find.yml"), "utf8");
 const FIND_USES = "./.github/workflows/maintenance-scan-architecture-find.yml";
 const CONFIG = readFileSync(join(REPO_ROOT, "docs/conventions/pr-pipeline.yaml"), "utf8");
-const LANE_BLOCK = "  maintenance-scan-architecture:\n    stage: maintenance\n    enabled: false\n    every-days: 1\n";
+const LANE_BLOCK = "  maintenance-scan-architecture:\n    stage: maintenance\n    enabled: true\n    every-days: 1\n";
 const NOW = Date.parse("2026-11-26T07:41:00Z");
 const DAY = 86_400_000;
 const on = { enabled: true, everyDays: 1, cap: 5, open: 0, merges: 3, now: NOW };
@@ -523,7 +523,7 @@ function configRoot({ enabled = true, everyDays = 1, cap } = {}) {
   const { dir, git, sha } = repo();
   mkdirSync(join(dir, "docs/conventions/pr-pipeline"), { recursive: true });
   assert.ok(CONFIG.includes(LANE_BLOCK), "the lane block reads as the test expects");
-  const block = LANE_BLOCK.replace("enabled: false", `enabled: ${enabled}`).replace("every-days: 1", `every-days: ${everyDays}`);
+  const block = LANE_BLOCK.replace("enabled: true", `enabled: ${enabled}`).replace("every-days: 1", `every-days: ${everyDays}`);
   writeFileSync(join(dir, "docs/conventions/pr-pipeline.yaml"), CONFIG.replace(LANE_BLOCK, block));
   copyFileSync(join(REPO_ROOT, "docs/conventions/pr-pipeline/pr-pipeline.schema.json"), join(dir, "docs/conventions/pr-pipeline/pr-pipeline.schema.json"));
   if (cap !== undefined) writeFileSync(join(dir, "docs/conventions/improvement.yaml"), `find_open_item_cap: ${cap}\n`);
