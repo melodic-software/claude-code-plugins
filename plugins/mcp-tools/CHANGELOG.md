@@ -3,6 +3,13 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.7] - 2026-11-27
+
+### Added
+
+- The tool audit's checklist records the server capabilities no criterion grades (serving skills, answering a long call with a task, asking the user through elicitation), with links to where each is documented, for a review of a server we build or update.
+- The posture audit's checklist records that a configured server's skills are reviewed with the server, on each pinned version bump and for a remote server at any time, with links to the scanning and serving docs.
+
 ## [0.9.6] - 2026-11-26
 
 ### Changed
