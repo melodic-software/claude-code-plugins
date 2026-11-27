@@ -58,6 +58,7 @@ PROMPT_TEXT = (
 LANE_SCRIPTS = (
     ".github/scripts/pr-unblock/test-scope.mjs",
     ".github/scripts/pr-unblock/declare-test-scope.mjs",
+    BABYSIT + "babysit_verify_evidence.py",
 )
 
 
@@ -96,21 +97,21 @@ class TheEffectiveFloorDidNotMove(unittest.TestCase):
     change updates these pins in the pull request that makes it."""
 
     def test_each_glob_keeps_its_class(self):
-        self.assertEqual(len(FLOOR.classes), 169)
+        self.assertEqual(len(FLOOR.classes), 170)
         self.assertEqual(
             digest(f"{g}\t{c}" for g, c in FLOOR.classes),
-            "754ddd18f85e177fc5a72d717822dafb89202ce3d0b539502fe4edf4f0872c20",
+            "725639c967458d659078e9a9c5a726915d47ba3409315fd6eba7390bbbb8be3d",
         )
 
     def test_each_clearing_route_keeps_its_globs(self):
         pins = {
-            FLOOR.high: "715cf502d32eb3c754f152018ffb71a826d88ce2b53e7016a24e6a37766b6368",
+            FLOOR.high: "2af805a13dc85315d44acc35a4f38b12af4e9d396dadde6c8de4941ed96e72e1",
             FLOOR.review: "10394ff1368cfe85fac636ba592a5b8c3d67f860ea89a4b3e77a2fa2fc4fb0c7",
             FLOOR.author_review: "2276b8962a6172040fe454176c3d883dcf28b50f6c42086cb27fca58d22dc33f",
         }
         self.assertEqual(
             (len(FLOOR.high), len(FLOOR.review), len(FLOOR.author_review)),
-            (99, 70, 24),
+            (100, 70, 24),
         )
         for globs, pin in pins.items():
             self.assertEqual(digest(globs), pin)
@@ -168,7 +169,7 @@ class TheBuiltInFloorIsShared(unittest.TestCase):
         self.assertEqual(len(risk.FLOOR_CLASSES), 32)
 
     def test_every_other_row_sits_in_the_config(self):
-        self.assertEqual(len(ROWS), 169 - 32)
+        self.assertEqual(len(ROWS), 170 - 32)
         self.assertFalse(table(ROWS) & set(risk.FLOOR_CLASSES))
 
     def test_the_config_every_consumer_reads_is_held_by_a_built_in_row(self):

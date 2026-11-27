@@ -52,7 +52,7 @@ const clean = (overrides = {}) =>
 const pass = (head) => ({ refusal: null, needsHuman: false, head, atHead: ["pass"], earlierFails: [], ignored: 0, detail: null, supersededAtHead: false });
 const refused = (head, refusal) => ({ ...pass(head), refusal, atHead: refusal === "verify:fail" ? ["fail"] : [] });
 
-async function run(pulls, { env = {}, verdicts = {} } = {}) {
+async function run(pulls, { env = {}, verdicts = {}, laneSource, fail = {} } = {}) {
   const calls = [];
   const verified = [];
   const github = async (method, path, body) => {
@@ -61,6 +61,9 @@ async function run(pulls, { env = {}, verdicts = {} } = {}) {
       return { data: { repository: { pullRequests: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: pulls } } } };
     }
     if (method === "POST" && path === "/graphql" && body.query === ARM_MUTATION) {
+      if (fail.arm) {
+        throw new Error("POST /graphql failed with status 502");
+      }
       return { data: { enablePullRequestAutoMerge: { pullRequest: { autoMergeRequest: { enabledAt: "2026-11-27T15:00:00Z" } } } } };
     }
     if (method === "POST" && path === "/graphql" && body.query === DISARM_MUTATION) {
@@ -76,6 +79,9 @@ async function run(pulls, { env = {}, verdicts = {} } = {}) {
       return { data: { repository: { pullRequest: { comments: { totalCount: comments.length, nodes: comments }, reviews: none, reviewThreads: none, timelineItems: { nodes: [] }, files: none } } } };
     }
     if (method === "POST" && /^\/repos\/melodic-software\/claude-code-plugins\/issues\/[0-9]+\/comments$/.test(path)) {
+      if ((fail.pin && body.body.startsWith("<!-- babysit-merge-pin ")) || (fail.unpin && body.body.startsWith("<!-- babysit-merge-unpin "))) {
+        throw new Error(`POST ${path} failed with status 502`);
+      }
       return {};
     }
     const files = /^\/repos\/melodic-software\/claude-code-plugins\/pulls\/([0-9]+)\/files\?per_page=100&page=([0-9]+)$/.exec(path);
@@ -105,6 +111,7 @@ async function run(pulls, { env = {}, verdicts = {} } = {}) {
       github,
       verify: laneVerify,
       trustedVerify,
+      laneSource,
       room: async () => ({ refusal: null, unreadable: null, count: 0, cap: 5, queued: [], rung: "C2" }),
       whole,
       sleep: async () => {},
@@ -178,6 +185,48 @@ test("an edited pin disarms; a pin at the head, or no lanes pin, leaves the arm 
   }
 });
 
+const unpinPosts = (result) => result.calls.filter(({ method, path, body }) => method === "POST" && path.endsWith("/issues/500/comments") && String(body).startsWith("<!-- babysit-merge-unpin "));
+const LANE_SOURCE_FILES = [".github/workflows/pr-merge.yml"];
+
+test("armed and pinned at A, pushed to a lane-source B: the sweep disarms and unpins, and a person's later arm at B is left alone", async () => {
+  const armed = { enabledAt: "2026-11-27T14:00:00Z" };
+  const pinA = lanesComment(pinBody(OLD_HEAD));
+  const swept = await run([clean({ autoMergeRequest: armed, files: LANE_SOURCE_FILES, comments: [pinA] })]);
+  assert.equal(disarms(swept).length, 1);
+  assert.deepEqual(
+    unpinPosts(swept).map(({ body }) => body.split("\n")[0]),
+    [`<!-- babysit-merge-unpin sha=${CLEAN_HEAD} -->`],
+  );
+  const order = swept.calls.map(({ query, body }) => (query === DISARM_MUTATION ? "disarm" : String(body).startsWith("<!-- babysit-merge-unpin ") ? "unpin" : "other"));
+  assert.ok(order.indexOf("disarm") < order.indexOf("unpin"), order.join(" "));
+  const unpinB = lanesComment(unpinPosts(swept)[0].body, "2026-11-27T14:30:00Z");
+  const unarmed = await run([clean({ files: LANE_SOURCE_FILES, comments: [pinA, unpinB] })]);
+  assert.equal(armedHeads(unarmed), 0);
+  assert.match(leftLine(unarmed, 500), /left: .*lane source/);
+  const session = await run([clean({ autoMergeRequest: armed, files: LANE_SOURCE_FILES, comments: [pinA, unpinB] })]);
+  assert.equal(disarms(session).length, 0);
+  assert.equal(unpinPosts(session).length, 0);
+  assert.match(leftLine(session, 500), /left: already armed$/);
+});
+
+test("an unpin a person wrote is ignored, and an edited lanes App unpin disarms", async () => {
+  const armed = { enabledAt: "2026-11-27T14:00:00Z" };
+  const forged = { ...lanesComment(`<!-- babysit-merge-unpin sha=${CLEAN_HEAD} -->`, "2026-11-27T14:30:00Z"), author: { __typename: "User", login: "melodic-automation-lanes" } };
+  const result = await run([clean({ autoMergeRequest: armed, comments: [lanesComment(pinBody(OLD_HEAD)), forged] })]);
+  assert.equal(disarms(result).length, 1);
+  assert.match(leftLine(result, 500), new RegExp(`its head moved from ${OLD_HEAD}`));
+  const edited = await run([clean({ autoMergeRequest: armed, comments: [lanesComment(pinBody(OLD_HEAD)), lanesComment(`<!-- babysit-merge-unpin sha=${CLEAN_HEAD} -->`, "2026-11-27T14:30:00Z", "2026-11-27T14:40:00Z")] })]);
+  assert.equal(disarms(edited).length, 1);
+  assert.match(leftLine(edited, 500), /its newest unpin comment was edited/);
+});
+
+test("an unpin that does not post after the disarm fails the run, and the disarm stands", async () => {
+  const result = await run([clean({ autoMergeRequest: { enabledAt: "2026-11-27T14:00:00Z" }, comments: [lanesComment(pinBody(OLD_HEAD))] })], { fail: { unpin: true } });
+  assert.equal(disarms(result).length, 1);
+  assert.notEqual(result.code, 0);
+  assert.ok(result.lines.some((line) => line.startsWith("::error title=enable-auto-merge::#500 trusted author: unpin")), result.lines.join("\n"));
+});
+
 test("report-only names the disarm it would send and sends none", async () => {
   const result = await run([clean({ autoMergeRequest: { enabledAt: "2026-11-27T14:00:00Z" }, comments: [lanesComment(pinBody(OLD_HEAD))] })], { env: { REPORT_ONLY: "true" } });
   assert.equal(disarms(result).length, 0);
@@ -199,15 +248,82 @@ test("#19361's shape is not armed: its body carries a Hold: line", async () => {
   assert.match(leftLine(result, 19361), /left: its body holds it/);
 });
 
-test("a trusted bot's Hold: line holds too, though no person wrote the body", async () => {
+test("only a User whose id is kind human is a trusted person: a trusted bot, a bot id typed User and a person id typed Bot keep the lanes' skip", async () => {
   const list = join(tempDir("trusted-arm-"), "actors.json");
-  writeFileSync(list, JSON.stringify({ version: 1, actors: [{ id: 209825114, login: "claude[bot]", kind: "bot" }] }));
-  const bot = { __typename: "Bot", login: "claude", databaseId: 209825114 };
-  const held = await run([clean({ author: bot, body: RECORDED["19361"].body_hold_lines[0] })], { env: { TRUSTED_ACTORS: list } });
-  assert.equal(armedHeads(held), 0);
-  assert.match(leftLine(held, 500), /left: its body holds it/);
-  const open = await run([clean({ author: bot })], { env: { TRUSTED_ACTORS: list } });
-  assert.equal(armedHeads(open), 1);
+  writeFileSync(
+    list,
+    JSON.stringify({
+      version: 1,
+      actors: [
+        { id: 153232337, login: "kyle-sexton", kind: "human" },
+        { id: 209825114, login: "claude[bot]", kind: "bot" },
+      ],
+    }),
+  );
+  for (const author of [
+    { __typename: "Bot", login: "claude", databaseId: 209825114 },
+    { __typename: "User", login: "claude", databaseId: 209825114 },
+    { __typename: "Bot", login: "kyle-sexton", databaseId: 153232337 },
+  ]) {
+    const result = await run([clean({ author })], { env: { TRUSTED_ACTORS: list } });
+    assert.equal(armedHeads(result), 0, JSON.stringify(author));
+    assert.deepEqual(result.verified, [], JSON.stringify(author));
+    assert.equal(leftLine(result, 500), "", JSON.stringify(author));
+  }
+  const person = await run([clean()], { env: { TRUSTED_ACTORS: list } });
+  assert.equal(armedHeads(person), 1, "the same list's kind human User is armed");
+});
+
+test("a trusted person's needs-human label holds even where the tracker's human-gated label is another", async () => {
+  const tracker = join(HERE, "fixtures/enable-auto-merge-tracker.json");
+  for (const name of ["needs-human", "human-gated"]) {
+    const result = await run([clean({ labels: { totalCount: 1, nodes: [{ name }] } })], { env: { TRACKER_CONFIG: tracker } });
+    assert.equal(armedHeads(result), 0, name);
+    assert.match(leftLine(result, 500), new RegExp(`left: it carries ${name}`), name);
+  }
+});
+
+test("a verdict with no PASS or PASS-NOTES at the head, or verify:missing, refuses; PASS-NOTES alone arms", async () => {
+  const none = await run([clean()], { verdicts: { 500: { ...pass(CLEAN_HEAD), atHead: [] } } });
+  assert.equal(armedHeads(none), 0);
+  assert.match(leftLine(none, 500), /left: pr-verify has no PASS or PASS-NOTES at its head$/);
+  const missing = await run([clean()], { verdicts: { 500: refused(CLEAN_HEAD, "verify:missing") } });
+  assert.equal(armedHeads(missing), 0);
+  assert.match(leftLine(missing, 500), /left: .*verify:missing/);
+  const notes = await run([clean()], { verdicts: { 500: { ...pass(CLEAN_HEAD), atHead: ["pass-notes"] } } });
+  assert.equal(armedHeads(notes), 1);
+});
+
+test("a lane-source check that fails refuses before the verdict is read", async () => {
+  const result = await run([clean()], {
+    laneSource: () => {
+      throw new Error("babysit_review_evidence.lane_source exited 1: boom");
+    },
+  });
+  assert.equal(armedHeads(result), 0);
+  assert.deepEqual(result.verified, []);
+  assert.match(leftLine(result, 500), /left: its lane-source paths could not be checked$/);
+});
+
+test("a pin that does not post arms nothing, and the run fails", async () => {
+  const result = await run([clean()], { fail: { pin: true } });
+  assert.equal(armedHeads(result), 0);
+  assert.notEqual(result.code, 0);
+  assert.ok(result.lines.some((line) => line.startsWith("::error title=enable-auto-merge::#500 trusted author: pin, so not armed")), result.lines.join("\n"));
+});
+
+test("an arm mutation that fails leaves the pull request refused, and the run fails", async () => {
+  const result = await run([clean()], { env: { EVENT_NAME: "workflow_dispatch", EVENT_PR: "500" }, fail: { arm: true } });
+  assert.equal(armedHeads(result), 1, "the arm was sent once");
+  assert.notEqual(result.code, 0);
+  assert.equal(result.outcome, "refused: its arm failed");
+  assert.ok(result.lines.some((line) => line.startsWith("::error title=enable-auto-merge::#500 trusted author: arm:")), result.lines.join("\n"));
+});
+
+test("a merge queue state that did not read refuses", async () => {
+  const result = await run([clean({ isInMergeQueue: undefined })]);
+  assert.equal(armedHeads(result), 0);
+  assert.match(leftLine(result, 500), /left: its merge queue state did not read$/);
 });
 
 test("a trusted author's draft is not armed", async () => {

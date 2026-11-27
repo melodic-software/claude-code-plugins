@@ -422,6 +422,7 @@ function ci(files, { reviews = [], body = "Closes #40", options, denied = [], wr
 const approve = { user: { login: "owner-person", id: 5, type: "User" }, state: "APPROVED", commit_id: HEAD, submitted_at: "2026-10-23T11:00:00Z" };
 
 const FLOOR_FILES = [
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
   ".github/actions/resolve-config/resolve.mjs",
   ".github/actions/Resolve-Config/lane-rules.json",
   ".github/actions/request-lane-token/action.yml",
@@ -448,7 +449,7 @@ const FLOOR_FILES = [
   "docs/conventions/pr-pipeline.yaml",
 ];
 const ENFORCEMENT_FILES = [
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py",
   ".github/scripts/pr-unblock/address-feedback.mjs",
   ".github/scripts/pr-unblock/escalation-routes.mjs",

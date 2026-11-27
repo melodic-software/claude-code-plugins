@@ -2110,8 +2110,45 @@ jobs:
           sparse-checkout: |
             /.github/actions/log-api-budget/
           sparse-checkout-cone-mode: false
+      - name: Read the passing pull request
+        id: pull
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          KEY_PR: ${{ needs.check-intent.outputs.pr-number }}
+          KEY_VERDICT: ${{ needs.check-intent.outputs.verdict }}
+          SUB_PR: ${{ needs.check-intent-subscription.outputs.pr-number }}
+          SUB_VERDICT: ${{ needs.check-intent-subscription.outputs.verdict }}
+          FB_PR: ${{ needs.check-intent-fallback.outputs.pr-number }}
+          FB_VERDICT: ${{ needs.check-intent-fallback.outputs.verdict }}
+        run: |
+          set -euo pipefail
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          pr='' verdict=''
+          # One job per run judges; the first pass in job order names the PR.
+          for leg in KEY SUB FB; do
+            verdict_var=${leg}_VERDICT pr_var=${leg}_PR
+            if [[ ${!verdict_var:-} =~ ^(pass|pass-notes)$ ]]; then
+              pr=${!pr_var:-} verdict=${!verdict_var}
+              break
+            fi
+          done
+          [[ $pr =~ ^[1-9][0-9]{0,15}$ ]] || exit 0
+          { echo "pr=$pr"; echo "verdict=$verdict"; } >>"$GITHUB_OUTPUT"
+          # The Hold: test spells a line start as (^|[\r\n]), not ^ with a
+          # multiline flag: gh --jq runs gojq, whose Go regexp anchors and
+          # flags differ from jq's Oniguruma, and this form reads alike in both.
+          if [[ ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]] &&
+            answer=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" \
+              --jq '"\(.user.id) \(.user.type) \(.auto_merge != null) \([.labels[].name] | index("do-not-merge") != null) \(.draft) \((.body // "") | test("(^|[\\r\\n])[ \\t]*hold:"; "i"))"') &&
+            read -r _ type _ <<<"$answer"; then
+            { echo "answer=$answer"; echo "type=$type"; } >>"$GITHUB_OUTPUT"
+          fi
       - name: Download standards
         id: standards
+        if: steps.pull.outputs.type == 'User'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/download-standards@main
         with:
@@ -2124,24 +2161,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
-          KEY_PR: ${{ needs.check-intent.outputs.pr-number }}
-          KEY_VERDICT: ${{ needs.check-intent.outputs.verdict }}
-          SUB_PR: ${{ needs.check-intent-subscription.outputs.pr-number }}
-          SUB_VERDICT: ${{ needs.check-intent-subscription.outputs.verdict }}
-          FB_PR: ${{ needs.check-intent-fallback.outputs.pr-number }}
-          FB_VERDICT: ${{ needs.check-intent-fallback.outputs.verdict }}
+          PR: ${{ steps.pull.outputs.pr }}
+          VERDICT: ${{ steps.pull.outputs.verdict }}
+          ANSWER: ${{ steps.pull.outputs.answer }}
         run: |
           set -euo pipefail
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
-          pr=''
-          # One job per run judges; the first pass in job order names the PR.
-          for leg in KEY SUB FB; do
-            verdict_var=${leg}_VERDICT pr_var=${leg}_PR
-            if [[ ${!verdict_var:-} =~ ^(pass|pass-notes)$ ]]; then
-              pr=${!pr_var:-} verdict=${!verdict_var}
-              break
-            fi
-          done
+          pr=${PR:-} verdict=${VERDICT:-}
           if [[ ! $pr =~ ^[1-9][0-9]{0,15}$ ]]; then
             echo "::warning::wake-pr-merge: the passing job named no pull request number; nothing woken"
             exit 0
@@ -2149,17 +2175,15 @@ jobs:
           # Per the owner decision of 2026-11-27, the wake arms a trusted
           # person's pull request (a User whose id is kind "human" on the
           # trusted-actor list) as well as a lanes App one, the two the token
-          # broker mints this wake for; one read here spares any other author
+          # broker mints this wake for; the read above spares any other author
           # a pr-merge run the broker would refuse. One already armed or held
           # by do-not-merge needs no wake: the scheduled sweep runs the same
           # decision on it, disarms included, and ci-status holds do-not-merge
           # in the merge queue. A person's draft or body Hold: line also
           # waits for the sweep. A failed read, or no lanes App id, dispatches
           # anyway: pr-merge decides all of this itself.
-          if [[ ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]] &&
-            answer=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" \
-              --jq '"\(.user.id) \(.user.type) \(.auto_merge != null) \([.labels[].name] | index("do-not-merge") != null) \(.draft) \((.body // "") | test("(^|[\\r\\n])[ \\t]*hold:"; "i"))"') &&
-            read -r id type armed held draft hold <<<"$answer"; then
+          if [[ ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]] && [ -n "${ANSWER:-}" ] &&
+            read -r id type armed held draft hold <<<"$ANSWER"; then
             if [ "$id $type" != "$LANES_APP_ID Bot" ]; then
               person=false
               if [ "$type" = User ]; then

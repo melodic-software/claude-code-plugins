@@ -379,6 +379,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             ".github/scripts/plugin-eval/policy-probe-prompt.txt",
             ".github/scripts/pr-unblock/test-scope.mjs",
             ".github/scripts/pr-unblock/declare-test-scope.mjs",
+            "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
         }
         self.assertEqual(
             list(FLOOR.author_review),
@@ -408,7 +409,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             check=True,
         )
         self.assertEqual(tuple(json.loads(proc.stdout)), FLOOR.high)
-        self.assertEqual(len(FLOOR.high), 99)
+        self.assertEqual(len(FLOOR.high), 100)
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)
@@ -459,17 +460,19 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         scripts = SCRIPTS.relative_to(ROOT).as_posix()
         self.assertIn(f"{scripts}/babysit_verify_evidence.py", files)
         self.assertIn(f"{scripts}/babysit_merge.py", files)
+        raised = {g for g, kind, _ in ROWS if kind in risk.PERSON_CLASSES}
+        self.assertIn(f"{scripts}/babysit_verify_evidence.py", raised)
         answer = module(files)
         for path, held in zip(files, answer["held"], strict=True):
             with self.subTest(path):
                 self.assertTrue(any(risk.glob_match(g, path) for g in FLOOR.all))
                 name = pathlib.PurePosixPath(path).name
-                gate = name.startswith("babysit_merge") or name in {
+                gate = path in raised or name.startswith("babysit_merge") or name in {
                     "diff_risk.py",
                     "babysit_review_evidence.py",
                 }
                 self.assertEqual(held, gate)
-                self.assertEqual(path in FLOOR.review, not gate)
+                self.assertEqual(path in FLOOR.review, not gate or path in raised)
         self.assertEqual(
             sorted(g for g in FLOOR.all if g.startswith(f"{scripts}/")), files
         )

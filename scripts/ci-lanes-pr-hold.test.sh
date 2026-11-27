@@ -120,8 +120,9 @@ STUB_PULL="$(pull 'Closes #1')"
 STUB_FILES='[["docs/held/a.md"]]' STUB_AUTHOR_ID='' expect "an empty payload id for the lanes App's pull request still holds it" 1 3 "it changes docs/held/a.md, a hold path"
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
 STUB_AUTHOR_ID='' STUB_PULL='{}' expect "an unreadable author with no payload author fails closed" 1 0 "the author of #7 could not be read"
+NOT_JUDGED="#7: not held: pr-verify does not judge its author, so no verdict is read."
 EVENT=merge_group REF="refs/heads/gh-readonly-queue/main/pr-7-$SHA" PR_NUMBER='' GROUP_BASE_SHA=$BASE \
-  expect "in the merge queue a non-App pull request is read, as no payload names its author" 0 0 "not the lanes App's"
+  expect "in the merge queue a non-App pull request is read, as no payload names its author, and its pin is checked" 0 2 "$NOT_JUDGED"
 expect_pull_reads "in the merge queue the pull is read" 1
 
 for kill in "KILL=true" "KILL=" "REPO_KILL=true" "REPO_KILL=1"; do
@@ -334,7 +335,7 @@ STUB_APP_ID='' author_run "an unset lanes App id leaves the carry steps running"
 author_run "the author step reads the queued pull" false false
 if [[ "$(pull_reads)" -eq 1 ]]; then ok "the author step reads the pull once"; else fail "the author step read the pull $(pull_reads) time(s)"; fi
 EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA=$BASE STUB_KEEP_READS=1 \
-  expect "after the author step, the queued step answers from its read" 0 0 "not the lanes App's"
+  expect "after the author step, the queued step answers from its read" 0 2 "$NOT_JUDGED"
 expect_pull_reads "the queued step makes no pull read of its own after the author step" 0
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
 for gated in "$restore" "$carry"; do
@@ -437,14 +438,14 @@ for path in CODEOWNERS docs/CODEOWNERS .gitmodules .github/actions/resolve-confi
   .github/scripts/pr-merge/superseded.mjs .github/scripts/pr-merge/clear-escalations.mjs \
   .github/scripts/pr-merge/gate-check.mjs .github/scripts/pr-merge/who.mjs \
   plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py plugins/source-control/skills/babysit-prs/scripts/diff_risk.py \
-  plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py docs/conventions/pr-pipeline.yaml \
+  plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py \
+  plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py docs/conventions/pr-pipeline.yaml \
   .github/workflows/pr-merge.yml .github/workflows/pr-review-main.yml \
   .github/scripts/pr-review-main/write-verdict.mjs; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
   expect "the floor holds $path" 1 3 "it changes $path, a hold path"
 done
-for path in plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py \
-  .github/scripts/pr-unblock/address-feedback.mjs .github/scripts/pr-unblock/gate-source.mjs \
+for path in .github/scripts/pr-unblock/address-feedback.mjs .github/scripts/pr-unblock/gate-source.mjs \
   .github/scripts/pr-unblock/thread-scope.mjs .github/scripts/lib/retry-fetch.mjs \
   .github/scripts/work-resolve-issue/report-outcome.mjs .github/scripts/work-resolve-issue/limits.mjs \
   .github/scripts/lib/lane-hold-marker.mjs .github/scripts/work-resolve-issue/stop-routes.json \
@@ -705,7 +706,7 @@ STUB_REVIEWS=''
 STUB_ARTIFACTS="{\"pr-verify-7-$OLD-pass\":[11]}"
 expect "in the merge queue, a push after a pass fails the group on the new head" 1 3 "pr-verify has not passed this head"
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
-expect "in the merge queue, a person's pull request reads no verdict" 0 0 "not the lanes App's"
+expect "in the merge queue, a person's pull request pr-verify does not judge reads no verdict" 0 2 "$NOT_JUDGED"
 if [[ "$(lookups)" -eq 0 && "$(readers)" -eq 0 && "$(maps)" -eq 0 ]]; then
   ok "a person's pull request makes no verdict lookup, reader run or head-ref map read"
 else
@@ -772,15 +773,35 @@ STUB_ISSUE="[$(pin "$OLD")]" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APP
 STUB_ISSUE="[$(comment kyle-sexton User OWNER 2026-10-23T09:00:00Z "<!-- babysit-merge-pin sha=$OLD -->")]" \
   expect "in the merge queue, a pin line a person wrote is no lanes App pin" 0 2 "#7: no pin hold: the lanes App pinned no other head."
 STUB_COMMENTS_FAIL=1 expect "in the merge queue, issue comments that do not read fail closed, after gh_read's three tries" 1 4 "could not read the issue comments of #7"
+unpin() { jq -nc --arg sha "$1" --arg at "${2:-2026-10-23T09:30:00Z}" --arg login "${3:-melodic-automation-lanes[bot]}" --arg type "${4:-Bot}" \
+  '{user: {login: $login, type: $type}, author_association: "NONE", created_at: $at, node_id: "IC_unpin",
+    body: "<!-- babysit-merge-unpin sha=\($sha) -->\nThe unattended merge path disarmed native auto-merge at head `\($sha)`."}'; }
+STUB_ISSUE="[$(pin "$OLD"),$(unpin "$SHA")]" expect "in the merge queue, the lanes App's newer unpin retires a moved pin, so a person's arm at the new head is not pin-held" 0 2 "#7: no pin hold: the lanes App pinned no other head."
+STUB_ISSUE="[$(pin "$OLD"),$(unpin "$SHA")]" STUB_EVIDENCE="$(evidence verify:fail)" \
+  expect "in the merge queue, past the unpin the other holds still apply" 1 2 "pr-verify's reader refuses this head (verify:fail: why)"
+STUB_ISSUE="[$(unpin "$SHA" 2026-10-23T08:00:00Z),$(pin "$OLD")]" expect "in the merge queue, a pin newer than the unpin holds again" 1 2 "its head is not $OLD"
+STUB_ISSUE="[$(pin "$OLD"),$(unpin "$SHA" 2026-10-23T09:30:00Z kyle-sexton User)]" expect "in the merge queue, an unpin a person wrote is ignored, so the moved pin holds" 1 2 "its head is not $OLD"
+STUB_ISSUE="[$(pin "$OLD"),$(unpin "$SHA")]" STUB_EDITED='{"data":{"node":{"lastEditedAt":"2026-10-23T09:40:00Z"}}}' \
+  expect "in the merge queue, an edited unpin counts as tampered and holds" 1 2 "newest unpin comment was edited"
 STUB_ISSUE=''
 for user in '{"id":2,"login":"someone","type":"User"}' '{"id":49699333,"login":"dependabot[bot]","type":"Bot"}'; do
   STUB_PULL="$(pull 'Closes #1' "$user")"
-  STUB_ARTIFACTS='{}' expect "in the merge queue, $(jq -r .login <<<"$user")'s pull request, which pr-verify does not judge, exits as before" 0 0 "#7 is not the lanes App's; pr-merge's gate or a person reads its holds."
+  STUB_ARTIFACTS='{}' expect "in the merge queue, $(jq -r .login <<<"$user")'s pull request, which pr-verify does not judge, passes its pin check and reads no verdict" 0 2 "$NOT_JUDGED"
   if [[ "$(readers)" -eq 0 ]]; then ok "$(jq -r .login <<<"$user")'s queued pull request runs no verdict reader"; else fail "$(jq -r .login <<<"$user")'s queued pull request ran the reader"; fi
 done
 STUB_PULL="$(pull 'Closes #1' "$KYLE")"
-STUB_CONFIG=$'merge:\n  verify-authors: everyone' expect "in the merge queue, an unknown verify-authors value judges no owner pull request" 0 0 "not the lanes App's"
-STUB_CONFIG=$'merge:\n  verify-authors: [lane]' expect "in the merge queue, a verify-authors value that is not one word judges no owner pull request" 0 0 "not the lanes App's"
+STUB_CONFIG=$'merge:\n  verify-authors: everyone' expect "in the merge queue, an unknown verify-authors value judges no owner pull request" 0 2 "$NOT_JUDGED"
+STUB_CONFIG=$'merge:\n  verify-authors: [lane]' expect "in the merge queue, a verify-authors value that is not one word judges no owner pull request" 0 2 "$NOT_JUDGED"
+for config in $'merge:\n  verify-authors: lane' $'merge:\n  verify-authors: everyone'; do
+  STUB_CONFIG=$config STUB_ISSUE="[$(pin "$OLD")]" \
+    expect "in the merge queue, a moved lanes App pin holds a pull request pr-verify does not judge ($(tr '\n' ' ' <<<"$config"))" 1 2 "::error::#7: its head is not $OLD, the head the lanes App pinned"
+  if [[ "$(readers)" -eq 0 ]]; then ok "the pin hold under $(tr '\n' ' ' <<<"$config") runs no verdict reader"; else fail "the pin hold under $(tr '\n' ' ' <<<"$config") ran the reader"; fi
+done
+STUB_PULL="$(pull 'Closes #1' '{"id":2,"login":"someone","type":"User"}')"
+STUB_CONFIG=$'merge:\n  verify-authors: lane' STUB_ISSUE="[$(pin "$OLD")]" \
+  expect "in the merge queue, a moved lanes App pin holds even an unlisted author's pull request" 1 2 "its head is not $OLD"
+STUB_ISSUE=''
+STUB_PULL="$(pull 'Closes #1' "$KYLE")"
 EVENT=pull_request REF=refs/pull/7/merge PR_NUMBER=7 STUB_ARTIFACTS='{}' \
   expect "on a pull request event, an owner pull request still exits on its payload" 0 0 "not the lanes App's"
 export STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]\n    path-holds: true'

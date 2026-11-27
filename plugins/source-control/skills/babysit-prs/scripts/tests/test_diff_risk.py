@@ -280,7 +280,7 @@ class HighReasonTests(unittest.TestCase):
     def test_floor_paths_are_high_whatever_the_switch(self):
         self.assertEqual(
             Counter(c for _, c in FLOOR.classes),
-            {"trust": 26, "gate": 73, "enforcement": 70},
+            {"trust": 26, "gate": 74, "enforcement": 70},
         )
         self.assertEqual(
             FLOOR.high,
@@ -2264,7 +2264,9 @@ class ReviewClearedFloorTests(unittest.TestCase):
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
         self.assertEqual(len(FLOOR.review), 70)
-        for glob in FLOOR.review:
+        raised = [g for g in FLOOR.review if g in FLOOR.high]
+        self.assertEqual(raised, [B + "babysit_verify_evidence.py"])
+        for glob in (g for g in FLOOR.review if g not in raised):
             with self.subTest(glob):
                 path = glob.replace("**", "x.md")
                 self.assertTrue(diff_risk.glob_match(glob, path))
@@ -2540,7 +2542,7 @@ class LaneSourceReviewPathTests(unittest.TestCase):
     (babysit_review_evidence `_main_bound`): until then it is the lane's
     `review-path:` hold, never a person's."""
 
-    PATH = B + "babysit_verify_evidence.py"
+    PATH = B + "babysit_whole_review.py"
 
     def _score(self, security):
         lanes = (_lane("claude-review"), security)

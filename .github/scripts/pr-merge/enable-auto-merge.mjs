@@ -34,7 +34,6 @@ import {
   HUMAN_VETO,
   costHold,
   humansOf,
-  isDependencyManager,
   LANE_HOLD,
   liftersOf,
   MEMBERS,
@@ -42,6 +41,7 @@ import {
   pathLifters,
   personWrote,
   PIN_RE,
+  UNPIN_RE,
   readPathHolds,
   readStatuses,
   unblockStops,
@@ -620,11 +620,14 @@ export const pinBody = (sha, rung, stacked = false) =>
       : `The unattended merge path is about to arm native auto-merge at head \`${sha}\`, the head its arming checks judged. The arm fails if the head moves first.`
   }`;
 
-const newestPin = (comments, bot) => newestAppComment(comments, bot, (c) => PIN_RE.test(firstLine(c.body)));
+export const unpinBody = (sha) =>
+  `<!-- babysit-merge-unpin sha=${sha} -->\nThe unattended merge path disarmed native auto-merge at head \`${sha}\`, which its arm never judged, and retires its earlier pin: the merge queue reads this pull request as one the lanes App never pinned until the path pins a head again.`;
+
+const newestPin = (comments, bot) => newestAppComment(comments, bot, (c) => PIN_RE.test(firstLine(c.body)) || UNPIN_RE.test(firstLine(c.body)));
 
 export function pinned(comments, bot, head, rung) {
   const pin = newestPin(comments, bot);
-  if (pin === undefined || pin.lastEditedAt) return false;
+  if (pin === undefined || pin.lastEditedAt || UNPIN_RE.test(firstLine(pin.body))) return false;
   const [, sha, pinRung = null] = PIN_RE.exec(firstLine(pin.body));
   return sha === head && pinRung === (rung === "C2" || rung === "C3" ? rung : null);
 }
@@ -632,7 +635,9 @@ export function pinned(comments, bot, head, rung) {
 export function pinMoved(comments, bot, head) {
   const pin = newestPin(comments, bot);
   if (pin === undefined) return null;
-  if (pin.lastEditedAt) return "its newest pin comment was edited, so the head its arm judged does not read";
+  const unpin = UNPIN_RE.test(firstLine(pin.body));
+  if (pin.lastEditedAt) return `its newest ${unpin ? "unpin" : "pin"} comment was edited, so the head its arm judged does not read`;
+  if (unpin) return null;
   const [, sha] = PIN_RE.exec(firstLine(pin.body));
   return sha === head ? null : `its head moved from ${sha}, the head its arm judged, to ${head}`;
 }
@@ -1673,21 +1678,21 @@ export async function main({ env = process.env, github, actions, laneReads, veri
     }
     const humans = trustedHumans(env);
     const judging = { bot: slug, humanGated, holdPaths, pathHolds };
-    let trustedIds;
+    let trustedPersons;
     const trustedAuthor = (pull) => {
       const id = pull.author?.databaseId;
-      if (lanes(pull) || !Number.isSafeInteger(id) || isDependencyManager({ type: pull.author.__typename, login: pull.author.login })) {
+      if (pull.author?.__typename !== "User" || !Number.isSafeInteger(id)) {
         return false;
       }
-      if (trustedIds === undefined) {
+      if (trustedPersons === undefined) {
         try {
-          trustedIds = loadTrustedList(trustedListPath(env, env.TRUSTED_ACTORS)).ids;
+          trustedPersons = loadTrustedList(trustedListPath(env, env.TRUSTED_ACTORS)).humans;
         } catch (error) {
-          trustedIds = null;
-          console.log(`enable-auto-merge: the trusted-actor list did not read, so no trusted author's pull request is armed this run: ${describe(error)}`);
+          trustedPersons = null;
+          console.log(`enable-auto-merge: the trusted-actor list did not read, so no trusted person's pull request is armed this run: ${describe(error)}`);
         }
       }
-      return trustedIds?.has(id) === true;
+      return trustedPersons?.has(id) === true;
     };
     trustedVerify ??= pythonVerify(env, { lane: false });
     laneSource ??= pythonLaneSource(env);
@@ -1744,10 +1749,18 @@ export async function main({ env = process.env, github, actions, laneReads, veri
         }
         try {
           await sendSettled("disarm", pull);
-          console.log(`enable-auto-merge: #${pull.number} trusted author: disarmed: ${escapeCommand(reason)}`);
         } catch (error) {
           failed += 1;
           console.log(`::error title=enable-auto-merge::#${pull.number} trusted author: disarm: ${describe(error)}`);
+          return;
+        }
+        try {
+          await github("POST", `/repos/${repo[0]}/issues/${pull.number}/comments`, { body: unpinBody(pull.headRefOid) });
+          console.log(`enable-auto-merge: #${pull.number} trusted author: disarmed: ${escapeCommand(reason)}; unpinned at ${pull.headRefOid}`);
+        } catch (error) {
+          failed += 1;
+          console.log(`enable-auto-merge: #${pull.number} trusted author: disarmed: ${escapeCommand(reason)}`);
+          console.log(`::error title=enable-auto-merge::#${pull.number} trusted author: unpin, so its stale pin stands until the next disarm: ${describe(error)}`);
         }
         return;
       }
