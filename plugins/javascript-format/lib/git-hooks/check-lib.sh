@@ -284,9 +284,31 @@ checks_file_text() {
   fi
 }
 
+checks_changed_names() {
+  if [[ "${1:-}" == --include-exact-renames ]]; then
+    checks_diff --name-only --diff-filter=ACMR -z
+    return
+  fi
+  local raw="$CHECKS_TMP/names" rc meta f
+  local -a m names=()
+  checks_diff --raw --no-abbrev -z --diff-filter=ACMR >"$raw"
+  rc=$?
+  while IFS= read -r -d '' meta && IFS= read -r -d '' f; do
+    IFS=' ' read -r -a m <<<"${meta#:}"
+    if [[ "${m[4]}" == [RC]* ]]; then
+      IFS= read -r -d '' f || break
+      [[ "${m[4]}" == R* && "${m[0]}" == "${m[1]}" && "${m[2]}" == "${m[3]}" ]] && continue
+    fi
+    names+=("$f")
+  done <"$raw"
+  ((${#names[@]} == 0)) || printf '%s\0' "${names[@]}"
+  return "$rc"
+}
+
+# shellcheck disable=SC2120 # checks that judge a file's name or location pass --include-exact-renames
 checks_files() {
-  checks_merge_own_files && return 0
-  checks_diff --name-only --diff-filter=ACMR -z
+  checks_merge_own_files "$@" && return 0
+  checks_changed_names "$@"
   if [[ "$CHECKS_MODE" == worktree ]]; then
     git ls-files --others --exclude-standard -z
   fi
@@ -360,7 +382,7 @@ checks_merge_own_files() {
   [[ "$CHECKS_MODE" == pre-commit && -n "${CHECKS_MERGE_HEADS:-}" ]] || return 1
   [[ ! -e "$CHECKS_TMP/merge-fallback" ]] || return 1
   local all="$CHECKS_TMP/merge-paths" want=1 h step=""
-  if checks_diff --name-only --diff-filter=ACMR -z >"$all" 2>/dev/null; then
+  if checks_changed_names "$@" >"$all" 2>/dev/null; then
     while IFS= read -r h; do
       [[ -n "$h" ]] || continue
       git -c core.quotePath=false diff --cached --no-color --no-ext-diff --name-only --no-renames -z "$h" -- >>"$all" 2>/dev/null || {

@@ -3172,9 +3172,18 @@ test("--find-prior stops not-applicable on an open lanes-App PR, with no comment
   assert.deepEqual(writesToGitHub(calls), []);
 });
 
-test("--find-prior stops not-applicable on a listed human's closing PR", async () => {
-  const { output } = await runPrior({ nodes: [closer("User", "kyle-sexton", OWNER_ID)] });
-  assert.equal(output, "proceed=false\nskip-reason=not-applicable\nreuse-branch=\n");
+test("--find-prior stops not-applicable on a listed human's closing PR, names that PR and writes nothing", async () => {
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  try {
+    const { calls, output } = await runPrior({ nodes: [closer("User", "kyle-sexton", OWNER_ID)] });
+    assert.equal(output, "proceed=false\nskip-reason=not-applicable\nreuse-branch=\n");
+    assert.deepEqual(writesToGitHub(calls), []);
+  } finally {
+    console.log = log;
+  }
+  assert.ok(lines.some((line) => line.includes("open PR #501 closes the issue; the model is skipped")), lines.join("\n"));
 });
 
 test("--find-prior goes ahead on an outsider's closing PR", async () => {
@@ -5413,7 +5422,7 @@ test("scan-reuse.mjs prints failed when the scan cannot finish, and refuses argu
   }
 });
 
-async function openWithClosers(nodes, { own = [] } = {}) {
+async function openWithClosers(nodes, { own = [], pulls = {} } = {}) {
   return withAsyncDir(
     {
       "work-outcome.json": JSON.stringify(done),
@@ -5428,6 +5437,7 @@ async function openWithClosers(nodes, { own = [] } = {}) {
         ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
         ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
         ["GET", /\/pulls$/, 200, own],
+        ...Object.entries(pulls).map(([number, pull]) => ["GET", new RegExp(`/pulls/${number}$`), 200, pull]),
         ["POST", /^\/graphql$/, 200, graphql(nodes)],
         ["POST", /\/pulls$/, 201, { number: 90 }],
         ...HISTORY,
@@ -5449,17 +5459,33 @@ async function openWithClosers(nodes, { own = [] } = {}) {
 }
 const opened = (calls) => calls.some((c) => c.method === "POST" && c.path === "/repos/o/r/pulls");
 
-test("main on done opens no PR when a listed human's open PR already closes the issue, and keeps agent-ready", async () => {
-  const { code, calls, lines } = await openWithClosers([{ ...closer("User", "kyle-sexton", OWNER_ID), number: 10686 }]);
+const HUMAN_PULL = { user: { type: "User", login: "kyle-sexton", id: OWNER_ID } };
+
+test("main on done opens no PR when a listed human's open PR already closes the issue, and waits on that PR with agent-ready kept", async () => {
+  const { code, calls, lines } = await openWithClosers([{ ...closer("User", "kyle-sexton", OWNER_ID), number: 10686 }], {
+    pulls: { 10686: { ...HUMAN_PULL, state: "open", merged_at: null } },
+  });
   assert.equal(code, 0);
   assert.ok(!opened(calls), JSON.stringify(calls));
-  assert.ok(lines.some((line) => line.includes("#10686")), lines.join("\n"));
+  assert.ok(lines.some((line) => line.includes("waits on #10686")), lines.join("\n"));
   assert.ok(!calls.some((c) => c.path.endsWith("/issues/77/labels") || c.method === "DELETE"));
   const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/issues/77/comments")).body.body;
-  assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=retry run=123 -->"), comment);
+  assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=wait pr=10686 run=123 -->"), comment);
   assert.match(comment, /`closed-by-open-pr`/);
   assert.match(comment, /PR .10686 already closes this issue/);
+  assert.match(comment, /once #10686 merges or closes/);
   assert.ok(comment.includes(BRANCH), comment);
+});
+
+test("main on done retries instead of waiting when the closing PR closed unmerged before the stop was written", async () => {
+  const { code, calls } = await openWithClosers([{ ...closer("User", "kyle-sexton", OWNER_ID), number: 10686 }], {
+    pulls: { 10686: { ...HUMAN_PULL, state: "closed", merged_at: null } },
+  });
+  assert.equal(code, 0);
+  assert.ok(!opened(calls), JSON.stringify(calls));
+  const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/issues/77/comments")).body.body;
+  assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=retry run=123 -->"), comment);
+  assert.match(comment, /#10686 is not an open pull request here, so it retries instead/);
 });
 
 test("main on done still opens the PR when no open PR closes the issue, or only an outsider's does", async () => {

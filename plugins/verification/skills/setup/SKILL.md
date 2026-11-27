@@ -1,5 +1,5 @@
 ---
-description: "Report where verification artifacts land and write the repository's docs/conventions/verification.yaml settings. check (read-only) names the memory root the verification skills resolve and validates the settings file; apply writes the keys its arguments name, proof_level, live_workers or both, after confirmation. Use when: 'set up verification', 'configure the verification plugin', 'is verification configured', 'verification setup', 'where do verification manifests / baselines land', 'set the proof level for this repo', 'set live workers for this repo'. Actions: check (read-only, default) | apply [proof_level=VALUE] [live_workers=N]. Re-runnable."
+description: "Check or configure docs/conventions/verification.yaml (proof_level, live_workers) and report where verification artifacts land."
 argument-hint: "[check|apply] [proof_level=<path|live|strict>] [live_workers=<n>]"
 user-invocable: true
 disable-model-invocation: true

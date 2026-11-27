@@ -2137,11 +2137,14 @@ jobs:
           done
           [[ $pr =~ ^[1-9][0-9]{0,15}$ ]] || exit 0
           { echo "pr=$pr"; echo "verdict=$verdict"; } >>"$GITHUB_OUTPUT"
-          if [[ ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]] &&
-            answer=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" \
-              --jq '"\(.user.id) \(.user.type) \(.auto_merge != null) \([.labels[].name] | index("do-not-merge") != null) \(.draft)"') &&
+          if [[ ! ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]]; then
+            echo "::warning::wake-pr-merge: AUTOMATION_LANES_APP_SENDER_ID is unset or invalid; skipping PR read"
+          elif answer=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" \
+            --jq '"\(.user.id) \(.user.type) \(.auto_merge != null) \([.labels[].name] | index("do-not-merge") != null) \(.draft)"') &&
             read -r _ type _ <<<"$answer"; then
             { echo "answer=$answer"; echo "type=$type"; } >>"$GITHUB_OUTPUT"
+          else
+            echo "::warning::wake-pr-merge: could not read pull request #$pr; nothing will be woken"
           fi
       - name: Download standards
         id: standards
@@ -2176,33 +2179,40 @@ jobs:
           # a pr-merge run the broker would refuse. One already armed or held
           # by do-not-merge needs no wake: the scheduled sweep runs the same
           # decision on it, disarms included, and ci-status holds do-not-merge
-          # in the merge queue. A person's draft also
-          # waits for the sweep. A failed read, or no lanes App id, dispatches
-          # anyway: pr-merge decides all of this itself.
-          if [[ ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]] && [ -n "${ANSWER:-}" ] &&
-            read -r id type armed held draft <<<"$ANSWER"; then
-            if [ "$id $type" != "$LANES_APP_ID Bot" ]; then
-              person=false
-              if [ "$type" = User ]; then
-                person=$(jq --argjson id "$id" 'any(.actors[]; .kind == "human" and .id == $id)' "$TRUSTED_ACTORS_PATH" 2>/dev/null) || person=unread
-              fi
-              if [ "$person" != true ] && [ "$person" != unread ]; then
-                echo "::notice title=pr-verify wake::pr=$pr verdict=$verdict not a lanes App or trusted person pull request; nothing woken"
-                exit 0
-              fi
+          # in the merge queue. A person's draft also waits for the sweep.
+          if [[ ! ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]]; then
+            echo "::warning::wake-pr-merge: pr=$pr verdict=$verdict AUTOMATION_LANES_APP_SENDER_ID is unset or invalid; nothing woken (the next scheduled run arms it)"
+            exit 0
+          fi
+          if [ -z "${ANSWER:-}" ] || ! read -r id type armed held draft <<<"$ANSWER" || [ -z "${id:-}" ] || [ -z "${type:-}" ]; then
+            echo "::warning::wake-pr-merge: pr=$pr verdict=$verdict pull request could not be read; nothing woken (the next scheduled run arms it)"
+            exit 0
+          fi
+          if [ "$id $type" != "$LANES_APP_ID Bot" ]; then
+            person=false
+            if [ "$type" = User ]; then
+              person=$(jq --argjson id "$id" 'any(.actors[]; .kind == "human" and .id == $id)' "$TRUSTED_ACTORS_PATH" 2>/dev/null) || person=unread
             fi
-            if [ "$armed" = true ]; then
-              echo "::notice title=pr-verify wake::pr=$pr verdict=$verdict already armed; nothing woken"
+            if [ "$person" = unread ]; then
+              echo "::warning::wake-pr-merge: pr=$pr verdict=$verdict trusted-actor list could not be read; nothing woken (the next scheduled run arms it)"
               exit 0
             fi
-            if [ "$held" = true ]; then
-              echo "::notice title=pr-verify wake::pr=$pr verdict=$verdict held (do-not-merge); nothing woken"
+            if [ "$person" != true ]; then
+              echo "::notice title=pr-verify wake::pr=$pr verdict=$verdict not a lanes App or trusted person pull request; nothing woken"
               exit 0
             fi
-            if [ "$type" = User ] && [ "$draft" = true ]; then
-              echo "::notice title=pr-verify wake::pr=$pr verdict=$verdict a draft; nothing woken"
-              exit 0
-            fi
+          fi
+          if [ "$armed" = true ]; then
+            echo "::notice title=pr-verify wake::pr=$pr verdict=$verdict already armed; nothing woken"
+            exit 0
+          fi
+          if [ "$held" = true ]; then
+            echo "::notice title=pr-verify wake::pr=$pr verdict=$verdict held (do-not-merge); nothing woken"
+            exit 0
+          fi
+          if [ "$type" = User ] && [ "$draft" = true ]; then
+            echo "::notice title=pr-verify wake::pr=$pr verdict=$verdict a draft; nothing woken"
+            exit 0
           fi
           if gh workflow run pr-merge.yml -R "$GITHUB_REPOSITORY" --ref main -f pr="$pr"; then
             echo "::notice title=pr-verify wake::pr=$pr verdict=$verdict pr-merge dispatched"

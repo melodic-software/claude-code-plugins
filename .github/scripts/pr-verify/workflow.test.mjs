@@ -1156,15 +1156,22 @@ const wake = (env) => {
   return { status: run.status, readStatus: read.status, stdout: read.stdout + run.stdout, outputs, downloaded, gh: readFileSync(args, "utf8").split("\n").filter(Boolean) };
 };
 
+const WAKE_READ = `api repos/${REPO}/pulls/41 --jq "\\(.user.id) \\(.user.type) \\(.auto_merge != null) \\([.labels[].name] | index("do-not-merge") != null) \\(.draft)"`;
+const WAKE_DISPATCH = `workflow run pr-merge.yml -R ${REPO} --ref main -f pr=41`;
+const WAKE_PASS = { KEY_PR: "41", KEY_VERDICT: "pass", LANES_APP_ID: "7" };
+
 test("wake-pr-merge dispatches pr-merge on main for the passing job's pull request", () => {
   for (const [env, pr] of [
-    [{ KEY_PR: "41", KEY_VERDICT: "pass" }, "41"],
-    [{ KEY_PR: "41", KEY_VERDICT: "", SUB_PR: "42", SUB_VERDICT: "pass-notes" }, "42"],
-    [{ KEY_PR: "41", SUB_PR: "41", FB_PR: "43", FB_VERDICT: "pass" }, "43"],
+    [{ KEY_PR: "41", KEY_VERDICT: "pass", LANES_APP_ID: "7", GH_AUTHOR: "7 Bot false false false" }, "41"],
+    [{ KEY_PR: "41", KEY_VERDICT: "", SUB_PR: "42", SUB_VERDICT: "pass-notes", LANES_APP_ID: "7", GH_AUTHOR: "7 Bot false false false" }, "42"],
+    [{ KEY_PR: "41", SUB_PR: "41", FB_PR: "43", FB_VERDICT: "pass", LANES_APP_ID: "7", GH_AUTHOR: "7 Bot false false false" }, "43"],
   ]) {
     const run = wake(env);
     assert.equal(run.status, 0);
-    assert.deepEqual(run.gh, [`workflow run pr-merge.yml -R ${REPO} --ref main -f pr=${pr}`]);
+    assert.deepEqual(run.gh, [
+      WAKE_READ.replace("/pulls/41 ", `/pulls/${pr} `),
+      `workflow run pr-merge.yml -R ${REPO} --ref main -f pr=${pr}`,
+    ]);
     assert.match(run.stdout, new RegExp(`::notice title=pr-verify wake::pr=${pr} `));
   }
 });
@@ -1176,10 +1183,6 @@ test("wake-pr-merge dispatches nothing on a fail, no verdict or a pull request n
     assert.deepEqual(run.gh, [], JSON.stringify(env));
   }
 });
-
-const WAKE_READ = `api repos/${REPO}/pulls/41 --jq "\\(.user.id) \\(.user.type) \\(.auto_merge != null) \\([.labels[].name] | index("do-not-merge") != null) \\(.draft)"`;
-const WAKE_DISPATCH = `workflow run pr-merge.yml -R ${REPO} --ref main -f pr=41`;
-const WAKE_PASS = { KEY_PR: "41", KEY_VERDICT: "pass", LANES_APP_ID: "7" };
 
 test("the wake reads its pull request once, and downloads the trusted-actor list only for a User's", () => {
   const user = wake({ ...WAKE_PASS, GH_AUTHOR: "5 User false false false" });
@@ -1196,10 +1199,12 @@ test("the wake reads its pull request once, and downloads the trusted-actor list
     assert.equal(run.outputs.type, type, why);
     assert.equal(run.downloaded, false, why);
   }
-  assert.deepEqual(wake({ ...WAKE_PASS, GH_ERROR_BODY: "502 Bad Gateway" }).gh, [WAKE_READ, WAKE_DISPATCH], "a failed read still dispatches with no download");
+  const failed = wake({ ...WAKE_PASS, GH_ERROR_BODY: "502 Bad Gateway" });
+  assert.deepEqual(failed.gh, [WAKE_READ], "a failed read fails closed with no download or dispatch");
+  assert.match(failed.stdout, /::warning::wake-pr-merge: pr=41 verdict=pass pull request could not be read; nothing woken/);
 });
 
-test("wake-pr-merge wakes a lanes App or trusted person pull request, unarmed and unheld, and no other author it can read", () => {
+test("wake-pr-merge wakes a lanes App or trusted person pull request, unarmed and unheld, and fails closed otherwise", () => {
   for (const author of ["7 Bot false false false", "5 User false false false"]) {
     assert.deepEqual(wake({ ...WAKE_PASS, GH_AUTHOR: author }).gh, [WAKE_READ, WAKE_DISPATCH], author);
   }
@@ -1209,15 +1214,33 @@ test("wake-pr-merge wakes a lanes App or trusted person pull request, unarmed an
     assert.deepEqual(run.gh, [WAKE_READ], author);
     assert.match(run.stdout, /::notice title=pr-verify wake::pr=41 verdict=pass not a lanes App or trusted person pull request; nothing woken/, author);
   }
-  assert.deepEqual(wake(WAKE_PASS).gh, [WAKE_READ, WAKE_DISPATCH]);
-  assert.deepEqual(wake({ ...WAKE_PASS, GH_ERROR_BODY: "<html>\n<body>502 Bad Gateway</body>\n</html>\n" }).gh, [WAKE_READ, WAKE_DISPATCH]);
-  for (const id of ["", "x"]) assert.deepEqual(wake({ ...WAKE_PASS, LANES_APP_ID: id, GH_AUTHOR: "9 User false false false" }).gh, [WAKE_DISPATCH], id);
+  for (const [why, env] of [
+    ["empty API output", WAKE_PASS],
+    ["HTML error body", { ...WAKE_PASS, GH_ERROR_BODY: "<html>\n<body>502 Bad Gateway</body>\n</html>\n" }],
+  ]) {
+    const run = wake(env);
+    assert.equal(run.status, 0, why);
+    assert.deepEqual(run.gh, [WAKE_READ], why);
+    assert.match(run.stdout, /::warning::wake-pr-merge: pr=41 verdict=pass pull request could not be read; nothing woken/, why);
+  }
+  for (const id of ["", "x"]) {
+    const run = wake({ ...WAKE_PASS, LANES_APP_ID: id, GH_AUTHOR: "9 User false false false" });
+    assert.equal(run.status, 0, id);
+    assert.deepEqual(run.gh, [], id);
+    assert.match(run.stdout, /::warning::wake-pr-merge: pr=41 verdict=pass AUTOMATION_LANES_APP_SENDER_ID is unset or invalid; nothing woken/, id);
+  }
 });
 
-test("wake-pr-merge dispatches a User's pass when the trusted-actor list does not read, and still refuses another Bot", () => {
+test("wake-pr-merge fails closed on a User's pass when the trusted-actor list does not read, and still refuses another Bot", () => {
   for (const listPath of ["/nonexistent/trusted-actors.json", "/components/trusted-actors/trusted-actors.json"]) {
-    assert.deepEqual(wake({ ...WAKE_PASS, TRUSTED_ACTORS_PATH: listPath, GH_AUTHOR: "9 User false false false" }).gh, [WAKE_READ, WAKE_DISPATCH], listPath);
-    assert.deepEqual(wake({ ...WAKE_PASS, TRUSTED_ACTORS_PATH: listPath, GH_AUTHOR: "8 Bot false false false" }).gh, [WAKE_READ], listPath);
+    const user = wake({ ...WAKE_PASS, TRUSTED_ACTORS_PATH: listPath, GH_AUTHOR: "9 User false false false" });
+    assert.equal(user.status, 0, listPath);
+    assert.deepEqual(user.gh, [WAKE_READ], listPath);
+    assert.match(user.stdout, /::warning::wake-pr-merge: pr=41 verdict=pass trusted-actor list could not be read; nothing woken/, listPath);
+    const bot = wake({ ...WAKE_PASS, TRUSTED_ACTORS_PATH: listPath, GH_AUTHOR: "8 Bot false false false" });
+    assert.equal(bot.status, 0, listPath);
+    assert.deepEqual(bot.gh, [WAKE_READ], listPath);
+    assert.match(bot.stdout, /::notice title=pr-verify wake::pr=41 verdict=pass not a lanes App or trusted person pull request; nothing woken/, listPath);
   }
 });
 

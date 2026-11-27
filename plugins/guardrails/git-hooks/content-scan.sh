@@ -175,7 +175,7 @@ content_scan() {
       [[ -f "$f" && ! -L "$f" ]] || continue
       (($(wc -c <"$f" | tr -d ' ') <= MAX_BYTES)) || continue
       paths+=("$f")
-    done < <(checks_files)
+    done < <(checks_files --include-exact-renames)
   else
     local -a staged=() blobs=() sizes=() retyped=()
     while IFS= read -r -d '' meta && IFS= read -r -d '' f; do
