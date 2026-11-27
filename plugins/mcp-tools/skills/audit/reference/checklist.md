@@ -70,6 +70,18 @@ Code negotiates by default. Of the tool rules that revision added, three were we
   constraints or the schema dialect default; or this audit gains a mode that queries a running
   server, which would make the ordering SHOULD observable.
 
+**Server capabilities record.** Three things a server can do sit outside its tool definitions, so
+no criterion grades them: serving skills, answering a long call with a task, and asking the user
+for input mid-call through elicitation. When a review covers a server we build or update, the
+reviewer reads each section below and decides whether the server should use it. Consent before a
+destructive action stays graded by C18 and C21, so elicitation adds no row.
+
+- **Pointer**: for serving skills, see <https://code.claude.com/docs/en/mcp#use-skills-from-mcp-servers>;
+  for answering a call with a task, <https://code.claude.com/docs/en/mcp#mcp-tasks-for-server-authors>;
+  for elicitation and the modes Claude Code accepts,
+  <https://code.claude.com/docs/en/mcp#respond-to-mcp-elicitation-requests> and
+  <https://code.claude.com/docs/en/mcp#elicitation-modes-claude-code-declares>.
+
 ## Authority tag (provenance) vs severity (impact)
 
 Each criterion carries an **authority** tag naming where the requirement comes from, and a **severity**
