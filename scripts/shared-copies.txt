@@ -24,6 +24,9 @@ lib/pydeps.py plugins/speech/scripts/pydeps.py
 lib/install-python-deps.sh plugins/animation/hooks/install-python-deps.sh
 lib/install-python-deps.sh plugins/explainer-video/hooks/install-python-deps.sh
 lib/install-python-deps.sh plugins/speech/hooks/install-python-deps.sh
+lib/hook-enabled.sh plugins/animation/hooks/hook-enabled.sh
+lib/hook-enabled.sh plugins/explainer-video/hooks/hook-enabled.sh
+lib/hook-enabled.sh plugins/speech/hooks/hook-enabled.sh
 lib/fetch-docs.sh plugins/harness-config/scripts/fetch-docs.sh
 lib/fetch-docs.sh plugins/harness-ops/scripts/fetch-docs.sh
 lib/fetch-docs.sh plugins/discovery/scripts/fetch-docs.sh
@@ -568,6 +571,7 @@ lib/hook-utils.sh plugins/repo-hygiene/skills/clean/scripts/hook-utils.sh
 lib/hook-utils.sh plugins/source-control/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/speech/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/playwright/hooks/hook-utils.sh
+lib/hook-enabled.sh plugins/playwright/hooks/hook-enabled.sh
 lib/hook-utils.sh plugins/spelling/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/testing/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/session-telemetry/hooks/hook-utils.sh

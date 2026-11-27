@@ -11,14 +11,10 @@ SCRIPT="$SELF_DIR/list-hook-enablement-gaps.sh"
 . "$SELF_DIR/lib/fixture-tree.sh" || exit 2
 
 PENDING=(
-  animation
   discovery
-  explainer-video
   fleet
   multi-agent
-  playwright
   plugin-profiles
-  speech
   toolchain
 )
 

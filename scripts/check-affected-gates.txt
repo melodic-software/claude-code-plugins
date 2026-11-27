@@ -87,6 +87,7 @@ hook-wiring-liveness ci-only whole-repo scanner, scripts/check-hook-wiring-liven
 hooks-description ci-only whole-repo scanner, scripts/check-hooks-description.sh
 killswitch-hoist ci-only whole-repo scanner, scripts/check-killswitch-hoist.sh
 lane-coverage ci-only whole-repo scanner, scripts/check-lane-coverage.sh --check
+lifecycle-map ci-only whole-repo scanner, scripts/check-lifecycle-map.sh --check
 line-citations ci-only whole-repo scanner, python3 scripts/check-line-citations.py
 loop-lane-floor-drift ci-only whole-repo scanner, scripts/check-loop-lane-floor-drift.sh --check
 manifest-duplicate-keys ci-only whole-repo scanner, python3 scripts/check-manifest-duplicate-keys.py

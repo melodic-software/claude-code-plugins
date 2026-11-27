@@ -30,7 +30,8 @@ A self-hosted, forge-shaped provider with no lease support:
     "release": false, "reclaim": false, "link-blocks": true, "add-sub-item": false,
     "list-items": true, "list-sub-items": false, "label-provenance": false,
     "set-fields": false, "get-field-options": false, "get-statuses": false, "change-link": true,
-    "add-recurrence": false, "capabilities": true
+    "add-recurrence": false, "put-artifact": false, "list-artifacts": false, "get-artifact": false,
+    "link-relates": false, "unlink-relates": false, "list-relates": false, "capabilities": true
   },
   "features": {
     "cross_repo_edges": true, "sub_items": false, "leases": false, "labels": true
@@ -77,7 +78,7 @@ different contract revision, and guessing produces a manifest that lies.
 
 `create-item`, `get-item`, `claim`, `renew-lease`, `release`, `reclaim`, `link-blocks`,
 `add-sub-item`, `list-items`, `list-sub-items`, `label-provenance`, `set-fields`, `get-field-options`, `get-statuses`, `change-link`,
-`add-recurrence`, `capabilities`.
+`add-recurrence`, `put-artifact`, `list-artifacts`, `get-artifact`, `link-relates`, `unlink-relates`, `list-relates`, `capabilities`.
 
 `add-recurrence` records a signal's source link and a note on an item, and writes nothing when
 the item already records that link (`CONTRACT.md` "Verbs"). Declare it `false` unless the

@@ -3,10 +3,16 @@ set -uo pipefail
 
 [[ "${EVAL_PLAYWRIGHT_SKIP_PYDEPS:-}" == 1 ]] && exit 0
 
+SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
+# shellcheck source=hook-enabled.sh
+source "$SCRIPT_DIR/hook-enabled.sh"
+rc=0
+hook_enabled::resolve playwright install_python_deps_enabled false || rc=$?
+((rc != 1)) || exit 0
+
 data="${CLAUDE_PLUGIN_DATA:-}"
 [[ -n "$data" ]] || exit 0
 
-SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 ROOT="${SCRIPT_DIR%/*}"
 
 notice() {

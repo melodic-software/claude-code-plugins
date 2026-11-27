@@ -689,7 +689,7 @@ export function validateInteractivePage(html, runtime) {
     failures.push("style-count");
   }
   for (const style of styles) {
-    if (styleRefused(style[1])) {
+    if (styleRefused(style[1]) || style[1].includes("<")) {
       failures.push("style");
     }
   }
@@ -729,6 +729,9 @@ export function validateInteractivePage(html, runtime) {
 
   const text = rest
     .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi, (match, body) =>
+      styleRefused(body) || body.includes("<") ? match : "",
+    )
     .replace(/<!doctype html>/gi, "")
     .replace(/<\/?[A-Za-z][A-Za-z0-9]*\b[^>]*>/g, "");
   if (text.includes("<")) {

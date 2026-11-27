@@ -66,8 +66,8 @@ def package_row(data):
     if target.is_dir() and pydeps.loads(target, pydeps.PROBE):
         return 'PASS', 'python-packages', f'{", ".join(pydeps.PROBE)} load from {target}'
     return ('FAIL', 'python-packages',
-            f'not installed for {sys.implementation.cache_tag}; the SessionStart hook installs them, or run: '
-            f'{pydeps.repair_line(data)}')
+            f'not installed for {sys.implementation.cache_tag}; run: {pydeps.repair_line(data)}, '
+            'or set install_python_deps_enabled to true and start a new session')
 
 
 def model_row(data, model_dir=None):
