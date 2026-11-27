@@ -396,8 +396,12 @@ scaffold() {
 new_repo 'comment_lint: block' 'comment_lint_keep_opening:' '  - "evals/*/scaffold.sh"'
 scaffold evals/case-a/scaffold.sh
 scaffold evals/case-a/other.sh
+scaffold evals/a/b/scaffold.sh
 expect "comment_lint_keep_opening: a matching file's opening block passes, a later comment and a non-matching file's opening block fail" \
-  "1|$(finding evals/case-a/other.sh 4 necessary)
+  "1|$(finding evals/a/b/scaffold.sh 4 necessary)
+$(finding evals/a/b/scaffold.sh 5 necessary)
+$(finding evals/a/b/scaffold.sh 7 necessary)
+$(finding evals/case-a/other.sh 4 necessary)
 $(finding evals/case-a/other.sh 5 necessary)
 $(finding evals/case-a/other.sh 7 necessary)
 $(finding evals/case-a/scaffold.sh 7 necessary)" "$(check "$REPO")"

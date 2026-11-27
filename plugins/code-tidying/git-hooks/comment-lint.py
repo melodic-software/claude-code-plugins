@@ -364,15 +364,11 @@ def _header(lines: list[_Line], run_of: dict[int, list[int]], source: list[str])
     return run_of.get(start, [])
 
 
-def _opening(lines: list[_Line], source: list[str]) -> set[int]:
+def _opening(lines: list[_Line], run_of: dict[int, list[int]], source: list[str]) -> set[int]:
     n = 2 if source and source[0].startswith("#!") else 1
     while n <= len(source) and (not source[n - 1].strip() or SET_LINE.match(source[n - 1])):
         n += 1
-    block: set[int] = set()
-    while n < len(lines) and lines[n].covered and not lines[n].code:
-        block.add(n)
-        n += 1
-    return block
+    return set() if n >= len(lines) or lines[n].code else set(run_of.get(n, []))
 
 
 def _hash_indent(comment: str) -> int:
@@ -554,7 +550,7 @@ def findings(path: str, text: str, added, posture: str, allow: list[str], repo: 
         old, span_of = found
         base = _layout(_CENSUS.tokens("\n".join(old), lexer), len(old))
         base_runs = _runs(base)
-    opening = _opening(lines, source) if keep_opening else set()
+    opening = _opening(lines, run_of, source) if keep_opening else set()
     candidates = []
     for first, last in added:
         for n in range(max(first, 1), min(last, len(lines) - 1) + 1):

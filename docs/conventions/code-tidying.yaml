@@ -44,5 +44,4 @@ comment_lint_keep_opening:
   - plugins/*/evals/routing/*/*/scaffold.sh
   - plugins/*/skills/*/evals/*/scaffold.sh
   - plugins/*/evals/**/fixtures/**/*.sh
-  - plugins/*/evals/fixtures/**/*.py
   - plugins/review/evals/revert-cases.sh
