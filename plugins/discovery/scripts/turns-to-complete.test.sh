@@ -8,6 +8,10 @@ SUT="$SCRIPT_DIR/turns-to-complete.py"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 ROOT="$WORK/projects"
+EMPTY_PROJ="$WORK/empty-project"
+mkdir -p "$EMPTY_PROJ"
+export CLAUDE_PROJECT_DIR="$EMPTY_PROJ"
+cd "$EMPTY_PROJ" || exit 1
 
 # shellcheck source=../lib/test-helpers.sh
 source "$SCRIPT_DIR/../lib/test-helpers.sh"
