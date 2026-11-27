@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "bash scripts/check-md.sh docs/onboarding.md"}}], "why": "the record's lint-cmd on the edited file"},
+    {"answer": [{"tool": "Bash", "input": {"command": "./scripts/check-md.sh docs/onboarding.md"}}], "why": "the record's script executed by path"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git status --porcelain -uall && bash scripts/check-md.sh docs/onboarding.md"}}], "why": "the lint-cmd after the status check"},
+    {"answer": [{"tool": "Bash", "input": {"command": "sh scripts/check-md.sh docs/onboarding.md"}}], "why": "the script through sh"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no tool call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat docs/conventions/ecosystems/markdown.yaml"}}], "why": "reads the record without running its lint-cmd"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat scripts/check-md.sh"}}], "why": "reads the script without running it"},
+    {"answer": [{"tool": "Bash", "input": {"command": "npm run lint:md -- docs/onboarding.md"}}], "why": "the manifest script, not the record"},
+    {"answer": [{"tool": "Bash", "input": {"command": "grep -n check-md.sh docs/conventions/ecosystems/markdown.yaml"}}], "why": "the script name as a search argument"}
+  ]
+}

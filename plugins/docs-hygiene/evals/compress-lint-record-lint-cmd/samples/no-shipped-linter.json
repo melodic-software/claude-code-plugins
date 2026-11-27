@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "ls -a .markdownlint* 2>/dev/null"}}], "why": "a config-file probe, no linter run"},
+    {"answer": [], "why": "no tool call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash scripts/check-md.sh docs/onboarding.md"}}], "why": "the record's lint-cmd"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "cd docs\nmarkdownlint-cli2 onboarding.md"}}], "why": "a linter run on the second line of a command"},
+    {"answer": [{"tool": "Bash", "input": {"command": "npx markdownlint-cli2 docs/onboarding.md"}}], "why": "runs a linter the repository never named"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash scripts/check-md.sh docs/onboarding.md && markdownlint docs/onboarding.md"}}], "why": "a second, shipped linter after the record's command"}
+  ]
+}

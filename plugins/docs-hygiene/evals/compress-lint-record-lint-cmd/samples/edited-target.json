@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/tmp/run/docs/onboarding.md", "old_string": "This page is basically just here to really help you", "new_string": "This page helps you"}}, {"tool": "Bash", "input": {"command": "bash scripts/check-md.sh docs/onboarding.md"}}], "why": "compresses the target, then runs the record's lint-cmd"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "bash scripts/check-md.sh docs/onboarding.md"}}], "why": "runs the lint-cmd without compressing the target"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "docs/notes.md", "old_string": "just", "new_string": ""}}], "why": "edits another file"}
+  ]
+}
