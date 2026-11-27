@@ -3,6 +3,12 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.3] - 2026-11-27
+
+### Fixed
+
+- Mechanics records MS-13 and MS-28 quote the current docs wording, so `quote-check.sh` reads them `verified` again; the surface table and the subagent gap now name the built-in `web-fetch` agent beside Explore and Plan as skipping the CLAUDE.md hierarchy.
+
 ## [2.0.2] - 2026-11-26
 
 ### Changed
