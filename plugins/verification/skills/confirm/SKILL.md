@@ -1,5 +1,5 @@
 ---
-description: "Confirm a change actually matches its plan and delivers the intended outcome (feature, fix, or refactor) after build, test, and lint checks. Use when 'verify changes', 'prove this works', 'check my work', 'is this done'. Not mechanical-only checks (/toolchain:check) or numeric benchmarks (/verification:measure)."
+description: "Run build, test, and lint checks (stopping if broken), then confirm a feature, fix, or refactor matches its plan/intent and delivers the intended outcome. Use when 'verify changes', 'prove this works', 'is this done'. Not for mechanical-only checks: /toolchain:check; or measurable-improvement claims: /verification:measure."
 user-invocable: true
 argument-hint: "[outcome|fix|refactor] [--unattended] [ecosystem|all]"
 disable-model-invocation: false

@@ -1,5 +1,5 @@
 ---
-description: "Check or configure docs/conventions/verification.yaml (proof_level, live_workers) and report the resolved verification memory root."
+description: "Check or configure docs/conventions/verification.yaml (proof_level, live_workers) and report where verification artifacts land."
 argument-hint: "[check|apply] [proof_level=<path|live|strict>] [live_workers=<n>]"
 user-invocable: true
 disable-model-invocation: true

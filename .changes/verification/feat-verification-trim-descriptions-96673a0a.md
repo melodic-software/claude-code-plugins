@@ -4,4 +4,4 @@ bump: patch
 
 ### Changed
 
-- Trimmed `/verification:measure` (861 -> 345 chars), `/verification:confirm` (607 -> 312 chars), and user-only `/verification:setup` (641 -> 131 chars) frontmatter descriptions while preserving trigger coverage and sibling boundaries.
+- Trimmed `/verification:measure` (861 -> 349 chars), `/verification:confirm` (578 -> 324 chars), and user-only `/verification:setup` (654 -> 127 chars) frontmatter descriptions while preserving Stage 1 gating, the no-baseline rule, metrics triggers, and sibling boundaries.

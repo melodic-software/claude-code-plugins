@@ -1,5 +1,5 @@
 ---
-description: "Verify an improvement claim against a pre-change baseline and compare the delta for performance (time, memory, allocations, throughput, latency) or metrics (complexity, coverage, coupling). Use when 'is it faster', 'capture a baseline', 'benchmark before and after'. Not intent checks (/verification:confirm) or noisy hosts (/performance:snapshot)."
+description: "Capture a prior baseline or compare an improvement delta ('cannot quantify' without one) for performance (time, memory, allocations, throughput, latency) or metrics (complexity, coverage, coupling). Use when 'is it faster', 'before/after', 'did complexity go down'. Not for intent: /verification:confirm; or noisy-host timing: /performance:snapshot."
 user-invocable: true
 argument-hint: "[performance|metrics] [baseline|compare]"
 disable-model-invocation: false
