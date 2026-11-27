@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [10.12.1] - 2026-11-27
+
+### Fixed
+
+- `/session-flow:go-with-recommendations` now states that running it is the same accept as typing "go with recommendations", with any exceptions typed after it, so a record or a side reviewer reads the command and the typed phrase alike.
+
 ## [10.12.0] - 2026-11-27
 
 ### Added
