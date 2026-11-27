@@ -63,8 +63,13 @@ records, which converging its pins does not. The invocation forms and exit codes
 Step 2 is the rule record behind `converge-plan.sh`: the script computes the strategy, the command and
 the class for every row, and this step says why. Read it to explain a row, never to recompute one.
 
-For each actionable divergence, first find which of its `scopes[]` holds the **highest version**
-(compare `scopes[].version` with a semver dotted-numeric compare, not string/lexicographic). Never choose
+For each actionable divergence, first find which of its `scopes[]` holds the **highest version**:
+the report's `highest` and `userHolds`, compared with a semver dotted-numeric compare, not
+string/lexicographic ([scope-semantics.md](scope-semantics.md#divergence-is-not-automatically-actionable)).
+A pin keyed to a user home never sets `highest`: converge runs no command from a home, so its
+version is not a target the other scopes are brought to, and a home pin above the rest leaves no
+row behind it. The row class is the report's `scopes[].class`, refined only by the strategy (a
+`blocked-catalog` pin whose strategy is uninstall is actionable). Never choose
 a strategy from scope identity alone ("does a user entry exist") without this comparison first.
 `fleet-state.sh` only proves the scopes *disagree*, never that `user` scope is the newer one. A repo
 pinning `project: 0.9.0` against a stale `user: 0.8.0` has the project pin as the newest version

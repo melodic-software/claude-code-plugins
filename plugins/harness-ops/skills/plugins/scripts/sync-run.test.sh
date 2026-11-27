@@ -2921,6 +2921,47 @@ report=$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$out")
 assert_contains "other paths off: the report gives the count" "$report" "Behind in other paths: 6 record(s) in 4 path(s), not updated"
 assert_contains "other paths off: and the remedy" "$report" "remedy: /harness-ops:plugins sync --update-other-paths"
 
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 fpin 1.5.0
+mkdir -p "$case_dir/repoA/.claude" "$case_dir/home/.claude"
+printf '{"enabledPlugins":{}}\n' >"$case_dir/repoA/.claude/settings.json"
+fixture_git "$case_dir/repoA" init -q -b main
+fixture_git "$case_dir/repoA" add -A
+fixture_git "$case_dir/repoA" commit -q -m fixture
+fixture_git "$case_dir/repoA" worktree add -q "$case_dir/wt" -b wt
+write "$case_dir/installed_plugins.json" "$(jq -n --arg a "$(norm_path "$case_dir/repoA")" \
+  --arg w "$(norm_path "$case_dir/wt")" --arg g "$(norm_path "$case_dir/gone")" --arg h "$(norm_path "$case_dir/home")" '
+  def u: {scope: "user", installPath: "u", version: "2.0.0"};
+  def p($path; $v): {scope: "project", projectPath: $path, installPath: "p", version: $v};
+  {version: 1, plugins: {
+    "apin@market1": [u, p($a; "1.0.0")],
+    "bpin@market1": [u, p($w; "1.0.0")],
+    "cpin@market1": [u, p($g; "1.0.0")],
+    "dpin@market1": [u, p($h; "1.0.0")],
+    "epin@market1": [u, p($h; "3.0.0"), p($a; "1.0.0")],
+    "fpin@market1": [u, p($a; "1.0.0")]}}')"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" "$(jq -cn '{plugins: [("apin", "bpin", "cpin", "dpin", "epin") | {name: .}] + [{name: "fpin", source: "fpin"}]}')"
+setup_case "$case_dir"
+EXTRA_ENV=(HOME="$case_dir/home" CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NEW_VERSION=2.0.0 CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+post_report="$(jq -r '.run_dir' <<<"$out")/post.market1.json"
+assert_eq "highest: a home pin above every other record does not set it" "2.0.0" \
+  "$(jq -r '.divergences[] | select(.id == "epin@market1") | .highest' "$post_report")"
+assert_eq "divergence split: sync counts actionable, worktree and blocked rows" "3 1 1" \
+  "$(jq -r '.marketplaces[0].divergences | "\(.actionable_here + .actionable_elsewhere) \(.in_worktrees) \(.blocked)"' <<<"$out")"
+cross_plan=$(bash "$SCRIPT_DIR/converge-plan.sh" --from "$post_report")
+assert_eq "divergence split: converge classes the same report's pins" "3 1 1 1 0 6" \
+  "$(jq -r '.counts | "\(.actionable) \(.worktree) \(.["blocked-absent"]) \(.["blocked-home"]) \(.["blocked-catalog"]) \(.rows)"' <<<"$cross_plan")"
+assert_eq "divergence split: converge folded per id, home rows aside, matches sync's counts" "3 1 1" \
+  "$(jq -r '[.groups[].rows[] | select(.class != "blocked-home")] | group_by(.id)
+    | map([.[].class] as $c | if any($c[]; . == "actionable" or . == "blocked-catalog") then "a"
+                              elif any($c[]; . == "worktree") then "w" else "b" end)
+    | "\(map(select(. == "a")) | length) \(map(select(. == "w")) | length) \(map(select(. == "b")) | length)"' <<<"$cross_plan")"
+assert_eq "divergence split: a home pin above the rest leaves one converge row, not a row toward it" "1" \
+  "$(jq -r '[.groups[].rows[] | select(.id == "epin@market1")] | length' <<<"$cross_plan")"
+
 catalog_move_fixture() {
   case_dir=$(new_case_dir)
   catalog_plugin "$case_dir" market1 alpha 0.3.0

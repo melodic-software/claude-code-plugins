@@ -990,10 +990,13 @@ path is present, and removing a worktree is the right fix for a pin inside one, 
 `run converge` pointer over the whole count sends the operator at rows converge marks BLOCKED. The
 digest's `divergences` therefore also carries `actionable_here`, `actionable_elsewhere`,
 `in_worktrees` and `blocked`, which sum to `post`. The script classes each version-skewed row by its
-project/local pins that differ from the row's highest version (a pin already at it is not the skew):
-any such pin that is present and not in a linked worktree makes the row actionable (a row with no
-such pin is actionable too); otherwise any in a linked worktree makes it a worktree row; otherwise
-every such pin is in a path that is not present and the row is blocked. An actionable row is
+project/local pins that differ from the row's `highest` (a pin already at it is not the skew), using
+each pin's `class` from the post report
+([scope-semantics.md](scope-semantics.md#divergence-is-not-automatically-actionable)), the same
+fields `converge` reads: any such pin classed `actionable` or `blocked-catalog` makes the row
+actionable (a row with no such pin is actionable too); otherwise any classed `worktree` makes it a
+worktree row; otherwise every such pin is `blocked-absent` and the row is blocked. A pin at the
+project the run stands in counts as actionable even in a linked worktree. An actionable row is
 `here` when its id has a record for the repo the run stands in. Under audit nothing moves, so a pin
 sync would forward-update (Step 2 or Step 3a, present, not in a linked worktree, below a readable
 catalog version) is read at the catalog version first: work `sync` does is not work for

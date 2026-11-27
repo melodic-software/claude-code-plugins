@@ -28,8 +28,8 @@ assert_exit() {
 }
 assert_contains() {
   case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3 — got: $2" ;;
+    *"$3"*) pass "$1" ;;
+    *) fail "$1" "expected to contain: $3 — got: $2" ;;
   esac
 }
 
@@ -310,7 +310,7 @@ case_dir=$(new_case_dir)
 nongit_proj="$case_dir/plain-project"
 mkdir -p "$nongit_proj/.claude"
 write "$nongit_proj/.claude/settings.json" '{"enabledPlugins":{"alpha@market1": true}}'
-nongit_native=$(cd "$nongit_proj" && (pwd -W 2>/dev/null || pwd))
+nongit_native=$(cd "$nongit_proj" && (pwd -W 2>/dev/null || pwd) )
 native_nongit_path="${nongit_native//\//\\}"
 write "$case_dir/installed_plugins.json" "$(
   jq -cn --arg p "$native_nongit_path" \
@@ -348,7 +348,7 @@ proj_dir="$case_dir/real-project"
 fake_home="$case_dir/elsewhere-home"
 mkdir -p "$proj_dir/.claude" "$fake_home"
 write "$proj_dir/.claude/settings.json" '{"enabledPlugins":{"alpha@market1": true}}'
-proj_native=$(cd "$proj_dir" && (pwd -W 2>/dev/null || pwd))
+proj_native=$(cd "$proj_dir" && (pwd -W 2>/dev/null || pwd) )
 native_proj_path="${proj_native//\//\\}"
 write "$case_dir/installed_plugins.json" "$(
   jq -cn --arg p "$native_proj_path" \
@@ -629,8 +629,8 @@ out=$(run_state "$case_dir" "FLEET_STATE_HOOK_UTILS=$case_dir/evil-hook-utils.sh
 rc=$?
 assert_exit "hook-utils override ignored: runs to completion (exit 0)" 0 "$rc"
 case "$out" in
-*PWNED-HOOK-UTILS-SOURCED*) fail "hook-utils override ignored: caller-supplied path must NOT be sourced" "decoy marker present in output" ;;
-*) pass "hook-utils override ignored: caller-supplied path not sourced" ;;
+  *PWNED-HOOK-UTILS-SOURCED*) fail "hook-utils override ignored: caller-supplied path must NOT be sourced" "decoy marker present in output" ;;
+  *) pass "hook-utils override ignored: caller-supplied path not sourced" ;;
 esac
 
 CASE_NUM=$((CASE_NUM + 1))
@@ -644,8 +644,8 @@ out=$(run_state "$case_dir" "BASH_FUNC_cd%%=() { builtin cd \"$case_dir/evilroot
 rc=$?
 assert_exit "exported cd shadow ignored: runs to completion (exit 0)" 0 "$rc"
 case "$out" in
-*PWNED-CD-SHADOW-SOURCED*) fail "exported cd shadow ignored: hijacked cd must NOT redirect source" "decoy marker present in output" ;;
-*) pass "exported cd shadow ignored: hook-utils resolved from real script location" ;;
+  *PWNED-CD-SHADOW-SOURCED*) fail "exported cd shadow ignored: hijacked cd must NOT redirect source" "decoy marker present in output" ;;
+  *) pass "exported cd shadow ignored: hook-utils resolved from real script location" ;;
 esac
 
 CASE_NUM=$((CASE_NUM + 1))
@@ -668,8 +668,8 @@ chmod +x "$attack_bin_dir/dirname"
 ARGS=(--marketplace market1)
 out=$(run_state "$case_dir" "PATH=$attack_bin_dir")
 case "$out" in
-*PWNED-DIRNAME-PATH-SOURCED*) fail "hostile PATH dirname ignored: PATH-planted dirname must NOT redirect source" "decoy marker present in output" ;;
-*) pass "hostile PATH dirname ignored: hook-utils resolved without an external dirname" ;;
+  *PWNED-DIRNAME-PATH-SOURCED*) fail "hostile PATH dirname ignored: PATH-planted dirname must NOT redirect source" "decoy marker present in output" ;;
+  *) pass "hostile PATH dirname ignored: hook-utils resolved without an external dirname" ;;
 esac
 
 CASE_NUM=$((CASE_NUM + 1))
@@ -679,8 +679,8 @@ write "$case_dir/catalog/market1.json" '{"plugins": []}'
 ARGS=(--marketplace market1)
 out=$(run_state "$case_dir" 'BASH_FUNC_source%%=() { echo "PWNED-SOURCE-SHADOW"; }')
 case "$out" in
-*PWNED-SOURCE-SHADOW*) fail "exported source shadow ignored: hijacked source must NOT run" "decoy marker present in output" ;;
-*) pass "exported source shadow ignored: real hook-utils sourced via builtin" ;;
+  *PWNED-SOURCE-SHADOW*) fail "exported source shadow ignored: hijacked source must NOT run" "decoy marker present in output" ;;
+  *) pass "exported source shadow ignored: real hook-utils sourced via builtin" ;;
 esac
 
 CASE_NUM=$((CASE_NUM + 1))
@@ -702,8 +702,8 @@ out=$(run_state "$case_dir")
 rc=$?
 assert_exit "large catalog (500 plugins): exit 0, no argv-length crash" 0 "$rc"
 case "$out" in
-*"Argument list too long"*) fail "large catalog: no 'Argument list too long'" "found in output: $out" ;;
-*) pass "large catalog: no 'Argument list too long'" ;;
+  *"Argument list too long"*) fail "large catalog: no 'Argument list too long'" "found in output: $out" ;;
+  *) pass "large catalog: no 'Argument list too long'" ;;
 esac
 catalog_len=$(jq '.catalog | length' <<<"$out" 2>/dev/null)
 assert_eq "large catalog: full 500-entry catalog reported, not truncated" "$big_n" "$catalog_len"
@@ -801,11 +801,11 @@ out=$(PATH="$case_dir/crlf-bin:$PATH" run_ids "$case_dir")
 rc=$?
 assert_exit "--ids CR regression: exit 0 under a CRLF-emitting jq" 0 "$rc"
 case "$out" in
-"") fail "--ids CR regression: no CR survives into the emitted ids" \
-  "output was EMPTY — a CR assertion over no output proves nothing" ;;
-*$'\r'*) fail "--ids CR regression: no CR survives into the emitted ids" \
-  "output carried a CR: $(printf '%s' "$out" | od -An -c | tr -s ' ')" ;;
-*) pass "--ids CR regression: no CR survives into the emitted ids" ;;
+  "") fail "--ids CR regression: no CR survives into the emitted ids" \
+    "output was EMPTY — a CR assertion over no output proves nothing" ;;
+  *$'\r'*) fail "--ids CR regression: no CR survives into the emitted ids" \
+    "output carried a CR: $(printf '%s' "$out" | od -An -c | tr -s ' ')" ;;
+  *) pass "--ids CR regression: no CR survives into the emitted ids" ;;
 esac
 assert_eq "--ids CR regression: ids are byte-exact under a CRLF-emitting jq" \
   "alpha@market1
@@ -1668,9 +1668,9 @@ out=$(PATH="$case_dir/crlf-bin:$PATH" run_state "$case_dir")
 rc=$?
 assert_exit "--marketplaces CR regression: exit 0 under a CRLF-emitting jq" 0 "$rc"
 case "$out" in
-*$'\r'*) fail "--marketplaces CR regression: no CR survives into the emitted names" \
-  "found a CR in: $(printf '%s' "$out" | od -An -c | tr -s ' ')" ;;
-*) pass "--marketplaces CR regression: no CR survives into the emitted names" ;;
+  *$'\r'*) fail "--marketplaces CR regression: no CR survives into the emitted names" \
+    "found a CR in: $(printf '%s' "$out" | od -An -c | tr -s ' ')" ;;
+  *) pass "--marketplaces CR regression: no CR survives into the emitted names" ;;
 esac
 assert_eq "--marketplaces CR regression: names are byte-exact under a CRLF-emitting jq" \
   "market1
@@ -2040,6 +2040,40 @@ assert_eq "projectEnabledEntry: null for a user-scope record" "null" \
   "$(jq -r '.installed[] | select(.scope == "user") | .projectEnabledEntry' <<<"$out" 2>/dev/null)"
 assert_eq "projectEnabledEntry: carried on divergences[].scopes[] too" "true" \
   "$(jq -r '.divergences[] | select(.id == "t@market1") | .scopes[] | select(.scope == "project") | .projectEnabledEntry' <<<"$out" 2>/dev/null)"
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" low=1.5.0 even=2.0.0
+mkdir -p "$case_dir/repo" "$case_dir/main/.git/worktrees/wt" "$case_dir/wt"
+printf '../..\n' >"$case_dir/main/.git/worktrees/wt/commondir"
+printf 'gitdir: %s/main/.git/worktrees/wt\n' "$case_dir" >"$case_dir/wt/.git"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "low", "source": "./low"}, {"name": "even", "source": "./even"},
+  {"name": "homey"}, {"name": "flat"}]}'
+write "$case_dir/installed_plugins.json" "$(jq -cn --arg r "$case_dir/repo" --arg w "$case_dir/wt" --arg g "$case_dir/gone" '
+  def u($v): {scope: "user", installPath: "u", version: $v};
+  def p($path; $v): {scope: "project", projectPath: $path, installPath: "p", version: $v};
+  {version: 1, plugins: {
+    "low@market1": [u("2.0.0"), p($r; "1.0.0")],
+    "even@market1": [u("1.0.0"), p($r; "2.0.0"), p($w; "1.0.0"), p($g; "1.0.0"), p("/home/<user>"; "1.0.0")],
+    "homey@market1": [u("2.0.0"), p("/home/<user>"; "3.0.0"), p($r; "1.0.0")],
+    "flat@market1": [u("main"), p($r; "dev")]}}')"
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+div_field() { jq -r --arg id "$1" ".divergences[] | select(.id == \$id) | $2" <<<"$out" 2>/dev/null; }
+class_of() { div_field "$1" ".scopes[] | select(.scope == \"$2\" and (.projectPath // \"\") == \"$3\") | .class"; }
+assert_eq "highest: the highest parsable version over the records" "2.0.0" "$(div_field even@market1 .highest)"
+assert_eq "highest: a home pin above every other record does not set it" "2.0.0" "$(div_field homey@market1 .highest)"
+assert_eq "highest: null when no record version parses" "null" "$(div_field flat@market1 .highest)"
+assert_eq "userHolds: true when a user-scope record is at the highest" "true" "$(div_field low@market1 .userHolds)"
+assert_eq "userHolds: false when only a project pin is at the highest" "false" "$(div_field even@market1 .userHolds)"
+assert_eq "class: a present main-checkout pin is actionable" "actionable" "$(class_of even@market1 project "$case_dir/repo")"
+assert_eq "class: a linked-worktree pin is worktree" "worktree" "$(class_of even@market1 project "$case_dir/wt")"
+assert_eq "class: a pin whose path is not present is blocked-absent" "blocked-absent" "$(class_of even@market1 project "$case_dir/gone")"
+assert_eq "class: a pin keyed to a user home is blocked-home" "blocked-home" "$(class_of even@market1 project "/home/<user>")"
+assert_eq "class: a user-scope record with the catalog at the highest is actionable" "actionable" "$(class_of even@market1 user "")"
+assert_eq "class: a catalog below the highest blocks every pin of the id" "blocked-catalog blocked-catalog" \
+  "$(class_of low@market1 user "") $(class_of low@market1 project "$case_dir/repo")"
+assert_eq "class: no parsable highest leaves the catalog check out" "actionable" "$(class_of flat@market1 project "$case_dir/repo")"
 
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]] && exit 0

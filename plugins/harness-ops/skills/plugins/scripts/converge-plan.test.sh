@@ -62,26 +62,27 @@ mkdir -p "$P_NOGIT"
 REPORT="$TEST_TMPDIR/report.json"
 jq -n --arg ok "$P_OK" --arg commit "$P_COMMIT" --arg wt "$P_WT" --arg nogit "$P_NOGIT" \
   --arg gone "$P_GONE" --arg homedir "$P_HOME" '
-  def rec($s; $v; $p; $present; $home; $wt):
+  def rec($s; $v; $p; $present; $home; $wt; $c):
     {scope: $s, version: $v, projectPath: $p, projectPathPresent: $present,
-     projectPathIsHome: $home, linkedWorktree: $wt, label: null,
+     projectPathIsHome: $home, linkedWorktree: $wt, label: null, class: $c,
      projectEnabledEntry: (if $present != true or $home then null elif $p == $commit then "false" else "absent" end)};
-  def user($v): {scope: "user", version: $v, projectPath: null, projectPathPresent: null,
-                 projectPathIsHome: null, linkedWorktree: null, label: null};
+  def user($v; $c): {scope: "user", version: $v, projectPath: null, projectPathPresent: null,
+                     projectPathIsHome: null, linkedWorktree: null, label: null, class: $c};
+  def div($id; $hi; $uh; $match; $scopes): {id: $id, versionsMatch: $match, highest: $hi, userHolds: $uh, scopes: $scopes};
   {marketplace: {name: "mk"},
    catalog_versions: {"zeta@mk": "1.0.5", "alpha@mk": "1.2.0", "beta@mk": "1.2.0"},
    installed: [],
    divergences: [
-     {id: "alpha@mk", versionsMatch: false, scopes: [user("1.2.0"), rec("project"; "1.0.0"; $ok; true; false; false)]},
-     {id: "beta@mk", versionsMatch: false, scopes: [user("1.2.0"), rec("project"; "1.0.0"; $commit; true; false; false)]},
-     {id: "gamma@mk", versionsMatch: false, scopes: [user("1.2.0"), rec("project"; "1.0.0"; $gone; false; false; null)]},
-     {id: "delta@mk", versionsMatch: false, scopes: [user("1.2.0"), rec("project"; "1.0.0"; $homedir; true; true; false)]},
-     {id: "epsilon@mk", versionsMatch: false, scopes: [user("1.2.0"), rec("project"; "1.0.0"; $wt; true; false; true)]},
-     {id: "zeta@mk", versionsMatch: false, scopes: [user("1.0.0"), rec("project"; "1.1.0"; $ok; true; false; false)]},
-     {id: "theta@mk", versionsMatch: false, scopes: [rec("project"; "1.1.0"; $ok; true; false; false), rec("project"; "1.0.0"; $wt; true; false; true)]},
-     {id: "iota@mk", versionsMatch: false, scopes: [user("1.2.0"), rec("project"; "1.0.0"; $nogit; true; false; false)]},
-     {id: "kappa@mk", versionsMatch: false, scopes: [user("1.2.0"), rec("local"; "1.0.0"; $ok; true; false; false)]},
-     {id: "eta@mk", versionsMatch: true, scopes: [user("1.2.0"), rec("project"; "1.2.0"; $ok; true; false; false)]}
+     div("alpha@mk"; "1.2.0"; true; false; [user("1.2.0"; "actionable"), rec("project"; "1.0.0"; $ok; true; false; false; "actionable")]),
+     div("beta@mk"; "1.2.0"; true; false; [user("1.2.0"; "actionable"), rec("project"; "1.0.0"; $commit; true; false; false; "actionable")]),
+     div("gamma@mk"; "1.2.0"; true; false; [user("1.2.0"; "actionable"), rec("project"; "1.0.0"; $gone; false; false; null; "blocked-absent")]),
+     div("delta@mk"; "1.2.0"; true; false; [user("1.2.0"; "actionable"), rec("project"; "1.0.0"; $homedir; true; true; false; "blocked-home")]),
+     div("epsilon@mk"; "1.2.0"; true; false; [user("1.2.0"; "actionable"), rec("project"; "1.0.0"; $wt; true; false; true; "worktree")]),
+     div("zeta@mk"; "1.1.0"; false; false; [user("1.0.0"; "blocked-catalog"), rec("project"; "1.1.0"; $ok; true; false; false; "blocked-catalog")]),
+     div("theta@mk"; "1.1.0"; false; false; [rec("project"; "1.1.0"; $ok; true; false; false; "actionable"), rec("project"; "1.0.0"; $wt; true; false; true; "worktree")]),
+     div("iota@mk"; "1.2.0"; true; false; [user("1.2.0"; "actionable"), rec("project"; "1.0.0"; $nogit; true; false; false; "actionable")]),
+     div("kappa@mk"; "1.2.0"; true; false; [user("1.2.0"; "actionable"), rec("local"; "1.0.0"; $ok; true; false; false; "actionable")]),
+     div("eta@mk"; "1.2.0"; true; true; [user("1.2.0"; "actionable"), rec("project"; "1.2.0"; $ok; true; false; false; "actionable")])
    ]}' >"$REPORT"
 
 PLAN="$TEST_TMPDIR/plan.json"
@@ -137,11 +138,11 @@ WT_COMMIT="$TEST_TMPDIR/wt-commit"
 tracked_repo "$WT_COMMIT" '{"mu@mk":true}'
 jq -n --arg p "$WT_COMMIT" '
   {marketplace: {name: "mk"}, catalog_versions: {}, installed: [],
-   divergences: [{id: "mu@mk", versionsMatch: false, scopes: [
+   divergences: [{id: "mu@mk", versionsMatch: false, highest: "1.2.0", userHolds: true, scopes: [
      {scope: "user", version: "1.2.0", projectPath: null, projectPathPresent: null,
-      projectPathIsHome: null, linkedWorktree: null, label: null},
+      projectPathIsHome: null, linkedWorktree: null, label: null, class: "actionable"},
      {scope: "project", version: "1.0.0", projectPath: $p, projectPathPresent: true,
-      projectPathIsHome: false, linkedWorktree: true, label: null}]}]}' >"$TEST_TMPDIR/wt-report.json"
+      projectPathIsHome: false, linkedWorktree: true, label: null, class: "worktree"}]}]}' >"$TEST_TMPDIR/wt-report.json"
 WT_PLAN="$("$SCRIPT" --from "$TEST_TMPDIR/wt-report.json")"
 assert_eq "worktree + committed enable: uninstall is not the default" "false" \
   "$(jq -r '.groups[0].rows[0].default' <<<"$WT_PLAN")"
@@ -153,11 +154,11 @@ tracked_repo "$SHADOW" '{}'
 entry_plan() {
   jq -n --arg p "$SHADOW" --argjson e "$1" '
     {marketplace: {name: "mk"}, catalog_versions: {"nu@mk": "1.2.0"}, installed: [],
-     divergences: [{id: "nu@mk", versionsMatch: false, scopes: [
+     divergences: [{id: "nu@mk", versionsMatch: false, highest: "1.2.0", userHolds: true, scopes: [
        {scope: "user", version: "1.2.0", projectPath: null, projectPathPresent: null,
-        projectPathIsHome: null, linkedWorktree: null, label: null, projectEnabledEntry: null},
+        projectPathIsHome: null, linkedWorktree: null, label: null, projectEnabledEntry: null, class: "actionable"},
        ({scope: "project", version: "1.0.0", projectPath: $p, projectPathPresent: true,
-         projectPathIsHome: false, linkedWorktree: false, label: null}
+         projectPathIsHome: false, linkedWorktree: false, label: null, class: "actionable"}
         + (if $e == "missing" then {} else {projectEnabledEntry: $e} end))]}]}' >"$TEST_TMPDIR/entry-report.json"
   "$SCRIPT" --from "$TEST_TMPDIR/entry-report.json" | jq -r '.groups[] | select(.projectPath != null) | .rows[0].strategy'
 }

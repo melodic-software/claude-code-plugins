@@ -715,31 +715,35 @@ divergence_block() {
         | ([$would[] | . as $w
             | if .current == true then ($cur[] | select(.id == $w.id and .scope == $w.scope))
               else {id, scope, path} end]) as $wp
-        | .divergences |= map(.id as $id | .scopes |= map(
+        | .divergences |= map(.id as $id | (.scopes |= map(
             . as $s
             | if $s.linkedWorktree != true and $s.projectPathIsHome != true
                  and any($wp[]; .id == $id and .scope == $s.scope and .path == $s.projectPath)
                  and ($cv[$id] | triple) != null and ($s.version | triple) != null
                  and ($s.version | triple) < ($cv[$id] | triple)
               then .version = $cv[$id] else . end))
+          | ($cv[$id] | triple) as $c
+          | if $c != null and $c > (.highest | triple)
+               and any(.scopes[]; .projectPathIsHome != true and .version == $cv[$id])
+            then .highest = $cv[$id] else . end)
       end) as $qq
     # A pin at the project the run stands in is converge-actionable even when that
     # project is itself a linked worktree, so it is never classed `worktree`.
     | ([$qq.installed[]? | select(.currentProject == true) | .projectPath]) as $curp
     | def act: [.divergences[]? | actionable | .id];
+    # fleet-state.sh'"'"'s scope class, folded to the split the report shows: converge
+    # explains a blocked-catalog pin, so it counts with the actionable ones.
     def pin_class:
-      if .projectPathPresent == false then "blocked"
-      elif .projectPathPresent == true and (.projectPath as $pp | $curp | index($pp)) == null
-           and .linkedWorktree == true then "worktree"
+      if .class == "blocked-absent" then "blocked"
+      elif .class == "worktree" and (.projectPath as $pp | $curp | index($pp)) == null then "worktree"
       else "actionable" end;
-    # Only a pin that differs from the row'"'"'s highest version is the skew converge or
-    # a worktree removal would settle; a pin already at it is not what makes the
-    # row actionable. An unparsable version stays in, the conservative direction.
-    # A pin keyed to a user home (`projectPathIsHome`) is dropped like in `actionable`:
-    # it never sets the highest version and never classes the row.
+    # Only a pin that differs from the row'"'"'s `highest` is the skew converge or a
+    # worktree removal would settle; a pin already at it is not what makes the row
+    # actionable. An unparsable version stays in, the conservative direction. A pin
+    # keyed to a user home is dropped like in `actionable` and never classes the row.
     def row_class:
       [.scopes[]? | select(.projectPathIsHome != true)] as $s
-      | ([$s[] | .version | triple | select(. != null)] | max) as $top
+      | (.highest | triple) as $top
       | [$s[] | select((.projectPath // "") != "")
          | select($top == null or (.version | triple) != $top)
          | pin_class] as $c
@@ -754,7 +758,7 @@ divergence_block() {
     def diverging_records:
       .id as $id
       | [.scopes[]? | select(.projectPathIsHome != true)] as $s
-      | ([$s[] | .version | triple | select(. != null)] | max) as $top
+      | (.highest | triple) as $top
       | [$s[] | select($top == null or (.version | triple) != $top)] as $d
       | (if ($d | length) > 0 then $d else $s end)
       | map({id: $id, scope, version, projectPath: (.projectPath // null),

@@ -80,6 +80,18 @@ each with `versionsMatch`:
 A raw count of `divergences[].length` conflates the two and overstates drift. Always filter on
 `versionsMatch == false` before presenting a count to the user.
 
+Each entry also carries the facts `sync` and `converge` both act on, computed once in
+`fleet-state.sh` so the two never disagree:
+
+- `highest` is the highest parsable version over the id's records not keyed to a user home (see
+  "A projectPath that is a user home directory" below), or `null` when none parses; `userHolds`
+  says a user-scope record is at it.
+- Each `scopes[].class` says what `converge` can do with that pin, first match wins:
+  `blocked-home` (a home path), `blocked-absent` (a project/local path not present), `worktree` (a
+  linked worktree), `blocked-catalog` (the catalog reads below `highest`), else `actionable`.
+  `converge` turns `blocked-catalog` into `actionable` when its strategy for the row is uninstall,
+  which installs nothing from the catalog.
+
 ## `plugin list` / `plugin details` version output is misleading
 
 **Neither output says what loads here.** `claude plugin list` prints one row per install record,
@@ -244,9 +256,10 @@ it does not rest on that treatment.
   the command itself is documented under
   [Update plugins now](https://code.claude.com/docs/en/plugins/install#update-plugins-now).
 
-`sync` drops a home-keyed record's scope before comparing versions,
-so a divergence that exists only because of it is not counted as actionable, and lists in a
-`User-home project records` row only the records `update` could not move.
+A home-keyed record never sets a divergence's `highest`, so `converge` never targets its version.
+`sync` also drops its scope before comparing versions, so a divergence that exists only because of
+it is not counted as actionable, and lists in a `User-home project records` row only the records
+`update` could not move.
 
 ## Where project-scope records come from, and why the skill cannot reap them
 
