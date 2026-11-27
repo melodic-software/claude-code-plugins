@@ -126,8 +126,8 @@ else
   fail "a check slowed past the budget did not fail the guard: ${slow_ms:-?} ms against ${slow_budget_ms:-?} ms"
 fi
 out="$(cd "$f" && push_line | bash scripts/pre-push-branch-checks.sh origin 2>&1)"
-if [[ "$out" == *"over the 3 s hook budget"* ]]; then
-  ok "a push whose checks run past 3 s warns that it is over the hook budget"
+if [[ "$out" == *"whole-branch checks "*" ms), over the 3 s hook budget"* ]]; then
+  ok "a push whose checks run past 3 s warns that it is over the hook budget, with the time split by phase"
 else
   fail "a push over 3 s did not warn: $out"
 fi

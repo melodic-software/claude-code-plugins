@@ -9,13 +9,20 @@ self="$(basename "$0")"
 remote="${1:-origin}"
 zero=0000000000000000000000000000000000000000
 started="${EPOCHREALTIME:-}"
+parallel_started=""
+
+# shellcheck disable=SC2329 # called by report_time
+since_ms() { echo $(((${EPOCHREALTIME//[!0-9]/} - ${1//[!0-9]/}) / 1000)); }
 
 # shellcheck disable=SC2329 # run by the EXIT traps below
 report_time() {
   [[ -n "$started" && -n "${EPOCHREALTIME:-}" ]] || return 0
-  local ms=$(((${EPOCHREALTIME//[!0-9]/} - ${started//[!0-9]/}) / 1000))
-  ((ms <= 3000)) ||
-    echo "$self: this push's checks took ${ms} ms, over the 3 s hook budget (owner-decisions L413); report it so the slow check is made faster or moved to CI." >&2
+  local ms split=""
+  ms="$(since_ms "$started")"
+  ((ms > 3000)) || return 0
+  [[ -z "$parallel_started" ]] ||
+    split=" (git state and fragment checks $((ms - $(since_ms "$parallel_started"))) ms, whole-branch checks $(since_ms "$parallel_started") ms)"
+  echo "$self: this push's checks took ${ms} ms${split}, over the 3 s hook budget (owner-decisions L413); report it so the slow check is made faster or moved to CI." >&2
 }
 trap report_time EXIT
 
@@ -109,6 +116,7 @@ fixes=(
   "node scripts/generate-catalog.mjs"
   "node scripts/generate-cheatsheet.mjs --root ."
 )
+parallel_started="${EPOCHREALTIME:-}"
 pids=()
 for i in "${!names[@]}"; do
   pids[i]=""
