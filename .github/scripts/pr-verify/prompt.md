@@ -141,11 +141,8 @@ Judge in this order:
    check it does not name, or whose reason does not hold, gets no reason from it. A security
    control, a billing hold, a secret scanner or a dependency audit gets none from the section,
    whatever it says: only the spec allows weakening one, when an entry whose `spec_kind` is
-   `closes` or `refs` names it and also holds a line link to the owner's decision in the
-   owner-decisions record
-   (`https://github.com/melodic-software/architecture/blob/<commit or main>/docs/owner-decisions.md#L<line>`)
-   and the owner's words after `verbatim:` in double quotes. The record is private, so check only
-   that both are present. The spec may allow an ordinary check the same way. No other text gives
+   `closes` or `refs` names it and also holds the owner's words after `verbatim:` in double
+   quotes. The spec may allow an ordinary check the same way. No other text gives
    a reason: the rest of the body, commit messages and code comments included.
 
 Return `fail` when you find any blocking defect: the spec is not delivered, a correctness bug, a

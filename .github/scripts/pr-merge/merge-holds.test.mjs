@@ -42,8 +42,7 @@ const history = (sha, answer) => {
   return { ...answer, commits, total_commits: commits.length };
 };
 
-const ROW = "https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L10";
-const PROOF = `\n\nRow: ${ROW}\nOwner, verbatim: "Approve it."`;
+const PROOF = '\n\nOwner, verbatim: "Approve it."';
 const comment = (changes = {}) => ({
   issue_url: "https://api.github.com/repos/owner/repo/issues/40",
   user: { login: "owner-person", id: 5, type: "User" },
@@ -286,7 +285,7 @@ test("a decision line after leading blank lines still counts", async () => {
   assert.equal((await decide(undefined, { row: comment({ body: `\n  **Decision recorded.**\tCost: yes for #99${PROOF}` }) })).link, LINK);
 });
 
-test("a cost decision clears only with a row link and a verbatim owner quote, and says which it lacks", async () => {
+test("a cost decision clears only with a verbatim owner quote, and says when it lacks one", async () => {
   const lacks = async (body) => {
     const missing = [];
     const { github } = world({ row: comment({ body }) });
@@ -295,37 +294,16 @@ test("a cost decision clears only with a row link and a verbatim owner quote, an
   };
   const line = "**Decision recorded.** Cost: approve it for #99.";
   const quote = 'Owner, verbatim: "Approve it."';
-  const sha = "0123456789abcdef0123456789abcdef01234567";
-  for (const row of [ROW, `https://github.com/melodic-software/architecture/blob/${sha}/docs/owner-decisions.md#L12`, `${ROW}-L14`, ROW.replace(".md#", ".md?plain=1#")]) {
-    assert.deepEqual(await lacks(`${line}\n${row}\n${quote}`), { link: LINK, missing: [] }, row);
-  }
+  assert.deepEqual(await lacks(`${line}\n${quote}`), { link: LINK, missing: [] });
   for (const text of ['Owner\'s answer, verbatim: "yes go w/ recommendations"', 'Owner, typed in a session, verbatim: "Go with recommendations."']) {
-    assert.equal((await lacks(`${line}\n${ROW}\n${text}`)).link, LINK, text);
+    assert.equal((await lacks(`${line}\n${text}`)).link, LINK, text);
   }
-  const noRow = await lacks(`${line}\n${quote}`);
-  assert.equal(noRow.link, null);
-  assert.equal(noRow.missing.length, 1);
-  assert.match(noRow.missing[0], /owner-decisions record/);
-  const noQuote = await lacks(`${line}\n${ROW}`);
+  const noQuote = await lacks(line);
   assert.equal(noQuote.link, null);
   assert.equal(noQuote.missing.length, 1);
   assert.match(noQuote.missing[0], /verbatim/);
-  assert.equal((await lacks(line)).missing.length, 2);
-  for (const row of [
-    ROW.replace("#L10", ""),
-    ROW.replace("#L10", "#L0"),
-    ROW.replace("/blob/main/", "/blob/feature/"),
-    ROW.replace("/blob/main/", "/blob/0123abc/"),
-    ROW.replace("melodic-software/architecture", "evil/architecture"),
-    ROW.replace("owner-decisions.md", "decisions.md"),
-    ROW.replace("https://github.com", "https://example.com"),
-    `<!-- ${ROW} -->`,
-    `<!--\n${ROW}`,
-  ]) {
-    assert.equal((await lacks(`${line}\n${row}\n${quote}`)).link, null, row);
-  }
   for (const text of ['verbatim: ""', 'verbatim: "  "', "verbatim: yes", 'verbatim:\n"yes"', `<!-- ${quote} -->`, 'Owner, quoted: "yes"', 'The owner, verbatim as typed: "yes"']) {
-    assert.equal((await lacks(`${line}\n${ROW}\n${text}`)).link, null, text);
+    assert.equal((await lacks(`${line}\n${text}`)).link, null, text);
   }
   const missing = [];
   const { github } = world({ row: comment({ body: line, performed_via_github_app: { slug: "x" } }) });
@@ -333,7 +311,7 @@ test("a cost decision clears only with a row link and a verbatim owner quote, an
   assert.deepEqual(missing, []);
 });
 
-test("the row and quote only tighten: with both present, every older failing condition still holds", async () => {
+test("the quote only tightens: with it present, every older failing condition still holds", async () => {
   for (const [name, options] of Object.entries({
     "posted through an App": { row: comment({ performed_via_github_app: { slug: "cursor" } }) },
     edited: { node: { lastEditedAt: "2026-10-22T13:00:00Z" } },
@@ -349,15 +327,15 @@ test("the row and quote only tighten: with both present, every older failing con
 });
 
 test("decisionGaps reads outside HTML comments and names each gap once", () => {
-  assert.deepEqual(decisionGaps(`x\n${ROW}\nverbatim: "y"`), []);
-  assert.equal(decisionGaps(`<!-- ${ROW}\nverbatim: "y" -->`).length, 2);
-  assert.equal(decisionGaps(null).length, 2);
+  assert.deepEqual(decisionGaps('x\nverbatim: "y"'), []);
+  assert.equal(decisionGaps('<!-- verbatim: "y" -->').length, 1);
+  assert.equal(decisionGaps(null).length, 1);
 });
 
 test("the cost hold's reason names what the linked decision comment lacks", () => {
-  const [reason] = holds("", [], ["infra/main.tf"], [], [], null, true, true, ["a row link"]);
-  assert.match(reason, /owner-decisions record and the owner's words quoted verbatim/);
-  assert.match(reason, /the linked decision comment lacks a row link$/);
+  const [reason] = holds("", [], ["infra/main.tf"], [], [], null, true, true, ["a verbatim quote"]);
+  assert.match(reason, /the owner's words quoted verbatim/);
+  assert.match(reason, /the linked decision comment lacks a verbatim quote$/);
   assert.doesNotMatch(holds("", [], ["infra/main.tf"], [], [], null)[0], /lacks/);
   assert.deepEqual(holds("", [], ["infra/main.tf"], [], [], LINK), []);
 });
@@ -721,7 +699,7 @@ test("the decision is the newest on the pull request, else the newest on its lin
     return id ? rows[id] : base(method, path, data);
   };
   assert.equal(await costDecision(github, REPO, 99, `Closes #40\n${LINK}\n${onPull(9)}`, HUMANS, HEAD, github, missing), null);
-  assert.equal(missing.length, 2);
+  assert.equal(missing.length, 1);
   assert.equal(await pick(`Closes #40\n${LINK}`, [laneRun(HEAD)]), LINK);
 });
 

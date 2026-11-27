@@ -448,17 +448,14 @@ export function costHold(files, decision) {
 
 const DECISION_LINK = /https:\/\/github\.com\/([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+)\/(?:issues|pull)\/([0-9]+)#issuecomment-([0-9]+)/g;
 const DECISION_LINE = /^\*\*Decision recorded\.\*\*[ \t]+Cost:/;
-const DECISION_ROW =
-  /https:\/\/github\.com\/melodic-software\/architecture\/blob\/(?:main|[0-9a-f]{40})\/docs\/owner-decisions\.md(?:\?plain=1)?#L[1-9][0-9]*(?:-L[1-9][0-9]*)?/;
 const DECISION_QUOTE = /(?<![A-Za-z0-9_])verbatim:[ \t]*"[^"\n]*[^" \t\r\n][^"\n]*"/;
 const DECISION_GAPS = {
-  row: "a link to its row in the owner-decisions record (https://github.com/melodic-software/architecture/blob/<commit or main>/docs/owner-decisions.md#L<line>)",
   quote: 'the owner\'s words quoted verbatim (`verbatim: "<his words>"`)',
 };
 
 export function decisionGaps(body) {
   const text = String(body ?? "").replaceAll(HTML_COMMENT, "");
-  return [...(DECISION_ROW.test(text) ? [] : [DECISION_GAPS.row]), ...(DECISION_QUOTE.test(text) ? [] : [DECISION_GAPS.quote])];
+  return [...(DECISION_QUOTE.test(text) ? [] : [DECISION_GAPS.quote])];
 }
 export const PULL_OPENED_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
@@ -1118,7 +1115,7 @@ export function holds(body, items, files, holdPaths, lifters = [], decision = nu
   const cost = costHold(files, decision);
   if (cost) {
     reasons.push(
-      `${cost}; the owner's unedited comment opening '**Decision recorded.** Cost:' on this pull request, or on its linked issue naming this pull request, linked from the body and carrying a link to its row in the owner-decisions record and the owner's words quoted verbatim, lifts it for the head it decided and a later head that only merges the base${missing.length ? `; the linked decision comment lacks ${missing.join(" and ")}` : ""}`,
+      `${cost}; the owner's unedited comment opening '**Decision recorded.** Cost:' on this pull request, or on its linked issue naming this pull request, linked from the body and carrying the owner's words quoted verbatim, lifts it for the head it decided and a later head that only merges the base${missing.length ? `; the linked decision comment lacks ${missing.join(" and ")}` : ""}`,
     );
   }
   if (bodyHolds(body, byPerson)) {

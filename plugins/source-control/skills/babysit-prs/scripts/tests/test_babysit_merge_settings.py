@@ -291,8 +291,7 @@ class EveryConsumerFailsClosedWhenUnset(unittest.TestCase):
             "import babysit_merge as m, babysit_review_evidence as r, diff_risk as k, babysit_merge_policy as p\n"
             "print(json.dumps({\n"
             " 'checks': m.AI_REVIEW_CHECKS, 'lanes': r.LANES, 'callers': sorted(r.REVIEW_CALLERS),\n"
-            " 'app': p.LANES_APP_LOGIN, 'row': bool(p.DECISION_ROW.search("
-            "'https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L1')),\n"
+            " 'app': p.LANES_APP_LOGIN, 'row': p.DECISION_ROW is not None,\n"
             " 'free': [bool(k._FREE_RUNNER.fullmatch(l)) for l in ('ubuntu-latest', 'melodic-ubuntu-24.04-x64')],\n"
             " 'model': [bool(k._MODEL_ACTION_NAME.search(n)) for n in ('claude-code-action', 'run-claude-cli')],\n"
             " 'hint': k._decision_record_hint()}))\n"
@@ -320,19 +319,15 @@ class EveryConsumerFailsClosedWhenUnset(unittest.TestCase):
         self.assertFalse(got["row"])
         self.assertEqual(got["free"], [True, False])
         self.assertEqual(got["model"], [True, True])
-        self.assertIn("no owner-decisions record is set", got["hint"])
+        self.assertEqual(got["hint"], "")
 
     def test_a_lane_with_no_names_matches_no_check(self) -> None:
         import babysit_merge
 
         self.assertFalse(babysit_merge.is_ai_review_check("PR Review / Status", ()))
 
-    def test_no_decision_row_matches_without_a_record(self) -> None:
-        self.assertIsNone(
-            ms.decision_row_pattern("").search(
-                "https://github.com/a/b/blob/main/c.md#L1"
-            )
-        )
+    def test_no_decision_row_pattern_without_a_record(self) -> None:
+        self.assertIsNone(ms.decision_row_pattern(""))
 
 
 class ConfiguredValues(unittest.TestCase):

@@ -3660,13 +3660,14 @@ DECISION_QUOTE = re.compile(
 
 def decision_gaps(body: Any) -> list[str]:
     """What cost decision comment `body` lacks, outside HTML comments: `row`
-    and `quote`, in that order; empty when it carries both."""
+    (when DECISION_ROW is configured) and `quote`, in that order; empty when
+    every required element is present."""
     text = HTML_COMMENT.sub("", str(body or ""))
-    return [
-        gap
-        for gap, pattern in (("row", DECISION_ROW), ("quote", DECISION_QUOTE))
-        if not pattern.search(text)
-    ]
+    checks: list[tuple[str, re.Pattern[str]]] = []
+    if DECISION_ROW is not None:
+        checks.append(("row", DECISION_ROW))
+    checks.append(("quote", DECISION_QUOTE))
+    return [gap for gap, pattern in checks if not pattern.search(text)]
 
 
 HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)

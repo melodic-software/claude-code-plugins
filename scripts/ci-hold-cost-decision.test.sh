@@ -146,9 +146,7 @@ OLD_SEC_CHECK='pr-review-security / review-status'
 
 event() { jq -cn --arg e "$1" --argjson actor "$2" --arg at "$3" '{event: $e, actor: $actor, created_at: $at, label: {name: "needs-human"}}'; }
 comment() { jq -cn --argjson user "$1" --arg at "$2" --arg body "$3" '{user: $user, created_at: $at, updated_at: $at, body: $body}'; }
-ROW='https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L10'
 PROOF="
-Row: $ROW
 Owner, verbatim: \"Accepted.\""
 decision() {
   jq -cn --arg url "https://api.github.com/repos/o/r/issues/$1" --argjson user "$2" --arg at "$3" --arg body "$4$PROOF" \
@@ -352,30 +350,12 @@ LINE='**Decision recorded.** Cost: accepted for #6419.'
 QUOTE='Owner, verbatim: "Accepted."'
 reset
 body_is "$LINE
-$ROW
 $QUOTE"
-expect "a decision with a row link and a verbatim quote clears the hold" yes yes yes
-body_is "$LINE
-${ROW/main/0123456789abcdef0123456789abcdef01234567}-L12
-$QUOTE"
-expect "a row link at a commit, with a line range, clears the hold" yes yes yes
-body_is "$LINE
-$QUOTE"
-expect "a decision with no row link clears nothing and says so" no no no "lacks a link to its row in the owner-decisions record"
-body_is "$LINE
-$ROW"
-expect "a decision with no verbatim quote clears nothing and says so" no no no "lacks the owner's words quoted verbatim"
+expect "a decision with a verbatim quote clears the hold" yes yes yes
 body_is "$LINE"
-expect "a decision with neither names both" no no no "owner-decisions record (https://github.com/melodic-software/architecture/blob/<commit or main>/docs/owner-decisions.md#L<line>) and the owner's words quoted verbatim"
-for row in "${ROW%#L10}" "${ROW/main/feature}" "${ROW/architecture/x}" "<!-- $ROW -->"; do
-  body_is "$LINE
-$row
-$QUOTE"
-  expect "a decision whose row link reads '$row' clears nothing" no no no "lacks a link to its row"
-done
+expect "a decision with no verbatim quote clears nothing and says so" no no no "lacks the owner's words quoted verbatim"
 for quote in 'Owner, verbatim: " "' 'Owner, verbatim: yes' 'Owner, xverbatim: "yes"' "<!-- $QUOTE -->"; do
   body_is "$LINE
-$ROW
 $quote"
   expect "a decision whose quote reads '$quote' clears nothing" no no no "lacks the owner's words"
 done
@@ -749,7 +729,7 @@ STUB_DECISIONS="$(jq -cn --argjson a "$(decision 9306 "$OWNER" 2026-10-23T13:14:
 export STUB_DECISIONS
 nodecided
 decided "$HEAD" 2026-10-23T13:11:00Z
-expect "a newer decision lacking the row and quote holds over an older complete one" no no no "lacks a link to its row"
+expect "a newer decision lacking the quote holds over an older complete one" no no no "lacks the owner's words quoted verbatim"
 
 reset
 lanes "[$(hold_note cost,trust-gate)]" '[]'

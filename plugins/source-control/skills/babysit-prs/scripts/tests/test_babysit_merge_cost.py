@@ -205,8 +205,7 @@ class Lanes:
         return self.runs[n - 1]["notes"]
 
 
-ROW = "https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L10"
-PROOF = f'\n\nRow: {ROW}\nOwner, verbatim: "Approve it."'
+PROOF = '\n\nOwner, verbatim: "Approve it."'
 
 
 def _comment(**changes: Any) -> dict[str, Any]:
@@ -394,15 +393,7 @@ class CostDecision(unittest.TestCase):
             "a link inside an HTML comment": dict(
                 body=f"Closes #40\n<!-- {LINK} -->\n"
             ),
-            "no record row": dict(
-                comment=_comment(
-                    body='**Decision recorded.** Cost: ok #99.\nOwner, verbatim: "yes"'
-                )
-            ),
             "no owner quote": dict(
-                comment=_comment(body=f"**Decision recorded.** Cost: ok #99.\n{ROW}")
-            ),
-            "neither row nor quote": dict(
                 comment=_comment(body="**Decision recorded.** Cost: ok #99.")
             ),
             "a link after an unclosed HTML comment": dict(

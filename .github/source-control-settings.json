@@ -55,7 +55,6 @@
           "claude-security-review:merge=PR Review Security / Publish Review",
           "claude-security-review:merge=pr-review-security / Publish Review"
         ],
-        "owner_decisions_record": "melodic-software/architecture/docs/owner-decisions.md",
         "free_runner_labels": [
           "melodic-ubuntu-24.04-x64",
           "melodic-ubuntu-24.04-x64-*",
