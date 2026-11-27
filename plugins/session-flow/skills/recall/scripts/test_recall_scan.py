@@ -347,11 +347,12 @@ class RecallScanTest(unittest.TestCase):
             f"Diagnostics: {record}",
         ])
 
-    def write_history(self, store: Path, key: str, session: str, project: str) -> None:
+    def write_history(self, store: Path, key: str, session: str, project: str, slug: str | None = None) -> None:
         prompt = store / "host-a-wsl" / "history" / f"{key}.json"
         prompt.parent.mkdir(parents=True, exist_ok=True)
         prompt.write_text(json.dumps({
             "schema": "history-prompt/v1", "key": key, "session_id": session, "project": project,
+            **({"project_slug": slug} if slug is not None else {}),
             "time": {"start": "2026-08-01T09:00:00Z", "end": "2026-08-01T09:00:00Z"},
             "excerpt": "what retry budget did we settle on", "pastes": {"restored": 0, "missing": 0},
         }), encoding="utf-8")
@@ -379,6 +380,18 @@ class RecallScanTest(unittest.TestCase):
         self.assertEqual((worktree.returncode, everything.returncode), (0, 0), worktree.stderr + everything.stderr)
         self.assertEqual(self.lines(worktree), [], "a worktree scan reads no other project's prompts")
         self.assertEqual([line["session"] for line in self.lines(everything)], ["s-elsewhere"])
+
+    def test_a_history_prompt_under_a_home_matches_its_project_by_the_stored_raw_slug(self) -> None:
+        store = self.make_store()
+        self.write_history(store, "eeeeffffeeeeffff", "s-home", "~/repos/orders", "-home-user-a-repos-orders")
+        self.write_history(store, "1111222211112222", "s-other", "~/repos/other", "-home-user-a-repos-other")
+        mine = self.tmp / "projects" / "-home-user-a-repos-orders"
+        mine.mkdir(parents=True)
+
+        result = self.run_scan("--dir", str(mine), "--term", "retry budget", "--data-dir", str(self.tmp / "data"))
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([line["session"] for line in self.lines(result)], ["s-home"], "only the scanned project's prompt")
 
     def test_a_held_host_lock_is_a_gap_and_reads_nothing(self) -> None:
         self.make_store()

@@ -155,6 +155,15 @@ def header_lines(args: argparse.Namespace, sources: transcript_sources.Sources, 
     return [] if store is None else transcript_sources.store_header(store, sources)
 
 
+def project_slug(prompt: dict) -> str | None:
+    """The prompt's project slug; a prompt stored before `project_slug` was kept encodes its redacted
+    `project`, which matches only a project outside a home directory."""
+    slug, project = prompt.get("project_slug"), prompt.get("project")
+    if isinstance(slug, str):
+        return slug
+    return claude_projects.encode_project_slug(project) if isinstance(project, str) else None
+
+
 def history_matches(
     data_dir: Path | None, terms: list[str], skip: set[str], projects: set[str] | None = None
 ) -> list[tuple[dict, str]]:
@@ -171,8 +180,7 @@ def history_matches(
         text = prompt.get("excerpt")
         if not isinstance(text, str) or prompt.get("session_id") in skip:
             continue
-        project = prompt.get("project")
-        if projects is not None and not (isinstance(project, str) and claude_projects.encode_project_slug(project) in projects):
+        if projects is not None and project_slug(prompt) not in projects:
             continue
         term = next((t for t in terms if t.lower() in text.lower()), None)
         if term is not None:

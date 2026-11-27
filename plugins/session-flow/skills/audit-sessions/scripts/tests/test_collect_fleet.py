@@ -215,6 +215,17 @@ def test_history_only_prompts_are_stored_with_their_pastes(data_dir, multi):
     assert envelope(collect(data_dir, root))["data"]["history_prompts"] == 0, "a stored prompt is not written again"
 
 
+def test_a_history_prompt_under_a_home_keeps_its_raw_project_slug_beside_the_redacted_project(data_dir, multi):
+    root, _ = multi
+    project = "/" + "home/user-a/repos/orders.api"
+    entry = {"display": "rename the flag", "timestamp": 1790000000000, "project": project, "sessionId": "gone-0001"}
+    (root.parent / "history.jsonl").write_text(json.dumps(entry) + "\n", encoding="utf-8")
+    assert collect(data_dir, root).returncode == 0
+    (path,) = store_root(data_dir).glob("local/history/*.json")
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    assert (stored["project"], stored["project_slug"]) == ("~/repos/orders.api", "-home-user-a-repos-orders-api")
+
+
 def test_stored_history_prompt_is_rewritten_when_its_payload_changes(data_dir, multi):
     root, _ = multi
     entry = {"display": "rename the flag", "timestamp": 1790000000000, "project": "/w/repo", "sessionId": "gone-0001"}

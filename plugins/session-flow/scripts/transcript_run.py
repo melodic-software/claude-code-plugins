@@ -163,6 +163,7 @@ PROTOCOL = 1
 # The abstract socket name `\0<name>.<uid>` must fit sun_path: https://man7.org/linux/man-pages/man7/unix.7.html
 LOCK_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}")
 MODULES = (
+    "claude_projects",
     "transcript_reader",
     "transcript_values",
     "redact",

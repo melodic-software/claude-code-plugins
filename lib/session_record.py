@@ -26,12 +26,13 @@ Public interface:
 - `history_prompts(config_dir, sessions, *, scrub, excerpt_chars, since=None, meter=NO_METER)`
   yields each `HISTORY_SCHEMA` prompt of `history.jsonl` whose session is not in `sessions` and
   whose time is not before `since`, its pasted text restored from `paste-cache/` before `scrub`
-  redacts it and cuts it to `excerpt_chars` (0 keeps no text).
+  redacts it and cuts it to `excerpt_chars` (0 keeps no text). Its `project` is scrubbed too;
+  `project_slug` is the raw project's Claude Code slug, the name its store directory already holds.
 - `project_segment(project_dir)` is a project's store directory name.
 - `SessionScan` accumulates the records; `census_keys(record)` is one record's census bucket and keys.
 
-Callers put this directory on `sys.path` and `import session_record`; `friction_scan`, `redact`,
-`transcript_reader` and `transcript_values` sit beside it. Stdlib only; Python 3.10+.
+Callers put this directory on `sys.path` and `import session_record`; `claude_projects`,
+`friction_scan`, `redact`, `transcript_reader` and `transcript_values` sit beside it. Stdlib only; Python 3.10+.
 """
 
 from __future__ import annotations
@@ -53,6 +54,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol
 
+import claude_projects
 import friction_scan
 import redact
 import transcript_reader
@@ -786,6 +788,7 @@ def history_prompts(
                 "key": key,
                 "session_id": session_id,
                 "project": scrub.text(project) if isinstance(project, str) else None,
+                "project_slug": claude_projects.encode_project_slug(project) if isinstance(project, str) else None,
                 "time": {"start": _iso(ts), "end": _iso(ts)},
                 "excerpt": scrub.excerpt(text.strip(), excerpt_chars) if excerpt_chars else None,
                 "pastes": {"restored": restored, "missing": missing},

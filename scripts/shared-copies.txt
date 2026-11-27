@@ -1025,6 +1025,7 @@ lib/plugin_cache_versions.py plugins/disk-hygiene/lib/plugin_cache_versions.py
 lib/claude_projects.py plugins/session-flow/lib/claude_projects.py
 lib/claude_projects.py plugins/harness-ops/lib/claude_projects.py
 lib/claude_projects.py plugins/disk-hygiene/lib/claude_projects.py
+lib/claude_projects.py plugins/session-flow/scripts/claude_projects.py
 lib/media-render/media_capture.py plugins/explainer-video/scripts/media_capture.py
 lib/media-render/media_captions.py plugins/explainer-video/scripts/media_captions.py
 lib/media-render/media_encode.py plugins/explainer-video/scripts/media_encode.py
