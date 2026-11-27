@@ -53,7 +53,9 @@ One JSON file per skill under `probes/` (not `probes/baselines/`):
 - `competitors[]`: rival `plugin:skill` ids. The floor reads each rival's listing from
   `plugins/<plugin>/skills/<skill>`, derived from the id, and fails the skill when that directory
   holds no `SKILL.md`. An optional `competitor_dirs` map of id to directory overrides the derived path, for a
-  rival outside this repository's `plugins/` tree.
+  rival outside this repository's `plugins/` tree. Competitors whose `SKILL.md` sets
+  `disable-model-invocation: true` never enter the model listing, so `validate` warns on them and
+  `score` and `emit-plugin-eval` skip them.
 - `queries[]`: `id`, `split` (`train` or `validation`), `expect_trigger`, `request`
 
 Target: roughly 20 labeled queries, both polarities, both splits. `validate`

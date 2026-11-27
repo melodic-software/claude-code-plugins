@@ -34,7 +34,7 @@ Other files cite them by number, as `check-skill.sh check N`:
 | 1 | Frontmatter parses, `description` present, `name` rules |
 | 2 | `description` + `when_to_use` within the listing-entry cap |
 | 2b | `description` alone within the spec field maximum |
-| 3 | Trigger-keyword preservation vs the base ref (advisory) |
+| 3 | Trigger-keyword preservation vs the base ref (advisory; skips `disable-model-invocation: true`, downgrades lexically covered drops to INFO) |
 | 4 | `SKILL.md` under the line cap |
 | 5 | Cited skill-internal files resolve; no backslash separators |
 | 6 | markdownlint clean |
@@ -43,7 +43,7 @@ Other files cite them by number, as `check-skill.sh check N`:
 | 9 | Stale-tracking metadata keys preserved |
 | 10 | Retired; numbering kept stable |
 | 11 | Gotchas surface present |
-| 12 | `description` carries "Use when" phrasing |
+| 12 | `description` carries "Use when" phrasing (inverted for `disable-model-invocation: true`, which expects a concise `<= 150`-char summary without triggers) |
 | 13 | No committed cache or build artifacts |
 | 14 | `evals/evals.json` presence |
 | 15 | Companion spoke directories referenced from `SKILL.md` |
@@ -109,8 +109,9 @@ In detail:
   - **Pointer**: for the field maximum, fetch
     <https://agentskills.io/specification#description-field> live.
 - Trigger-keyword preservation vs `HEAD` (advisory: a dropped phrase warns naming it and never
-  fails the run; a phrase moved to a sibling skill warns naming the host; skipped for a new,
-  uncommitted skill).
+  fails the run; a phrase moved to a sibling skill warns naming the host; a dropped phrase whose
+  non-stopword tokens of length >= 2 remain in the updated positive description downgrades to
+  `INFO`; skipped for `disable-model-invocation: true` skills and new, uncommitted skills).
 - `SKILL.md` within the line cap (`LINE_HARD_CAP` in `scripts/check-skill.sh`), counted over the
   whole file: this check's stricter reading of official guidance on `SKILL.md` length.
   - **Record**: the platform best-practices page and the Claude Code skills page disagree on what
@@ -142,7 +143,10 @@ In detail:
   The hash proves `vendor/` matches its recorded value, not that it came from upstream: anyone
   editing `vendor/` can recompute it. It catches an accidental unpaired edit, not a deliberate one;
   provenance rests on reviewing the diff and on the skill's own content tests.
-- Gotchas surface present; `description` carries `Use when` phrasing; no committed cache artifacts;
+- Gotchas surface present; model-invoked `description` carries `Use when` phrasing while
+  `disable-model-invocation: true` skills are exempt and instead warn when carrying trigger
+  phrasing (`Use when`, quoted triggers, or `when_to_use`) or exceeding 150 chars; no committed
+  cache artifacts;
   action-router skills without evals WARN (FAIL with `--require-evals` for any shape unless a plugin suite case lists the skill's directory name in a one-line `tags: [...]`, or a recorded skip exists in `scripts/evals-warrant-exemptions.txt`); companion spoke
   dirs are referenced.
 - Precompute opportunity (advisory). A fenced shell block gathers read-only context the skill could
