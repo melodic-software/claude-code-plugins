@@ -23,8 +23,8 @@ comment_lint_allow:
 comment_lint_exclude:
   # Unedited vendored Apache-2.0 copy of https://github.com/GoogleChrome/web-vitals (web-vitals.LICENSE beside it); see #18772.
   - plugins/planning/shared/web/web-vitals.attribution.iife.js
-  # Vendored copies, byte-identical to upstream per the skill-quality vendor gate: https://github.com/melodic-software/claude-code-plugins/issues/18772
-  - plugins/**/vendor/**
+  # A skill's vendor/ folder, byte-identical to upstream per the skill-quality vendor gate: https://github.com/melodic-software/claude-code-plugins/issues/18772
+  - plugins/*/skills/*/vendor/**
   # Copied verbatim into generated wizards; evals read their `# STAGES` markers: https://github.com/melodic-software/claude-code-plugins/issues/18772
   - plugins/wizard/skills/generate/template.sh
   - plugins/wizard/skills/unattended/template.ps1
