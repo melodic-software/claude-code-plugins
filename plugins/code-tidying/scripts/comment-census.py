@@ -33,7 +33,8 @@ Tokens are estimated as bytes / 4 and labeled as an estimate throughout.
 Usage: comment-census.py [PATH ...] [--top N] [--json] [--baseline FILE]
                          [--layer auto|scc|pygments]
 Code files are those whose extension is in code-extensions.txt beside this
-script, the list the code-tidying scoping scripts share.
+script, the list the code-tidying scoping scripts share, and files with no
+extension whose first line matches code-shebang.ere beside it.
 
 Exit: 0 counted; 3 no reading layer available; 2 usage; 4 the extension list
 cannot be read (its path is named on stderr).
@@ -53,6 +54,8 @@ from collections import defaultdict
 from pathlib import Path
 
 CODE_EXT_FILE = Path(__file__).with_name("code-extensions.txt")
+SHEBANG_FILE = Path(__file__).with_name("code-shebang.ere")
+SHEBANG_LEXERS = {"node": "javascript", "python3": "python"}
 EXIT_NO_LAYER = 3
 EXIT_USAGE = 2
 EXIT_NO_EXTENSION_LIST = 4
@@ -69,12 +72,38 @@ def code_extensions() -> set[str]:
     return exts
 
 
+def _suffix(name: str) -> str:
+    return "." + name.rsplit(".", 1)[1].lower() if "." in name else ""
+
+
+def shebang_lexer(first_line: str) -> str | None:
+    """The pygments lexer name for a first line code-shebang.ere admits, else None."""
+    pattern = SHEBANG_FILE.read_text(encoding="utf-8").strip()
+    for posix, chars in (("[:blank:]", " \\t"), ("[:space:]", "\\s")):
+        pattern = pattern.replace(posix, chars)
+    if not re.match(pattern, first_line):
+        return None
+    words = first_line[2:].split()
+    if words[0].rsplit("/", 1)[-1] == "env":
+        words = [w for w in words[1:] if not w.startswith("-")]
+    return SHEBANG_LEXERS.get(words[0].rsplit("/", 1)[-1], "bash")
+
+
+def is_code_file(path: Path, code_ext: set[str]) -> bool:
+    if _suffix(path.name) in code_ext:
+        return True
+    if "." in path.name or not path.is_file():
+        return False
+    with path.open(encoding="utf-8", errors="replace") as handle:
+        return shebang_lexer(handle.readline()) is not None
+
+
 def tracked_files(roots: list[Path], code_ext: set[str] | None = None) -> list[Path]:
     code_ext = code_ext or code_extensions()
     out: list[Path] = []
     for root in roots:
         if root.is_file():
-            if root.suffix.lower() in code_ext:
+            if is_code_file(root, code_ext):
                 out.append(root)
             continue
         try:
@@ -88,7 +117,7 @@ def tracked_files(roots: list[Path], code_ext: set[str] | None = None) -> list[P
             found = [root / n for n in names]
         except (subprocess.CalledProcessError, FileNotFoundError):
             found = [p for p in root.rglob("*") if p.is_file()]
-        out.extend(p for p in found if p.suffix.lower() in code_ext and p.is_file())
+        out.extend(p for p in found if p.is_file() and is_code_file(p, code_ext))
     seen: set[Path] = set()
     uniq = []
     for p in out:
@@ -175,8 +204,51 @@ def tokens(text: str, lexer) -> list:
     if lexer.name == "Bash":
         return _ShellComments(text).tokens()
     from pygments import lex
+    from pygments.lexers.javascript import JavascriptLexer
 
+    if isinstance(lexer, JavascriptLexer):
+        lexer = _regex_after_arrow(type(lexer))(**lexer.options)
     return list(lex(text, lexer))
+
+
+_ARROW_LEXERS: dict[type, type] = {}
+
+
+def _regex_after_arrow(base: type) -> type:
+    """<base> with a regular expression literal read after `=>`, where pygments' JavaScript
+    lexers read its slashes as division and its `//` as a comment."""
+    if base not in _ARROW_LEXERS:
+        from pygments.lexer import inherit
+        from pygments.token import Punctuation
+
+        _ARROW_LEXERS[base] = type(
+            base.__name__,
+            (base,),
+            {"tokens": {"root": [(r"=>", Punctuation, "slashstartsregex"), inherit]}},
+        )
+    return _ARROW_LEXERS[base]
+
+
+NAME_LEXERS = {".mts": "typescript", ".cts": "typescript", ".jsonc": "json", ".psd1": "powershell"}
+
+
+def lexer_for(name: str, text: str):
+    """The pygments lexer for a file: by its name, then its name in lower case, then the
+    lexer NAME_LEXERS names for its suffix, then, for a name with no dot, its shebang
+    (shebang_lexer); None when none applies."""
+    from pygments.lexers import get_lexer_by_name, get_lexer_for_filename
+    from pygments.util import ClassNotFound
+
+    for candidate in dict.fromkeys((name, name.lower())):
+        try:
+            return get_lexer_for_filename(candidate, stripnl=False)
+        except ClassNotFound:
+            pass
+    base = name.replace("\\", "/").rsplit("/", 1)[-1]
+    fallback = NAME_LEXERS.get(_suffix(base))
+    if fallback is None and "." not in base:
+        fallback = shebang_lexer(text.split("\n", 1)[0])
+    return None if fallback is None else get_lexer_by_name(fallback, stripnl=False)
 
 
 class _ShellComments:
@@ -305,8 +377,15 @@ class _ShellComments:
 
     def _command(self, close: str | None, start: int) -> None:
         s, in_word, at_command, cond, depth, cases = self.s, False, True, False, 0, 0
+        pattern_next = False
         while self.i < self.n:
             c = s[self.i]
+            if pattern_next and c not in self.BLANK:
+                pattern_next = False
+                if c not in "\n#":
+                    self._pattern(self.i)
+                    in_word = True
+                    continue
             if c == close and (close == "`" or (depth == 0 and cases == 0)):
                 self.i += 1
                 return
@@ -357,6 +436,9 @@ class _ShellComments:
                         cond = True
                     elif cond and word == "]]":
                         cond = False
+                    elif cond and word == "=~":
+                        self.i, pattern_next = end, True
+                        continue
                     elif at_command and close == ")" and word == "case":
                         cases += 1
                     elif at_command and cases and word == "esac":
@@ -367,6 +449,27 @@ class _ShellComments:
                 self._word_part(quoted=False)
                 in_word = True
         if close is not None:
+            self._lose(start)
+
+    def _pattern(self, start: int) -> None:
+        """The regular expression after =~ in [[ ]]: one word in which ( and | are word
+        characters and a parenthesized group, blanks included, runs to its matching )."""
+        depth = 0
+        while self.i < self.n:
+            c = self.s[self.i]
+            if depth == 0 and (c in self.BLANK or c in "\n;&<>"):
+                return
+            if c == "(":
+                depth += 1
+                self.i += 1
+            elif c == ")":
+                if depth == 0:
+                    return
+                depth -= 1
+                self.i += 1
+            else:
+                self._word_part(quoted=False)
+        if depth:
             self._lose(start)
 
     def _word_part(self, quoted: bool) -> None:
@@ -502,14 +605,11 @@ class _ShellComments:
 
 
 def pygments_counts(path: Path) -> dict | None:
-    try:
-        from pygments.lexers import get_lexer_for_filename
-        from pygments.util import ClassNotFound
-    except ImportError:
+    if not pygments_available():
         return None
-    try:
-        lexer = get_lexer_for_filename(str(path), stripnl=False)
-    except ClassNotFound:
+    src = path.read_text(encoding="utf-8", errors="replace")
+    lexer = lexer_for(str(path), src)
+    if lexer is None:
         return {
             "language": "?",
             "comment_lines": 0,
@@ -517,7 +617,6 @@ def pygments_counts(path: Path) -> dict | None:
             "lines": 0,
             "lexed": False,
         }
-    src = path.read_text(encoding="utf-8", errors="replace")
     line = 1
     comment_lines: set[int] = set()
     comment_bytes = 0

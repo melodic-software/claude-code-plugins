@@ -47,6 +47,8 @@ structured output.
      - Both come after what the decision settles: quote the decision in the comment as the
        repository's rules say, state a reserved step after the quote and outside `Open questions:`,
        and never ask a point the decision answers again, even as a `RECOMMENDED:` question.
+       When those rules give the quote's form, follow it to the letter: a quote that leaves out
+       the comment's first line, rewrites a line inline, or drops the link it asks for does not.
    - `security`: the work would carry a HIGH or CRITICAL security risk: expose a secret, bypass a
      trust boundary, or open an external attack surface.
    - `cost`: the work would add or raise a charge no diff shows, with no recorded decision
