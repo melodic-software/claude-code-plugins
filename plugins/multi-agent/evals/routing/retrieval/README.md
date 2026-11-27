@@ -44,8 +44,16 @@ Check the cases before a paid run with
 Fixed before the paid run ([decision comment](https://github.com/melodic-software/claude-code-plugins/issues/17732#issuecomment-7086389928)):
 
 - **Arms:** `sonnet-medium` vs `opus-medium`.
+- **Cases measured:** the three `rt-hard-*` cases only (run with `--case 'rt-hard-*'`, since the
+  six baseline `rt-*` cases already scored near 1.00 across arms in `#10022`):
+
+```bash
+claude plugin eval plugins/multi-agent --case 'rt-hard-*' --scaffold --ablation none --model <model>
+```
+
 - **Threshold:** change the `retrieval` role default in `plugins/multi-agent/reference/defaults.yaml`
-  only if `opus-medium` beats `sonnet-medium` by at least `0.25` pass rate; otherwise keep `sonnet`.
+  only if `opus-medium` beats `sonnet-medium` by at least `0.25` pass rate across the three
+  `rt-hard-*` cases; otherwise keep `sonnet`.
 - **Recording:** record the measured outcome in `defaults.yaml`'s `retrieval` basis; any default
   change lands in a separate follow-up pull request.
 
