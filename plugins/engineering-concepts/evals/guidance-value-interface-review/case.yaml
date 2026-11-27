@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: guidance-value-interface-review
+graders:
+  - name: 'loads-guidance'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:engineering-concepts:)?design-guidance"'
+    arm: 'with-only'
+  - name: 'vendor-free-rename'
+    type: 'regex'
+    pattern: '\bI(?:Email|Mail|Message|Notification)\w*(?:Sender|Service|Client|Dispatcher|Gateway|Provider)\b'
+    target: 'last_message'

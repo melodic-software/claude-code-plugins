@@ -6,4 +6,4 @@ timeout_seconds: 300
 expected_outcome: "The reply recommends extracting the helper now, at the second copy."
 ---
 
-A teammate copied the same 15-line retry-with-backoff helper into two of our services this week. They say they'll extract it into a shared package if it shows up a third time. Should we extract it now or wait? Before you answer, use any design guidance our installed skills offer. Give a recommendation in under 200 words.
+A teammate copied the same 15-line retry-with-backoff helper into two of our services this week. They say they'll extract it into a shared package if it shows up a third time. Should we extract it now or wait? Give a recommendation in under 200 words.

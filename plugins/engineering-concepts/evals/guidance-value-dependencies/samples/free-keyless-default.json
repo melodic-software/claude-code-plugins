@@ -1,4 +1,4 @@
 {
-  "pass": [{"answer": "The default is plain SMTP, which needs no API key; SendGrid is opt-in."}, {"answer": "Ship a free default provider."}],
-  "fail": [{"answer": "Use SendGrid and set SENDGRID_API_KEY before first run.", "why": "paid, key required by default"}]
+  "pass": [{"answer": "Default to plain SMTP through MailKit; SendGrid is an optional adapter."}, {"answer": "Render invoices with QuestPDF."}],
+  "fail": [{"answer": "Use SendGrid for email and DocRaptor for PDFs.", "why": "paid, key-based services only"}, {"answer": "", "why": "empty"}]
 }

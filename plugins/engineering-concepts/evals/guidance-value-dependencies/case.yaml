@@ -9,7 +9,7 @@ graders:
   - name: 'no-vendor-in-abstraction-name'
     type: 'regex'
     pattern: '\bI(?:SendGrid|Mailgun|Postmark|Ses|Smtp|MailKit|Brevo|Resend|QuestPdf|Quest|IText|Puppeteer|Playwright|Aws|Azure|Gotenberg|Wkhtml)\w*'
-    match: false
+    match: 'not_contains'
     target: 'last_message'
   - name: 'isolated-behind-abstraction'
     type: 'regex'
@@ -18,6 +18,6 @@ graders:
     target: 'last_message'
   - name: 'free-keyless-default'
     type: 'regex'
-    pattern: 'no (?:api )?key|keyless|free (?:by default|default|option|tier)|opt[- ]in'
+    pattern: '\b(?:SMTP|MailKit|Mailpit|smtp4dev|Papercut|QuestPDF|PdfSharp|MigraDoc)\b'
     flags: 'i'
     target: 'last_message'

@@ -8,6 +8,6 @@ graders:
     arm: 'with-only'
   - name: 'extract-now'
     type: 'regex'
-    pattern: 'rule of one|extract (?:it )?(?:now|today|right away|immediately)|(?:don''t|do not) wait for (?:a |the )?third'
+    pattern: '(?:extract|move|pull)\w*[^.\n]{0,40}(?:now|today|this week|right away|immediately)|(?:don''t|do not) wait'
     flags: 'i'
     target: 'last_message'

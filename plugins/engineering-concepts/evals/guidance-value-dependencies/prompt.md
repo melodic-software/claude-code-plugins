@@ -6,4 +6,4 @@ timeout_seconds: 300
 expected_outcome: "Interfaces carry no vendor names, each dependency is swappable behind one, and the default providers are free and need no key, paid ones opt-in."
 ---
 
-We need to add outgoing email and PDF invoice generation to a .NET web app that other teams will also install and run. Pick the libraries or services, and sketch the interfaces and class names the app code will call. Before you answer, use any design guidance our installed skills offer. Keep it under 500 words.
+We need to add outgoing email and PDF invoice generation to a .NET web app that other teams will also install and run. Pick the libraries or services, and sketch the interfaces and class names the app code will call. Keep it under 500 words.

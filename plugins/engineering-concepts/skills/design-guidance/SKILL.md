@@ -1,5 +1,5 @@
 ---
-description: "Loads the team's design positions into the session. Use before proposing an architecture, a module layout, a library or service choice, an abstraction or its names, or a call on duplicated code, or when asked for our design guidance."
+description: "Loads the team's design positions into the session. Use before proposing or reviewing an architecture, a module layout, a library or service choice, an interface or abstraction and its names, or a call on duplicated code, or when asked for our design guidance."
 user-invocable: true
 disable-model-invocation: false
 metadata:

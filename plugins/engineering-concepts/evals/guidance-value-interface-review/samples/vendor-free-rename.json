@@ -1,0 +1,7 @@
+{
+  "pass": [{"answer": "Rename it to IEmailSender so callers do not depend on SendGrid."}, {"answer": "Call it IMailService instead."}],
+  "fail": [
+    {"answer": "Looks fine. Maybe add an overload that takes a plain-text body.", "why": "keeps the vendor name"},
+    {"answer": "Rename to ISendGridMailer.", "why": "still names the vendor"}
+  ]
+}

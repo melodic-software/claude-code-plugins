@@ -6,4 +6,4 @@ timeout_seconds: 300
 expected_outcome: "The proposal weighs event-driven, message bus and layered or clean styles, uses vertical slices, and shares the database context across slices."
 ---
 
-We're starting a new order-management backend for a mid-size retailer: orders, payments, inventory and shipping notifications. Propose the architecture: the style or styles, how the code is organized into modules, and how those modules use the database. Before you answer, use any design guidance our installed skills offer. Keep it under 600 words.
+We're starting a new order-management backend for a mid-size retailer: orders, payments, inventory and shipping notifications. Propose the architecture: the style or styles, how the code is organized into modules, and how those modules use the database. Keep it under 600 words.
