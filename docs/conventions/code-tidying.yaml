@@ -29,7 +29,6 @@ comment_lint_exclude:
   - plugins/wizard/skills/generate/template.sh
   - plugins/wizard/skills/unattended/template.ps1
   # Fixtures whose line numbers and counts are their tests' oracle: https://github.com/melodic-software/claude-code-plugins/issues/18772
-  - plugins/code-tidying/skills/audit-dead-code/evals/fixtures/cs-orders.cs
   - plugins/code-metrics/scripts/fixtures/clone-classes/**
   - plugins/code-metrics/scripts/fixtures/sources/cluster/**
   - plugins/code-metrics/scripts/fixtures/sources/cm-sample.sh
