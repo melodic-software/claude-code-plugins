@@ -59,6 +59,7 @@ MEANING_FLIP_WORDS = frozenset(
     ["not", "never", "no", "don't", "only", "except", "unless", "cannot", "can't", "won't"]
 )
 SWAP_CONTEXT = 6
+SHELL_UNSURE = object()
 MAX_DECIDED_TERM_WORDS = 3
 
 
@@ -205,13 +206,46 @@ def is_routing_only_change(old, new, pairs, plugins=frozenset()):
     )
 
 
+def _shell_quote_after(line, quote):
+    """The quote still open at the end of `line`, given the one open at its start, or
+    `SHELL_UNSURE` for a `$'...'` string this reading does not follow."""
+    index = 0
+    while index < len(line):
+        char = line[index]
+        if quote == "'":
+            quote = None if char == "'" else quote
+        elif char == "\\":
+            index += 1
+        elif quote == '"':
+            quote = None if char == '"' else quote
+        elif char == "$" and line[index + 1 : index + 2] == "'":
+            return SHELL_UNSURE
+        elif char in "'\"":
+            quote = char
+        elif char == "#" and (index == 0 or line[index - 1] in " \t;|&("):
+            break
+        index += 1
+    return quote
+
+
 def _string_block_lines(ext, text):
-    """1-based numbers of the lines `text` holds inside a shell heredoc, a PowerShell here-string,
-    a YAML block scalar or a multi-line string, where a comment-shaped line is content."""
+    """1-based numbers of the lines `text` holds inside a shell heredoc or multi-line quoted
+    string, a PowerShell here-string, a YAML block scalar or a multi-line string, where a
+    comment-shaped line is content; None when a shell file's strings do not read cleanly."""
     inside = set()
     closer = None
+    quote = None
+    shell = ext in (".sh", ".bash", ".zsh")
     quotes = STRING_QUOTES.get(ext, ())
     for number, line in enumerate(text.splitlines(), 1):
+        if shell and closer is None:
+            if quote is not None:
+                inside.add(number)
+            quote = _shell_quote_after(line, quote)
+            if quote is SHELL_UNSURE:
+                return None
+            if quote is not None:
+                continue
         if isinstance(closer, int):
             if not line.strip() or len(line) - len(line.lstrip()) > closer:
                 inside.add(number)
@@ -238,7 +272,7 @@ def _string_block_lines(ext, text):
             closer = len(scalar.group(1))
         else:
             closer = next((q for q in quotes if line.count(q) % 2), None)
-    return frozenset(inside)
+    return None if quote is not None else frozenset(inside)
 
 
 def comment_style(path, text="", hidden=False):
@@ -250,7 +284,8 @@ def comment_style(path, text="", hidden=False):
     kind = "hash" if ext in HASH_COMMENT_EXTS else "slash" if ext in SLASH_COMMENT_EXTS else None
     if "/evals/" in "/" + path and not hidden or ext == ".go" and 'import "C"' in text:
         return None
-    return (kind, _string_block_lines(ext, text)) if kind else None
+    inside = _string_block_lines(ext, text) if kind else None
+    return (kind, inside) if inside is not None else None
 
 
 def _comment_line_mask(lines, style):

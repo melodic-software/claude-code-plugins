@@ -20,7 +20,7 @@ last word (`--lane` to `--area` for `focus area`), singular or plural, leaving o
 byte-identical once each swap is replaced, or deletes lines a comment fills in a code, YAML or
 shell file (`#` in YAML, shell, Python, TOML and PowerShell; `//` and `/* */` in JS, TS, JSONC,
 Go and C#; with no code before or after it; never markdown, whose HTML
-comments a model can read, nor a line inside a shell heredoc, PowerShell here-string, YAML
+comments a model can read, nor a line inside a shell heredoc or multi-line quoted string (a shell file whose quoting does not read cleanly gets no exemption), PowerShell here-string, YAML
 block scalar, or triple-quoted or backtick string). Decided terms come from the glossary at the merge base; a
 directive comment (`//go:build`, `/// <reference`, `# shellcheck`, `# coding:` and the like), a
 comment in a cgo file, a `/*` opener deleted without its `*/` and a PowerShell `#>` closer are
@@ -29,8 +29,8 @@ plugin-wide file is always listed. A comment deletion under `evals/` runs its ca
 model running the case may read it, unless the agent under test cannot see the file: the case's
 `case.yaml`, or a `.sh` or `.bash` script a case's scaffold runs (`bash`, `sh`, `source` or `.`
 with the script's path, or its `context.scaffold_script`) that no file of a case reaching it names,
-or names its folder, in any other form, and that never reads its own source (`$0`, `BASH_SOURCE`
-outside `$(dirname ...)`, or its own name). A heredoc line stays content. A swap under `evals/`
+or names its folder or a glob or unresolved path that could match it, in any other form, and that never reads its own source (`$0`, `BASH_SOURCE`
+outside `$(dirname ...)`, or its own name). A heredoc or quoted-string line stays content. A swap under `evals/`
 stays exempt. A hunk with any other change keeps the rules above.
 
 A `description` or `when_to_use` edit runs nothing when the old and new text are equal after three

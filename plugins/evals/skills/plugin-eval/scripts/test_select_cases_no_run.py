@@ -495,6 +495,20 @@ class SelectCasesNoRunTest(unittest.TestCase):
         block = self._edit_and_select(setup, "# Prints the fixture.\n", "")
         self.assertEqual("one-basic", block.get("cases"), "a copied helper reaches the agent")
 
+    def test_scaffold_line_in_a_multi_line_quoted_string_still_runs(self):
+        self._base_with_eval_files("printf '%s\\n' '\n# Notes the agent reads\n' > notes.md\n")
+        scaffold = self.repo / "plugins/alpha/evals/one-basic/scaffold.sh"
+        block = self._edit_and_select(scaffold, "# Notes the agent reads\n", "")
+        self.assertEqual("one-basic", block.get("cases"), "a quoted line lands in the workspace")
+
+    def test_helper_a_glob_copy_could_match_still_runs(self):
+        self._base_with_eval_files(
+            'cp "$(dirname "${BASH_SOURCE[0]}")"/../fixtures/*.sh tools/\n'
+        )
+        setup = self.repo / "plugins/alpha/evals/fixtures/setup.sh"
+        block = self._edit_and_select(setup, "# Prints the fixture.\n", "")
+        self.assertEqual("one-basic", block.get("cases"), "the glob copy can reach the helper")
+
     def test_grader_comment_deletion_still_runs(self):
         self._base_with_eval_files()
         grader = self.repo / "plugins/alpha/evals/one-basic/graders/check.md"

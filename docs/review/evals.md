@@ -47,7 +47,7 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   lines a comment fills in a code, YAML or shell file (`#` for YAML, shell, Python, TOML and
   PowerShell; `//` and `/* */` for JS, TS, JSONC, Go and C#; code before or after the comment
   disqualifies the line, and markdown is excluded because an HTML comment can carry instructions a
-  model reads; so is a line inside a shell heredoc, PowerShell here-string, YAML block scalar,
+  model reads; so is a line inside a shell heredoc or multi-line quoted string, PowerShell here-string, YAML block scalar,
   Python, TOML or C# triple-quoted string, or JS, TS or Go backtick string, where a comment-shaped
   line is content). That holds for a skill body, reference or agent hunk, a frontmatter value such
   as `argument-hint` or `metadata.summary`, an eval case's prompt, `case.yaml`, grader, scaffold,
@@ -66,12 +66,13 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   files (anything under `evals/`) still runs that case, since the model running it may read them;
   a swap there stays exempt (owner, 2026-11-25, Q2218). Except a comment the agent under test
   cannot see, whose deletion runs nothing: a comment line in a case's `case.yaml`, and a shell
-  comment line outside any heredoc in a script the case's scaffold runs but never copies, prints
-  or writes into the workspace (the `scaffold.sh` its `context.scaffold_script` names, and the
-  helper scripts that runs). Fixtures, prompts, graders (a judge model reads them), samples, and
-  anything a scaffold copies, cats, installs or writes into the workspace keep running their case.
-  `select` decides it statically and keeps running the case when unsure: a script counts as hidden
-  only when a case's scaffold runs it, no file of a case that reaches it names it or its folder in
+  comment line outside any heredoc or multi-line quoted string in a script the case's scaffold
+  runs but never copies, prints or writes into the workspace (the `scaffold.sh` its
+  `context.scaffold_script` names, and the helper scripts that runs). Fixtures, prompts, graders
+  (a judge model reads them), samples, and anything a scaffold copies, cats, installs or writes
+  into the workspace keep running their case. `select` decides it statically and keeps running
+  the case when unsure: a script counts as hidden only when a case's scaffold runs it, no file of
+  a case that reaches it names it, its folder, or a glob or unresolved path that could match it in
   any other form, and it never reads its own source (owner, 2026-11-27, narrowing Q2218: "The eval
   dir itself is hidden from the agent",
   [case-authoring.md:56-57](../../plugins/evals/skills/plugin-eval/reference/case-authoring.md), and a

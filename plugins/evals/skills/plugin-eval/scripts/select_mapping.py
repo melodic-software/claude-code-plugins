@@ -38,6 +38,7 @@ SCRIPT_RUN_RE = re.compile(
     r"""(?P<path>"(?:\$\([^)]*\)|[^"])*"|'[^']*'|(?:\$\([^)]*\)|\$\{[^}]*\}|[^\s;&|<>"'(){}])+)"""
     r"""(?P<rest>(?:\s.*)?)$"""
 )
+WILD_PATH_RE = re.compile(r"[*?[$`{]")
 SELF_REF_RE = re.compile(r"BASH_SOURCE|\$\{?0(?![0-9])")
 YAML_TOP_KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_.\-]*)[ \t]*:(?:[ \t]+(.*))?$")
 
@@ -727,9 +728,11 @@ def skills_for_agent(repo_root, plugin, agent_name):
 
 
 def _suffix_after(text, start, end):
+    quote = text[start - 1] if start > 0 and text[start - 1] in ('"', "'") else None
+    if quote and text[end : end + 2] == quote + "/":
+        end, quote = end + 1, None
     if end >= len(text) or text[end] != "/":
         return ""
-    quote = text[start - 1] if start > 0 and text[start - 1] in ('"', "'") else None
     stop_chars = (quote, "\r", "\n") if quote else tuple(" \t\r\n\"'`)&|;<>#")
     pos = end
     while pos < len(text) and text[pos] not in stop_chars:
@@ -933,7 +936,14 @@ def _name_re(name):
 
 
 def _covers(ref, target):
-    return ref == target or target.startswith(ref + os.sep)
+    """`ref` is `target`, a folder holding it, or a glob or unresolved expansion whose literal
+    folder prefix could match it."""
+    if ref == target or target.startswith(ref + os.sep):
+        return True
+    parts = ref.split(os.sep)
+    wild = next((i for i, part in enumerate(parts) if WILD_PATH_RE.search(part)), None)
+    prefix = os.sep.join(parts[:wild]) if wild else ""
+    return bool(prefix) and target.startswith(prefix + os.sep)
 
 
 def hidden_from_agent(eval_abs, target_abs, cases, owning_case=None):
