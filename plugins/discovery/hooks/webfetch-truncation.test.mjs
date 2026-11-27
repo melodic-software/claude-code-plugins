@@ -171,6 +171,17 @@ test('webfetch_truncation_enabled honors user over repository layer and plugin d
     const defaultOn = run(payload, { HOME: home, CLAUDE_PROJECT_DIR: project })
     assert.equal(defaultOn.status, 0)
     assert.match(JSON.parse(defaultOn.stdout).hookSpecificOutput.additionalContext, /\/discovery:read-docs/)
+
+    mkdirSync(join(project, 'team'), { recursive: true })
+    writeFileSync(join(project, 'team', 'discovery.yaml'), 'webfetch_truncation_enabled: false\n', 'utf8')
+    writeFileSync(
+      join(project, 'AGENTS.md'),
+      '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `team`.\n<!-- END GENERATED: convention-home -->\n',
+      'utf8',
+    )
+    const boundHomeOff = run(payload, { HOME: home, CLAUDE_PROJECT_DIR: project })
+    assert.equal(boundHomeOff.status, 0)
+    assert.equal(boundHomeOff.stdout, '')
   } finally {
     rmSync(work, { recursive: true, force: true })
   }

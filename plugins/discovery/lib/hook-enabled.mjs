@@ -10,6 +10,7 @@ import {
   openSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   statSync,
 } from 'node:fs'
 import { join } from 'node:path'
@@ -23,6 +24,10 @@ const MANAGED_DIRS = {
 
 const PLUGIN_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 const KEY_RE = /^[a-z][a-z0-9_]*_enabled$/
+const CONVENTION_HOME_BEGIN = '<!-- BEGIN GENERATED: convention-home -->'
+const CONVENTION_HOME_END = '<!-- END GENERATED: convention-home -->'
+const CONVENTION_HOME_MAX_LINE = 4096
+const CONVENTION_HOME_SEG_RE = /^[A-Za-z0-9._-]+$/
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
 
@@ -250,6 +255,125 @@ function readRepoValue(file, key, writeErr) {
   return undefined
 }
 
+function trimConventionLine(raw) {
+  let s = raw.endsWith('\r') ? raw.slice(0, -1) : raw
+  if (s.length > CONVENTION_HOME_MAX_LINE) s = s.slice(0, CONVENTION_HOME_MAX_LINE)
+  if (s.startsWith('\uFEFF')) s = s.slice(1)
+  return s.trim()
+}
+
+function isPureAgentsShim(text) {
+  let seen = false
+  for (const rawLine of text.split('\n')) {
+    const trimmed = trimConventionLine(rawLine)
+    if (!trimmed) continue
+    if (trimmed !== '@AGENTS.md') return false
+    seen = true
+  }
+  return seen
+}
+
+function scanConventionHome(text) {
+  let inRegion = false
+  let regions = 0
+  let pointers = 0
+  let declined = false
+  let token = ''
+  for (const rawLine of text.split('\n')) {
+    let line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
+    if (line.length > CONVENTION_HOME_MAX_LINE) line = line.slice(0, CONVENTION_HOME_MAX_LINE)
+    const trimmed = trimConventionLine(line)
+    if (trimmed === CONVENTION_HOME_BEGIN) {
+      if (inRegion) return { state: 'nested', token: '' }
+      inRegion = true
+      regions += 1
+      continue
+    }
+    if (trimmed === CONVENTION_HOME_END) {
+      inRegion = false
+      continue
+    }
+    if (!inRegion) continue
+    if (trimmed === 'declined') {
+      declined = true
+      continue
+    }
+    const firstTick = line.indexOf('`')
+    if (firstTick >= 0) {
+      const secondTick = line.indexOf('`', firstTick + 1)
+      if (secondTick > firstTick) {
+        pointers += 1
+        if (pointers === 1) token = line.slice(firstTick + 1, secondTick)
+      }
+    }
+  }
+  if (inRegion) return { state: 'unterminated', token: '' }
+  if (regions === 0) return { state: 'none', token: '' }
+  if (declined && pointers > 0) return { state: 'mixed', token: '' }
+  if (declined) return { state: 'declined', token: '' }
+  if (pointers === 0) return { state: 'empty', token: '' }
+  if (pointers === 1) return { state: 'one', token }
+  return { state: 'many', token: '' }
+}
+
+function isValidConventionHome(token) {
+  if (!token || token.startsWith('/') || token.startsWith('~') || token.includes('\\') || token.includes(':')) {
+    return false
+  }
+  const stripped = token.replace(/\/+$/, '')
+  if (!stripped) return false
+  for (const seg of stripped.split('/')) {
+    if (!seg || seg === '.' || seg === '..' || !CONVENTION_HOME_SEG_RE.test(seg)) return false
+    const bare = seg.replace(/\.+$/, '')
+    if (bare.toLowerCase() === '.git') return false
+  }
+  return true
+}
+
+function readRegularFile(path) {
+  try {
+    if (!statSync(path).isFile()) return null
+    return readFileSync(path, 'utf8')
+  } catch {
+    return null
+  }
+}
+
+export function resolveConventionHome(root) {
+  if (!root) return 'docs/conventions'
+  const agentsPath = join(root, 'AGENTS.md')
+  const claudePath = join(root, 'CLAUDE.md')
+  const agentsText = readRegularFile(agentsPath)
+  let claudeText = readRegularFile(claudePath)
+  if (agentsText !== null && claudeText !== null) {
+    try {
+      if (realpathSync(agentsPath) === realpathSync(claudePath)) claudeText = null
+    } catch {
+    }
+  }
+  const agentsScan = agentsText !== null ? scanConventionHome(agentsText) : { state: 'none', token: '' }
+  let claudeScan = { state: 'none', token: '' }
+  if (claudeText !== null && !isPureAgentsShim(claudeText)) {
+    claudeScan = scanConventionHome(claudeText)
+  }
+  const chosen = agentsScan.state !== 'none' ? agentsScan : claudeScan
+  if (chosen.state === 'none' || chosen.state === 'empty') return 'docs/conventions'
+  if (chosen.state !== 'one') return null
+  if (!isValidConventionHome(chosen.token)) return null
+  const homeDir = chosen.token.replace(/\/+$/, '')
+  const target = join(root, homeDir)
+  try {
+    if (!statSync(target).isDirectory()) return null
+    const physRoot = toPosix(realpathSync(root))
+    const physTarget = toPosix(realpathSync(target))
+    const expected = physRoot === '/' ? `/${homeDir}` : `${physRoot}/${homeDir}`
+    if (physTarget !== expected) return null
+    return homeDir
+  } catch {
+    return null
+  }
+}
+
 function gitTopLevel(cwd, env) {
   try {
     return execFileSync('git', ['rev-parse', '--show-toplevel'], {
@@ -281,7 +405,6 @@ export function resolveHookEnabled(plugin, key, defaultValue, opts = {}) {
   const security = Boolean(opts.security)
   const gitHook = Boolean(opts.gitHook)
   const env = opts.env ?? process.env
-  const home = opts.home ?? 'docs/conventions'
   const platform = opts.platform ?? process.platform
   const sourceFile = opts.sourceFile ?? fileURLToPath(import.meta.url)
   const name = gitHook ? plugin : ''
@@ -317,14 +440,17 @@ export function resolveHookEnabled(plugin, key, defaultValue, opts = {}) {
   }
 
   if (!isNoRepositoryLayer(root, env.HOME ?? '')) {
-    const file = join(root, home, `${plugin}.yaml`)
-    const repoVal = readRepoValue(file, key, writeErr)
-    if (repoVal !== undefined) {
-      if (repoVal === 'true') return 0
-      if (repoVal === 'false') {
-        if (!security) return 1
-      } else {
-        reportDropped(key, repoVal, file, writeErr)
+    const home = opts.home !== undefined ? opts.home : resolveConventionHome(root)
+    if (home !== null) {
+      const file = join(root, home, `${plugin}.yaml`)
+      const repoVal = readRepoValue(file, key, writeErr)
+      if (repoVal !== undefined) {
+        if (repoVal === 'true') return 0
+        if (repoVal === 'false') {
+          if (!security) return 1
+        } else {
+          reportDropped(key, repoVal, file, writeErr)
+        }
       }
     }
   }
