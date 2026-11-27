@@ -2337,10 +2337,11 @@ lanes App pin names another head, or was edited, or whose edit time does not rea
 approval of the live head lifts it, as for a lanes App pull request. The next scheduled run also
 disarms an armed trusted author's pull request whose newest lanes App pin names another head or was
 edited (`pinMoved`), then judges and pins the new head before arming it again; one a session armed,
-with no lanes App pin, is left armed. Only a
-scheduled or hand-started run arms one; the pr-verify wake does not, since the token broker mints
-that wake only for a lanes App pull request (`untrusted-author` otherwise), so a trusted author's
-pull request waits up to one scheduled interval after its pass.
+with no lanes App pin, is left armed. A trusted
+person's pull request (a User whose id is kind `human` on the list) arms on the pr-verify wake at
+its pass, as a lanes App one does, unless it is armed, a draft, labeled `do-not-merge` or carries a
+body `Hold:` line; the scheduled sweep is the fallback for that and for a trusted bot's pull
+request, which the token broker mints no wake for.
 
 Each verifier read is a full read. The arm step's skip records (`merge.skip-unchanged`) cross runs
 only as the `pr-merge-verify-answers` artifact of a scheduled or hand-started run on main
