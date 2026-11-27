@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Speech team config",
+  "description": "Schema for speech.yaml in a repository's convention home (default docs/conventions): the team layer of the speech plugin's settings. Keys are read by the install-python-deps SessionStart hook and listed in plugins/speech/README.md, Configuration. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "install_python_deps_enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether the SessionStart install-python-deps hook installs speech Python packages (numpy, onnxruntime) into the plugin data directory. A user-layer value in pluginConfigs wins when set; otherwise this repository value overrides the plugin default (false)."
+    }
+  }
+}

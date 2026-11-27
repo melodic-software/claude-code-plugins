@@ -22,6 +22,12 @@
     "category": "audio"
   },
   "userConfig": {
+    "install_python_deps_enabled": {
+      "type": "boolean",
+      "title": "Install Python deps hook",
+      "description": "Install speech Python packages (numpy, onnxruntime) into the plugin data directory at session start. Off by default; running /speech:narrate without them prints the one-line install command.",
+      "default": false
+    },
     "elevenlabs_model": {
       "type": "string",
       "title": "ElevenLabs model",
