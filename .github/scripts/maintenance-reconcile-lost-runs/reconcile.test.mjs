@@ -2440,7 +2440,7 @@ test("ci-status's lanes-hold step still fails a lanes App PR with the kill-switc
   const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
   const step = /- name: Fail a lanes App pull request on kill switch, hold path, verifier or veto\n(?:(?:[ ]{8,}.*)?\n)+/.exec(workflow)?.[0] ?? "";
   assert.match(step, /LANES_DISABLED: \$\{\{ vars\.CLAUDE_LANES_DISABLED \}\}/);
-  assert.match(step, /const \{ (?:fromRest, )?switchHold \} = await import\(/);
+  assert.match(step, /const \{ fromRest, switchHold \} = await import\(/);
   const fail = step.split("\n").findIndex((line) => line.includes('echo "::error::${reason//%/%25}"'));
   assert.ok(fail > 0, "the kill-switch error line is in the step");
   assert.match(step.split("\n")[fail + 1], /^[ ]+exit 1$/);

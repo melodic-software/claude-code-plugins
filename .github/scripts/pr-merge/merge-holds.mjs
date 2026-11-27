@@ -1310,7 +1310,7 @@ export function switchHold(pull, { appId, disabled, repoDisabled, items = null }
   const switched = "the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false')";
   return app
     ? `#${pull.number}: ${switched}, so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure.`
-    : `#${pull.number}: ${switched}, and the lanes App armed this pull request (its newest pin record is a pin), so it does not merge; it leaves the merge queue and merges once both read 'false' and it is queued again.`;
+    : `#${pull.number}: ${switched}, and the lanes App armed this pull request (its newest pin record is a pin), so it does not merge; it leaves the merge queue, and enable-auto-merge arms it again once both read 'false' and pr-verify still passes its head.`;
 }
 
 export function queueHolds({ pull, tracker = null, lanes = {} } = {}) {
