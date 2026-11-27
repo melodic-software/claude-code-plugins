@@ -678,6 +678,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `observer_gate_pattern` | string | `"\\b(git\\s+push\|gh\\s+pr\\s+(create\|merge\|comment\|review)\|gh\\s+issue\\s+(create\|comment)\|gh\\s+api\\b.*\\s(-X\|--method)\\s*(POST\|PATCH\|PUT\|DELETE))\\b"` | Regular expression for commands the gate holds: by default git push, gh pr create/merge/comment/review, gh issue create/comment, and gh api with a writing method. |
 | `observer_gate_timeout_seconds` | number<br>*min 1* | `30` | Longest the gate holds a command; the command then runs. Default 30. |
 | `observer_gate_refusals` | number<br>*min 0* | `1` | Times the gate refuses the same command before letting it run; default 1. |
+| `observer_request_check` | boolean | `false` | Add a request category to the live checks: a skipped or unanswered part of the person's latest request, or work drifting from the goal the session stated. Off by default. |
 | `observer_harness_check` | boolean | `false` | Run the scripted harness checks (hook latency, prompt-cache misses, slow repeated tools, context-zone crossings, rate-limit approach) beside the live checks. They call no model. Off by default. |
 | `observer_hook_log_dir` | string | `".observability/claude"` | Folder holding session-telemetry's per-session hook log (sessions/<session id>.jsonl), absolute or relative to the project; the hook latency check reads each hook's duration_ms from it. Default .observability/claude. |
 | `observer_hook_p95_ms` | number<br>*min 1* | `1000` | Report a hook whose p95 latency this session exceeds this many milliseconds; default 1000. |
@@ -685,6 +686,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `observer_cache_miss_tokens` | number<br>*min 1* | `50000` | Report a turn that rewrites at least this many tokens of cached prompt beyond the context it added, unless a break past the cache lifetime or a compaction explains it; default 50000. |
 | `observer_tool_slow_seconds` | number<br>*min 1* | `60` | A tool call that runs longer than this many seconds counts as slow; default 60. |
 | `observer_tool_repeat` | number<br>*min 1* | `3` | Report a tool (a Bash command by its first two words) after this many slow calls in one session; default 3. |
+| `observer_loop_repeat` | number<br>*min 0* | `3` | Report a tool (a Bash command by its first two words) that fails this many times in a row with the same error, once per tool and error; 0 turns it off. Needs observer_harness_check; default 3. |
 | `observer_context_percents` | string | `"50,75"` | Comma-separated context-window percentages; report each upward crossing. Default 50,75. |
 | `observer_rate_limit_percent` | number<br>*min 1* | `80` | Report a rate-limit window once per reset when it reaches this percent used; default 80. |
 | `observer_clear_after_prompts` | number<br>*min 1* | `2` | Prompts a shown finding survives unanswered before it clears; default 2. |

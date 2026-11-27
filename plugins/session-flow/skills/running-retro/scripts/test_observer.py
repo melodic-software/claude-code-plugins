@@ -1970,6 +1970,22 @@ HOOK = Path(__file__).resolve().parents[3] / "hooks" / "observer-catchup.sh"
 class CatchUpHook(unittest.TestCase):
     """Each guard stops the hook before any launch; with none tripped it launches."""
 
+    @staticmethod
+    def real_home_tools(root: Path) -> Path:
+        """A version-manager shim (mise, asdf) reads its config and trust under HOME, which
+        the temp HOME below would break: wrap each tool the hook runs to keep the real HOME."""
+        bin_dir = root / "bin"
+        if not bin_dir.exists():
+            bin_dir.mkdir()
+            for tool in ("jq",):
+                wrapper = bin_dir / tool
+                wrapper.write_text(
+                    f'#!/bin/sh\nHOME="{Path.home()}" exec "{shutil.which(tool)}" "$@"\n',
+                    encoding="utf-8",
+                )
+                wrapper.chmod(0o755)
+        return bin_dir
+
     def run_hook(self, root: Path, name: str, env: dict, stdin: dict) -> Path:
         data = root / name
         projects = root / "projects"
@@ -1980,7 +1996,7 @@ class CatchUpHook(unittest.TestCase):
             then = time.time() - IDLE - 60
             os.utime(ended, (then, then))
         base = {
-            "PATH": os.environ["PATH"],
+            "PATH": f"{self.real_home_tools(root)}{os.pathsep}{os.environ['PATH']}",
             "HOME": str(root),
             "CLAUDE_PLUGIN_OPTION_OBSERVER_ENABLED": "true",
             "CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED": "true",
