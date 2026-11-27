@@ -98,6 +98,7 @@ _mg_spawn() {
     prev="${prev#trap -- \'}"
     prev="${prev%\' EXIT}"
     prev="${prev//\'\\\'\'/\'}"
+    # shellcheck disable=SC2064  # the prior trap's text is spliced in now, on purpose
     trap "_mg_bg_reap${prev:+; $prev}" EXIT
   fi
   (
