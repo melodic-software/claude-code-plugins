@@ -166,7 +166,7 @@ A handoff followed by `/clear` starts a new session id, so the lock still names 
 bash "<scripts-dir>/worktree-claim.sh" handover <path> --session-id <old-session-id> --to "<session-id>"
 ```
 
-It re-locks only when the reason names `<old-session-id>` and writes a reason naming this session, keeping the creator script the old reason named. Exit 4 means the lock names some other session: stop, as for a foreign claim. Exit 3 means the tree is unlocked: claim it. Take `<old-session-id>` only from the save-point; the handover trusts whoever wrote it, the same trust the resume prompt already carries.
+It re-locks only when the reason names `<old-session-id>` and writes a reason naming this session, keeping the creator script the old reason named. When the worktree's branch is `[gone]` upstream, it releases the lock instead and exits 0, so a finished worktree's claim ends rather than passing to the next session. Exit 4 means the lock names some other session: stop, as for a foreign claim. Exit 3 means the tree is unlocked: claim it. Take `<old-session-id>` only from the save-point; the handover trusts whoever wrote it, the same trust the resume prompt already carries.
 
 ## Post-create checks
 

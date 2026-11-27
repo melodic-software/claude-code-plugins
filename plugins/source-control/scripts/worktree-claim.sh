@@ -6,7 +6,8 @@
 #      claim: locked, or already claimed by this session
 #      check-enter: our claim, or path is not a linked worktree
 #      release: unlocked this session's lock, or the tree was already unlocked
-#      handover: the lock now names NEW (or already did)
+#      handover: the lock now names NEW (or already did), or the branch is
+#      [gone] upstream and the lock was released instead
 #   1  report: one or more linked worktrees are unlocked (UNCLAIMED)
 #      stale: not provably stale (unlocked, reasonless, no session, another
 #      host, a running process holds the session, the session registry is
@@ -59,7 +60,10 @@ die_usage() {
 }
 
 # shellcheck source=lib/worktree-facts.sh
-source "$SCRIPT_DIR/lib/worktree-facts.sh" || { echo "error: cannot load lib/worktree-facts.sh" >&2; exit "$EX_ENV"; }
+source "$SCRIPT_DIR/lib/worktree-facts.sh" || {
+  echo "error: cannot load lib/worktree-facts.sh" >&2
+  exit "$EX_ENV"
+}
 
 git_unlocated() {
   (
@@ -222,63 +226,63 @@ root_dir=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --repo-dir)
-    [[ $# -ge 2 ]] || usage
-    repo_dir="$2"
-    shift 2
-    ;;
-  --session-id)
-    [[ $# -ge 2 ]] || usage
-    session_id="$2"
-    [[ -z "$2" ]] || session_id_given=1
-    shift 2
-    ;;
-  --to)
-    [[ $# -ge 2 ]] || usage
-    to_session="$2"
-    shift 2
-    ;;
-  --root)
-    [[ $# -ge 2 ]] || usage
-    root_dir="$2"
-    shift 2
-    ;;
-  --idle-minutes)
-    [[ $# -ge 2 ]] || usage
-    idle_minutes="$2"
-    shift 2
-    ;;
-  --all-unclaimed)
-    all_unclaimed=1
-    shift
-    ;;
-  --include-gone)
-    include_gone=1
-    shift
-    ;;
-  --batch)
-    batch=1
-    shift
-    ;;
-  -h | --help)
-    usage
-    ;;
-  --)
-    shift
-    break
-    ;;
-  -*)
-    printf '%s: unknown flag: %s\n' "$PROG" "$1" >&2
-    usage
-    ;;
-  *)
-    if [[ -n "$path" ]]; then
-      printf '%s: unexpected argument: %s\n' "$PROG" "$1" >&2
+    --repo-dir)
+      [[ $# -ge 2 ]] || usage
+      repo_dir="$2"
+      shift 2
+      ;;
+    --session-id)
+      [[ $# -ge 2 ]] || usage
+      session_id="$2"
+      [[ -z "$2" ]] || session_id_given=1
+      shift 2
+      ;;
+    --to)
+      [[ $# -ge 2 ]] || usage
+      to_session="$2"
+      shift 2
+      ;;
+    --root)
+      [[ $# -ge 2 ]] || usage
+      root_dir="$2"
+      shift 2
+      ;;
+    --idle-minutes)
+      [[ $# -ge 2 ]] || usage
+      idle_minutes="$2"
+      shift 2
+      ;;
+    --all-unclaimed)
+      all_unclaimed=1
+      shift
+      ;;
+    --include-gone)
+      include_gone=1
+      shift
+      ;;
+    --batch)
+      batch=1
+      shift
+      ;;
+    -h | --help)
       usage
-    fi
-    path="$1"
-    shift
-    ;;
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      printf '%s: unknown flag: %s\n' "$PROG" "$1" >&2
+      usage
+      ;;
+    *)
+      if [[ -n "$path" ]]; then
+        printf '%s: unexpected argument: %s\n' "$PROG" "$1" >&2
+        usage
+      fi
+      path="$1"
+      shift
+      ;;
   esac
 done
 
@@ -288,27 +292,27 @@ if [[ -n "$session_id" ]] && ! valid_session_id "$session_id"; then
 fi
 
 case "$cmd" in
-report | stale) ;;
-claim)
-  ((all_unclaimed)) || [[ -n "$path" ]] || die_usage 'claim requires a path or --all-unclaimed'
-  ((all_unclaimed)) && [[ -n "$path" ]] && die_usage 'claim: pass a path or --all-unclaimed, not both'
-  ;;
-check-enter)
-  [[ -n "$path" ]] || die_usage 'check-enter requires a path'
-  ;;
-release)
-  [[ -n "$path" ]] || die_usage 'release requires a path'
-  [[ -n "$session_id" ]] || die_usage 'release needs --session-id or CLAUDE_CODE_SESSION_ID to prove ownership'
-  ;;
-handover)
-  [[ -n "$path" ]] || die_usage 'handover requires a path'
-  [[ "$session_id_given" == 1 && -n "$to_session" ]] || die_usage 'handover needs --session-id OLD and --to NEW'
-  valid_session_id "$to_session" || die_usage '--to must match ^[A-Za-z0-9._:-]{1,128}$'
-  ;;
-*)
-  printf '%s: unknown verb: %s\n' "$PROG" "$cmd" >&2
-  usage
-  ;;
+  report | stale) ;;
+  claim)
+    ((all_unclaimed)) || [[ -n "$path" ]] || die_usage 'claim requires a path or --all-unclaimed'
+    ((all_unclaimed)) && [[ -n "$path" ]] && die_usage 'claim: pass a path or --all-unclaimed, not both'
+    ;;
+  check-enter)
+    [[ -n "$path" ]] || die_usage 'check-enter requires a path'
+    ;;
+  release)
+    [[ -n "$path" ]] || die_usage 'release requires a path'
+    [[ -n "$session_id" ]] || die_usage 'release needs --session-id or CLAUDE_CODE_SESSION_ID to prove ownership'
+    ;;
+  handover)
+    [[ -n "$path" ]] || die_usage 'handover requires a path'
+    [[ "$session_id_given" == 1 && -n "$to_session" ]] || die_usage 'handover needs --session-id OLD and --to NEW'
+    valid_session_id "$to_session" || die_usage '--to must match ^[A-Za-z0-9._:-]{1,128}$'
+    ;;
+  *)
+    printf '%s: unknown verb: %s\n' "$PROG" "$cmd" >&2
+    usage
+    ;;
 esac
 
 [[ "$cmd" != handover && -n "$to_session" ]] && die_usage '--to applies to handover only'
@@ -350,21 +354,21 @@ do_report() {
     linked=$((linked + 1))
     state="$(classify_lock_state "$i")"
     case "$state" in
-    unlocked)
-      printf 'UNCLAIMED\t%s\n' "${WT_PATHS[i]}"
-      unclaimed=$((unclaimed + 1))
-      if [[ -n "$root" && "${WT_PATHS[i]}" != "$root"/* ]]; then
-        outside=$((outside + 1))
-      fi
-      ;;
-    reasonless)
-      printf 'LOCKED_NO_REASON\t%s\n' "${WT_PATHS[i]}"
-      reasonless=$((reasonless + 1))
-      ;;
-    *)
-      printf 'CLAIMED\t%s\t%s\n' "${WT_PATHS[i]}" "${WT_REASONS[i]}"
-      claimed=$((claimed + 1))
-      ;;
+      unlocked)
+        printf 'UNCLAIMED\t%s\n' "${WT_PATHS[i]}"
+        unclaimed=$((unclaimed + 1))
+        if [[ -n "$root" && "${WT_PATHS[i]}" != "$root"/* ]]; then
+          outside=$((outside + 1))
+        fi
+        ;;
+      reasonless)
+        printf 'LOCKED_NO_REASON\t%s\n' "${WT_PATHS[i]}"
+        reasonless=$((reasonless + 1))
+        ;;
+      *)
+        printf 'CLAIMED\t%s\t%s\n' "${WT_PATHS[i]}" "${WT_REASONS[i]}"
+        claimed=$((claimed + 1))
+        ;;
     esac
   done
   if ((reasonless > 0)); then
@@ -414,23 +418,23 @@ lock_one() {
   existing="${WT_REASONS[idx]}"
   state="$(classify_lock_state "$idx" "$session_id")"
   case "$state" in
-  ours)
-    printf '%s\n' "$existing"
-    return "$EX_OK"
-    ;;
-  foreign)
-    printf '%s: already claimed: %s\n' "$PROG" "$existing" >&2
-    return "$EX_FOREIGN"
-    ;;
-  reasonless)
-    printf '%s: already locked without a reason: %s\n' "$PROG" "$wt_path" >&2
-    return "$EX_FOREIGN"
-    ;;
-  unlocked) ;;
-  *)
-    printf '%s: unexpected lock state: %s\n' "$PROG" "$state" >&2
-    return "$EX_ENV"
-    ;;
+    ours)
+      printf '%s\n' "$existing"
+      return "$EX_OK"
+      ;;
+    foreign)
+      printf '%s: already claimed: %s\n' "$PROG" "$existing" >&2
+      return "$EX_FOREIGN"
+      ;;
+    reasonless)
+      printf '%s: already locked without a reason: %s\n' "$PROG" "$wt_path" >&2
+      return "$EX_FOREIGN"
+      ;;
+    unlocked) ;;
+    *)
+      printf '%s: unexpected lock state: %s\n' "$PROG" "$state" >&2
+      return "$EX_ENV"
+      ;;
   esac
   reason="$(worktree_lock_reason worktree-claim.sh "$session_id")"
   worktree_git lock --reason "$reason" "$wt_path" || return "$EX_ENV"
@@ -483,31 +487,31 @@ do_check_enter() {
   reason="${WT_REASONS[idx]}"
   state="$(classify_lock_state "$idx" "$session_id")"
   case "$state" in
-  unlocked)
-    printf 'UNCLAIMED: %s carries no lock reason\n' "$wt" >&2
-    printf '  claim it first: %s claim %s --session-id <session-id>\n' "$PROG" "$wt" >&2
-    return "$EX_UNCLAIMED"
-    ;;
-  ours)
-    printf 'CLAIMED: %s\n' "$reason"
-    return "$EX_OK"
-    ;;
-  reasonless)
-    printf 'FOREIGN CLAIM: locked without a reason\n' >&2
-    printf '  path: %s\n' "$wt" >&2
-    printf '  stop: a manual lock without a reason holds this worktree; do not write here\n' >&2
-    return "$EX_FOREIGN"
-    ;;
-  foreign)
-    printf 'FOREIGN CLAIM: %s\n' "$reason" >&2
-    printf '  path: %s\n' "$wt" >&2
-    printf '  stop: another session holds a live claim on this worktree; do not write here\n' >&2
-    return "$EX_FOREIGN"
-    ;;
-  *)
-    printf '%s: unexpected lock state: %s\n' "$PROG" "$state" >&2
-    return "$EX_ENV"
-    ;;
+    unlocked)
+      printf 'UNCLAIMED: %s carries no lock reason\n' "$wt" >&2
+      printf '  claim it first: %s claim %s --session-id <session-id>\n' "$PROG" "$wt" >&2
+      return "$EX_UNCLAIMED"
+      ;;
+    ours)
+      printf 'CLAIMED: %s\n' "$reason"
+      return "$EX_OK"
+      ;;
+    reasonless)
+      printf 'FOREIGN CLAIM: locked without a reason\n' >&2
+      printf '  path: %s\n' "$wt" >&2
+      printf '  stop: a manual lock without a reason holds this worktree; do not write here\n' >&2
+      return "$EX_FOREIGN"
+      ;;
+    foreign)
+      printf 'FOREIGN CLAIM: %s\n' "$reason" >&2
+      printf '  path: %s\n' "$wt" >&2
+      printf '  stop: another session holds a live claim on this worktree; do not write here\n' >&2
+      return "$EX_FOREIGN"
+      ;;
+    *)
+      printf '%s: unexpected lock state: %s\n' "$PROG" "$state" >&2
+      return "$EX_ENV"
+      ;;
   esac
 }
 
@@ -516,26 +520,26 @@ do_release() {
   local wt="${WT_PATHS[WT_INDEX]}" reason="${WT_REASONS[WT_INDEX]}" state
   state="$(classify_lock_state "$WT_INDEX" "$session_id")"
   case "$state" in
-  unlocked)
-    printf '%s: not locked: %s\n' "$PROG" "$wt" >&2
-    return "$EX_OK"
-    ;;
-  reasonless)
-    printf '%s: not released, the lock carries no reason, so it names no session: %s\n' "$PROG" "$wt" >&2
-    return "$EX_FOREIGN"
-    ;;
-  foreign)
-    printf '%s: not released, the lock is not this session'\''s: %s\n' "$PROG" "$reason" >&2
-    return "$EX_FOREIGN"
-    ;;
-  ours)
-    worktree_git unlock "$wt" || return "$EX_ENV"
-    printf 'released %s\n' "$wt"
-    ;;
-  *)
-    printf '%s: unexpected lock state: %s\n' "$PROG" "$state" >&2
-    return "$EX_ENV"
-    ;;
+    unlocked)
+      printf '%s: not locked: %s\n' "$PROG" "$wt" >&2
+      return "$EX_OK"
+      ;;
+    reasonless)
+      printf '%s: not released, the lock carries no reason, so it names no session: %s\n' "$PROG" "$wt" >&2
+      return "$EX_FOREIGN"
+      ;;
+    foreign)
+      printf '%s: not released, the lock is not this session'\''s: %s\n' "$PROG" "$reason" >&2
+      return "$EX_FOREIGN"
+      ;;
+    ours)
+      worktree_git unlock "$wt" || return "$EX_ENV"
+      printf 'released %s\n' "$wt"
+      ;;
+    *)
+      printf '%s: unexpected lock state: %s\n' "$PROG" "$state" >&2
+      return "$EX_ENV"
+      ;;
   esac
 }
 
@@ -544,20 +548,20 @@ do_handover() {
   local wt="${WT_PATHS[WT_INDEX]}" reason="${WT_REASONS[WT_INDEX]}" creator=worktree-claim.sh new_reason state
   state="$(classify_lock_state "$WT_INDEX" "$session_id")"
   case "$state" in
-  reasonless)
-    printf '%s: not handed over, the lock carries no reason, so it names no session: %s\n' "$PROG" "$wt" >&2
-    return "$EX_FOREIGN"
-    ;;
-  unlocked)
-    printf '%s: not locked, no claim to hand over: %s\n' "$PROG" "$wt" >&2
-    printf '  claim it instead: %s claim %s --session-id %s\n' "$PROG" "$wt" "$to_session" >&2
-    return "$EX_UNCLAIMED"
-    ;;
-  foreign | ours) ;;
-  *)
-    printf '%s: unexpected lock state: %s\n' "$PROG" "$state" >&2
-    return "$EX_ENV"
-    ;;
+    reasonless)
+      printf '%s: not handed over, the lock carries no reason, so it names no session: %s\n' "$PROG" "$wt" >&2
+      return "$EX_FOREIGN"
+      ;;
+    unlocked)
+      printf '%s: not locked, no claim to hand over: %s\n' "$PROG" "$wt" >&2
+      printf '  claim it instead: %s claim %s --session-id %s\n' "$PROG" "$wt" "$to_session" >&2
+      return "$EX_UNCLAIMED"
+      ;;
+    foreign | ours) ;;
+    *)
+      printf '%s: unexpected lock state: %s\n' "$PROG" "$state" >&2
+      return "$EX_ENV"
+      ;;
   esac
   if [[ "$(classify_lock_state "$WT_INDEX" "$to_session")" == "ours" ]]; then
     printf '%s\n' "$reason"
@@ -566,6 +570,12 @@ do_handover() {
   if [[ "$state" != "ours" ]]; then
     printf '%s: not handed over, the lock does not name session %s: %s\n' "$PROG" "$session_id" "$reason" >&2
     return "$EX_FOREIGN"
+  fi
+  local branch="${WT_BRANCHES[WT_INDEX]#refs/heads/}"
+  if [[ -n "$branch" && "$(git_unlocated -C "$repo_dir" for-each-ref --format='%(upstream:track)' "refs/heads/$branch" 2>/dev/null)" == '[gone]' ]]; then
+    worktree_git unlock "$wt" || return "$EX_ENV"
+    printf 'released %s: branch %s is [gone] upstream, so the claim ends instead of passing to %s\n' "$wt" "$branch" "$to_session"
+    return "$EX_OK"
   fi
   [[ "$reason" == worktree-create.sh:* ]] && creator=worktree-create.sh
   new_reason="$(worktree_lock_reason "$creator" "$to_session")"
@@ -652,19 +662,19 @@ session_is_free() {
   local entry_sid entry_pid entry_start rc
   load_session_registry
   case "$REGISTRY_SCAN" in
-  unreadable)
-    STALE_NOTE="not provable: session registry $REGISTRY_DIR is missing or unreadable"
-    return 1
-    ;;
-  nojq)
-    STALE_NOTE="not provable: jq is not on PATH, so session registry $REGISTRY_DIR cannot be read"
-    return 1
-    ;;
-  malformed)
-    STALE_NOTE="not provable: session registry $REGISTRY_DIR could not be read or holds an entry in an unknown shape"
-    return 1
-    ;;
-  *) ;;
+    unreadable)
+      STALE_NOTE="not provable: session registry $REGISTRY_DIR is missing or unreadable"
+      return 1
+      ;;
+    nojq)
+      STALE_NOTE="not provable: jq is not on PATH, so session registry $REGISTRY_DIR cannot be read"
+      return 1
+      ;;
+    malformed)
+      STALE_NOTE="not provable: session registry $REGISTRY_DIR could not be read or holds an entry in an unknown shape"
+      return 1
+      ;;
+    *) ;;
   esac
   while IFS=$'\t' read -r entry_sid entry_pid entry_start; do
     [[ "$entry_sid" == "$1" ]] || continue
@@ -713,15 +723,15 @@ stale_verdict() {
     scan_transcripts "$sid.jsonl" -quit
   fi
   case "$TRANSCRIPT_SCAN" in
-  unreadable)
-    STALE_NOTE="not provable: transcript directory $TRANSCRIPT_DIR is unreadable"
-    return "$EX_UNCLAIMED_REPORT"
-    ;;
-  failed)
-    STALE_NOTE="not provable: scanning $TRANSCRIPT_DIR failed"
-    return "$EX_UNCLAIMED_REPORT"
-    ;;
-  *) ;;
+    unreadable)
+      STALE_NOTE="not provable: transcript directory $TRANSCRIPT_DIR is unreadable"
+      return "$EX_UNCLAIMED_REPORT"
+      ;;
+    failed)
+      STALE_NOTE="not provable: scanning $TRANSCRIPT_DIR failed"
+      return "$EX_UNCLAIMED_REPORT"
+      ;;
+    *) ;;
   esac
   if [[ "$TRANSCRIPTS" == *"/$sid.jsonl"$'\n'* ]]; then
     hit="${TRANSCRIPTS%%"/$sid.jsonl"$'\n'*}"
@@ -766,12 +776,12 @@ do_stale_batch() {
 }
 
 case "$cmd" in
-stale) if ((batch)); then do_stale_batch; else do_stale; fi ;;
-report) do_report ;;
-claim) if ((all_unclaimed)); then do_claim_all; else do_claim_one; fi ;;
-check-enter) do_check_enter ;;
-release) do_release ;;
-handover) do_handover ;;
-*) ;;
+  stale) if ((batch)); then do_stale_batch; else do_stale; fi ;;
+  report) do_report ;;
+  claim) if ((all_unclaimed)); then do_claim_all; else do_claim_one; fi ;;
+  check-enter) do_check_enter ;;
+  release) do_release ;;
+  handover) do_handover ;;
+  *) ;;
 esac
 exit $?
