@@ -404,6 +404,7 @@ pointers; this record holds that decision and our own probe results, not the pag
 
   | Setup | Trigger | Loaded |
   |---|---|---|
+  | No `CLAUDE.md`; root and `sub/` `AGENTS.md` | Session started from `sub/` (`--tools ""`, measured on 2.1.278) | root and nested |
   | No `CLAUDE.md`; root and `sub/` `AGENTS.md` | Read `sub/thing.txt` (Read only) | root and nested |
   | Same | Write `sub/new.txt` (Write only) | root only |
   | Root `CLAUDE.md` is `@AGENTS.md`; `sub/AGENTS.md` without a shim | Read `sub/thing.txt` (Read only) | root only |

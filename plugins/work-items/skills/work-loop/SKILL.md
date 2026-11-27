@@ -350,8 +350,8 @@ a candidate it has already excluded, a second query with the adapter's reporting
 the PR number, draft state, and age from `createdAt`.
 
 The exclusion is bounded by age. Read `${user_config.work_loop_in_flight_stale_days}` (default 14;
-when the key is unset, apply the manifest default; pointer:
-[Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)). A PR open longer than that stops silently excluding its item: it is still not dispatched,
+a surviving literal `${user_config.…}` placeholder means the key is unset, so apply the manifest
+default; pointer: [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)). A PR open longer than that stops silently excluding its item: it is still not dispatched,
 and step 5 escalates it as `kind=escalated`, whose one-line question names the PR
 number, draft or ready state, and age, and asks the human to land, close, or unlink it. Step 5's
 marker read suppresses duplicates only while the item is still held for a person; an item
@@ -420,8 +420,8 @@ Hard gates:
 ## Adaptive item cap
 
 The per-cycle item cap adapts between the configured floor and ceiling; bounds come from
-`userConfig` (when a key is unset, apply the manifest default; pointer:
-[Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)):
+`userConfig`, where a surviving literal `${user_config.…}` placeholder means the key is unset,
+so apply the manifest default ([Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)):
 
 - Start at `${user_config.work_loop_item_cap_start}` (default 2).
 - **+1** after 3 consecutive **clean** items, up to `${user_config.work_loop_item_cap_ceiling}`
