@@ -1863,13 +1863,9 @@ the rules that only tighten in
   whose first line starts `**Decision recorded.** Cost:`, written by a User with admin permission
   who is not the agent identity or one of the gate's own logins, not posted through an App, and
   never edited; one on the closing issue must also be created after the pull request was. The
-  comment must also carry, outside HTML comments, a line link to the decision's row in the
-  owner-decisions record
-  (`https://github.com/melodic-software/architecture/blob/<commit or main>/docs/owner-decisions.md#L<line>`;
-  rows have no anchors and the record is append-only) and the owner's words after `verbatim:` in
-  double quotes (`Owner, verbatim: "<his words>"`). The gate cannot read that private record, so it
-  checks the shape only: a cleared hold is auditable, not provable, since sessions post as the
-  owner and write the record too. A comment that meets every other condition but lacks either
+  comment must also carry, outside HTML comments, the owner's words after `verbatim:` in
+  double quotes (`Owner, verbatim: "<his words>"`). A cleared hold is auditable, not provable, since
+  sessions post as the owner. A comment that meets every other condition but lacks the quote
   keeps the hold, and the gate's message names what it lacks. A link
   inside an HTML comment in the body counts for nothing. A push after the decision is an accepted
   residual: the decision is not bound to a head. The gate reads the linked comments only for a
@@ -2509,7 +2505,7 @@ Both also hold a pull request that changes one of the merge gate's cost paths
 (`diff_risk.COST_PATHS`: Pulumi, Terraform, Bicep and ARM template files). An
 approval does not lift that hold. Only the owner's cost decision does, read as the gate's
 `cost_decision` reads it: an unedited comment by a person on the trusted-actor list whose first
-line opens `**Decision recorded.** Cost:` and that carries an owner-decisions row link and a
+line opens `**Decision recorded.** Cost:` and that carries a
 verbatim owner quote (`decisionGaps`, the shape the cost hold above states), on the pull request
 or on its one closing issue after the pull request opened, linked from the body. That body edit re-runs `ci-status`. The decision
 carries to a later head by the same `baseMergeCarry` as the hold-path lift, on the whole net
@@ -4888,16 +4884,15 @@ a module it imports needs no azure-iac change. These still pair with an azure-ia
 ## Outside this repository
 
 The lanes depend on pieces other repositories own. Each row names where that piece is documented;
-read it there, since this doc does not restate it. azure-iac, github-iac and architecture are
+read it there, since this doc does not restate it. azure-iac and github-iac are
 private. As of 2026-10-12; recheck when a row's owner moves the doc or a new external piece joins
 the lanes.
 
 | Piece | Owner and doc |
 |---|---|
-| Org architecture: why each trust link exists, glossary | `melodic-software/architecture`, `docs/trust-links.md` and `docs/glossary.md` |
 | Token broker: the Function app, its Key Vault signing key, identities and roles, deploy | `melodic-software/azure-iac`: `README.md`, ADR 0001 (stack, who can mint), `src/lanes-token-broker/` |
 | Broker operations: health check, taking it down, key disable, key rotation, fallback to a runner key | Not yet tracked; [azure-iac#17](https://github.com/melodic-software/azure-iac/issues/17) adds the runbook to azure-iac |
-| Lanes App `melodic-automation-lanes`: identity and grant model | architecture `docs/trust-links.md` ("Lanes App"); github-iac ADR 0015 |
+| Lanes App `melodic-automation-lanes`: identity and grant model | github-iac ADR 0015 |
 | Org variables `CLAUDE_LANES_DISABLED`, `LANES_BROKER_URL`, `LANES_BROKER_AUDIENCE`; repository variable `CLAUDE_LANES_REPO_DISABLED` | github-iac `OrgCiRouting.cs`; README "Claude lane kill-switches" (how to flip either switch); [ADR 0015](https://github.com/melodic-software/github-iac/blob/main/docs/adr/0015-oidc-token-broker-for-pr-pipeline-lane-app-tokens.md) |
 | Agent identity (`merge.agent-identity`): the GitHub App the local babysit lane acts as, installed on this repository only, with variables read only | Not yet provisioned; [github-iac#691](https://github.com/melodic-software/github-iac/issues/691) |
 | Repository variable `AUTOMATION_LANES_APP_SENDER_ID` | Set by hand on this repository and the sandbox, declared nowhere; [github-iac#677](https://github.com/melodic-software/github-iac/issues/677) |

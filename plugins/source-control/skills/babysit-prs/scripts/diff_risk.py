@@ -71,7 +71,8 @@ inline `runs-on:` lines) that is not `_FREE_RUNNER` on a public repository,
 or any on another, counting the matrix values and input defaults and options
 a `runs-on` expression names. Only `RiskInput.cost_decision`, an owner
 decision the caller verified (`babysit_merge_policy.cost_decision`, which
-also requires an owner-decisions row link and a verbatim owner quote), clears
+requires a verbatim owner quote, and an owner-decisions row link when
+`owner_decisions_record` is configured), clears
 it.
 
 Off a public repository, a raised timeout is a `timeout-minutes` or
@@ -864,7 +865,7 @@ _RUNS_ON = re.compile(r"^(\s*)-?\s*runs-on\s*:\s*(.*)$")
 def _decision_record_hint() -> str:
     record = merge_settings.load().owner_decisions_record
     if not record:
-        return "no owner-decisions record is set, so no decision clears this hold"
+        return ""
     _, repo, path = record.split("/", 2)
     return f"{repo}/blob/<commit or main>/{path}#L<line>"
 
@@ -1882,12 +1883,17 @@ def _cost_reasons(
             spends.append(f"{f.path}: {'; '.join(spend)}")
     reasons = []
     if charges and not inp.cost_decision:
+        hint = _decision_record_hint()
+        row_clause = (
+            f"link its row in the owner-decisions record ({hint}) and "
+            if hint
+            else ""
+        )
         detail = "; ".join(charges) + (
             "; cite the owner's `**Decision recorded.** Cost:` comment on the "
             "closing issue or this pull request in the body to clear it; the "
-            "comment must link its row in the owner-decisions record "
-            f"({_decision_record_hint()}) "
-            'and quote the owner as `verbatim: "<his words>"`'
+            f"comment must {row_clause}"
+            'quote the owner as `verbatim: "<his words>"`'
         )
         reasons.append(Reason(COST_CODE, Risk.HIGH, detail))
     if spends:

@@ -345,7 +345,7 @@ The owner's rule, 2026-10-27, verbatim, with reason 3 as the owner reworded it o
 | Original intent or vision changes, or the item cannot answer an intent question | `needs-owner-decision`, `Flags: intent` | Intake triage ([`intake-triage.yml`](../../../.github/workflows/intake-triage.yml)) |
 | A finding during implementation alters intent, vision or the primary design | human-gated role label (`needs-human` by default) | The lane doing the work: `work-loop`, `work-resolve-issue`, or pr-verify once address-feedback's [round cap](../../conventions/pr-pipeline/README.md#loop-caps) is spent |
 | A HIGH or CRITICAL security issue, such as leaked tokens or secrets, an account compromise, or real money at risk (the repository is public) | human-gated role label for an existing weakness; `needs-owner-decision`, `Flags: security` for work whose result would carry one | Intake triage for issues; the security review lane for pull requests |
-| Anything that can bill the owner | human-gated role label, `Flags: cost` | Intake triage for issues; the pr-merge lane's cost hold for pull requests, which clears only on an owner cost decision comment that links its row in the owner-decisions record and quotes the owner verbatim ([the cost hold](../../conventions/pr-pipeline/README.md#the-local-babysit-lane)) |
+| Anything that can bill the owner | human-gated role label, `Flags: cost` | Intake triage for issues; the pr-merge lane's cost hold for pull requests, which clears only on an owner cost decision comment that quotes the owner verbatim ([the cost hold](../../conventions/pr-pipeline/README.md#the-local-babysit-lane)) |
 
 Before a security concern is raised as a question, a plan or a stop, it names the surface that runs
 today, or that the work would ship, and is exposed, and in what mode. With none, it is recorded in one line with the condition
@@ -450,10 +450,9 @@ On a pull request, a recorded owner decision lifts a lane's escalation. When a l
 human-gated label on with a trusted escalation marker
 ([`escalation-marker.md`](../../../plugins/work-items/reference/escalation-marker.md)) and each
 reason the escalation names is an intent, vision or primary-design question (a disputed finding
-that turns on what the change is meant to do included), a session removes the label once a row in
-the owner-decisions record (`docs/owner-decisions.md` in `melodic-software/architecture`) or the
+that turns on what the change is meant to do included), a session removes the label once the
 owner's words quoted verbatim cover every one of those reasons. In the same pass it comments on the
-pull request with the row's line link or the quote and the escalation it answers, then takes the
+pull request with the quote and the escalation it answers, then takes the
 resume step the escalation comment names. Where no recorded decision covers a reason, the label
 stays the owner's to remove. The rule reaches no hold the owner keeps: an operator-parked item,
 which carries no marker; a review-lane hold

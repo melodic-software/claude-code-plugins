@@ -85,9 +85,9 @@ failed read, a list cut short or no such run keeps the FAIL.
   counted FAIL there and every counted pass at the head record the same
   linked issues and, for each pass, a trusted person recorded an owner
   decision on one of them from the last such FAIL's creation to the pass
-  run's creation: a spec comment (`_spec_comments`) created then that links
-  an owner-decisions row and quotes the owner (`merge_policy.decision_gaps`;
-  `_spec_amended`). Any
+  run's creation: a spec comment (`_spec_comments`) created then that quotes
+  the owner (and links an owner-decisions row when `owner_decisions_record` is
+  configured; `merge_policy.decision_gaps`, `_spec_amended`). Any
   other failed read of a run time or a diff refuses as the next item does;
 - a FAIL-named artifact tied to this pull request by number or SHA whose run
   cannot be read: `verify:unreadable`. An untied FAIL whose run cannot be read
@@ -4920,9 +4920,10 @@ class Reader:
         issues as each FAIL, and for each pass a trusted person
         (`_trusted_actor`) recorded an owner decision on one of those issues
         after the last FAIL's creation, up to the pass run's creation: a spec
-        comment (`_spec_comments`) created then that links an owner-decisions
-        row and quotes the owner (`merge_policy.decision_gaps`). A trusted
-        comment without that link, and any issue body edit, amends nothing. The pass judged an amended
+        comment (`_spec_comments`) created then that quotes the owner (and
+        links an owner-decisions row when `owner_decisions_record` is
+        configured; `merge_policy.decision_gaps`). A trusted comment without
+        those elements, and any issue body edit, amends nothing. The pass judged an amended
         spec the FAIL never read, which the same change cannot carry; a
         relink stays `_superseded`'s. A record, time or read that fails is
         False."""

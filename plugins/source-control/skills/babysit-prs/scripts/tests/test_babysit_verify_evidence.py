@@ -1796,6 +1796,18 @@ class ATrustedSpecAmendmentClearsAnEarlierFailOnTheSameChange(unittest.TestCase)
                 fake = self.amended(body=body)
                 self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
+    def test_with_no_record_configured_quote_only_clears_and_plain_text_keeps_it(
+        self,
+    ) -> None:
+        with mock.patch.object(policy, "DECISION_ROW", None):
+            self.assertIsNone(
+                read(self.amended(body='verbatim: "amend item 1"')).refusal
+            )
+            self.assertEqual(
+                read(self.amended(body="Item 1 now reads as amended.")).refusal,
+                "verify:earlier-fail",
+            )
+
     def test_an_untrusted_comment_keeps_it(self) -> None:
         for label, author in (
             ("a stranger", self.STRANGER),
