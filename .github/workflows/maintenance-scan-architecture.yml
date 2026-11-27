@@ -230,7 +230,7 @@ jobs:
     cache-mode: read
     permissions:
       contents: read
-      issues: write
+      id-token: write
     env:
       GIT_CONFIG_GLOBAL: /dev/null
       GIT_CONFIG_NOSYSTEM: "1"
@@ -294,16 +294,50 @@ jobs:
         timeout-minutes: 5
         run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
-      # "events triggered by the GITHUB_TOKEN will not create a new workflow run": https://docs.github.com/en/actions/concepts/security/github_token
-      - name: File the findings
+      - name: Resolve the config
+        id: config
         if: steps.verify.outcome == 'success'
         env:
-          GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: maintenance-scan-architecture
+          activity: file-architecture-findings
+          base-path: .base
+          output-path: ${{ runner.temp }}/resolved-config.json
+          standards-path: ${{ steps.standards.outputs.path }}
+
+      - name: Request the lane token
+        id: lane-token
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
+        with:
+          broker-url: ${{ vars.LANES_BROKER_URL }}
+          audience: ${{ vars.LANES_BROKER_AUDIENCE }}
+          lane: maintenance-scan-architecture
+          activity: file-architecture-findings
+          effect: ${{ steps.config.outputs.effect }}
+          contents: ${{ steps.config.outputs.contents }}
+          pull-requests: ${{ steps.config.outputs.pull-requests }}
+          issues: ${{ steps.config.outputs.issues }}
+          kill-switch-ok: true
+
+      - name: File the findings
+        if: steps.lane-token.outputs.token != ''
+        env:
+          GITHUB_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
           REPOSITORY: ${{ github.repository }}
           BASE_DIR: ${{ github.workspace }}/.base
           FINDINGS_FILE: ${{ runner.temp }}/findings/findings.json
         run: node .base/.github/scripts/maintenance-scan-architecture/file-findings.mjs file
+
+      - name: Revoke the lane token
+        if: always() && steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+        run: bash .base/.github/scripts/lib/revoke-lane-token.sh
 
       - name: Log the API budget at the end
         if: always()
@@ -311,4 +345,4 @@ jobs:
         timeout-minutes: 1
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
-          tokens: github-token
+          tokens: lanes-app github-token

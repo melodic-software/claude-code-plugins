@@ -220,13 +220,25 @@ test("with the lane off, a forced scan files nothing: File Findings runs only wh
   assert.equal(decide({ ...on, enabled: false, force: true, lastScan: scanned(2) }).run, true, "the forced scan itself still runs");
 });
 
-test("File Findings holds only issues write and contents read, files on the job's own GITHUB_TOKEN, and requests no lane token", () => {
-  const job = parse(WORKFLOW_TEXT).jobs["file-findings"];
-  assert.deepEqual(job.permissions, { contents: "read", issues: "write" });
+test("File Findings alone files, on a lanes App token the broker grants its tracker-write activity, revoked whatever happens", () => {
+  const { jobs } = parse(WORKFLOW_TEXT);
+  const job = jobs["file-findings"];
+  assert.deepEqual(job.permissions, { contents: "read", "id-token": "write" }, "GITHUB_TOKEN holds no issues write");
+  const request = job.steps.find((step) => /request-lane-token$/.test(step.uses ?? ""));
+  assert.deepEqual([request.with.lane, request.with.activity], ["maintenance-scan-architecture", "file-architecture-findings"]);
   const file = job.steps.find((step) => /file-findings\.mjs file$/.test(step.run ?? ""));
-  assert.equal(file.env.GITHUB_TOKEN, "${{ github.token }}");
-  assert.ok(!job.steps.some((step) => /request-lane-token|revoke-lane-token/.test(`${step.uses ?? ""} ${step.run ?? ""}`)));
-  assert.ok(!/request-lane-token/.test(WORKFLOW_TEXT));
+  assert.equal(file.env.GITHUB_TOKEN, "${{ steps.lane-token.outputs.token }}");
+  const revoke = job.steps.find((step) => /revoke-lane-token\.sh$/.test(step.run ?? ""));
+  assert.match(revoke.if, /^always\(\) && /);
+  for (const [name, other] of Object.entries(jobs).filter(([name]) => name !== "file-findings")) {
+    assert.ok(!JSON.stringify(other).includes("request-lane-token"), `${name} requests no lane token`);
+  }
+  assert.ok(!FIND_TEXT.includes("request-lane-token"), "no model leg holds a lane token");
+  const config = parse(CONFIG);
+  assert.equal(config.activities["file-architecture-findings"].effect, "mutate-tracker");
+  assert.deepEqual(config.lanes["maintenance-scan-architecture"].slots, [{ activity: "file-architecture-findings" }]);
+  const grants = JSON.parse(readFileSync(join(REPO_ROOT, ".github/actions/resolve-config/lane-grants.json"), "utf8"));
+  assert.deepEqual(Object.values(grants).find((row) => row.repository === "melodic-software/claude-code-plugins").lanes["maintenance-scan-architecture"], { "file-architecture-findings": "mutate-tracker" });
 });
 
 test("the gate's step summary heads as lane / gate, says the verdict verb first, and names what was not read", () => {

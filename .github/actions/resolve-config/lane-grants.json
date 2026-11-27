@@ -10,7 +10,8 @@
       "intake-triage": { "triage-issue": "read", "post-triage": "mutate-tracker", "apply-verdict": "mutate-tracker", "apply-refinement": "mutate-tracker" },
       "upstream-apply-changelog": { "apply-changelog": "read", "apply-changelog-branches": "mutate-branch", "publish-changelog-intake": "publish-artifact", "push-native-baseline-branch": "mutate-branch", "publish-native-baseline-pr": "publish-artifact" },
       "maintenance-tidy-code-upkeep": { "apply-upkeep-branches": "mutate-branch", "publish-upkeep-prs": "publish-artifact" },
-      "maintenance-measure-skill-edit": { "apply-skill-edit-branch": "mutate-branch", "publish-skill-edit-pr": "publish-artifact" }
+      "maintenance-measure-skill-edit": { "apply-skill-edit-branch": "mutate-branch", "publish-skill-edit-pr": "publish-artifact" },
+      "maintenance-scan-architecture": { "file-architecture-findings": "mutate-tracker" }
     },
     "trusted-actors": []
   },
