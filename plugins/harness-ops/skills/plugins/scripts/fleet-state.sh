@@ -642,6 +642,17 @@ PASS3_PROGRAM="$VERSION_TRIPLE_DEF"'
       | from_entries) as $cv
   | ($ci == "true") as $cib
   | ($home | gsub("\\\\"; "/") | sub("/+$"; "")) as $home_n
+  | ($inst[0].plugins | to_entries
+      | [.[] | select(.key | endswith("@" + $name)) | .value[]
+         | select(.scope == "project" or .scope == "local") | .projectPath | strings]
+      | unique
+      | map({key: .,
+             value: ((gsub("\\\\"; "/") | sub("/+$"; "")) as $p
+               | ($p | test("^/home/[^/]+$"))
+                 or ($p | test("^(/Users/[^/]+|/mnt/[a-z]/Users/[^/]+|[a-z]:/Users/[^/]+)$"; "i"))
+                 or ($home_n != "" and $home_n != "/"
+                     and (if $cib then ($p | ascii_downcase) == ($home_n | ascii_downcase) else $p == $home_n end)))})
+      | from_entries) as $path_is_home
   # Every install record for ids in this marketplace, flattened, with the
   # currentProject flag Windows-normalized on both sides.
   | ($inst[0].plugins | to_entries
@@ -674,11 +685,7 @@ PASS3_PROGRAM="$VERSION_TRIPLE_DEF"'
                 ),
                 projectPathIsHome: (
                   if (.scope == "project" or .scope == "local") and (.projectPath // "" | length) > 0 then
-                    (.projectPath | gsub("\\\\"; "/") | sub("/+$"; "")) as $p
-                    | ($p | test("^/home/[^/]+$"))
-                      or ($p | test("^(/Users/[^/]+|/mnt/[a-z]/Users/[^/]+|[a-z]:/Users/[^/]+)$"; "i"))
-                      or ($home_n != "" and $home_n != "/"
-                          and (if $cib then ($p | ascii_downcase) == ($home_n | ascii_downcase) else $p == $home_n end))
+                    $path_is_home[.projectPath]
                   else null end
                 ),
                 linkedWorktree: (
