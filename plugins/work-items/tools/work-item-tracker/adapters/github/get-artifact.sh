@@ -111,7 +111,7 @@ if [[ -z "$version" ]]; then
       updated_at: (.updatedAt | wit_utc_ts)
     } + (if $inc_v == 1 then {
       versions: [(.versions // [])[] | {
-        number: .number,
+        version: (.version // .number),
         created_at: (.createdAt | wit_utc_ts),
         actor: (.actor.login // null)
       }]
@@ -165,7 +165,7 @@ jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg id "$id" --argjson ver "$version" \
     updated_at: (.updatedAt | wit_utc_ts)
   } + (if $inc_v == 1 then {
     versions: [(.versions // [])[] | {
-      number: .number,
+      version: (.version // .number),
       created_at: (.createdAt | wit_utc_ts),
       actor: (.actor.login // null)
     }]

@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/fixtures/gh-relates-to-graphql.json
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG RUNNER_TEMP GITHUB_ACTIONS
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
-S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/unlink-relates.sh"
-source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+S="$SCRIPT_DIR/unlink-relates.sh"
+FIX_GQL="$SCRIPT_DIR/fixtures/gh-relates-to-graphql.json"
+source "$SCRIPT_DIR/../../lib/verb-test-helpers.sh"
 
 assert_help "$S"
 assert_usage_error "$S"
@@ -28,12 +31,13 @@ if [[ -n "${GH_STUB_ERR:-}" ]]; then
   printf '%s\n' "$GH_STUB_ERR" >&2
   exit 1
 fi
-printf '{"data":{"removeRelatesTo":{"issue":{"number":1},"relatedIssue":{"number":2}}}}\n'
+jq -c '.remove' "$GH_STUB_FIX_GQL"
 EOF
 chmod +x "$STUB/gh"
 
 run() {
-  OUT="$(PATH="$STUB:$PATH" WIT_WRITE_SPACING_S=0 bash "$S" "$@" 2>"$TMP_ROOT/err")"
+  OUT="$(PATH="$STUB:$PATH" GH_STUB_FIX_GQL="$FIX_GQL" WIT_WRITE_SPACING_S=0 \
+    bash "$S" "$@" 2>"$TMP_ROOT/err")"
   RC=$?
 }
 

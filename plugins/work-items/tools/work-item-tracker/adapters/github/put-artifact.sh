@@ -100,8 +100,42 @@ final_name="$name"
 final_type=""
 final_url=""
 
-if [[ -z "$art_num" && -n "$name" ]]; then
-  if ! wit_gh_capture read issue artifact list "$number" -R "$owner/$repo" --json number,name,type,url; then
+check_type_conflict() {
+  local existing_num="$1" existing_type="$2"
+  if ((has_url)) && [[ "$existing_type" != "link" ]]; then
+    printf 'put-artifact: cannot update %s artifact #%s with --url\n' "$existing_type" "$existing_num" >&2
+    exit "$EX_CONFLICT"
+  fi
+  if ((has_url == 0)) && [[ "$existing_type" == "link" ]]; then
+    printf 'put-artifact: cannot update link artifact #%s with document content\n' "$existing_num" >&2
+    exit "$EX_CONFLICT"
+  fi
+  if [[ -n "$art_type" && "$existing_type" != "$art_type" ]]; then
+    printf 'put-artifact: cannot change artifact #%s type from %s to %s\n' "$existing_num" "$existing_type" "$art_type" >&2
+    exit "$EX_CONFLICT"
+  fi
+}
+
+if [[ -n "$explicit_num" ]]; then
+  if ! wit_gh_capture read issue artifact view "$number" "$explicit_num" -R "$owner/$repo" --json "number,name,type,url"; then
+    if [[ "$WIT_GH_ERR" == *"HTTP 404"* || "$WIT_GH_ERR" == *"Not Found"* ]]; then
+      if gh issue artifact list "$number" -R "$owner/$repo" --json number >/dev/null 2>&1; then
+        printf '%s\n' "$WIT_GH_ERR" >&2
+        exit "$EX_NOT_FOUND"
+      fi
+    fi
+    if wit_gh_is_feature_unavailable "$WIT_GH_ERR" "$owner" "$repo" "$number" 1; then
+      wit_gh_emit_unavailable put-artifact "$id" "comment" "$WIT_GH_ERR" "$unavail_extra"
+    fi
+    printf '%s\n' "$WIT_GH_ERR" >&2
+    exit "$(wit_map_gh_error "$WIT_GH_ERR")"
+  fi
+  final_type="$(jq -r '.type // empty' <<<"$WIT_GH_OUT" 2>/dev/null)"
+  final_url="$(jq -r '.url // empty' <<<"$WIT_GH_OUT" 2>/dev/null)"
+  [[ -n "$final_name" ]] || final_name="$(jq -r '.name // empty' <<<"$WIT_GH_OUT" 2>/dev/null)"
+  [[ -n "$final_type" ]] && check_type_conflict "$explicit_num" "$final_type"
+elif [[ -n "$name" ]]; then
+  if ! wit_gh_capture read issue artifact list "$number" -R "$owner/$repo" --json "number,name,type,url"; then
     if wit_gh_is_feature_unavailable "$WIT_GH_ERR" "$owner" "$repo" "$number" 1; then
       wit_gh_emit_unavailable put-artifact "$id" "comment" "$WIT_GH_ERR" "$unavail_extra"
     fi
@@ -114,18 +148,7 @@ if [[ -z "$art_num" && -n "$name" ]]; then
     final_type="$(jq -r '.type // empty' <<<"$existing")"
     final_url="$(jq -r '.url // empty' <<<"$existing")"
     final_name="$(jq -r '.name // empty' <<<"$existing")"
-    if ((has_url)) && [[ "$final_type" != "link" ]]; then
-      printf 'put-artifact: cannot update %s artifact #%s with --url\n' "$final_type" "$art_num" >&2
-      exit "$EX_CONFLICT"
-    fi
-    if ((has_url == 0)) && [[ "$final_type" == "link" ]]; then
-      printf 'put-artifact: cannot update link artifact #%s with document content\n' "$art_num" >&2
-      exit "$EX_CONFLICT"
-    fi
-    if [[ -n "$art_type" && "$final_type" != "$art_type" ]]; then
-      printf 'put-artifact: cannot change artifact #%s type from %s to %s\n' "$art_num" "$final_type" "$art_type" >&2
-      exit "$EX_CONFLICT"
-    fi
+    check_type_conflict "$art_num" "$final_type"
   fi
 fi
 
@@ -156,13 +179,6 @@ if [[ -n "$art_num" ]]; then
   fi
   if [[ "$WIT_GH_OUT" =~ (https?://[^[:space:]]+/issues/[0-9]+/artifacts/[0-9]+) ]]; then
     final_url="${BASH_REMATCH[1]}"
-  fi
-  if [[ -z "$final_type" || -z "$final_name" ]]; then
-    if wit_gh_capture read issue artifact view "$number" "$art_num" -R "$owner/$repo" --json number,name,type,url; then
-      final_name="$(jq -r '.name // empty' <<<"$WIT_GH_OUT" 2>/dev/null)"
-      final_type="$(jq -r '.type // empty' <<<"$WIT_GH_OUT" 2>/dev/null)"
-      final_url="$(jq -r '.url // empty' <<<"$WIT_GH_OUT" 2>/dev/null)"
-    fi
   fi
   [[ -n "$final_type" ]] || final_type="$desired_type"
   [[ -n "$final_url" ]] || final_url="https://github.com/$owner/$repo/issues/$number/artifacts/$art_num"
@@ -195,10 +211,16 @@ created_num="" created_url=""
 if [[ "$WIT_GH_OUT" =~ (https?://[^[:space:]]+/issues/[0-9]+/artifacts/([0-9]+)) ]]; then
   created_url="${BASH_REMATCH[1]}"
   created_num="${BASH_REMATCH[2]}"
+else
+  IFS=$'\t' read -r tsv_status tsv_num tsv_name _ <<<"$WIT_GH_OUT"
+  if [[ "$tsv_status" == "created" && "$tsv_num" =~ ^[0-9]+$ ]]; then
+    created_num="$tsv_num"
+    [[ -n "$tsv_name" ]] && final_name="$tsv_name"
+  fi
 fi
 
 if [[ -z "$created_num" || -z "$final_name" ]]; then
-  if wit_gh_capture read issue artifact list "$number" -R "$owner/$repo" --json number,name,type,url; then
+  if wit_gh_capture read issue artifact list "$number" -R "$owner/$repo" --json "number,name,type,url"; then
     latest="$(jq -c --arg n "$name" 'if $n != "" then ([.[] | select(.name == $n)] | sort_by(.number) | last) else (sort_by(.number) | last) end // empty' <<<"$WIT_GH_OUT" 2>/dev/null)"
     if [[ -n "$latest" ]]; then
       created_num="$(jq -r '.number // empty' <<<"$latest")"

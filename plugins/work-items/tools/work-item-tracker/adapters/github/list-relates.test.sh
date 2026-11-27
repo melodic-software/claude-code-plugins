@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/fixtures/gh-relates-to-rest.json
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG RUNNER_TEMP GITHUB_ACTIONS
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
-S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/list-relates.sh"
-source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+S="$SCRIPT_DIR/list-relates.sh"
+FIX_REST="$SCRIPT_DIR/fixtures/gh-relates-to-rest.json"
+source "$SCRIPT_DIR/../../lib/verb-test-helpers.sh"
 
 assert_help "$S"
 assert_usage_error "$S"
@@ -31,13 +34,14 @@ if [[ -n "${GH_STUB_FAIL_ERR:-}" ]]; then
   printf '%s\n' "$GH_STUB_FAIL_ERR" >&2
   exit 1
 fi
-printf '%s\r\n' '[{"number":7,"title":"Same repo","state":"OPEN","html_url":"https://github.com/o/r/issues/7"}]'
-printf '%s\r\n' '[{"number":9,"title":"Cross repo","state":"CLOSED","html_url":"https://github.com/other/x/issues/9"}]'
+jq -c '[.[0]]' "$GH_STUB_FIX_REST" | sed 's/$/\r/'
+jq -c '[.[1]]' "$GH_STUB_FIX_REST" | sed 's/$/\r/'
 EOF
 chmod +x "$STUB/gh"
 
 run() {
-  OUT="$(PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" bash "$S" "$@" 2>"$TMP_ROOT/err")"
+  OUT="$(PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" GH_STUB_FIX_REST="$FIX_REST" \
+    bash "$S" "$@" 2>"$TMP_ROOT/err")"
   RC=$?
 }
 

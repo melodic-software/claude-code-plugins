@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/fixtures/gh-artifact-list.json
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG RUNNER_TEMP GITHUB_ACTIONS
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
-S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/list-artifacts.sh"
-source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+S="$SCRIPT_DIR/list-artifacts.sh"
+FIX_LIST="$SCRIPT_DIR/fixtures/gh-artifact-list.json"
+source "$SCRIPT_DIR/../../lib/verb-test-helpers.sh"
 
 assert_help "$S"
 assert_usage_error "$S"
@@ -41,12 +44,13 @@ if [[ -n "${GH_STUB_FAIL_ERR:-}" ]]; then
   exit 1
 fi
 
-printf '%s\r\n' '[{"id":"A1","number":1,"name":"plan.md","type":"generic","url":"https://github.com/o/r/issues/42/artifacts/1","createdAt":"2026-11-27T14:00:00Z","updatedAt":"2026-11-27T14:10:00Z"},{"id":"A2","number":2,"name":"report.html","type":"embedded_html","url":"https://github.com/o/r/issues/42/artifacts/2","createdAt":"2026-11-27T14:05:00Z","updatedAt":"2026-11-27T14:05:00Z"}]'
+jq -c '.' "$GH_STUB_FIX_LIST" | sed 's/$/\r/'
 EOF
 chmod +x "$STUB/gh"
 
 run() {
-  OUT="$(PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" bash "$S" "$@" 2>"$TMP_ROOT/err")"
+  OUT="$(PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" GH_STUB_FIX_LIST="$FIX_LIST" \
+    bash "$S" "$@" 2>"$TMP_ROOT/err")"
   RC=$?
 }
 
@@ -55,7 +59,8 @@ run "github:o/r#42" --type embedded_html --limit 10
 assert_eq "list-artifacts happy path → exit 0" "0" "$RC"
 assert_eq "list-artifacts available" "true" "$(jq -r '.available' <<<"$OUT")"
 assert_eq "list-artifacts count" "2" "$(jq '.artifacts | length' <<<"$OUT")"
-assert_eq "list-artifacts normalizes created_at" "2026-11-27T14:00:00Z" "$(jq -r '.artifacts[0].created_at' <<<"$OUT")"
+assert_eq "list-artifacts preserves numeric id" "6626" "$(jq -r '.artifacts[0].id' <<<"$OUT")"
+assert_eq "list-artifacts normalizes created_at" "2026-09-21T23:00:00Z" "$(jq -r '.artifacts[0].created_at' <<<"$OUT")"
 assert_contains "list-artifacts passes --type and --limit" "$(cat "$LOG")" "--type embedded_html --limit 10"
 
 GH_STUB_ART_HELP=old run "github:o/r#42"

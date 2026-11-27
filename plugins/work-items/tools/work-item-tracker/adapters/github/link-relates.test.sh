@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/fixtures/gh-relates-to-graphql.json plugins/work-items/tools/work-item-tracker/adapters/github/fixtures/gh-relates-to-rest.json
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG RUNNER_TEMP GITHUB_ACTIONS
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
-LINK_S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/link-relates.sh"
-UNLINK_S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/unlink-relates.sh"
-LIST_S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/list-relates.sh"
-source "$(dirname "$LINK_S")/../../lib/verb-test-helpers.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LINK_S="$SCRIPT_DIR/link-relates.sh"
+UNLINK_S="$SCRIPT_DIR/unlink-relates.sh"
+LIST_S="$SCRIPT_DIR/list-relates.sh"
+FIX_GQL="$SCRIPT_DIR/fixtures/gh-relates-to-graphql.json"
+FIX_REST="$SCRIPT_DIR/fixtures/gh-relates-to-rest.json"
+source "$SCRIPT_DIR/../../lib/verb-test-helpers.sh"
 
 assert_help "$LINK_S"
 assert_usage_error "$LINK_S"
@@ -100,21 +104,21 @@ if [[ "$1 $2" == "api graphql" ]]; then
   read -r bo br bn <<<"$(parse_node "$id_b")"
   ka="github:$ao/$ar#$an"
   kb="github:$bo/$br#$bn"
-  obja="$(jq -cn --argjson n "$an" --arg u "https://github.com/$ao/$ar/issues/$an" '{number:$n,title:"Issue A",state:"open",html_url:$u}')"
-  objb="$(jq -cn --argjson n "$bn" --arg u "https://github.com/$bo/$br/issues/$bn" '{number:$n,title:"Issue B",state:"open",html_url:$u}')"
+  obja="$(jq -c --argjson n "$an" --arg u "https://github.com/$ao/$ar/issues/$an" --arg ru "https://api.github.com/repos/$ao/$ar" '.[0] + {number:$n,html_url:$u,repository_url:$ru}' "$GH_STUB_FIX_REST")"
+  objb="$(jq -c --argjson n "$bn" --arg u "https://github.com/$bo/$br/issues/$bn" --arg ru "https://api.github.com/repos/$bo/$br" '.[1] + {number:$n,html_url:$u,repository_url:$ru}' "$GH_STUB_FIX_REST")"
 
   if [[ "$query" == *"addRelatesTo"* ]]; then
     jq -c --arg ka "$ka" --arg kb "$kb" --argjson oa "$obja" --argjson ob "$objb" \
       '.[$ka] = ((.[$ka] // []) + [$ob]) | .[$kb] = ((.[$kb] // []) + [$oa])' \
       "$GH_STUB_EDGES" >"$GH_STUB_EDGES.new" && mv "$GH_STUB_EDGES.new" "$GH_STUB_EDGES"
-    printf '{"data":{"addRelatesTo":{"issue":{"number":%s},"relatedIssue":{"number":%s}}}}\n' "$an" "$bn"
+    jq -c --argjson an "$an" --argjson bn "$bn" '.add | .data.addRelatesTo.issue.number = $an | .data.addRelatesTo.relatedIssue.number = $bn' "$GH_STUB_FIX_GQL"
     exit 0
   fi
   if [[ "$query" == *"removeRelatesTo"* ]]; then
     jq -c --arg ka "$ka" --arg kb "$kb" --argjson an "$an" --argjson bn "$bn" \
       '.[$ka] = [(.[$ka] // [])[] | select(.number != $bn)] | .[$kb] = [(.[$kb] // [])[] | select(.number != $an)]' \
       "$GH_STUB_EDGES" >"$GH_STUB_EDGES.new" && mv "$GH_STUB_EDGES.new" "$GH_STUB_EDGES"
-    printf '{"data":{"removeRelatesTo":{"issue":{"number":%s},"relatedIssue":{"number":%s}}}}\n' "$an" "$bn"
+    jq -c --argjson an "$an" --argjson bn "$bn" '.remove | .data.removeRelatesTo.issue.number = $an | .data.removeRelatesTo.relatedIssue.number = $bn' "$GH_STUB_FIX_GQL"
     exit 0
   fi
 fi
@@ -125,7 +129,8 @@ chmod +x "$STUB/gh"
 run_script() {
   local script="$1"
   shift
-  OUT="$(PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" GH_STUB_EDGES="$EDGES" WIT_WRITE_SPACING_S=0 \
+  OUT="$(PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" GH_STUB_EDGES="$EDGES" \
+    GH_STUB_FIX_GQL="$FIX_GQL" GH_STUB_FIX_REST="$FIX_REST" WIT_WRITE_SPACING_S=0 \
     bash "$script" "$@" 2>"$TMP_ROOT/err")"
   RC=$?
 }

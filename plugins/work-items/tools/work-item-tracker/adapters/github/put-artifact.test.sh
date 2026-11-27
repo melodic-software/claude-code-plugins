@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/fixtures/gh-artifact-list.json
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG RUNNER_TEMP GITHUB_ACTIONS
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
-S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/put-artifact.sh"
-source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+S="$SCRIPT_DIR/put-artifact.sh"
+FIX_LIST="$SCRIPT_DIR/fixtures/gh-artifact-list.json"
+source "$SCRIPT_DIR/../../lib/verb-test-helpers.sh"
 
 MD_FILE="$TMP_ROOT/plan.md"
 HTML_FILE="$TMP_ROOT/report.html"
@@ -67,19 +70,24 @@ list)
   ;;
 view)
   num="$5"
-  jq -c --argjson n "$num" '[.[] | select(.number == $n)][0]' "$GH_STUB_STORE"
+  row="$(jq -c --argjson n "$num" '[.[] | select(.number == $n)][0] // empty' "$GH_STUB_STORE")"
+  if [[ -z "$row" ]]; then
+    echo "gh: Not Found (HTTP 404)" >&2
+    exit 1
+  fi
+  printf '%s\n' "$row"
   ;;
 create)
   issue="$4"
   shift 4
-  name="" type="generic" url_arg=""
+  name="" type="generic"
   while [[ $# -gt 0 ]]; do
     case "$1" in
     -R) shift 2 ;;
     --name) name="$2"; shift 2 ;;
     --type) type="$2"; shift 2 ;;
     --body | --body-file) shift 2 ;;
-    http://*|https://*) url_arg="$1"; type="link"; shift ;;
+    http://*|https://*) type="link"; shift ;;
     *) shift ;;
     esac
   done
@@ -87,13 +95,14 @@ create)
   next="$(jq '([.[].number] | max // 0) + 1' "$GH_STUB_STORE")"
   art_url="https://github.com/o/r/issues/$issue/artifacts/$next"
   jq -c --argjson n "$next" --arg name "$name" --arg type "$type" --arg url "$art_url" \
-    '. + [{id: ("A_" + ($n|tostring)), number: $n, name: $name, type: $type, url: $url}]' \
+    --slurpfile tpl "$GH_STUB_FIX_LIST" \
+    '. + [($tpl[0][0] + {id: (6625 + $n), number: $n, name: $name, type: $type, url: $url})]' \
     "$GH_STUB_STORE" >"$GH_STUB_STORE.new" && mv "$GH_STUB_STORE.new" "$GH_STUB_STORE"
-  printf '%s\n' "$art_url"
+  printf 'created\t%s\t%s\t\t\n' "$next" "$name"
   ;;
 edit)
-  issue="$4" art_num="$5"
-  printf 'https://github.com/o/r/issues/%s/artifacts/%s\n' "$issue" "$art_num"
+  art_num="$5"
+  printf 'edited\t%s\t\t\t\n' "$art_num"
   ;;
 *) exit 90 ;;
 esac
@@ -101,8 +110,8 @@ EOF
 chmod +x "$STUB/gh"
 
 run() {
-  OUT="$(PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" GH_STUB_STORE="$STORE" WIT_WRITE_SPACING_S=0 \
-    bash "$S" "$@" 2>"$TMP_ROOT/err")"
+  OUT="$(PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" GH_STUB_STORE="$STORE" GH_STUB_FIX_LIST="$FIX_LIST" \
+    WIT_WRITE_SPACING_S=0 bash "$S" "$@" 2>"$TMP_ROOT/err")"
   RC=$?
 }
 
@@ -115,7 +124,7 @@ assert_eq "create markdown action" "created" "$(jq -r '.action' <<<"$OUT")"
 assert_eq "create markdown available" "true" "$(jq -r '.available' <<<"$OUT")"
 assert_eq "create markdown defaults name to basename" "plan.md" "$(jq -r '.artifact.name' <<<"$OUT")"
 assert_eq "create markdown type" "generic" "$(jq -r '.artifact.type' <<<"$OUT")"
-assert_eq "create markdown number" "1" "$(jq -r '.artifact.number' <<<"$OUT")"
+assert_eq "create markdown number parsed from piped TSV" "1" "$(jq -r '.artifact.number' <<<"$OUT")"
 assert_eq "create markdown url" "https://github.com/o/r/issues/42/artifacts/1" "$(jq -r '.artifact.url' <<<"$OUT")"
 
 run "github:o/r#42" --body-file "$HTML_FILE"
@@ -151,6 +160,24 @@ assert_eq "type mismatch on upsert → exit 7" "7" "$RC"
 
 run "github:o/r#42" --url "https://example.com" --name "plan.md"
 assert_eq "url over document artifact → exit 7" "7" "$RC"
+
+: >"$LOG"
+run "github:o/r#42" --artifact 1 --body "# conflict" --type plan
+assert_eq "explicit --artifact type mismatch → exit 7" "7" "$RC"
+assert_not_contains "explicit --artifact type mismatch writes nothing" "$(cat "$LOG")" "issue artifact edit"
+
+: >"$LOG"
+run "github:o/r#42" --artifact 1 --url "https://example.com"
+assert_eq "explicit --artifact url over document → exit 7" "7" "$RC"
+assert_not_contains "explicit --artifact url mismatch writes nothing" "$(cat "$LOG")" "issue artifact edit"
+
+: >"$LOG"
+run "github:o/r#42" --artifact 4 --body "# doc over link"
+assert_eq "explicit --artifact document over link → exit 7" "7" "$RC"
+assert_not_contains "explicit --artifact doc-over-link writes nothing" "$(cat "$LOG")" "issue artifact edit"
+
+run "github:o/r#42" --artifact 99 --body "missing"
+assert_eq "explicit --artifact missing number → exit 5" "5" "$RC"
 
 GH_STUB_ART_HELP=cobra run "github:o/r#42" --body-file "$MD_FILE"
 assert_eq "old gh without issue artifact → exit 6" "6" "$RC"
