@@ -7,7 +7,8 @@
 #   3  refuse — no usable external root, root inside a repository, or a
 #      cross-drive root on Windows at any resolution rung including the
 #      unconfigured plugin-data-dir default (guidance on stderr); nothing created
-#   4  environment error: not a git repo, the target path or the branch is held
+#   4  environment error: not a git repo, a commondir file in the main git dir
+#      (EnterWorktree fails on it), the target path or the branch is held
 #      by another worktree or session, `git worktree add` failed, or the tree
 #      was created and then left incomplete because a `.worktreeinclude` file
 #      failed to copy. That last case shares exit 5's shape, a tree on disk that
@@ -445,6 +446,26 @@ fi
 if ! toplevel=$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null); then
   printf '%s: run this from inside a git repository, or pass --repo-dir pointing at one; for a Claude Code background session at a non-repository directory, set worktree.bgIsolation to "none" in settings so it edits in place; --worktree and subagent isolation need a repository\n' "$PROG" >&2
   printf '%s:   --repo-dir is not inside a git repository: %s\n' "$PROG" "$repo_dir" >&2
+  exit 4
+fi
+
+main_git_dir="$toplevel/.git"
+if [[ ! -d "$main_git_dir" ]]; then
+  main_git_dir="$(git -C "$toplevel" rev-parse --git-common-dir 2>/dev/null)"
+  [[ -n "$main_git_dir" && "$main_git_dir" != /* && ! "$main_git_dir" =~ ^[A-Za-z]:/ ]] && main_git_dir="$toplevel/$main_git_dir"
+fi
+if [[ -n "$main_git_dir" && -f "$main_git_dir/commondir" ]]; then
+  cat >&2 <<EOF
+$PROG: the main git directory holds a commondir file, refusing to create a worktree.
+
+  file:     $main_git_dir/commondir
+
+While this file exists, Claude Code's EnterWorktree fails on every worktree of
+this checkout with: fatal: not a git repository: '/dev/null/not-a-git-repository'.
+
+Fix: confirm \`git -C "$toplevel" worktree list\` runs, remove the file
+(rm "$main_git_dir/commondir"), confirm the list still runs, then retry.
+EOF
   exit 4
 fi
 

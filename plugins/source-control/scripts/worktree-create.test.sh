@@ -1480,4 +1480,32 @@ assert_exit "a prefix of a registered worktree's name is created (exit 0)" 0 "$c
 assert_eq "the prefix name gets its own path" "$root/acme-widget-feat-login" "$out"
 assert_eq "the prefix name gets its own branch" "feat-login" "$(git -C "$out" branch --show-current 2>/dev/null)"
 
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+printf '.' >"$repo/.git/commondir"
+root="$TEST_TMPDIR/wtcommondir"
+code=0
+err=$(bash "$HELPER" --name feat/stray --root "$root" --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
+assert_exit "a commondir file in the main .git refuses (exit 4)" 4 "$code"
+assert_contains "the refusal names the stray file" "$err" "/.git/commondir"
+assert_contains "the refusal names EnterWorktree's error" "$err" "not-a-git-repository"
+assert_contains "the refusal gives the fix" "$err" "worktree list"
+assert_file_absent "the refusal creates no worktree" "$root/acme-widget-feat-stray/README.md"
+if git -C "$repo" show-ref --verify --quiet refs/heads/feat/stray; then
+  fail "the refusal creates no branch" "no refs/heads/feat/stray" "branch exists"
+else
+  pass "the refusal creates no branch"
+fi
+
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root="$TEST_TMPDIR/wtcommondir-linked"
+code=0
+linked=$(bash "$HELPER" --name feat/linked-base --root "$root" --repo-dir "$repo" 2>/dev/null) || code=$?
+assert_exit "a main .git without commondir creates (exit 0)" 0 "$code"
+assert_file_exists "the linked worktree's own git dir holds commondir" \
+  "$(git -C "$linked" rev-parse --absolute-git-dir)/commondir"
+code=0
+out=$(bash "$HELPER" --name feat/from-linked --root "$root" --repo-dir "$linked" 2>/dev/null) || code=$?
+assert_exit "run from a linked worktree, its commondir does not refuse (exit 0)" 0 "$code"
+assert_file_exists "the worktree made from a linked worktree materialized" "$out/README.md"
+
 [[ $FAILED -eq 0 ]] || exit 1
