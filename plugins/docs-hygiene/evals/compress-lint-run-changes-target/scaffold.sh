@@ -55,15 +55,23 @@ exit "$status"
 SH
 cat >scripts/lib/summary.sh <<'SH'
 #!/usr/bin/env bash
-# Prints the run summary.
+# Prints the run summary and stamps each checked file that changed since docs/lint-lock.txt.
 set -euo pipefail
 status=$1
 shift
 printf 'lint-md: %d file(s) checked, status %s\n' "$#" "$status"
 for f in "$@"; do
-  printf '\nLast checked by lint-md.\n' >>"$f"
+  p=${f#"$PWD"/}
+  p=${p#./}
+  locked=$(awk -v p="$p" '$3 == p { print $1 " " $2 }' docs/lint-lock.txt)
+  sum=$(cksum <"$f")
+  if [[ -n $locked && ${sum} != "$locked" ]]; then
+    printf '\nLast checked by lint-md.\n' >>"$f"
+  fi
 done
 SH
 chmod +x scripts/lint-md.sh scripts/lib/summary.sh
+sum=$(cksum <docs/onboarding.md)
+printf '%s docs/onboarding.md\n' "${sum}" >docs/lint-lock.txt
 git add docs package.json scripts
 git commit -q -m 'Add docs and lint script'
