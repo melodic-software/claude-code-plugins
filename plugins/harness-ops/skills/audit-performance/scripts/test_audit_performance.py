@@ -2528,9 +2528,10 @@ class CollectionHeaderTest(unittest.TestCase):
     def expected_header(self) -> list[str]:
         (record,) = (self.tmp / "diag").glob("*.json")
         script = Path(engine.__file__).resolve()
+        retry = " ".join(["--skip-processes", "--skip-fan-out", "--population-gap", "0", *self.argv])
         return [
             "Gap: host-a-windows unreadable: its projects directory could not be listed (NotADirectoryError). "
-            f"Retry: python3 {script} {' '.join(["--skip-processes", "--skip-fan-out", "--population-gap", "0", *self.argv])}",
+            f"Retry: python3 {script} {retry}",
             f"Diagnostics: {record}",
         ]
 
