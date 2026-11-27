@@ -579,6 +579,49 @@ class AllowPatterns(unittest.TestCase):
         self.assertEqual(flagged("a.sh", text, allow=["^# (test|case)-scope:"]), [])
 
 
+SCAFFOLD = (
+    "#!/usr/bin/env bash\n"
+    "set -euo pipefail\n"
+    "\n"
+    "# Seeds a repository with one planted defect.\n"
+    "#\n"
+    "# Leaves the defect unstaged.\n"
+    "here=$(dirname \"$0\")\n"
+    "# a later note\n"
+)
+
+
+def kept(text, path="a.sh", keep=True):
+    got = lint.findings(path, text, [(1, text.count("\n") + 1)], "necessary", [], keep_opening=keep)
+    return [int(f.split(":")[1]) for f in got]
+
+
+class KeepOpening(unittest.TestCase):
+    def test_opening_block_after_shebang_set_and_blank_passes_and_a_later_comment_fails(self):
+        self.assertEqual(kept(SCAFFOLD), [8])
+
+    def test_without_the_setting_the_opening_block_fails(self):
+        self.assertEqual(kept(SCAFFOLD, keep=False), [4, 5, 6, 8])
+
+    def test_block_without_shebang_passes(self):
+        self.assertEqual(kept("# summary\n# more\nx=1\n"), [])
+
+    def test_blank_line_ends_the_block(self):
+        self.assertEqual(kept("#!/bin/sh\n# summary\n\n# second paragraph\nx=1\n"), [4])
+
+    def test_set_line_after_the_block_ends_it(self):
+        self.assertEqual(kept("# summary\nset -e\n# after set\nx=1\n"), [3])
+
+    def test_code_before_any_comment_keeps_nothing(self):
+        self.assertEqual(kept("x=1\n# note\n"), [2])
+
+    def test_trailing_comment_on_the_first_code_line_fails(self):
+        self.assertEqual(kept("# summary\nx=1  # note\n"), [2])
+
+    def test_other_set_commands_end_the_skip(self):
+        self.assertEqual(kept("set +x\n# summary\nx=1\n"), [2])
+
+
 class StayQuiet(unittest.TestCase):
     def test_code_the_old_heuristic_misread(self):
         cases = {
@@ -629,6 +672,24 @@ class Cli(unittest.TestCase):
             proc.stderr.decode(),
             "comment-lint: b.zzzunknown: no pygments lexer for this name, skipped\n",
         )
+
+    def test_cli_keeps_the_opening_block_of_listed_paths_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp, "root")
+            root.mkdir()
+            for name in ("kept.sh", "judged.sh"):
+                (root / name).write_text("# summary\nx=1\n", encoding="utf-8")
+            Path(tmp, "ranges").write_text("kept.sh\t1\t2\njudged.sh\t1\t2\n", encoding="utf-8")
+            Path(tmp, "keep").write_bytes(b"kept.sh\0")
+            proc = subprocess.run(
+                [sys.executable, str(SCRIPT), "--posture", "necessary", "--root", str(root),
+                 "--ranges", str(Path(tmp, "ranges")), "--keep-opening", str(Path(tmp, "keep"))],
+                input=b"kept.sh\0judged.sh\0",
+                capture_output=True,
+                check=False,
+            )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(proc.stdout.decode(), "judged.sh:1: " + MESSAGE.format("necessary") + "\n")
 
     def test_cli_rejects_bad_allow_pattern(self):
         with tempfile.TemporaryDirectory() as tmp:

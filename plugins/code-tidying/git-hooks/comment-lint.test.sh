@@ -388,6 +388,41 @@ stage_fixture shape6.sh.txt vendor/a.sh
 expect "comment_lint_exclude in the personal override is not read" \
   "1|$(finding vendor/a.sh 3 necessary)" "$(check "$REPO")"
 
+scaffold() {
+  mkdir -p "$(dirname "$REPO/$1")"
+  printf '#!/usr/bin/env bash\nset -euo pipefail\n\n# Seeds one planted defect.\n# Leaves it unstaged.\nx=1\n# a later note\n' >"$REPO/$1"
+  git -C "$REPO" add -- "$1"
+}
+new_repo 'comment_lint: block' 'comment_lint_keep_opening:' '  - "evals/*/scaffold.sh"'
+scaffold evals/case-a/scaffold.sh
+scaffold evals/case-a/other.sh
+scaffold evals/a/b/scaffold.sh
+expect "comment_lint_keep_opening: a matching file's opening block passes, a later comment and a non-matching file's opening block fail" \
+  "1|$(finding evals/a/b/scaffold.sh 4 necessary)
+$(finding evals/a/b/scaffold.sh 5 necessary)
+$(finding evals/a/b/scaffold.sh 7 necessary)
+$(finding evals/case-a/other.sh 4 necessary)
+$(finding evals/case-a/other.sh 5 necessary)
+$(finding evals/case-a/other.sh 7 necessary)
+$(finding evals/case-a/scaffold.sh 7 necessary)" "$(check "$REPO")"
+
+for setting in unset 'comment_lint_keep_opening:'; do
+  new_repo 'comment_lint: block' "${setting#unset}"
+  scaffold evals/case-a/scaffold.sh
+  expect "comment_lint_keep_opening ${setting/comment_lint_keep_opening:/empty}: the opening block is judged" \
+    "1|$(finding evals/case-a/scaffold.sh 4 necessary)
+$(finding evals/case-a/scaffold.sh 5 necessary)
+$(finding evals/case-a/scaffold.sh 7 necessary)" "$(check "$REPO")"
+done
+
+new_repo 'comment_lint: block'
+printf 'comment_lint_keep_opening:\n  - "**"\n' >"$REPO/docs/conventions/code-tidying.local.yaml"
+scaffold evals/case-a/scaffold.sh
+expect "comment_lint_keep_opening in the personal override is not read" \
+  "1|$(finding evals/case-a/scaffold.sh 4 necessary)
+$(finding evals/case-a/scaffold.sh 5 necessary)
+$(finding evals/case-a/scaffold.sh 7 necessary)" "$(check "$REPO")"
+
 new_repo 'comment_lint: block'
 printf 'x=1\n# loose note\n' >"$REPO/loose.sh"
 expect "--worktree judges an untracked file" "1|$(finding loose.sh 2 necessary)" "$(check "$REPO" --worktree)"
