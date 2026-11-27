@@ -115,7 +115,7 @@ rows and the as-of date in the same pull request.
 
 | Task | Shape | Component | Model | Trigger | Inputs | Outputs |
 |---|---|---|---|---|---|---|
-| Build and queue the plugin release (`release-publish-plugins.yml`) | own run | git host | no | schedule; push to main that changes `.changes/`; `workflow_dispatch` | changelog fragments on main; release PR state | signed commit on `release/plugins`; release PR opened or updated; merge-queue enqueue |
+| Build and queue the plugin release (`release-publish-plugins.yml`) | own run | git host | no | schedule; push to main that changes `.changes/`; `workflow_dispatch`; PR Require Checks completes on `release/plugins` | changelog fragments on main; release PR state | signed commit on `release/plugins`; release PR opened or updated; merge-queue enqueue |
 | Changelog fragments for Dependabot merges (`release-generate-dependabot-changelog-fragments.yml`) | own run | git host | no | push to main that changes dependency manifests; schedule; `workflow_dispatch` | main history of Dependabot merges | commit on `release/dependabot-fragments`; PR with auto-merge armed |
 | Apply a Claude Code release (`upstream-apply-changelog.yml`) | own run | git host | yes | schedule, hourly; `workflow_dispatch` | Claude Code release list | branches; PRs; handoff issues |
 
