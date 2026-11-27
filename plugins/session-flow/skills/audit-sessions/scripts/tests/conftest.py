@@ -89,6 +89,7 @@ def multi(copy_fixture, tmp_path):
 HASHED_INPUTS = (
     "scripts/collect.py",
     "scripts/census.py",
+    "scripts/claude_projects.py",
     "scripts/friction_scan.py",
     "scripts/redact.py",
     "scripts/session_record.py",
