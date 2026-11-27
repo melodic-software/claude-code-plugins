@@ -1,3 +1,5 @@
+<!-- portability-scope: R3 declared-ecosystem surface - Windows host performance catalog -->
+
 # Windows machine and shell catalog: bash-windows, machine
 
 Process-creation cost in Git Bash, Cygwin and PowerShell, Defender scanning of developer folders,

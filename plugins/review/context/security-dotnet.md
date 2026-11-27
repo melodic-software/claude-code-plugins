@@ -1,3 +1,5 @@
+<!-- portability-scope: R2/R3 declared-ecosystem security checklist for .NET (C#) -->
+
 # .NET (C#) security checklist
 
 Loaded on demand by this plugin's `security-reviewer` agent when the change set touches .NET code.

@@ -54,6 +54,15 @@ assert_staged() {
   fi
 }
 
+assert_active() {
+  local label="$1" pattern="$2"
+  if grep -qxF -- "$pattern" "$REAL_TOKENS"; then
+    ok "active $label pattern is present verbatim in the shipped token list"
+  else
+    fail "active $label pattern not found verbatim in $REAL_TOKENS: $pattern"
+  fi
+}
+
 f="$(tmpfile 'Base the diff on origin/main for the review.')"
 if out="$(scan_paths "$f" 2>&1)"; then
   fail "bare origin/main should fail, got success: $out"
@@ -281,11 +290,22 @@ fi
 rm -rf "$fx"
 
 f="$(mktemp --suffix=.md)"
-printf '%s\n' 'This agnostic skill mentions dotnet and raw.githubusercontent.com.' >"$f"
+printf '%s\n' 'This agnostic skill mentions raw.githubusercontent.com.' >"$f"
 if SKILL_PORTABILITY_TOKENS="$REAL_TOKENS" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1; then
-  ok "staged tokens (dotnet, raw.githubusercontent) are inactive in the shipped list"
+  ok "staged tokens (raw.githubusercontent) remain inactive in the shipped list"
 else
-  fail "shipped list should only enforce the active branch class"
+  fail "shipped list should keep staged forge URL tokens inactive"
+fi
+rm -f "$f"
+
+f="$(mktemp --suffix=.md)"
+printf '%s\n' 'Build the project with dotnet build before continuing.' >"$f"
+if out="$(SKILL_PORTABILITY_TOKENS="$REAL_TOKENS" bash "$SCRIPT" --paths "$f" 2>&1)"; then
+  fail "activated ecosystem literal dotnet should fail in the shipped list, got success: $out"
+elif grep -q "COUPLING: ${f}:1:" <<<"$out" && grep -q 'docs/contracts/ecosystem-resolution/README.md' <<<"$out"; then
+  ok "activated dotnet literal fails with file:line and names the ecosystem-resolution contract"
+else
+  fail "expected COUPLING on line 1 and ecosystem-resolution contract pointer, got: $out"
 fi
 rm -f "$f"
 
@@ -519,19 +539,77 @@ else
 fi
 
 fixture_tree::build fx --sut "$SCRIPT"
-mkdir -p "$fx/plugins/alpha/skills/x/vendor" "$fx/plugins/alpha/skills/x/evals"
+mkdir -p \
+  "$fx/plugins/alpha/skills/x/vendor" \
+  "$fx/plugins/alpha/skills/x/evals" \
+  "$fx/plugins/alpha/skills/x/scripts" \
+  "$fx/plugins/alpha/agents" \
+  "$fx/plugins/alpha/reference" \
+  "$fx/plugins/alpha/context"
 printf 'diff against origin/main\n' >"$fx/plugins/alpha/skills/x/SKILL.md"
 printf 'origin/main\n' >"$fx/plugins/alpha/skills/x/vendor/upstream.md"
 printf 'origin/main\n' >"$fx/plugins/alpha/skills/x/evals/e.md"
 printf 'origin/main\n' >"$fx/plugins/alpha/skills/x/gen.test.sh"
-out="$(cd "$fx" && SKILL_PORTABILITY_TOKENS="$TEST_TOKENS" bash scripts/check-skill-portability.sh --all 2>&1)"
+printf 'Run dotnet build in this agent.\n' >"$fx/plugins/alpha/agents/reviewer.md"
+printf 'Run dotnet build in this reference.\n' >"$fx/plugins/alpha/reference/guide.md"
+printf 'Run dotnet build in this context.\n' >"$fx/plugins/alpha/context/notes.md"
+printf 'dotnet build\n' >"$fx/plugins/alpha/skills/x/scripts/adapter.sh"
+printf 'dotnet build\n' >"$fx/plugins/alpha/README.md"
+out="$(cd "$fx" && SKILL_PORTABILITY_TOKENS="$REAL_TOKENS" bash scripts/check-skill-portability.sh --all 2>&1)"
 rc=$?
 if [[ "$rc" -ne 0 ]] &&
   grep -q 'skills/x/SKILL.md' <<<"$out" &&
-  ! grep -qE 'vendor/|evals/|test\.sh' <<<"$out"; then
-  ok "--all scans SKILL.md but excludes vendor/, evals/, and *.test.sh"
+  grep -q 'agents/reviewer.md' <<<"$out" &&
+  grep -q 'reference/guide.md' <<<"$out" &&
+  grep -q 'context/notes.md' <<<"$out" &&
+  ! grep -qE '^COUPLING:.*(vendor/|evals/|test\.sh|scripts/adapter\.sh|README\.md)' <<<"$out"; then
+  ok "--all scans skills, agents, reference, and context while excluding vendor/, evals/, *.test.sh, and executed-adapter .sh ecosystem hits"
 else
-  fail "--all exclusion set wrong (rc=$rc): $out"
+  fail "--all widened scope or exclusions wrong (rc=$rc): $out"
+fi
+printf '<!-- portability-ok: R6 kept-adapter operation -->\nRun dotnet build in this agent.\n' >"$fx/plugins/alpha/agents/reviewer.md"
+printf '<!-- portability-ok: R6 kept-adapter operation -->\nRun dotnet build in this reference.\n' >"$fx/plugins/alpha/reference/guide.md"
+printf '<!-- portability-ok: R6 kept-adapter operation -->\nRun dotnet build in this context.\n' >"$fx/plugins/alpha/context/notes.md"
+rm -f "$fx/plugins/alpha/skills/x/SKILL.md"
+if (cd "$fx" && SKILL_PORTABILITY_TOKENS="$REAL_TOKENS" bash scripts/check-skill-portability.sh --all >/dev/null 2>&1); then
+  ok "--all passes once agent, reference, and context hits are annotated"
+else
+  fail "--all should pass once agent, reference, and context hits are annotated"
+fi
+printf 'git diff origin/main\n' >"$fx/plugins/alpha/skills/x/scripts/adapter.sh"
+if out="$(cd "$fx" && SKILL_PORTABILITY_TOKENS="$REAL_TOKENS" bash scripts/check-skill-portability.sh --all 2>&1)"; then
+  fail "a .sh script with bare origin/main must still fail, got success: $out"
+elif grep -q 'scripts/adapter.sh:1:' <<<"$out"; then
+  ok "executed-adapter exemption is ecosystem-scoped: bare origin/main in .sh still fails"
+else
+  fail "expected scripts/adapter.sh:1 flagged for bare origin/main, got: $out"
+fi
+rm -rf "$fx"
+
+fixture_tree::build fx --sut "$SCRIPT"
+out="$(
+  cd "$fx" &&
+    git_init_test_repo "$fx" &&
+    git -C "$fx" commit -q --allow-empty -m base &&
+    base="$(git -C "$fx" rev-parse HEAD)" &&
+    mkdir -p 'plugins/p/agents' 'plugins/p/reference' 'plugins/p/context' &&
+    printf 'Use dotnet build here.\n' >'plugins/p/agents/a.md' &&
+    printf 'Use dotnet build here.\n' >'plugins/p/reference/r.md' &&
+    printf 'Use dotnet build here.\n' >'plugins/p/context/c.md' &&
+    printf 'Use dotnet build here.\n' >'plugins/p/README.md' &&
+    git -C "$fx" add -A >/dev/null 2>&1 &&
+    git -C "$fx" commit -q -m add-widened &&
+    SKILL_PORTABILITY_TOKENS="$REAL_TOKENS" bash scripts/check-skill-portability.sh "$base" 2>&1
+)"
+rc=$?
+if [[ "$rc" -ne 0 ]] &&
+  grep -q 'plugins/p/agents/a.md:1:' <<<"$out" &&
+  grep -q 'plugins/p/reference/r.md:1:' <<<"$out" &&
+  grep -q 'plugins/p/context/c.md:1:' <<<"$out" &&
+  ! grep -q '^COUPLING:.*README\.md' <<<"$out"; then
+  ok "diff-mode gates changed agent, reference, and context files and ignores plugin README.md"
+else
+  fail "diff-mode widened scope wrong (rc=$rc): $out"
 fi
 rm -rf "$fx"
 
@@ -671,7 +749,7 @@ rm -f "$f"
 
 rm -f "$et"
 
-STAGED_COVERAGE=(
+ACTIVE_ECOSYSTEM_COVERAGE=(
   '[Dd]otnet' 'dotnet build'
   '(^|[^a-zA-Z0-9_])\.NET([^a-zA-Z0-9_]|$)' 'the .NET SDK'
   '\.csproj' 'src/App.csproj'
@@ -680,10 +758,22 @@ STAGED_COVERAGE=(
   '\.sln([^a-zA-Z0-9_]|$)' 'App.sln here'
   '\.razor' 'Page.razor here'
   '\*\*/\*\.cs([^a-zA-Z0-9_]|$)' 'the **/*.cs glob'
+  '(^|[^a-zA-Z0-9_])fast-check([^a-zA-Z0-9_]|$)' 'the fast-check runner'
+  '(^|[^a-zA-Z0-9_])proptest([^a-zA-Z0-9_]|$)' 'the proptest crate'
+  '(^|[^a-zA-Z0-9_])jqwik([^a-zA-Z0-9_]|$)' 'the jqwik engine'
+  '(^|[^a-zA-Z0-9_])Chakra([^a-zA-Z0-9_]|$)' 'the Chakra UI library'
+  '(^|[^a-zA-Z0-9_])Vue([^a-zA-Z0-9_]|$)' 'the Vue framework'
+  '(^|[^a-zA-Z0-9_])Svelte([^a-zA-Z0-9_]|$)' 'the Svelte framework'
+  '(^|[^a-zA-Z0-9_])FluentAssertions([^a-zA-Z0-9_]|$)' 'FluentAssertions here'
+  '(^|[^a-zA-Z0-9_])AutoFixture([^a-zA-Z0-9_]|$)' 'AutoFixture here'
+  '(^|[^a-zA-Z0-9_])Moq([^a-zA-Z0-9_]|$)' 'Moq here'
+  '(^|[^a-zA-Z0-9_])NSubstitute([^a-zA-Z0-9_]|$)' 'NSubstitute here'
+  '(^|[^a-zA-Z0-9_])RSpec([^a-zA-Z0-9_]|$)' 'RSpec here'
+  '(^|[^a-zA-Z0-9_])Dapper([^a-zA-Z0-9_]|$)' 'Dapper here'
 )
-for ((i = 0; i < ${#STAGED_COVERAGE[@]}; i += 2)); do
-  pat="${STAGED_COVERAGE[i]}"
-  sample="${STAGED_COVERAGE[i + 1]}"
+for ((i = 0; i < ${#ACTIVE_ECOSYSTEM_COVERAGE[@]}; i += 2)); do
+  pat="${ACTIVE_ECOSYSTEM_COVERAGE[i]}"
+  sample="${ACTIVE_ECOSYSTEM_COVERAGE[i + 1]}"
   tf="$(tokenfile "$pat")"
   control="$(tmpfile "Then run ${sample} at the repository root.")"
   guarded="$(tmpfile "Read \`\${user_config.build_command}\` — never assume ${sample}.")"
@@ -692,7 +782,7 @@ for ((i = 0; i < ${#STAGED_COVERAGE[@]}; i += 2)); do
   elif scan_with "$tf" "$guarded" >/dev/null 2>&1; then
     ok "ecosystem class membership: '$pat' is recognized by the guard"
   else
-    fail "staged ecosystem literal '$pat' is not covered by is_ecosystem_pattern"
+    fail "active ecosystem literal '$pat' is not covered by is_ecosystem_pattern"
   fi
   rm -f "$tf" "$control" "$guarded"
 done
@@ -748,8 +838,8 @@ else
 fi
 rm -f "$f"
 
-for ((i = 0; i < ${#STAGED_COVERAGE[@]}; i += 2)); do
-  assert_staged 'ecosystem literal' "${STAGED_COVERAGE[i]}"
+for ((i = 0; i < ${#ACTIVE_ECOSYSTEM_COVERAGE[@]}; i += 2)); do
+  assert_active 'ecosystem literal' "${ACTIVE_ECOSYSTEM_COVERAGE[i]}"
 done
 
 if grep -q '[\]b' < <(grep -vE '^[[:space:]]*(#|$)' "$REAL_TOKENS"); then

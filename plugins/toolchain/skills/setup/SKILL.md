@@ -98,7 +98,7 @@ runner's way of selecting tests for changed files, over `<files>`; when the repo
 selection, look it up with `/discovery:research` (if enabled) for the runner the repo uses, and leave the key
 out when none exists.
 
-- **dotnet**. `*.slnx`/`*.sln`/`*.csproj` present. Resolve the `anchor` (solution file at root, else
+- **dotnet**. `*.slnx`/`*.sln`/`*.csproj` present. Resolve the `anchor` (solution file at root, else <!-- portability-ok: R6 kept-adapter ecosystem manifest detection -->
   nearest project). Note any repo-specific trap in `notes` (e.g. the xUnit v3 `--nologo` pin).
 - **python**. `pyproject.toml`/`uv.lock`. Draft from the tools the project's config and
   dependencies name, run through `uv run …` when `uv.lock` exists. Set `project-discovery` to the

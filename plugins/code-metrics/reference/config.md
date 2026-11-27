@@ -146,7 +146,7 @@ The third column is written by hand and is not derived from anything. A row whos
 | `coverage.crap.reference` | `null` | Savoia and Evans 2007; not a validated change-risk predictor |
 | `type_debt.reference` | `null` | No standard or CWE anchors the measure |
 | `suppressions.correctness_rules` | `[]` | Rule ids that guard correctness rather than style (for example `no-floating-promises`, `SC2086`, `CA2000`). `/code-metrics:audit-suppressions` marks every suppression that names one, compared case-insensitively, and counts them. A closed list, replaced whole. The plugin ships none: which rules guard correctness is the repository's call |
-| `languages.<language>.enabled` | `true` | Opts a language out even under `--all`; languages are `typescript`, `python`, `bash`, `go`, `dotnet`, and `other`, the catch-all for every text file no language claims, which the ladder serves with `file_lines` alone, plus any extra id listed here (see the ecosystem files above) |
+| `languages.<language>.enabled` | `true` | Opts a language out even under `--all`; languages are `typescript`, `python`, `bash`, `go`, `dotnet`, and `other`, the catch-all for every text file no language claims, which the ladder serves with `file_lines` alone, plus any extra id listed here (see the ecosystem files above) <!-- portability-ok: R6 kept-adapter language id from collector-ladder.tsv --> |
 | `languages.<language>.collectors.<measure>` | absent | Replaces the bundled ordered collector list for that language and measure; names are validated against `scripts/collector-ladder.tsv` and an unknown name is dropped with a warning. An empty list is a closed value like any other: no collector runs for that language and measure, and the run row says so |
 
 A `reference` of `null` means "report the value, count nothing"; a number counts values at or
@@ -173,6 +173,7 @@ languages:
   typescript:
     collectors:
       cyclomatic: [lizard]
+  # portability-ok: R6 kept-adapter language id from collector-ladder.tsv
   dotnet:
     enabled: false
 ```

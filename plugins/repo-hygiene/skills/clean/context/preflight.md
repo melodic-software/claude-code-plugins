@@ -6,7 +6,7 @@ Full detail for the §1.5 pre-flight gate (caches / build / all tiers). SKILL.md
 
 Detect runtime conditions where deletion would corrupt active state:
 
-1. **Active language runtimes**: `dotnet watch`, `aspire run`, attached debugger holding `bin/obj` file locks (Windows: Defender races + `MSB3027`)
+1. **Active language runtimes**: `dotnet watch`, `aspire run`, attached debugger holding `bin/obj` file locks (Windows: Defender races + `MSB3027`) <!-- portability-ok: R6 kept-adapter operation - preflight.sh active runtime check -->
 2. **Running MCP servers**: `node` processes serving a bundled MCP server's build output over stdio; deletion mid-session crashes the server and breaks the parent Claude Code session
 3. **Recent build activity**: `obj/project.assets.json` modified within last 10 minutes signals in-flight build / IDE indexing pass
 4. **Open IDE**: Visual Studio / Rider holds analyzer DLL locks; partial deletion corrupts IDE state

@@ -1,3 +1,5 @@
+<!-- portability-scope: R3 declared-ecosystem surface - Windows elevation and ACL reference -->
+
 # Elevation matrix for Windows
 
 Which Windows capabilities the skill can and cannot exercise when the process is not Administrator, and why.

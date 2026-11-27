@@ -10,6 +10,8 @@ metadata:
   summary: Ground an approach in how a Dometrain course teaches it, with lesson links
 ---
 
+<!-- portability-scope: R3 declared-ecosystem surface - Dometrain course catalog -->
+
 ## Purpose
 
 Usage guidance adapted from Dometrain's own official Claude Code plugin

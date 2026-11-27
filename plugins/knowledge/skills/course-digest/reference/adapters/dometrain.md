@@ -1,3 +1,5 @@
+<!-- portability-scope: R3 declared-ecosystem surface - Dometrain course adapter -->
+
 # Dometrain Adapter
 
 Platform-specific extraction logic for Dometrain (dometrain.com) courses.

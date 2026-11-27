@@ -2,7 +2,7 @@
 
 Roslyn can emit structured SARIF v2.1.0 diagnostics at build time, useful for machine-readable triage of compiler/analyzer findings.
 
-- **Cmdline syntax**: `dotnet build "/p:ErrorLog=<path>.sarif%3bversion=2.1"` (URL-escape the `;` separator between path and version; without `%3b` MSBuild truncates the property)
+- **Cmdline syntax**: `dotnet build "/p:ErrorLog=<path>.sarif%3bversion=2.1"` (URL-escape the `;` separator between path and version; without `%3b` MSBuild truncates the property) <!-- portability-ok: R6 kept-adapter SARIF emission syntax -->
 - **Coverage and gap**: SARIF captures compiler + analyzer + source-generator diagnostics; it does not capture MSBuild target errors, NuGet restore failures, or package-validation findings, which only appear in the build log
 - **jq query patterns**:
 
