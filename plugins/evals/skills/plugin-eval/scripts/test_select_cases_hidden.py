@@ -188,10 +188,12 @@ class SelectCasesHiddenTest(unittest.TestCase):
             'bash "$fixtures/setup.sh"\n' + copy_line
         )
 
-    def test_quoted_copy_with_another_suffix_is_no_run(self):
-        self._copy_base('cp "$fixtures/$1.txt" ws/\n')
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_free(block, "the copy names only .txt files")
+    def test_quoted_copy_with_another_suffix_still_runs(self):
+        for copy in ('cp "$fixtures/$1.txt" ws/\n', 'cp -r "$fixtures/$1s" ws/\n'):
+            with self.subTest(copy=copy):
+                self._copy_base(copy)
+                block = self._select(SETUP, "# Prints the fixture.\n", "")
+                self.assert_runs(block, "$1 may hold .. and reach a folder holding setup.sh")
 
     def test_quoted_copy_with_no_suffix_still_runs(self):
         self._copy_base('cp "$fixtures/$1" ws/\n')
@@ -234,10 +236,10 @@ class SelectCasesHiddenTest(unittest.TestCase):
             '(cd ws && bash "${fixture}" scan)\n' + extra
         )
 
-    def test_path_binding_then_run_is_no_run(self):
+    def test_path_binding_then_run_still_runs(self):
         self._binding_base()
         block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_free(block, "the variable is only ever run")
+        self.assert_runs(block, "a sourced file can copy the bound variable")
 
     def test_exported_path_binding_still_runs(self):
         self._binding_base("export fixture\n")

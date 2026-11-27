@@ -135,17 +135,6 @@ def _covers(ref, target):
     return bool(prefix) and target.startswith(prefix + os.sep)
 
 
-def _site_covers(refs, narrow, target):
-    """Some ref covers `target`, a ref in `narrow` only when `target` or a folder holding it below
-    the ref ends with one of its tails."""
-
-    def tail_hits(ref):
-        parts = os.path.relpath(target, ref).split(os.sep)
-        return any(part.endswith(tail) for part in parts for tail in narrow[ref])
-
-    return any(_covers(ref, target) and (ref not in narrow or tail_hits(ref)) for ref in refs)
-
-
 def deleted_lines(repo_root, merge_base, rel_path):
     """The lines `merge_base...HEAD` removes from `rel_path`, or None when git cannot say."""
     done = select_mapping._git(repo_root, "diff", "-U0", merge_base, "HEAD", "--", rel_path)
@@ -204,8 +193,8 @@ def _case_yaml_hidden(target, cases, eval_norm, deleted):
         files.update(_case_files(case, eval_norm))
     case_yaml_re = _name_re("case.yaml")
     for fpath, (text, sites) in files.items():
-        for _, refs, _, _, _, wide, narrow in sites:
-            if wide or _site_covers(refs, narrow, target):
+        for _, refs, _, _, _, wide in sites:
+            if wide or any(_covers(ref, target) for ref in refs):
                 return False
         if fpath != target and _locates_itself(fpath, text or ""):
             return False
@@ -243,11 +232,11 @@ def hidden_from_agent(eval_abs, target_abs, cases, owning_case=None, deleted=())
         for fpath, (text, sites) in files.items():
             if fpath != target and _locates_itself(fpath, text or ""):
                 return False
-            run_lines = suite_refs.binding_lines(fpath, text or "", target)
-            for line, refs, runs, rest, rest_refs, wide, narrow in sites:
+            run_lines = set()
+            for line, refs, runs, rest, rest_refs, wide in sites:
                 if wide:
                     return False
-                if not _site_covers(refs, narrow, target):
+                if not any(_covers(ref, target) for ref in refs):
                     continue
                 if runs != target or any(_covers(ref, target) for ref in rest_refs):
                     return False

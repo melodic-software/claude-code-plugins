@@ -36,10 +36,7 @@ with the script's path, optionally after `(cd <dir> &&`, or its `context.scaffol
 or names any folder holding it (the evals folder and those above included) or a glob or unresolved path that could match it, in any other form, and that never reads its own source (`$0`, `BASH_SOURCE`
 outside `$(dirname ...)` and outside an `awk`, `sed`, `grep` or `jq` program in single quotes, or its own name). Only these
 forms are set aside: a top-level `plugins: [...]` entry
-of `case.yaml` or `prompt.md` naming the suite's own plugin, a double-quoted path whose literal ending after its
-last expansion (`.txt` in `"$dir/$1.txt"`) neither the script's name nor a folder holding it below that path ends
-with, a line that only binds a variable to the script's exact path (never exported or expanded with an operator,
-in a file with no `eval`), a `(cd <dir> && bash <script> <args>)` run whose `<dir>` names nothing in or above the
+of `case.yaml` or `prompt.md` naming the suite's own plugin, a `(cd <dir> && bash <script> <args>)` run whose `<dir>` names nothing in or above the
 suite, and an `echo` or `${1:?message}` message that only prints the name. A file that pipes into a shell,
 runs a string (`eval`, `bash -c`, `trap`, `alias`) or sources a stream (`/dev/stdin`, `<(...)`, a here-string) gets no single-quote
 reading. A case file that `cd`s or `pushd`es into the suite, or finds its own folder any other way than `$(dirname ...)` (`${0%/*}`,
