@@ -15,7 +15,6 @@ graders:
     input_match: '"skill"\s*:\s*"(?:planning:)?draft-goal-condition"'
     arm: with-only
   - name: goal-line-time-is-end
-    type: regex
-    pattern: 'Type[ \t]+`/goal[ \t]*`[^\n]*\n(?:[ \t]*(?:─+|`{3,}\w*)?[ \t]*\n)*(?![ \t>]*/goal)[ \t>]*(?=[^\n]*\b(?:or|alternatively|otherwise)\b[^\n]{0,120}\bdate\b[^\n]{0,120}20(?:2[6-9]|[3-9]\d)-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?Z[^\n]{0,40}\b(?:or later|or after|has passed|onward)\b)(?![^\n]*\b(?:timestamped|stamped|dated|written|appended|timestamp)\b[^\n]{0,60}\b(?:before|earlier than)\b[^\n]{0,20}\d{2}:\d{2})[^\n]+'
-    flags: i
+    type: llm
     arm: both
+    criteria: "Judge only the condition: the text the reply tells the user to paste after typing /goal (between the dashed lines, or in the fenced block after that instruction). PASS only if (1) that condition itself holds an end, offered as an alternative to the queue-empty end (an or, otherwise, alternatively, or a second labeled end state used only if the first is not reached), that is met once a clock command such as date -u shows a full UTC date and time, date included (2026-11-27T06:00Z, or an earlier buffer such as 2026-11-27T05:30Z), or later; AND (2) no element of the condition requires the results line, or anything else, to be timestamped, written or done before a clock time. FAIL if there is no paste region; if the clock end is missing from the condition, including when the reply offers it only as a clause the user may append; if the clock end names a time of day with no date, or a date before 2026-11-27, which is already true when the run starts; or if any element is a deadline that must be beaten, such as a timestamp earlier than 06:00Z."

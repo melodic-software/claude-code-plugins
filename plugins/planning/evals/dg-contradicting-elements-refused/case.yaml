@@ -15,10 +15,9 @@ graders:
     input_match: '"skill"\s*:\s*"(?:planning:)?draft-goal-condition"'
     arm: with-only
   - name: conflict-named
-    type: regex
-    pattern: '\bhold\b[^\n]{0,240}\b(?:conflict\w*|contradict\w*|cannot both|can''t both|can never both|incompatible|mutually exclusive|never be (?:green|met|satisf\w+))\b|\b(?:conflict\w*|contradict\w*|cannot both|can''t both|incompatible|mutually exclusive)\b[^\n]{0,240}\bhold\b'
-    flags: i
+    type: llm
     arm: both
+    criteria: "PASS only if the reply says, in any wording and over any number of lines, that the user's two requirements cannot both be met: the hold label on the pull request, and every required check green, because the required check fails any pull request that carries the hold label. FAIL if the reply names no conflict; names a conflict between other things, such as a check that is merely slow or flaky; mentions the label and the failing check without saying the pair can never hold together; or says the goal is fine as stated."
   - name: no-goal-line-with-both
     type: regex
     pattern: '^(?![\s\S]*Type[ \t]+`/goal[ \t]*`[^\n]*\n(?:[ \t]*(?:─+|`{3,}\w*)?[ \t]*\n)*[ \t>]*(?![^\n]*\bor\b[^\n]*\bwaiting\b)(?=[^\n]*\bhold\b)(?=[^\n]*\b(?:green|pass\w*)\b)[^\n]+)[\s\S]+'
