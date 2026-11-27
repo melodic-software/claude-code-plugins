@@ -76,6 +76,10 @@ the name:
 - `delisted[]`, `delisted_project[]` and `delisted_settings_only[]` name installs and effective
   `true` `enabledPlugins` keys the catalog no longer carries; a catalog with an empty `plugins`
   array produces none of them.
+- A row that reports one CLI call (`refresh`, `installed[]`, `enabled[]`, every `would_update[]`,
+  and an `in_repo` or `user_sweep` `failed[]` row whose call ran) carries that call's outcome: `label` (the command as the journal records it),
+  `rc`, `output` and `predicted`. In `audit` every call is a predicted row, `rc` `null`, and the
+  report prints its `label` after `would run:`.
 - `installed_disabled[]` holds the ids whose install output said the plugin is disabled by default
   and that this run did not then enable.
 - `moved_during_run[]` holds ids that moved under an update call that reported them current, and

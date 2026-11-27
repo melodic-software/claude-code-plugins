@@ -22,7 +22,7 @@
     "source_pull": null,
     "timings": null,
     "cli": {"calls": 0, "seconds": 0},
-    "refresh": {"rc": null, "output": "", "reason": "", "predicted": false, "skipped": null},
+    "refresh": {"rc": null, "output": "", "reason": "", "predicted": false, "label": "", "skipped": null},
     "project_root": null,
     "in_repo_records": null,
     "in_repo_ids": [],

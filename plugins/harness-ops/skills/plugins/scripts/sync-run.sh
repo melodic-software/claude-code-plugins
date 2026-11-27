@@ -402,6 +402,7 @@ run_cli() {
   local sink="$RUN_DIR/.last-cli-out"
   local t_s
   local t_e
+  CLI_LABEL="$label"
   clock_into t_s
   {
     echo "\$ $label"
@@ -432,11 +433,28 @@ run_cli() {
   fi
 }
 
-predict_cli() {
-  local label="$1"
-  echo "would run: $label" >>"$JOURNAL_LOG"
-  CLI_RC=0
-  CLI_OUT="would run: $label"
+CLI_LABEL=""
+CLI_PREDICTED="false"
+CLI_ROW=""
+cli_call() {
+  local label="$1" j_label j_out out rc
+  shift
+  if [[ "$MODE" == "audit" ]]; then
+    CLI_LABEL="${label/ --json/}"
+    echo "would run: $CLI_LABEL" >>"$JOURNAL_LOG"
+    CLI_RC=0
+    CLI_OUT="would run: $CLI_LABEL"
+    CLI_PREDICTED="true"
+    rc="null"
+  else
+    run_cli "$label" "$@"
+    CLI_PREDICTED="false"
+    rc="$CLI_RC"
+  fi
+  trunc out "$CLI_OUT"
+  json_string_to j_label "$CLI_LABEL"
+  json_string_to j_out "$out"
+  CLI_ROW="{\"label\":$j_label,\"rc\":$rc,\"output\":$j_out,\"predicted\":$CLI_PREDICTED}"
 }
 
 object_lines_to() {
@@ -849,25 +867,26 @@ settings_state() {
 }
 
 path_row() {
-  local j_id j_sc j_path j_old j_cat j_label j_result j_reason
+  local j_id j_sc j_path j_old j_cat j_rlabel j_result j_reason call=""
   local j_home="false"
   json_string_to j_id "$id"
   json_string_to j_sc "$scope"
   json_string_to j_path "$path"
   json_string_to j_old "$old"
   json_string_to j_cat "$cat"
-  json_string_to j_label "$label"
+  json_string_to j_rlabel "$rlabel"
   json_string_to j_result "$1"
   json_string_to j_reason "$2"
   [[ "$home" == "true" ]] && j_home="true"
-  printf '{"id":%s,"scope":%s,"path":%s,"old":%s,"catalog":%s,"label":%s,"home":%s,"result":%s,"reason":%s,"stopped":%s}\n' \
-    "$j_id" "$j_sc" "$j_path" "$j_old" "$j_cat" "$j_label" "$j_home" "$j_result" "$j_reason" "$3"
+  [[ "${4:-}" == call ]] && call=",${CLI_ROW:1:${#CLI_ROW}-2}"
+  printf '{"id":%s,"scope":%s,"path":%s,"old":%s,"catalog":%s,"record_label":%s,"home":%s,"result":%s,"reason":%s,"stopped":%s%s}\n' \
+    "$j_id" "$j_sc" "$j_path" "$j_old" "$j_cat" "$j_rlabel" "$j_home" "$j_result" "$j_reason" "$3" "$call"
 }
 
 other_paths_step() {
   local mp="$1"
   local cands=""
-  local path id scope old cat label home fs reason
+  local path id scope old cat rlabel home fs reason
   local before=""
   local after=""
   local cur=""
@@ -891,15 +910,10 @@ other_paths_step() {
       mp_error "other-paths count failed"
     return 0
   fi
-  while IFS=$'\x1f' read -r path id scope old cat label home; do
+  while IFS=$'\x1f' read -r path id scope old cat rlabel home; do
     path="${path//$'\r'/}" id="${id//$'\r'/}" scope="${scope//$'\r'/}" old="${old//$'\r'/}"
-    cat="${cat//$'\r'/}" label="${label//$'\r'/}" home="${home//$'\r'/}"
+    cat="${cat//$'\r'/}" rlabel="${rlabel//$'\r'/}" home="${home//$'\r'/}"
     [[ -n "$id" ]] || continue
-    if [[ "$MODE" == "audit" ]]; then
-      predict_cli "(cd \"$path\" && claude plugin update $id -s $scope)"
-      PATH_ROWS+=("$(path_row would "" false)")
-      continue
-    fi
     fs="${path//\\//}"
     if [[ "$path" != "$cur" ]]; then
       cur="$path"
@@ -910,20 +924,24 @@ other_paths_step() {
       continue
     fi
     CLI_CWD="$fs"
-    run_cli "(cd \"$path\" && claude plugin update $id -s $scope --json)" plugin update "$id" -s "$scope" --json
+    cli_call "(cd \"$path\" && claude plugin update $id -s $scope --json)" plugin update "$id" -s "$scope" --json
     CLI_CWD=""
+    if [[ "$CLI_PREDICTED" == "true" ]]; then
+      PATH_ROWS+=("$(path_row would "" false call)")
+      continue
+    fi
     settings_state after "$fs"
     if [[ "$after" != "$before" ]]; then
       stopped="$path"
-      PATH_ROWS+=("$(path_row failed "the .claude/ settings in this path changed after this call, so the path was stopped" true)")
+      PATH_ROWS+=("$(path_row failed "the .claude/ settings in this path changed after this call, so the path was stopped" true call)")
       continue
     fi
     if ((CLI_RC != 0)); then
       reason=$(cli_outcome_line "$CLI_OUT")
-      PATH_ROWS+=("$(path_row failed "exit $CLI_RC: $reason" false)")
+      PATH_ROWS+=("$(path_row failed "exit $CLI_RC: $reason" false call)")
       continue
     fi
-    PATH_ROWS+=("$(path_row called "" false)")
+    PATH_ROWS+=("$(path_row called "" false call)")
   done <<<"$cands"
 }
 
@@ -952,14 +970,14 @@ finalize_other_paths() {
                      and .projectPath == $r.path) | .version) // null)}
        | . + {moved: ((.new | triple) != null and (.old | triple) < (.new | triple))}] as $called
     | {updated: [$called[] | select(.moved) | {id, scope, path, old, new}],
-       not_moved: [$called[] | select((.moved | not) and (.label != "" or .home))
+       not_moved: [$called[] | select((.moved | not) and (.record_label != "" or .home))
                    | {id, scope, path, version: (.new // .old), catalog,
-                      label: (if .label != "" then .label else "user home" end)}],
+                      label: (if .record_label != "" then .record_label else "user home" end)}],
        failed: ([$rows[0][] | select(.result == "failed") | {id, scope, path, reason, stopped}]
-                + [$called[] | select((.moved | not) and .label == "" and (.home | not))
+                + [$called[] | select((.moved | not) and .record_label == "" and (.home | not))
                    | {id, scope, path, stopped: false,
                       reason: ("the record did not move: still at \(.new // "an unread version"), the catalog reads \(.catalog)")}]),
-       would_update: [$rows[0][] | select(.result == "would") | {id, scope, path, old, catalog}],
+       would_update: [$rows[0][] | select(.result == "would") | {id, scope, path, old, catalog, label}],
        skipped: {records: ($skipped | length), paths: ($skipped | map(.path) | unique | length)},
        catalog_moved: (($p.catalog_versions // {}) as $a | ($q.catalog_versions // {}) as $b
                        | [$a | keys[] | select($b[.] != null and $a[.] != null and $a[.] != $b[.])] | length)}' || result=""
@@ -981,7 +999,7 @@ reset_marketplace_state() {
   INSTALL_GAP="[]" ENABLE_GAP="[]" NORMALIZE_JSON="null" CACHE_JSON="null"
   SELF_UPDATED="false" SELF_UPDATE="null" INSTALL_DEFERRED="false" STOPPED_BEFORE_INSTALL="false"
   INSTALL_HELD="null"
-  REFRESH_RC="null" REFRESH_OUT="" REFRESH_REASON="" REFRESH_PREDICTED="false" REFRESH_FAILED=0
+  REFRESH_RC="null" REFRESH_OUT="" REFRESH_REASON="" REFRESH_PREDICTED="false" REFRESH_LABEL="" REFRESH_FAILED=0
   REFRESH_SKIP_JSON="null"
   CATALOG_LAST_UPDATED="" PROJECT_ROOT_JSON="null" SOURCE_PULL_JSON="null"
   T_PRR_S="" T_PRR_E="" T_MU_S="" T_MU_E="" T_IR_S="" T_IR_E="" T_OP_S="" T_OP_E="" T_US_S="" T_US_E=""
@@ -1005,6 +1023,7 @@ persist_first_pass_rows() {
     --arg refresh_rc "$REFRESH_RC" \
     --arg refresh_out "$REFRESH_OUT" \
     --arg refresh_reason "$REFRESH_REASON" \
+    --arg refresh_label "$REFRESH_LABEL" \
     --arg refresh_predicted "$REFRESH_PREDICTED" \
     '{errors, ir_failed, us_failed, source_pull,
       refresh: {rc: (if $refresh_rc == "null" or $refresh_rc == "" then null
@@ -1012,6 +1031,7 @@ persist_first_pass_rows() {
                 output: $refresh_out,
                 reason: $refresh_reason,
                 predicted: ($refresh_predicted == "true"),
+                label: $refresh_label,
                 skipped: .refresh_skipped}}' "$RUN_DIR/.first-pass-args.$mp.json"
   printf '%s\n' "$persisted" >"$RUN_DIR/first-pass.$mp.json"
 }
@@ -1035,6 +1055,7 @@ restore_first_pass_rows() {
   jq_to REFRESH_OUT -r '.refresh.output // ""' "$sidecar"
   jq_to REFRESH_REASON -r '.refresh.reason // ""' "$sidecar"
   jq_to REFRESH_PREDICTED -r 'if .refresh.predicted == true then "true" else "false" end' "$sidecar"
+  jq_to REFRESH_LABEL -r '.refresh.label // ""' "$sidecar"
   jq_to REFRESH_RC -r 'if .refresh.rc == null then "null" else (.refresh.rc | tostring) end' "$sidecar"
   jq_to REFRESH_SKIP_JSON -c '.refresh.skipped // null' "$sidecar"
   [[ -n "$REFRESH_SKIP_JSON" ]] || REFRESH_SKIP_JSON="null"
@@ -1285,11 +1306,10 @@ withheld_add() {
 }
 
 us_failed_add() {
-  local reason out
+  local reason
   reason=$(cli_outcome_line "$CLI_OUT")
-  trunc out "$CLI_OUT"
-  US_FAILED+=("$(jq -c -n --arg id "$1" --argjson rc "$CLI_RC" --arg out "$out" \
-    --arg reason "$reason" '{id: $id, rc: $rc, output: $out, reason: $reason}')")
+  US_FAILED+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$1" --arg reason "$reason" \
+    '$call + {id: $id, reason: $reason}')")
 }
 
 ir_stopped_add() {
@@ -1303,7 +1323,7 @@ run_marketplace() {
   clock_into T_MP_S
   ((ONLY_INSTALL_MODE == 1)) || : >"$RUN_DIR/moves.$mp.tsv"
 
-  local rc dg_rc id scope old new result row out reason
+  local rc dg_rc id scope old new result row reason
   local pre_refresh="$RUN_DIR/pre-refresh.$mp.json"
 
   if ((ONLY_INSTALL_MODE == 0)); then
@@ -1323,9 +1343,9 @@ run_marketplace() {
     fi
 
     if [[ "$MODE" == "audit" ]]; then
-      predict_cli "claude plugin marketplace update $mp"
-      REFRESH_PREDICTED="true"
-      REFRESH_RC="null"
+      cli_call "claude plugin marketplace update $mp" plugin marketplace update "$mp"
+      REFRESH_LABEL="$CLI_LABEL"
+      REFRESH_PREDICTED="$CLI_PREDICTED"
       trunc REFRESH_OUT "$CLI_OUT"
     else
       clock_into T_MU_S
@@ -1336,8 +1356,9 @@ run_marketplace() {
       if [[ "$REFRESH_SKIP_JSON" != "null" ]]; then
         clock_into T_MU_E
       else
-        run_cli "claude plugin marketplace update $mp" plugin marketplace update "$mp"
+        cli_call "claude plugin marketplace update $mp" plugin marketplace update "$mp"
         clock_into T_MU_E
+        REFRESH_LABEL="$CLI_LABEL"
         REFRESH_RC="$CLI_RC"
         trunc REFRESH_OUT "$CLI_OUT"
         REFRESH_REASON=$(cli_outcome_line "$CLI_OUT")
@@ -1414,18 +1435,17 @@ run_marketplace() {
           continue
         fi
         version_at old "$RUN_DIR/pre.$mp.json" "$id" "$scope"
-        if [[ "$MODE" == "audit" && -n "$live_path" ]]; then
+        if [[ -n "$live_path" ]]; then
           IR_LIVE+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" --arg path "$live_path" \
             '{id: $id, scope: $sc, installed: $old, path: $path}')")
           continue
         fi
-        if [[ "$MODE" == "audit" ]]; then
-          predict_cli "claude plugin update $id -s $scope"
-          IR_WOULD+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" \
-            '{id: $id, scope: $sc, installed: $old}')")
+        cli_call "claude plugin update $id -s $scope --json" plugin update "$id" -s "$scope" --json
+        if [[ "$CLI_PREDICTED" == "true" ]]; then
+          IR_WOULD+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$id" --arg sc "$scope" --arg old "$old" \
+            '$call + {id: $id, scope: $sc, installed: $old}')")
           continue
         fi
-        run_cli "claude plugin update $id -s $scope --json" plugin update "$id" -s "$scope" --json
         if [[ -n "$ir_root" ]]; then
           settings_state ir_after "$ir_root"
           if [[ "$ir_after" != "$ir_before" ]]; then
@@ -1437,10 +1457,8 @@ run_marketplace() {
         fi
         if ((CLI_RC != 0)); then
           reason=$(cli_outcome_line "$CLI_OUT")
-          trunc out "$CLI_OUT"
-          IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --argjson rc "$CLI_RC" \
-            --arg out "$out" --arg reason "$reason" \
-            '{id: $id, scope: $sc, rc: $rc, output: $out, reason: $reason}')")
+          IR_FAILED+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$id" --arg sc "$scope" \
+            --arg reason "$reason" '$call + {id: $id, scope: $sc, reason: $reason}')")
           continue
         fi
         cli_update_result result new "$CLI_OUT"
@@ -1488,12 +1506,12 @@ run_marketplace() {
       sweep_rows="${sweep_rows//$'\r'/}"
       while IFS=$'\x1f' read -r id old; do
         [[ -n "$id" ]] || continue
-        if [[ "$MODE" == "audit" ]]; then
-          predict_cli "claude plugin update $id -s user"
-          US_WOULD+=("$(jq -c -n --arg id "$id" --arg old "$old" '{id: $id, installed: $old}')")
+        cli_call "claude plugin update $id -s user --json" plugin update "$id" -s user --json
+        if [[ "$CLI_PREDICTED" == "true" ]]; then
+          US_WOULD+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$id" --arg old "$old" \
+            '$call + {id: $id, installed: $old}')")
           continue
         fi
-        run_cli "claude plugin update $id -s user --json" plugin update "$id" -s user --json
         if ((CLI_RC != 0)); then
           us_failed_add "$id"
           continue
@@ -1511,7 +1529,7 @@ run_marketplace() {
       old="${old//$'\r'/}"
       new="${new//$'\r'/}"
       if ((ALLOW_DOWNGRADE == 1)) && [[ "$MODE" == "sync" ]]; then
-        run_cli "claude plugin update $id -s $scope --json   # downgrade $old -> $new" \
+        cli_call "claude plugin update $id -s $scope --json   # downgrade $old -> $new" \
           plugin update "$id" -s "$scope" --json
         if ((CLI_RC != 0)); then
           us_failed_add "$id"
@@ -1671,16 +1689,15 @@ recover_pending() {
 }
 
 install_one() {
-  local id="$1" out reason unset_cfg="null" disabled="false"
-  run_cli "claude plugin install $id -s user --json" plugin install "$id" -s user --json
-  reason=$(cli_outcome_line "$CLI_OUT")
+  local id="$1" reason="" unset_cfg="null" disabled="false"
+  cli_call "claude plugin install $id -s user --json" plugin install "$id" -s user --json
+  [[ "$CLI_PREDICTED" == "true" ]] || reason=$(cli_outcome_line "$CLI_OUT")
   install_disabled_notice "$CLI_OUT" && disabled="true"
   INSTALLED_DISABLED="$disabled"
-  trunc out "$CLI_OUT"
   unset_user_config_of unset_cfg "$CLI_OUT"
-  INSTALLED_ROWS+=("$(jq -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
+  INSTALLED_ROWS+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$id" \
     --argjson unset "$unset_cfg" --argjson disabled "$disabled" --arg reason "$reason" \
-    '{id: $id, rc: $rc, output: $out, unset_user_config: $unset, disabled_by_default: $disabled, reason: $reason}')")
+    '$call + {id: $id, unset_user_config: $unset, disabled_by_default: $disabled, reason: $reason}')")
 }
 
 run_install_step() {
@@ -1708,11 +1725,6 @@ run_install_step() {
     while IFS= read -r id; do
       id="${id//$'\r'/}"
       [[ -n "$id" ]] || continue
-      if [[ "$MODE" == "audit" ]]; then
-        predict_cli "claude plugin install $id -s user"
-        installed_any=1
-        continue
-      fi
       install_one "$id"
       ((CLI_RC == 0)) && installed_any=1
     done <"$RUN_DIR/ids.pre-install.$mp.txt"
@@ -1791,19 +1803,11 @@ run_enable_step() {
 }
 
 enable_one() {
-  local id="$1" scope="$2" out reason
-  if [[ "$MODE" == "audit" ]]; then
-    predict_cli "claude plugin enable $id -s $scope"
-    ENABLED_ROWS+=("$(jq -c -n --arg id "$id" --arg sc "$scope" \
-      '{id: $id, scope: $sc, rc: null, predicted: true}')")
-    return 0
-  fi
-  run_cli "claude plugin enable $id -s $scope" plugin enable "$id" -s "$scope"
-  reason=$(cli_outcome_line "$CLI_OUT")
-  trunc out "$CLI_OUT"
-  ENABLED_ROWS+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --argjson rc "$CLI_RC" --arg out "$out" \
-    --arg reason "$reason" \
-    '{id: $id, scope: $sc, rc: $rc, output: $out, reason: $reason, predicted: false}')")
+  local id="$1" scope="$2" reason=""
+  cli_call "claude plugin enable $id -s $scope" plugin enable "$id" -s "$scope"
+  [[ "$CLI_PREDICTED" == "true" ]] || reason=$(cli_outcome_line "$CLI_OUT")
+  ENABLED_ROWS+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$id" --arg sc "$scope" --arg reason "$reason" \
+    '$call + {id: $id, scope: $sc, reason: $reason}')")
 }
 
 cache_content_block() {
@@ -2224,6 +2228,7 @@ emit_marketplace_block() {
     --arg lastUpdated "$CATALOG_LAST_UPDATED" \
     --arg refresh_out "$REFRESH_OUT" \
     --arg refresh_reason "$REFRESH_REASON" \
+    --arg refresh_label "$REFRESH_LABEL" \
     --arg reg_interval "$reg_interval" \
     --arg t_prr_s "$T_PRR_S" --arg t_prr_e "$T_PRR_E" \
     --arg t_mu_s "$T_MU_S" --arg t_mu_e "$T_MU_E" \
@@ -2275,6 +2280,7 @@ emit_marketplace_block() {
      source_checkout: $checkout,
      source_pull: $pull,
      refresh: {rc: $refresh_rc, output: $refresh_out, reason: $refresh_reason, predicted: $refresh_predicted,
+               label: $refresh_label,
                skipped: $refresh_skipped},
      project_root: $project_root,
      in_repo: {updated: $ir_u, failed: $ir_f, would_update: $ir_w, live_read: $ir_l},

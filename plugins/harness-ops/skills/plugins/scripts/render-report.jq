@@ -10,7 +10,8 @@
 # Every section, conditional row, annotation and `Action needed` bullet is
 # derived from a digest field; nothing here is judgment, so the report cannot
 # misstate a number, an id, or a scope the digest carries. In audit mode every
-# call sync would make carries the `would run:` prefix. A remedy sync never runs
+# call sync would make is a predicted row, printed as `would run:` and the
+# row's label, the command as sync-run.sh records it. A remedy sync never runs
 # itself (the `git -C … pull`, a project-scope enable) is the operator's in both
 # modes and carries no prefix, since sync would not run it either; a pull the
 # user agreed to, which the script ran, renders on the source row instead. The
@@ -74,8 +75,9 @@ def block($d):
   | (.in_repo.failed + (.user_sweep.failed | map(. + {scope: "user"}))) as $failed
   | .user_sweep.withheld_downgrades as $withheld
   | .other_paths as $op
-  | ([.installed[] | select(.rc == 0)]) as $installed_ok
-  | ([.installed[] | select(.rc != 0)]) as $installed_failed
+  | ([.installed[] | select(.predicted == true)]) as $would_install
+  | ([.installed[] | select(.predicted != true and .rc == 0)]) as $installed_ok
+  | ([.installed[] | select(.predicted != true and .rc != 0)]) as $installed_failed
   | (.install_gap - ($installed_ok | map(.id))) as $install_left
   | ([.enabled[] | select(.predicted == true)]) as $would_enable
   | ([.enabled[] | select(.predicted != true and .rc == 0)]) as $enabled_ok
@@ -154,7 +156,7 @@ def block($d):
   # would update, install or enable itself.
   | (if $audit then
        (($would | length) > 0 or ($would_enable | length) > 0 or ($op.would_update | length) > 0
-        or ($d.install_new == "all" and (.install_gap | length) > 0 and .install_enable_deferred != true and ($held | not)))
+        or ($would_install | length) > 0)
      else
        (($failed | length) > 0 or .install_enable_deferred == true or ($op.failed | length) > 0
         or ($installed_failed | length) > 0 or ($enabled_failed | length) > 0
@@ -251,7 +253,7 @@ def block($d):
           else "    this run does not fetch or pull it" end)
        end),
       (if $audit then
-         "  would run: claude plugin marketplace update \(.name)",
+         "  would run: \(.refresh.label)",
          "    predicted against the unrefreshed catalog (lastUpdated \(.catalog_last_updated // "unknown")), a lower bound on what sync would update"
        elif .refresh.rc != null and .refresh.rc != 0 then
          "  refresh failed (exit \(.refresh.rc)): \(.refresh | reported)"
@@ -279,7 +281,7 @@ def block($d):
 
       (if $audit then
          "Would update: \($would | length) plugin(s)",
-         ($would[] | "  would run: claude plugin update \(.id) -s \(.scope) (installed \(.installed))"),
+         ($would[] | "  would run: \(.label) (installed \(.installed))"),
          ("Would withhold: \($withheld | length) downgrade(s)"
           + (if $d.allow_downgrade then " (--allow-downgrade ignored: audit issues no update either way)" else "" end)),
          ($withheld[] | "  - \(scoped): \(.installed) -> \(.catalog) (catalog moved backward)")
@@ -301,7 +303,7 @@ def block($d):
       (if $audit then
          (if ($op.would_update | length) > 0 then
             "Would update in other paths: \($op.would_update | length) record(s)",
-            ($op.would_update[] | "  would run: (cd \"\(.path)\" && claude plugin update \(.id) -s \(.scope)) (installed \(.old))")
+            ($op.would_update[] | "  would run: \(.label) (installed \(.old))")
           else empty end)
        else
          (if ($op.updated | length) > 0 then
@@ -339,9 +341,9 @@ def block($d):
        else empty end),
 
       (if $audit then
-         (if $d.install_new == "all" and (.install_gap | length) > 0 and .install_enable_deferred != true and ($held | not) then
-            "Would install: \(.install_gap | length) new catalog plugin(s) (policy install_new: all)",
-            (.install_gap[] | "  would run: claude plugin install \(.) -s user"),
+         (if ($would_install | length) > 0 then
+            "Would install: \($would_install | length) new catalog plugin(s) (policy install_new: all)",
+            ($would_install[] | "  would run: \(.label)"),
             "  once installed, a later sync would reinstall any of these you uninstall",
             "    remedy: to keep one out, disable it instead of uninstalling"
           else empty end)
@@ -377,7 +379,7 @@ def block($d):
 
       (if ($would_enable | length) > 0 then
          "Would enable: \($would_enable | length) plugin(s)",
-         ($would_enable[] | "  would run: claude plugin enable \(.id) -s \(.scope)")
+         ($would_enable[] | "  would run: \(.label)")
        elif ($enabled_ok | length) > 0 then
          (listed("Enabled: \($enabled_ok | length) plugin(s)"; $enabled_ok | map(scoped))
           | .[0], (.[1:][] | "  \(.)"))

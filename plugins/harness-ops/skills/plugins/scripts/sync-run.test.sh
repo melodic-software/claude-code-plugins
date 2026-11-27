@@ -1631,7 +1631,7 @@ needs_policy=ask
 pending_check "declined install gap under ask" sync '{"install_gap":["b@m","c@m"],"installed":[{"id":"b@m","rc":0}]}' \
   $'1 catalog plugin(s) offered and not installed (policy ask): c@m\n    remedy: '
 needs_policy=none
-needs_check "audit would update" audit '{"in_repo":{"would_update":[{"id":"a@m","scope":"project","installed":"1"}]}}' \
+needs_check "audit would update" audit '{"in_repo":{"would_update":[{"id":"a@m","scope":"project","installed":"1","label":"claude plugin update a@m -s project","predicted":true}]}}' \
   "would run: claude plugin update a@m" row
 pending_check "audit withheld downgrade" audit \
   '{"user_sweep":{"withheld_downgrades":[{"id":"a@m","scope":"user","installed":"2","catalog":"1"}]}}' "Would withhold: 1 downgrade(s)" row
@@ -1644,8 +1644,8 @@ assert_eq "needs: an audit predicting nothing names the lower bound" \
   "$(needs_digest audit '{}' | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r' | head -n 1)"
 pending_check "audit install gap" audit '{"install_gap":["b@m"]}' "not installed at user scope (policy none): b@m"
 needs_policy=all
-needs_check "audit would install" audit '{"install_gap":["b@m"]}' "would run: claude plugin install b@m -s user" row
-needs_check "audit would enable" audit '{"enable_gap":["b@m"],"enabled":[{"id":"b@m","scope":"user","predicted":true}]}' \
+needs_check "audit would install" audit '{"install_gap":["b@m"],"installed":[{"id":"b@m","label":"claude plugin install b@m -s user","rc":null,"predicted":true}]}' "would run: claude plugin install b@m -s user" row
+needs_check "audit would enable" audit '{"enable_gap":["b@m"],"enabled":[{"id":"b@m","scope":"user","label":"claude plugin enable b@m -s user","rc":null,"predicted":true}]}' \
   "would run: claude plugin enable b@m -s user" row
 needs_policy=none
 norm_render() { needs_digest "$1" "{\"normalize\":{\"output\":\"$2\"}}" | jq -r -f "$SCRIPT_DIR/render-report.jq"; }
@@ -1985,6 +1985,13 @@ assert_eq "render audit: every claude plugin line in the report carries the woul
   })"
 assert_contains "render audit: Would withhold sits beside Would update" \
   "$(printf '%s\n' "$REPORT_TEXT" | grep -A2 '^Would update:' | tr '\n' '|')" "Would withhold: 1 downgrade(s)"
+audit_labels=$(printf '%s\n' "$REPORT_TEXT" | sed -n 's/^ *would run: \(claude plugin .*\)$/\1/p' |
+  sed 's/ (installed [^)]*)$//' | sort)
+run_sync "$case_dir" --marketplace market1 --install-new all --journal-root "$case_dir/journal" >/dev/null
+assert_eq "render audit: the would run: labels are the calls a sync run on the same fleet makes" \
+  "$audit_labels" "$(sed -e 's/ --json$//' -e 's/^/claude /' "$case_dir/claude.log" | sort)"
+assert_eq "render audit: and that sync run made calls, so the comparison is not vacuous" "4" \
+  "$(wc -l <"$case_dir/claude.log" | tr -d ' ')"
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
