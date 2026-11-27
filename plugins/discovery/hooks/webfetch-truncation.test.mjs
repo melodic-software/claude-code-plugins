@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -81,7 +82,12 @@ test('the read-on note gets the offset re-read guidance; the older markers do no
   assert.doesNotMatch(decide(hooks), /offset/)
 })
 
-const run = input => spawnSync(process.execPath, [hook], { input, encoding: 'utf8' })
+const run = (input, envOverrides = {}) => {
+  const env = { ...process.env }
+  delete env.CLAUDE_PLUGIN_OPTION_WEBFETCH_TRUNCATION_ENABLED
+  delete env.CLAUDE_PROJECT_DIR
+  return spawnSync(process.execPath, [hook], { input, encoding: 'utf8', env: { ...env, ...envOverrides } })
+}
 
 test('the hook as registered prints PostToolUse additionalContext on a flagged payload', () => {
   const r = run(JSON.stringify(hooks))
@@ -123,4 +129,49 @@ test('hooks.json registers the hook on PostToolUse WebFetch in exec form', () =>
   assert.equal(entries.length, 1)
   assert.equal(entries[0].hooks[0].command, 'node')
   assert.deepEqual(entries[0].hooks[0].args, ['${CLAUDE_PLUGIN_ROOT}/hooks/webfetch-truncation.mjs'])
+})
+
+test('webfetch_truncation_enabled honors user over repository layer and plugin default', () => {
+  const work = mkdtempSync(join(tmpdir(), 'webfetch-trunc-'))
+  const home = join(work, 'home')
+  const project = join(work, 'project')
+  const conf = join(project, 'docs', 'conventions', 'discovery.yaml')
+  mkdirSync(home, { recursive: true })
+  mkdirSync(join(project, 'docs', 'conventions'), { recursive: true })
+  const payload = JSON.stringify(hooks)
+  try {
+    writeFileSync(conf, 'webfetch_truncation_enabled: true\n', 'utf8')
+    const userOff = run(payload, {
+      HOME: home,
+      CLAUDE_PROJECT_DIR: project,
+      CLAUDE_PLUGIN_OPTION_WEBFETCH_TRUNCATION_ENABLED: 'false',
+    })
+    assert.equal(userOff.status, 0)
+    assert.equal(userOff.stdout, '')
+
+    writeFileSync(conf, 'webfetch_truncation_enabled: false\n', 'utf8')
+    const repoOff = run(payload, { HOME: home, CLAUDE_PROJECT_DIR: project })
+    assert.equal(repoOff.status, 0)
+    assert.equal(repoOff.stdout, '')
+
+    const userOnOverRepoOff = run(payload, {
+      HOME: home,
+      CLAUDE_PROJECT_DIR: project,
+      CLAUDE_PLUGIN_OPTION_WEBFETCH_TRUNCATION_ENABLED: 'true',
+    })
+    assert.equal(userOnOverRepoOff.status, 0)
+    assert.match(JSON.parse(userOnOverRepoOff.stdout).hookSpecificOutput.additionalContext, /\/discovery:read-docs/)
+
+    writeFileSync(conf, 'webfetch_truncation_enabled: true\n', 'utf8')
+    const repoOn = run(payload, { HOME: home, CLAUDE_PROJECT_DIR: project })
+    assert.equal(repoOn.status, 0)
+    assert.match(JSON.parse(repoOn.stdout).hookSpecificOutput.additionalContext, /\/discovery:read-docs/)
+
+    rmSync(conf)
+    const defaultOn = run(payload, { HOME: home, CLAUDE_PROJECT_DIR: project })
+    assert.equal(defaultOn.status, 0)
+    assert.match(JSON.parse(defaultOn.stdout).hookSpecificOutput.additionalContext, /\/discovery:read-docs/)
+  } finally {
+    rmSync(work, { recursive: true, force: true })
+  }
 })

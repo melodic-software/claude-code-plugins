@@ -104,9 +104,11 @@ lefthook remote this marketplace ships, the per-clone skip of one job and declin
 
 ### The shared helper
 
-[`lib/hook-enabled.sh`](../../../lib/hook-enabled.sh) resolves one key across every layer above, so
-no plugin writes the precedence itself. Its suite is `lib/hook-enabled.test.sh`. To adopt it, a
-plugin:
+[`lib/hook-enabled.sh`](../../../lib/hook-enabled.sh) resolves one key across every layer above for
+shell hooks (suite `lib/hook-enabled.test.sh`), and
+[`lib/hook-enabled.mjs`](../../../lib/hook-enabled.mjs) provides the same precedence and flags for
+Node.js hooks (`isHookEnabled(plugin, key, defaultValue, opts)` and `resolveHookEnabled`, suite
+`lib/hook-enabled.test.mjs`), so no plugin writes the precedence itself. To adopt it, a plugin:
 
 1. Registers a copy in `scripts/shared-copies.txt`, for example
    `lib/hook-enabled.sh plugins/<plugin>/hooks/hook-enabled.sh`, and runs
