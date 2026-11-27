@@ -376,7 +376,7 @@ From the stage definitions: A conditional stage runs only when its trigger holds
 | [`/session-flow:reconcile`](../plugins/session-flow/skills/reconcile/SKILL.md) | `session-flow` | Retire finished off-thread work and square the task ledger |  |  |  |  |
 | [`/session-flow:step-away`](../plugins/session-flow/skills/step-away/SKILL.md) | `session-flow` | Run the session alone while the person is away and report on return | `until` | `[until <time>\|<trip>\|fresh session] [scope ...]` |  | `/session-flow:go-with-recommendations` |
 | [`/session-flow:tidy-work`](../plugins/session-flow/skills/tidy-work/SKILL.md) | `session-flow` | Report, normalize, and clean stale .work memory items | `report`, `normalize`, `clean` | `[report\|normalize\|clean] [--days N] [--offline] [--memory-dir DIR] [--scope all\|repo\|home]` |  | `/session-flow:clean-stop` |
-| [`/source-control:worktree`](../plugins/source-control/skills/worktree/SKILL.md) | `source-control` | Create, inspect, and clean git worktrees for parallel sessions | `create`, `status`, `cleanup`, `audit` | `[create\|status\|cleanup\|audit] [args]` | [pstack `worktree-cleanup`](upstream/cursor-pstack.md#attribution-table) |  |
+| [`/source-control:worktree`](../plugins/source-control/skills/worktree/SKILL.md) | `source-control` | Create, inspect, and clean git worktrees for parallel sessions | `create`, `status`, `cleanup`, `audit`, `review` | `[create\|status\|cleanup\|audit\|review] [args]` | [pstack `worktree-cleanup`](upstream/cursor-pstack.md#attribution-table) |  |
 
 ## Operator cadence
 
