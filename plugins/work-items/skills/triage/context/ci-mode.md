@@ -34,19 +34,19 @@ structured output.
 4. **Choose the flags.** Each that applies, or none:
    - `intent`: the intended outcome or done-when is not exact, or the issue lists primary-design
      alternatives and picks none (the label test's part 4 in `SKILL.md`). A choice of means is not
-     an intent question. A recorded decision in `comments` first settles what it answers: quote
-     it in the comment as the repository's rules say, and never ask a point it answers again,
-     with or without a `RECOMMENDED:` line. Beyond that, two things it can leave are `intent`,
-     never a choice of means:
+     an intent question. A recorded decision in `comments` can open questions as well as settle
+     them, and two of its openings are `intent`, never a choice of means:
      - A step it reserves to a person (the author runs, checks or approves something first and the
        work waits on it) is that person's consent, the label test's part 2: apply `needs-human`
-       with `needs_human` false and say, after the quote, which step waits on whom. It is not an
-       open question. A rule that a done-when item a lane run cannot do needs no person covers only
-       steps the decision does not reserve.
+       with `needs_human` false and say which step waits on whom. A rule that a done-when item a
+       lane run cannot do needs no person covers only steps the decision does not reserve.
      - A term it adds that leaves a set, value or boundary undefined (which items, which threshold),
        and that neither the issue nor the checkout defines, is a design choice the owner has not
        made, the label test's part 4: ask it as a new open question with its `RECOMMENDED:`
        answer. Never pick the set yourself as if decided.
+     - Both come after what the decision settles: quote the decision in the comment as the
+       repository's rules say, state a reserved step after the quote and outside `Open questions:`,
+       and never ask a point the decision answers again, even as a `RECOMMENDED:` question.
    - `security`: the work would carry a HIGH or CRITICAL security risk: expose a secret, bypass a
      trust boundary, or open an external attack surface.
    - `cost`: the work would add or raise a charge no diff shows, with no recorded decision
