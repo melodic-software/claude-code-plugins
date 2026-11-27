@@ -106,8 +106,8 @@ that call no model, so they cost no tokens:
   past `observer_tool_slow_seconds` `observer_tool_repeat` times is reported once.
 - *Loop*: a tool (keyed the same way) whose call fails `observer_loop_repeat` times in a row with
   the same error (its whole text, digits masked, so failures that differ under the same exit-code
-  line are not a loop) is reported once per tool and error; a success
-  resets the count. `0` turns it off.
+  line are not a loop) is reported once per tool and error in a session, its finding quoting the
+  error, so a different loop on the same tool is never hidden as a repeat; a success resets the count. `0` turns it off.
 - *Context*: each upward crossing of an `observer_context_percents` value.
 - *Rate limit*: a window at or past `observer_rate_limit_percent`, once per reset.
 

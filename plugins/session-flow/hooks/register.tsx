@@ -259,7 +259,7 @@ const runHarness = async ($: EngineInterface, e: HarnessEvent) => {
   if (r.findings.length === 0 || !m.on || (await $.store.get('paused')) === true) return
   const [seen, disputed, notRelevant] = [await list($, 'seen'), await list($, 'disputed'), await list($, 'notRelevant')]
   for (const { check, finding } of r.findings) {
-    const perSession = check === 'context' || check === 'rate-limit'
+    const perSession = check === 'context' || check === 'rate-limit' || check === 'loop'
     if (isKnown(finding.finding, ...(perSession ? [] : [seen]), disputed, notRelevant)) continue
     await accept($, { trigger: 'harness', turnId: '', step: -1, gen: m.gen, open: null, source: check }, finding).catch(() => undefined)
   }

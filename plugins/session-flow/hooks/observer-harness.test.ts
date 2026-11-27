@@ -136,7 +136,7 @@ test('a tool failing the same way observer_loop_repeat times in a row is reporte
   const r = run([fail('E1'), fail('E1'), ok, fail('E1'), fail('E2'), fail('E2'), fail('E2'), fail('E2')])
   expect(r.findings).toHaveLength(1)
   expect(r.findings[0]!.check).toBe('loop')
-  expect(r.findings[0]!.finding.finding).toBe('Bash: npm test failed 3 times in a row with the same error.')
+  expect(r.findings[0]!.finding.finding).toBe('Bash: npm test failed 3 times in a row with the same error: E2')
   expect(r.findings[0]!.finding.fix?.route).toBe('here')
   expect(r.rows).toEqual([{ harness: 'loop', subject: 'Bash: npm test' }])
   expect(run([fail('E1'), fail('E1'), fail('E1')], { observer_loop_repeat: 0 }).findings).toEqual([])

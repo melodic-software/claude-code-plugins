@@ -199,7 +199,7 @@ const loop = (s: HarnessState, e: Extract<HarnessEvent, { kind: 'tool-ran' }>, o
   if (o.loopRepeat < 1 || n < o.loopRepeat || s.loops.includes(id)) return { state, findings: [], rows: [] }
   const f = finding(
     'loop',
-    `${e.key} failed ${n} times in a row with the same error.`,
+    `${e.key} failed ${n} times in a row with the same error: ${errorLine(e.error).slice(0, 80) || 'no error text'}`,
     `observer_loop_repeat: a tool call that fails the same way ${o.loopRepeat} times in a row is a loop; change the approach instead of retrying`,
     `${n} failures: ${errorLine(e.error) || 'no error text'}`,
     here('stop retrying: read the error, then change the command or the approach, or report what blocks it'),
