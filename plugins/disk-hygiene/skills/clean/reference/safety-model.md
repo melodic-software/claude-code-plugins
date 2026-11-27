@@ -64,6 +64,12 @@ Every `KEEP` row must carry a specific reason (who produced the entry and what s
 validator rejects an empty reason, and a bare category phrase unless it names a tool and `evidence`
 shows that tool still references the entry. A rejected row fails the report with exit 5.
 
+A known-large store the policy names is one bounded row, summed under an entry budget and never
+listed, so a home inventory finishes in bounded time. Fail closed holds: the summary's
+`fully_inventoried` is false while any bounded or not-walked row exists, and a budget-cut or
+partly unreadable store reports its size as a lower bound
+([scan-flags.md](scan-flags.md#--deep)).
+
 `--execute`, the low-signal rule (Low is kept unless the human separately reviews exact paths), and
 every confirmation gate apply in full. Removing anything the inventory lists goes through
 `scan`, a fresh `preview`, and the removal approval.
@@ -76,8 +82,9 @@ every confirmation gate apply in full. Removing anything the inventory lists goe
   immediate non-OS child entries (regular files and directories) with explicit `--root-child`
   selection (never a whole-root
   walk); `--root-children` is also valid on a directory that is not a volume root (a user home),
-  where only directories are admitted and hidden and OS-named ones stay selectable, so approved
-  immediate children can be re-inventoried into one snapshot without walking the rest of the tree;
+  where regular files and directories are admitted through the same link, protection and mount
+  checks and hidden and OS-named ones stay selectable, so approved immediate children can be
+  re-inventoried into one snapshot without walking the rest of the tree;
   a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume
   metadata every volume has and no OS-install marker) is a valid target rather than blanket-denied,
   but as a known-large root it is routed through the large-target scan gate below (bound or

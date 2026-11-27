@@ -21,15 +21,18 @@ unwalked path, including a directory whose scan failed (`scan-error`, also liste
 
 `--root-children` is the only way to address an OS-managed volume root (for example `C:\` or `/`):
 it never walks that root recursively. The same flags also select immediate children of any other
-target, so after a depth-1 home audit the operator can re-inventory the approved directories
-without walking the rest of the home. Without `--root-child` names the engine returns
+target, so after a depth-1 home audit the operator can re-inventory the approved directories and
+loose files in one snapshot without walking the rest of the home. Without `--root-child` names the engine returns
 `root-children-selection-required` listing admitted immediate children. On every volume root, an
 OS-managed one or a non-OS one such as a Windows Dev Drive, the strict ladder applies: OS-owned
 (including `System Volume Information` and `$Recycle.Bin`), hidden, dot-prefixed, `$`-prefixed,
 system, reparse, mount, protected-shell-folder, and non-regular types are withheld, and regular
 files use the same admission ladder as directories. Only a target that is not a volume root, such
-as a home directory, gets the relaxed listing: only directories are admitted, and hidden and
-volume-OS-named directories stay selectable so approved home children can be named. With one or
+as a home directory, gets the relaxed listing: hidden and volume-OS-named children stay
+selectable so approved home children can be named. Every target admits regular files and
+directories through the same link, cloud-placeholder, virtual-disk, protected-name and mount checks,
+and withholds other types as `not-regular-file-or-directory`; a selected file then gets the same
+scan, preview and apply checks as a directory. With one or
 more explicit `--root-child <name>` flags, after the human clears the confirmation gate's
 root-children row, it audits only those admitted children into one snapshot. A general "clean
 everything" is not selection.
@@ -75,6 +78,22 @@ and `not-walked` (an unreadable subtree, or a mount point including a bind mount
 row). Every other entry is `unclassified`. Bind mounts come from `/proc/self/mountinfo`; when that
 cannot be read the summary carries the reason in `mount_state_error` (otherwise null) and only a
 mount on another device is skipped.
+
+A known-large store (a package cache, a tool's per-project data) is never listed entry by entry:
+each directory the effective policy's `inventory_bounded_stores` names is one row with a
+`coverage` field, its size summed under an entry budget (`STORE_ENTRY_BUDGET` per store and
+`BOUNDED_ENTRY_BUDGET` across all of them, in `scripts/deep_inventory.py`). A store a classifier
+recognizes keeps its category and disposition; any other is `bounded-store`, `UNKNOWN`.
+`coverage.size_is_lower_bound` is true when the budget ran out or part of the store could not be
+read (`incomplete_reason`). The summary lists these rows largest first in `bounded_rows` (capped,
+`bounded_rows_truncated`), counts them in `bounded_row_count` and `bounded_lower_bound_count`, and
+sets `fully_inventoried` false whenever a bounded or `not-walked` row exists or mount state was
+unreadable: report those as coverage gaps, never as clean or empty. The baseline policy lists
+well-known tool stores at their default home-relative locations; a policy layer appends more with
+`additional_inventory_bounded_stores` ([overlay schema](policy-overlay.schema.json)), passed to
+`inventory` with the same `--policy`, `--user-policy` and `--project-dir` flags `scan` takes. A
+glob is home-relative unless absolute, and `*` matches one path segment. A target that is a store
+or sits inside one is walked in full.
 
 `superseded-version` keeps the newest version (a release outranks its own prerelease), a version a
 running process executes, and a version a symlink points at, read from the symlinks beside the

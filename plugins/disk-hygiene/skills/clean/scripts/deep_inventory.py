@@ -21,6 +21,10 @@ machine listing):
     evidence     optional dict of proof. {"tool": ..., "references": ...} shows the named
                  tool still references the entry, which is what lets a KEEP rest on a
                  category phrase such as "managed by <tool>"
+    coverage     present only on a bounded-store row: the entry stands for a known-large
+                 store whose descendants were summed, not listed, under an entry budget.
+                 {"walk": "bounded-sum", "store_glob", "store_reason", "entries_counted",
+                 "entry_budget", "size_is_lower_bound", "incomplete_reason"}
 
 ``validate_report`` fails a report whose KEEP row has an empty reason, or one
 that is only a category phrase without such evidence.
@@ -78,6 +82,7 @@ from inventory_classifiers import (  # noqa: E402, F401  (sibling classifier mod
     default_classifiers,
     running_paths,
 )
+import policy_cascade  # noqa: E402  (path set above; plugin-bundled module)
 from plugin_cache_versions import (  # noqa: E402, F401  (re-exported for callers/tests)
     INSTALLED_PLUGINS,
     ORPHAN_SWEEP_DAYS,
@@ -148,6 +153,8 @@ UNCLASSIFIED = {
     "reason": "no category rule attributes this entry",
 }
 _UNSET: Any = object()
+STORE_ENTRY_BUDGET = 10_000
+BOUNDED_ENTRY_BUDGET = 250_000
 
 
 def _iso(epoch: float) -> str:
@@ -203,6 +210,81 @@ def _tree_size(
         except OSError:
             pass
     return total
+
+
+def bounded_tree_size(
+    path: Path,
+    budget: int,
+    mounts: frozenset[str] = frozenset(),
+    root_dev: int | None = None,
+) -> tuple[int, int, str | None]:
+    """Bytes under ``path`` after visiting at most ``budget`` entries.
+
+    Returns ``(size, entries_counted, incomplete_reason)``. The reason is None
+    only when every descendant was read and counted; a spent budget, an
+    unreadable directory or a skipped mount makes the size a lower bound.
+    """
+    total, counted, incomplete = 0, 0, None
+    stack = [path]
+    while stack:
+        current = stack.pop()
+        try:
+            with os.scandir(current) as entries:
+                for entry in entries:
+                    if counted >= budget:
+                        return total, counted, "entry-budget-spent"
+                    counted += 1
+                    try:
+                        st = entry.stat(follow_symlinks=False)
+                    except OSError:
+                        incomplete = incomplete or "unreadable-entry"
+                        continue
+                    if _descends(st):
+                        if entry.path in mounts or (
+                            root_dev and st.st_dev and st.st_dev != root_dev
+                        ):
+                            incomplete = incomplete or "mount-not-entered"
+                            continue
+                        stack.append(Path(entry.path))
+                    else:
+                        total += st.st_size
+        except OSError:
+            incomplete = incomplete or "unreadable-directory"
+    return total, counted, incomplete
+
+
+def _glob_segments_match(subject: str, pattern: str) -> bool:
+    parts, globs = subject.split("/"), pattern.split("/")
+    return len(parts) == len(globs) and all(
+        policy_cascade.glob_matches(part, glob) for part, glob in zip(parts, globs)
+    )
+
+
+def bounded_store_match(
+    path: Path, home: Path, stores: Iterable[Any]
+) -> dict[str, str] | None:
+    """The first store entry whose glob names ``path``, one segment per ``/``.
+
+    A relative glob is read against ``home``; an absolute one against the
+    whole path. ``*`` never crosses a separator, so ``.cache/*`` names each
+    tool's cache directory and nothing below it.
+    """
+    absolute = path.as_posix().replace("\\", "/")
+    try:
+        relative: str | None = path.relative_to(home).as_posix()
+    except ValueError:
+        relative = None
+    for item in stores:
+        entry = policy_cascade.protection_glob_entry(item)
+        if entry is None:
+            continue
+        pattern = entry["glob"].replace("\\", "/")
+        if policy_cascade.protection_glob_is_absolute(pattern):
+            if _glob_segments_match(absolute, pattern):
+                return entry
+        elif relative not in (None, ".") and _glob_segments_match(relative, pattern):
+            return entry
+    return None
 
 
 def make_row(
@@ -445,6 +527,9 @@ def inventory_rows(
     liveness: VersionLivenessPort | None = None,
     classifiers: Sequence[EntryClassifierPort] | None = None,
     fs_root: Path = Path("/"),
+    bounded_stores: Sequence[Any] = (),
+    store_entry_budget: int = STORE_ENTRY_BUDGET,
+    bounded_entry_budget: int = BOUNDED_ENTRY_BUDGET,
 ) -> Iterable[dict[str, Any]]:
     """Yield one row per entry of ``target``, the target itself last.
 
@@ -454,6 +539,12 @@ def inventory_rows(
     ``mounts``, which also catches a bind mount on the same device), is one
     UNKNOWN row and is not entered. Paths in ``skip`` (the report being written)
     are left out.
+
+    A directory one of ``bounded_stores`` names (see ``bounded_store_match``)
+    is one row carrying ``coverage``: its descendants are summed, never listed,
+    reading at most ``store_entry_budget`` entries of it and
+    ``bounded_entry_budget`` across every store. A store that holds the target,
+    or is the target, is walked in full: the caller asked for that store.
     """
     live = _liveness_from_running(running, liveness)
     resolved_claude: Path | None
@@ -531,7 +622,49 @@ def inventory_rows(
             reason=f"{why}; its contents and size are not counted",
         )
 
+    def bounded(
+        path: Path, st: os.stat_result, store: dict[str, str]
+    ) -> dict[str, Any]:
+        budget = max(0, min(store_entry_budget, remaining[0]))
+        size, counted, incomplete = bounded_tree_size(
+            path, budget, mounts=mounts, root_dev=root_st.st_dev
+        )
+        remaining[0] -= counted
+        reason = store.get("reason") or "known-large store"
+        if incomplete:
+            told = f"the size is a lower bound ({incomplete})"
+        else:
+            told = "the size is complete"
+        result = row(path, st, size)
+        if classify(path, st) is None:
+            result.update(
+                category="bounded-store",
+                reason=(
+                    f"{reason}; summed without listing its entries "
+                    f"({counted} read), so {told}"
+                ),
+            )
+        result["coverage"] = {
+            "walk": "bounded-sum",
+            "store_glob": store["glob"],
+            "store_reason": reason,
+            "entries_counted": counted,
+            "entry_budget": budget,
+            "size_is_lower_bound": incomplete is not None,
+            "incomplete_reason": incomplete,
+        }
+        return result
+
     target = Path(target).resolve()
+    stores = [
+        store
+        for store in bounded_stores
+        if not any(
+            bounded_store_match(scope, home, [store])
+            for scope in (target, *target.parents)
+        )
+    ]
+    remaining = [bounded_entry_budget]
     root_st = os.lstat(target)
     try:
         stack = [(target, root_st, children(target), [0])]
@@ -563,6 +696,12 @@ def inventory_rows(
             str(path) in mounts or (st.st_dev and st.st_dev != root_st.st_dev)
         ):
             yield not_entered(path, st, "another filesystem is mounted here")
+            continue
+        store = bounded_store_match(path, home, stores) if _descends(st) else None
+        if store is not None:
+            store_row = bounded(path, st, store)
+            total[0] += store_row["size"]
+            yield store_row
             continue
         if deep and _descends(st):
             try:
