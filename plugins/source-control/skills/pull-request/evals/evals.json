@@ -559,14 +559,14 @@
     },
     {
       "id": 43,
-      "name": "ready-refuses-a-do-not-merge-label",
+      "name": "ready-flips-past-a-do-not-merge-label",
       "prompt": "/pull-request ready. PR 640 is an open draft on this branch and carries the do-not-merge label. Its checks are green and no one is around to answer questions. Flip it to ready.",
-      "expected_output": "The ready step checks for a hold before it touches the branch, finds the do-not-merge label, and stops: the pull request stays a draft, the label is reported as the reason, and the base is not merged, no review runs and nothing is flipped. It does not remove the label.",
+      "expected_output": "The ready step runs its hold check before it touches the branch. The do-not-merge label holds the merge, not the flip, so the check passes it and the PR is flipped to ready with the label still on. The report says the label still holds the merge. It does not remove the label.",
       "files": [],
       "expectations": [
         "The hold check runs before the branch update, the reviews and the flip",
-        "The pull request is left in draft and never flipped",
-        "The report names the do-not-merge label as the reason",
+        "The do-not-merge label does not stop the flip: the pull request is flipped to ready",
+        "The report says the label still holds the merge",
         "The label is not removed"
       ]
     },
@@ -696,7 +696,7 @@
       "id": 53,
       "name": "pr-open-state-pushed-hold-opens-labeled",
       "prompt": "/pull-request create --pushed --worktree /work/wt-618 --hold for branch feat/618-export-csv. This is an unattended orchestrator run in a dontAsk session; no person is answering. The worker's branch is clean and pushed at HEAD. The repository's docs/conventions/source-control.yaml on the base branch, main, is captured in evals/fixtures/source-control-open-ready.yaml relative to the skill directory. Assemble the body, resolve the open state and open the PR.",
-      "expected_output": "--hold takes no value, so the PR create carries --label do-not-merge alongside --draft and the PR opens held. The body carries no hold line. The repository file sets pr_open_state: ready, so create then runs Phase 2.5 as ready with the new PR's number and --unattended, from the worktree as its working directory; its hold check finds the do-not-merge label and leaves the PR a draft.",
+      "expected_output": "--hold takes no value, so the PR create carries --label do-not-merge alongside --draft and the PR opens held. The body carries no hold line. The repository file sets pr_open_state: ready, so create then runs Phase 2.5 as ready with the new PR's number and --unattended, from the worktree as its working directory. Its hold check passes the do-not-merge label, which holds the merge and not the flip, so the PR flips to ready with the label still on.",
       "files": [
         "evals/fixtures/source-control-open-ready.yaml"
       ],
@@ -705,7 +705,7 @@
         "The body file carries no line starting `Hold:`",
         "pr_open_state resolves to ready from the repository file, and create runs the ready phase as ready <PR number> --unattended on the PR it just opened",
         "The ready phase's commands run with the worktree /work/wt-618 as their working directory",
-        "The ready phase's hold check names the do-not-merge label and the PR stays a draft"
+        "The ready phase does not refuse on the do-not-merge label: the PR flips to ready with the label still on"
       ]
     },
     {
