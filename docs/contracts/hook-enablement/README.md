@@ -105,8 +105,14 @@ lefthook remote this marketplace ships, the per-clone skip of one job and declin
 ### The shared helper
 
 [`lib/hook-enabled.sh`](../../../lib/hook-enabled.sh) resolves one key across every layer above, so
-no plugin writes the precedence itself. Its suite is `lib/hook-enabled.test.sh`. To adopt it, a
-plugin:
+no plugin writes the precedence itself. Its suite is `lib/hook-enabled.test.sh`. For hooks modules
+(`modules` in `hooks/hooks.json`), [`lib/mod-hook-enabled.ts`](../../../lib/mod-hook-enabled.ts)
+(suite `lib/mod-hook-enabled.test.mjs`) provides the same precedence and `security: true`
+policy-floor semantics in-process with zero subprocess spawns (`createModEnablement` plus
+`refreshModEnablement($, gate, e.cwd)` in `session.start`, reading `$.settings.read` across
+`policy`, `flag`, and `user` to separate explicit user values from manifest defaults filled into
+`options`, then reading `<root>/<convention-home>/<plugin>.yaml` after resolving the repository's
+bound convention home through `$.fs.stat` and `$.fs.read`). To adopt the shell helper, a plugin:
 
 1. Registers a copy in `scripts/shared-copies.txt`, for example
    `lib/hook-enabled.sh plugins/<plugin>/hooks/hook-enabled.sh`, and runs

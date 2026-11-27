@@ -12,16 +12,13 @@ SCRIPT="$SELF_DIR/list-hook-enablement-gaps.sh"
 
 PENDING=(
   animation
-  context-budget
   discovery
-  display-redaction
   explainer-video
   fleet
   multi-agent
   playwright
   plugin-profiles
   speech
-  themes
   toolchain
 )
 
