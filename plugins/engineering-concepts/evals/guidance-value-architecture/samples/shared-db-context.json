@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Slices share one database context; only the slice logic stays separate."},
+    {"answer": "Keep a single DbContext shared by every slice in the module."}
+  ],
+  "fail": [
+    {"answer": "Each slice gets its own database and its own context.", "why": "no sharing"},
+    {"answer": "Share nothing. The database is owned by the orders module.", "why": "share without context"}
+  ]
+}

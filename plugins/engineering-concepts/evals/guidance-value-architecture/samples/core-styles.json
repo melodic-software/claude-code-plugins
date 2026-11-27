@@ -1,0 +1,8 @@
+{
+  "pass": [{"answer": "Start as a modular monolith with clean architecture inside each module. Modules publish domain events over a message bus, so the event-driven parts stay decoupled."}],
+  "fail": [
+    {"answer": "A modular monolith with clean architecture and a shared database.", "why": "no event-driven style or bus"},
+    {"answer": "Use event-driven microservices with a message broker.", "why": "no layered or clean style weighed"},
+    {"answer": "", "why": "empty"}
+  ]
+}

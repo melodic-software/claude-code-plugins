@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: guidance-value-duplication
+graders:
+  - name: 'loads-guidance'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:engineering-concepts:)?design-guidance"'
+    arm: 'with-only'
+  - name: 'extract-now'
+    type: 'regex'
+    pattern: 'rule of one|extract (?:it )?(?:now|today|right away|immediately)|(?:don''t|do not) wait for (?:a |the )?third'
+    flags: 'i'
+    target: 'last_message'

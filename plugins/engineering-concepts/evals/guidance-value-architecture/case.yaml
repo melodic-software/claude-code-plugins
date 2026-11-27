@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: guidance-value-architecture
+graders:
+  - name: 'loads-guidance'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:engineering-concepts:)?design-guidance"'
+    arm: 'with-only'
+  - name: 'core-styles'
+    type: 'regex'
+    pattern: '^(?=.*event[- ]driven)(?=.*(?:message bus|service bus|message broker))(?=.*(?:clean architecture|layered))'
+    flags: 'is'
+    target: 'last_message'
+  - name: 'vertical-slices'
+    type: 'regex'
+    pattern: 'vertical[- ]slice'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'shared-db-context'
+    type: 'regex'
+    pattern: 'shar\w*[^.\n]{0,80}(?:db|database|data)[ -]?context|(?:db|database|data)[ -]?context[^.\n]{0,80}shar'
+    flags: 'is'
+    target: 'last_message'

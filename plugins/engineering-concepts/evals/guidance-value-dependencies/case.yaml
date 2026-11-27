@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: guidance-value-dependencies
+graders:
+  - name: 'loads-guidance'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:engineering-concepts:)?design-guidance"'
+    arm: 'with-only'
+  - name: 'no-vendor-in-abstraction-name'
+    type: 'regex'
+    pattern: '\bI(?:SendGrid|Mailgun|Postmark|Ses|Smtp|MailKit|Brevo|Resend|QuestPdf|Quest|IText|Puppeteer|Playwright|Aws|Azure|Gotenberg|Wkhtml)\w*'
+    match: false
+    target: 'last_message'
+  - name: 'isolated-behind-abstraction'
+    type: 'regex'
+    pattern: '(?:swap|switch|replac)\w*[^.\n]{0,80}(?:provider|library|vendor|implementation)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'free-keyless-default'
+    type: 'regex'
+    pattern: 'no (?:api )?key|keyless|free (?:by default|default|option|tier)|opt[- ]in'
+    flags: 'i'
+    target: 'last_message'

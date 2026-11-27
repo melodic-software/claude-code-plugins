@@ -1,0 +1,4 @@
+{
+  "pass": [{"answer": "Because the app only sees IEmailSender, we can swap the provider later with one new class."}, {"answer": "Replacing the PDF library touches one implementation."}],
+  "fail": [{"answer": "Call the SendGrid client directly from the controller.", "why": "no isolation stated"}]
+}

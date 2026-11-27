@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Extract it now. Two copies are already one too many under a rule of one."},
+    {"answer": "Don't wait for a third copy; move it into a shared package this week."}
+  ],
+  "fail": [
+    {"answer": "Wait. The rule of three says extract on the third occurrence.", "why": "the default call"},
+    {"answer": "It depends on whether the copies will diverge.", "why": "no recommendation to extract"}
+  ]
+}

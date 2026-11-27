@@ -1,0 +1,4 @@
+{
+  "pass": [{"answer": "The default is plain SMTP, which needs no API key; SendGrid is opt-in."}, {"answer": "Ship a free default provider."}],
+  "fail": [{"answer": "Use SendGrid and set SENDGRID_API_KEY before first run.", "why": "paid, key required by default"}]
+}

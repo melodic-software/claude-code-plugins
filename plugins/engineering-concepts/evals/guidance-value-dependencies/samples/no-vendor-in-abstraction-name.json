@@ -1,0 +1,7 @@
+{
+  "pass": [{"answer": "The app calls IEmailSender and IInvoicePdfRenderer; SendGridEmailSender implements the first."}],
+  "fail": [
+    {"answer": "Define ISendGridClient for email.", "why": "vendor in the interface name"},
+    {"answer": "Code against IQuestPdfGenerator.", "why": "library in the interface name"}
+  ]
+}

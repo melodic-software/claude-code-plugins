@@ -1,0 +1,4 @@
+{
+  "pass": [{"answer": "Organize each module by vertical slices: one folder per feature."}, {"answer": "Use Vertical-Slice architecture."}],
+  "fail": [{"answer": "Organize code into horizontal layers: controllers, services, repositories.", "why": "layers only"}]
+}
