@@ -609,8 +609,8 @@ test('each optional kind is asked only when on, and parses', () => {
 })
 
 test('buildPrompt adds the repository guidance before the person guidance, each capped', () => {
-  const p = buildPrompt([], [], undefined, [], false, { repoGuidance: 'PRs go through the skill.', guidance: 'Mine.', guidanceMax: 10 })
-  expect(p).toContain("The repository's guidance for these checks:\nPRs go thr\n")
+  const p = buildPrompt([], [], undefined, [], false, { repoGuidance: 'Use the skill for pull requests.', guidance: 'Mine.', guidanceMax: 13 })
+  expect(p).toContain("The repository's guidance for these checks:\nUse the skill\n")
   expect(p.indexOf("The repository's guidance")).toBeLessThan(p.indexOf("The person's guidance"))
   expect(buildPrompt([], [])).not.toContain("repository's guidance")
 })
