@@ -95,9 +95,7 @@ jobs:
 
       - name: Install resolve-config's packages
         id: install
-        if: >-
-          steps.kill.outputs.proceed == 'true'
-          && (steps.who.outcome == 'skipped' || steps.who.outputs.proceed == 'true')
+        if: steps.kill.outputs.proceed == 'true' && (steps.who.outcome == 'skipped' || steps.who.outputs.proceed == 'true')
         timeout-minutes: 5
         run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
@@ -383,9 +381,7 @@ jobs:
           fallback-reason: ""
 
       - name: Fail the leg unless it handed off or a limit stopped it
-        if: >-
-          always() && steps.run.outputs.handoff != 'true'
-          && (steps.run.outcome == 'failure' || steps.run.outcome == 'success' && steps.run.outputs.structured-output-file == '')
+        if: always() && steps.run.outputs.handoff != 'true' && (steps.run.outcome == 'failure' || steps.run.outcome == 'success' && steps.run.outputs.structured-output-file == '')
         env:
           OUTCOME: ${{ steps.run.outcome }}
           FAILURE_CLASS: ${{ steps.run.outputs.lane-class }}
@@ -640,9 +636,7 @@ jobs:
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Fail the leg unless it handed off or a limit stopped it
-        if: >-
-          always() && steps.run.outputs.handoff != 'true'
-          && (steps.run.outcome == 'failure' || steps.run.outcome == 'success' && steps.run.outputs.structured-output-file == '')
+        if: always() && steps.run.outputs.handoff != 'true' && (steps.run.outcome == 'failure' || steps.run.outcome == 'success' && steps.run.outputs.structured-output-file == '')
         env:
           OUTCOME: ${{ steps.run.outcome }}
           FAILURE_CLASS: ${{ steps.run.outputs.lane-class }}
@@ -881,9 +875,7 @@ jobs:
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Fail the leg unless it handed off or a limit stopped it
-        if: >-
-          always() && steps.run.outputs.handoff != 'true'
-          && (steps.run.outcome == 'failure' || steps.run.outcome == 'success' && steps.run.outputs.structured-output-file == '')
+        if: always() && steps.run.outputs.handoff != 'true' && (steps.run.outcome == 'failure' || steps.run.outcome == 'success' && steps.run.outputs.structured-output-file == '')
         env:
           OUTCOME: ${{ steps.run.outcome }}
           FAILURE_CLASS: ${{ steps.run.outputs.lane-class }}
