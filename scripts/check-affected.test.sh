@@ -41,6 +41,7 @@ echo "affected-tests ran" >&2
 # The real runner writes the suites the deadline left to PLUGIN_TEST_LEFT_FILE.
 [[ -z "${STUB_LEFT:-}" ]] || printf '%s' "$STUB_LEFT" >"$PLUGIN_TEST_LEFT_FILE"
 sleep "${STUB_AFFECTED_SLEEP:-0}"
+[[ -z "${STUB_AFFECTED_MSG:-}" ]] || echo "$STUB_AFFECTED_MSG" >&2
 # The real selector diffs its own tree's work tree, so the stub logs that.
 [[ -z "${STUB_STATUS_LOG:-}" ]] || git -C "$(dirname "$0")/.." status --porcelain --untracked-files=all >"$STUB_STATUS_LOG"
 [[ -v CHECK_DATA_ROOT ]] && { echo "affected-tests saw CHECK_DATA_ROOT" >&2; exit 1; }
@@ -127,6 +128,26 @@ check "a gate the runner runs is not named CI only" \
   '[[ $ERR != *"CI only: markdown "* && $ERR != *"CI only: spoke-plugin-root "* && $ERR != *"CI only: typos "* && $ERR != *"CI only: machine-specific-paths "* ]]'
 check "a diff with no file of a scanned type skips machine-specific-paths" \
   '[[ $ERR == *"SKIP machine-specific-paths (no changed file of a type it scans)"* ]]'
+check "a diff with no scoped test file skips test-scope-globs" \
+  '[[ $ERR == *"SKIP test-scope-globs (no changed test file declares test-scope)"* ]]'
+pre_scope="$(git_test_config "$repo" rev-parse HEAD)"
+printf '#!/usr/bin/env bash\n# test-scope: notes.txt\necho ok\n' >"$repo/scripts/scoped.test.sh"
+chmod +x "$repo/scripts/scoped.test.sh"
+git_test_config "$repo" add scripts/scoped.test.sh
+git_test_config "$repo" commit -q -m scoped
+run STUB_ARGS_LOG="$tmp/scope-args.log" -- --base base
+check "a changed test file that declares test-scope runs the selector over it" \
+  '[[ $RC == 0 && $(cat "$tmp/scope-args.log") == "--allow-unmapped scripts/scoped.test.sh" ]]'
+run STUB_AFFECTED_TESTS=2 STUB_AFFECTED_MSG="error: scripts/scoped.test.sh declares test-scope globs that match no file of the tree:" -- --base base
+check "a test-scope glob that matches no file fails test-scope-globs" \
+  '[[ $RC == 1 && $ERR == *"FAIL test-scope-globs"* && $ERR == *"match no file of the tree"* ]]'
+run STUB_AFFECTED_TESTS=2 STUB_AFFECTED_MSG="error: listing the tree failed." -- --base base
+check "any other selector exit 2 leaves test-scope-globs to CI" \
+  '[[ $RC == 0 && $ERR == *"SKIP test-scope-globs (could not run"* ]]'
+run STUB_AFFECTED_TESTS=0 -- --base base --tests
+check "--tests runs the selector itself, so test-scope-globs does not run twice" \
+  '[[ $ERR != *"test-scope-globs"* ]]'
+git_test_config "$repo" reset -q --hard "$pre_scope"
 
 other="$tmp/other"
 git_test_config "$tmp" clone -q --branch base "$repo" "$other"

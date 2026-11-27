@@ -2,7 +2,7 @@
 # test-scope: scripts/check-changelog-fragments.sh scripts/check-changelog-parity.sh scripts/sync-plugin-options-docs.py
 # test-scope: scripts/validate-plugin-contracts.mjs scripts/generate-marketplace.mjs scripts/generate-catalog.mjs
 # test-scope: scripts/generate-cheatsheet.mjs scripts/cheatsheet-config.mjs scripts/fragment-plugins.txt scripts/lib/*
-# test-scope: .claude-plugin/marketplace.json plugins/*/.claude-plugin/plugin.json docs/catalog.md docs/skill-cheat-sheet.md .changes/*
+# test-scope: .claude-plugin/marketplace.json plugins/*/.claude-plugin/plugin.json docs/catalog.md docs/skill-cheat-sheet.md
 set -uo pipefail
 
 unset GITHUB_EVENT_NAME MERGE_GROUP_BASE_SHA CHANGELOG_PR_HEAD CHANGELOG_HEAD_REF \

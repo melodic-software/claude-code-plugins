@@ -673,6 +673,30 @@ else
     env CHECK_SKILL_SKIP_SCRIPT_TESTS=1 "$tools/scripts/check-changed-skills.sh" "$base"
 fi
 
+scoped_suites=()
+for f in ${changed[@]+"${changed[@]}"}; do
+  case "${f##*/}" in
+  *.test.sh | *.test.js | *.test.mjs | test_*.py | *.Tests.ps1) grep -q 'test-scope:' "$f" 2>/dev/null && scoped_suites+=("$f") ;;
+  *) ;;
+  esac
+done
+scope_globs() {
+  local rc=0
+  "$tools/scripts/affected-tests.sh" --allow-unmapped "$@" >/dev/null || rc=$?
+  ((rc == 0)) && return 0
+  ((rc == 2)) && grep -q 'declares test-scope globs that match no file' "$out" && return 1
+  return 2
+}
+if ((run_tests)); then
+  :
+elif ((halt)); then
+  skip test-scope-globs "$halt_why"
+elif ((${#scoped_suites[@]} == 0)); then
+  skip test-scope-globs "no changed test file declares test-scope"
+else
+  run_check test-scope-globs "scripts/affected-tests.sh --allow-unmapped ${scoped_suites[*]}" scope_globs "${scoped_suites[@]}"
+fi
+
 if ((run_tests && halt)); then
   skip tests "$halt_why"
 elif ((run_tests && foreign && !snapshot)); then
