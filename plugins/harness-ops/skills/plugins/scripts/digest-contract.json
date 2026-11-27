@@ -68,5 +68,13 @@
     "self_update": null,
     "updated_with_monitors": [],
     "errors": []
+  },
+  "shapes": {
+    "call": {"label": "", "rc": null, "output": "", "predicted": false},
+    "normalize": {
+      "rc": 0, "output": "", "checked_only": false,
+      "status": null, "moved": null, "keys": null, "reason": null,
+      "project_report": null
+    }
   }
 }

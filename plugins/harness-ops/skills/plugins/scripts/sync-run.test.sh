@@ -1661,6 +1661,21 @@ assert_eq "normalize render: a missing file never reads as a reorder" "0" \
   "$(norm_render sync 'missing-file keys=0' | grep -c 'key order' || true)"
 assert_contains "normalize render: a digest without moved= keeps its old row" \
   "$(norm_render sync 'normalized keys=3')" "Normalized: user enabledPlugins key order (3 keys reordered)"
+field_render() { needs_digest "$1" "{\"normalize\":$2}" | jq -r -f "$SCRIPT_DIR/render-report.jq"; }
+assert_contains "normalize fields: the row reads status, moved and keys, not the output text" \
+  "$(field_render sync '{"output":"","status":"normalized","moved":3,"keys":7}')" \
+  "Normalized: user enabledPlugins key order (3 of 7 keys moved)"
+assert_contains "normalize fields: audit reads them the same way" \
+  "$(field_render audit '{"output":"","status":"would-normalize","moved":2,"keys":9}')" \
+  "(would run: normalize-enabled-plugins.sh, 2 of 9 keys would move)"
+assert_contains "normalize fields: a refusal names its reason once under Action needed" \
+  "$(field_render sync '{"output":"","status":"refused","reason":"write-denied (x)"}')" \
+  "  - user-scope enabledPlugins reorder refused: write-denied (x)"
+assert_contains "normalize fields: an unsorted project map reads its status" \
+  "$(field_render sync '{"output":"","status":"already-sorted","project_report":{"output":"","status":"project-unsorted","keys":2}}')" \
+  "project-scope enabledPlugins map is unsorted"
+assert_contains "normalize render: a legacy refusal names its reason once" \
+  "$(norm_render sync 'refused: write-denied (x)')" "  - user-scope enabledPlugins reorder refused: write-denied (x)"
 stale_unwritten='{"stale_project_records":{"total":1,"paths":1,"by_parent":[{"parent":"/g/","count":1,"paths":1}],"more_parents":0,"list_file":null}}'
 assert_contains "stale render: a sync run with no list file says it was not written" \
   "$(needs_digest sync "$stale_unwritten" | jq -r -f "$SCRIPT_DIR/render-report.jq")" "  Full per-path list: not written this run"
@@ -1985,6 +2000,10 @@ assert_eq "render audit: every claude plugin line in the report carries the woul
   })"
 assert_contains "render audit: Would withhold sits beside Would update" \
   "$(printf '%s\n' "$REPORT_TEXT" | grep -A2 '^Would update:' | tr '\n' '|')" "Would withhold: 1 downgrade(s)"
+assert_eq "render audit: every predicted row carries the contract's call shape" "[]" \
+  "$(jq -c --slurpfile c "$SCRIPT_DIR/digest-contract.json" '[.marketplaces[0]
+    | .refresh, .in_repo.would_update[], .user_sweep.would_update[], .installed[], .enabled[]
+    | select(.predicted == true) | ($c[0].shapes.call | keys) - keys] | map(select(length > 0))' <<<"$REPORT_DIGEST")"
 audit_labels=$(printf '%s\n' "$REPORT_TEXT" | sed -n 's/^ *would run: \(claude plugin .*\)$/\1/p' |
   sed 's/ (installed [^)]*)$//' | sort)
 run_sync "$case_dir" --marketplace market1 --install-new all --journal-root "$case_dir/journal" >/dev/null
@@ -2428,9 +2447,31 @@ report_of "$case_dir" --marketplace market1 --install-new all --journal-root "$c
 assert_exit "normalized one key: exit 0" 0 "$REPORT_RC"
 assert_eq "normalized one key: the digest carries the moved count and the total" "normalized moved=1 keys=4" \
   "$(jq -r '.marketplaces[0].normalize.output' <<<"$REPORT_DIGEST")"
+assert_eq "normalized one key: and the same line parsed once into fields" \
+  '{"status":"normalized","moved":1,"keys":4,"reason":null}' \
+  "$(jq -c '.marketplaces[0].normalize | {status, moved, keys, reason}' <<<"$REPORT_DIGEST")"
+assert_eq "normalized one key: the normalize object has the contract shape's keys" \
+  "$(jq -c '.shapes.normalize | keys' "$SCRIPT_DIR/digest-contract.json")" \
+  "$(jq -c '.marketplaces[0].normalize | keys' <<<"$REPORT_DIGEST")"
 assert_eq "normalized one key: the user map is sorted" '["alpha@market1","beta@other","delta@other","gamma@other"]' \
   "$(jq -c '.enabledPlugins | keys_unsorted' "$case_dir/user_settings.json")"
 assert_golden "normalized one key: the report matches the golden" normalized-one-key-moved.txt "$REPORT_TEXT"
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 true
+catalog_plugin "$case_dir" market1 beta 0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+write "$case_dir/stubs/refusing-normalize.sh" $'#!/usr/bin/env bash\necho "refused: write-denied (settings.json is not writable)" >&2\nexit 1\n'
+chmod +x "$case_dir/stubs/refusing-normalize.sh"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1
+  SYNC_RUN_NORMALIZE="$case_dir/stubs/refusing-normalize.sh")
+report_of "$case_dir" --marketplace market1 --install-new all --journal-root "$case_dir/journal"
+assert_eq "normalize refused: the digest parses the refusal into its status and reason" \
+  '{"rc":1,"status":"refused","moved":null,"keys":null,"reason":"write-denied (settings.json is not writable)"}' \
+  "$(jq -c '.marketplaces[0].normalize | {rc, status, moved, keys, reason}' <<<"$REPORT_DIGEST")"
+assert_contains "normalize refused: the report names the reason under Action needed" "$REPORT_TEXT" \
+  "  - user-scope enabledPlugins reorder refused: write-denied (settings.json is not writable)"
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)

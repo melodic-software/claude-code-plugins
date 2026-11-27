@@ -56,9 +56,19 @@ def bullet: "  - \(.[0])", (.[1:][] | "    \(.)");
 def auto_update_slot:
   if . == true then "on" elif . == false then "off" else "unreadable" end;
 def short_sha: (. // "?") | .[0:12];
-def key_count: (capture("keys=(?<k>[0-9]+)") // {k: "?"}) | .k;
-# The normalizer's `moved=K`, or null from a digest written before it carried one.
-def moved_count: (capture("moved=(?<m>[0-9]+)") // {m: null}) | .m;
+# A digest written before sync-run.sh parsed the normalizer line carries only
+# `output`, read here into the same fields.
+def norm_fields:
+  if . == null then {}
+  elif has("status") then .
+  else (.output // "") as $o
+    | {status: ($o | if test("^normalized ") then "normalized" elif test("^would-normalize") then "would-normalize"
+                 elif test("^missing-file") then "missing-file" elif test("^refused:") then "refused"
+                 elif test("^project-unsorted") then "project-unsorted" else null end),
+       moved: ($o | capture("moved=(?<m>[0-9]+)").m // null),
+       keys: ($o | capture("keys=(?<k>[0-9]+)").k // null),
+       reason: ($o | first_line | ltrimstr("refused: "))}
+  end;
 
 # The slowest timed step of a block's timings object, or null.
 def slowest_step:
@@ -82,8 +92,8 @@ def block($d):
   | ([.enabled[] | select(.predicted == true)]) as $would_enable
   | ([.enabled[] | select(.predicted != true and .rc == 0)]) as $enabled_ok
   | ([.enabled[] | select(.predicted != true and .rc != 0)]) as $enabled_failed
-  | (.normalize.output // "") as $norm
-  | (.normalize.project_report.output // "") as $pnorm
+  | (.normalize | norm_fields) as $norm
+  | (.normalize.project_report | norm_fields) as $pnorm
   | (.enable_gap - ($enabled_ok | map(.id)) - ($would_enable | map(.id))
      - (.project_enable_rows | map(.id))) as $enable_unfilled
   | (.install_enable_deferred == true and (.install_gap | length) > 0
@@ -169,11 +179,11 @@ def block($d):
   | (.name as $n | any($d.quiet_auto_update[]; . == $n)) as $quiet
   # What the verdict calls a change: something this run moved, or in audit
   # something sync would move or withhold.
-  | (if $audit then ($needs or ($norm | test("^would-normalize")) or ($withheld | length) > 0)
+  | (if $audit then ($needs or $norm.status == "would-normalize" or ($withheld | length) > 0)
      else
        (($updated | length) > 0 or (.downgraded | length) > 0 or ($installed_ok | length) > 0
         or ($op.updated | length) > 0
-        or ($enabled_ok | length) > 0 or ($norm | test("^normalized ")) or $pull.status == "pulled")
+        or ($enabled_ok | length) > 0 or $norm.status == "normalized" or $pull.status == "pulled")
      end) as $changed
   # Action needed: omitted entirely when nothing needs action.
   | [
@@ -217,10 +227,10 @@ def block($d):
          listed("monitor(s) declared by updated plugin(s)"; .updated_with_monitors | map("\(.id) (\(.monitors))"))
          + ["remedy: restart the session to run the updated monitors, /reload-plugins does not switch them"]
        else empty end),
-      (if ($norm | test("^refused:")) then
-         ["user-scope enabledPlugins reorder refused: \($norm | first_line)"]
+      (if $norm.status == "refused" then
+         ["user-scope enabledPlugins reorder refused: \($norm.reason)"]
        else empty end),
-      (if ($pnorm | test("^project-unsorted")) then
+      (if $pnorm.status == "project-unsorted" then
          ["project-scope enabledPlugins map is unsorted (\(.project_root // "?")/.claude/settings.json)",
           "remedy: run converge, the only action that may rewrite it"]
        else empty end),
@@ -364,16 +374,16 @@ def block($d):
           else empty end)
        else empty end),
 
-      (($norm | moved_count) as $moved
-       | if ($norm | test("^normalized ")) then
+      ($norm.moved as $moved | ($norm.keys // "?") as $keys
+       | if $norm.status == "normalized" then
            "Normalized: user enabledPlugins key order ("
-           + (if $moved == null then "\($norm | key_count) keys reordered"
-              else "\($moved) of \($norm | key_count) keys moved" end) + ")"
-         elif ($norm | test("^would-normalize")) then
+           + (if $moved == null then "\($keys) keys reordered"
+              else "\($moved) of \($keys) keys moved" end) + ")"
+         elif $norm.status == "would-normalize" then
            "Would normalize: user enabledPlugins key order (would run: normalize-enabled-plugins.sh, "
-           + (if $moved == null then "\($norm | key_count) keys"
-              else "\($moved) of \($norm | key_count) keys would move" end) + ")"
-         elif ($norm | test("^missing-file")) then
+           + (if $moved == null then "\($keys) keys"
+              else "\($moved) of \($keys) keys would move" end) + ")"
+         elif $norm.status == "missing-file" then
            "\(if $audit then "Would normalize" else "Normalized" end): skipped, no user settings file"
          else empty end),
 

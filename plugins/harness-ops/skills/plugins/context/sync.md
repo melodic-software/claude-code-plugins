@@ -78,7 +78,7 @@ the name:
   array produces none of them.
 - A row that reports one CLI call (`refresh`, `installed[]`, `enabled[]`, every `would_update[]`,
   and an `in_repo` or `user_sweep` `failed[]` row whose call ran) carries that call's outcome: `label` (the command as the journal records it),
-  `rc`, `output` and `predicted`. In `audit` every call is a predicted row, `rc` `null`, and the
+  `rc`, `output` and `predicted` (the contract's `shapes.call`). In `audit` every call is a predicted row, `rc` `null`, and the
   report prints its `label` after `would run:`.
 - `installed_disabled[]` holds the ids whose install output said the plugin is disabled by default
   and that this run did not then enable.

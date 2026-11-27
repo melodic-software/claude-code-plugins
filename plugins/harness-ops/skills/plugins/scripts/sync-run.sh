@@ -1751,9 +1751,16 @@ run_install_step() {
 
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to NORMALIZE_JSON -c -n --argjson rc "$nrc" --arg out "$nout" --arg mode "$MODE" \
-    --argjson prc "$prc" --arg pout "$pout" \
-    '{rc: $rc, output: $out, checked_only: ($mode == "audit"),
-      project_report: (if $pout == "" then null else {rc: $prc, output: $pout} end)}'
+    --argjson prc "$prc" --arg pout "$pout" --slurpfile contract "$DIGEST_CONTRACT" '
+    def num($k): first(capture("(^| )" + $k + "=(?<n>[0-9]+)") | .n | tonumber) // null;
+    def fields:
+      ([split("\n")[] | gsub("\r"; "") | select(. != "")][0] // "") as $l
+      | ($l | startswith("refused:")) as $refused
+      | {status: (if $l == "" then null elif $refused then "refused" else ($l | split(" ")[0]) end),
+         moved: ($l | num("moved")), keys: ($l | num("keys")),
+         reason: (if $refused then ($l | ltrimstr("refused:") | ltrimstr(" ")) else null end)};
+    $contract[0].shapes.normalize * ({rc: $rc, output: $out, checked_only: ($mode == "audit")} + ($out | fields)
+      + {project_report: (if $pout == "" then null else {rc: $prc, output: $pout} + ($pout | fields) end)})'
 }
 
 run_enable_step() {
