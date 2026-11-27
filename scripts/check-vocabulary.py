@@ -26,9 +26,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 from pathlib import Path
 
 # `from __future__ import annotations` needs Python 3.7:
@@ -51,6 +54,7 @@ SELF_FILES = frozenset(
     )
 )
 TEXT_LIMIT = 200
+CHUNK = 1024
 
 
 class Unusable(Exception):
@@ -222,7 +226,14 @@ def main(argv: list) -> int:
     except Unusable as exc:
         print(f"check-vocabulary: {exc}", file=sys.stderr)
         return 2
-    findings = [f for rel in files for f in scan(rel, senses)]
+    cores = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else os.cpu_count() or 1
+    workers = min(cores, -(-len(files) // CHUNK))
+    if workers > 1:
+        with ProcessPoolExecutor(workers) as pool:
+            per_file = list(pool.map(partial(scan, senses=senses), files, chunksize=CHUNK))
+    else:
+        per_file = [scan(rel, senses) for rel in files]
+    findings = [f for found in per_file for f in found]
     for finding in findings:
         print(finding)
     if findings:
