@@ -77,7 +77,8 @@ no installed plugin references), `tmp-producer` (`/tmp` entries by producer pref
 and `not-walked` (an unreadable subtree, or a mount point including a bind mount, one `UNKNOWN`
 row). Every other entry is `unclassified`. Bind mounts come from `/proc/self/mountinfo`; when that
 cannot be read the summary carries the reason in `mount_state_error` (otherwise null) and only a
-mount on another device is skipped.
+mount on another device is skipped. Without `--deep`, each immediate child's size is summed under
+the same rules: a mount, unreadable entry or bounded store beneath it still gets its own row.
 
 A known-large store (a package cache, a tool's per-project data) is never listed entry by entry:
 each directory the effective policy's `inventory_bounded_stores` names is one row with a

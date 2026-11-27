@@ -1076,6 +1076,74 @@ class BoundedStoreTest(TempTree):
         self.assertEqual("vendor data", row["coverage"]["store_reason"])
         self.assertTrue(row["reason"].startswith("vendor data; summed"))
 
+    def test_shallow_walk_of_a_store_ancestor_honors_the_store_budget(self) -> None:
+        for index in range(8):
+            self.write(f"home/.claude/projects/slug/{index}.jsonl", "ab")
+        slug = self.root / "home" / ".claude" / "projects" / "slug"
+        rows = {
+            r["name"]: r
+            for r in di.inventory_rows(
+                self.root / "home" / ".claude",
+                deep=False,
+                home=self.root / "home",
+                tmp_dir=self.root / "no-tmp",
+                now=NOW,
+                running=set(),
+                claude_dir=None,
+                bounded_stores=[".claude/projects/*"],
+                store_entry_budget=1,
+            )
+        }
+        coverage = rows[str(slug)]["coverage"]
+        self.assertEqual(
+            (1, True), (coverage["entries_counted"], coverage["size_is_lower_bound"])
+        )
+        self.assertEqual(2, rows[str(slug.parent)]["size"])
+
+    def test_shallow_walk_bounds_a_store_inside_an_immediate_child(self) -> None:
+        for index in range(30):
+            self.write(f"home/.npm/{index:02d}", "abcd")
+        self.write("home/notes", "1")
+        rows = {
+            r["name"]: r
+            for r in di.inventory_rows(
+                self.root,
+                deep=False,
+                home=self.root / "home",
+                tmp_dir=self.root / "no-tmp",
+                now=NOW,
+                running=set(),
+                claude_dir=None,
+                bounded_stores=[".npm"],
+                store_entry_budget=5,
+            )
+        }
+        npm = rows[str(self.root / "home" / ".npm")]
+        self.assertEqual(5, npm["coverage"]["entries_counted"])
+        self.assertEqual(21, rows[str(self.root / "home")]["size"])
+
+    @unittest.skipIf(os.name != "posix" or os.geteuid() == 0, "needs POSIX non-root")
+    def test_shallow_walk_reports_an_unreadable_descendant(self) -> None:
+        self.write("scan/child/ok", "12")
+        locked = self.mkdir("scan/child/locked")
+        self.write("scan/child/locked/hidden", "123")
+        locked.chmod(0)
+        self.addCleanup(locked.chmod, 0o700)
+        rows = {
+            r["name"]: r
+            for r in di.inventory_rows(
+                self.root / "scan",
+                deep=False,
+                home=self.root / "home",
+                tmp_dir=self.root / "no-tmp",
+                now=NOW,
+                running=set(),
+                claude_dir=None,
+            )
+        }
+        self.assertEqual("not-walked", rows[str(locked)]["category"])
+        self.assertEqual(2, rows[str(self.root / "scan" / "child")]["size"])
+
     def test_classified_store_keeps_its_classification(self) -> None:
         claude = self.mkdir("home/.claude")
         slug = self.mkdir("home/.claude/projects/-definitely-missing-repo-xyz")

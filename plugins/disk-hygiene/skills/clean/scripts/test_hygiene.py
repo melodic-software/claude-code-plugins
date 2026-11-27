@@ -18093,6 +18093,25 @@ class InventoryCommandTests(unittest.TestCase):
         self.assertNotIn(str(self.target / "bind" / "inside.txt"), rows)
         self.assertIn(str(self.target / "plain" / "file.txt"), rows)
 
+    def test_shallow_walk_reports_a_nested_mount_and_is_not_fully_inventoried(
+        self,
+    ) -> None:
+        self.write("child/own.txt", "12")
+        self.write("child/bind/inside.txt", "12345")
+        mounted = {self.target / "child" / "bind"}
+        with mock.patch.object(
+            hygiene, "linux_mount_points", return_value=(mounted, None)
+        ):
+            code, summary = self.run_inventory()
+        self.assertEqual(0, code, summary)
+        self.assertFalse(summary["deep"])
+        rows = self.rows(summary)
+        bind = rows[str(self.target / "child" / "bind")]
+        self.assertEqual("not-walked", bind["category"])
+        self.assertEqual(2, rows[str(self.target / "child")]["size"])
+        self.assertEqual(1, summary["not_walked_row_count"])
+        self.assertFalse(summary["fully_inventoried"])
+
     def test_unreadable_mountinfo_is_reported_not_hidden(self) -> None:
         self.write("a.txt")
         with mock.patch.object(

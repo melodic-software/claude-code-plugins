@@ -41,7 +41,7 @@ import re
 import stat
 import sys
 import tempfile
-from collections.abc import Iterable, Sequence
+from collections.abc import Generator, Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -655,6 +655,66 @@ def inventory_rows(
         }
         return result
 
+    def unread(path: Path, error: str) -> dict[str, Any]:
+        return {
+            "name": str(path),
+            "ext": path.suffix,
+            "size": 0,
+            "mtime": None,
+            "owner": None,
+            **UNCLASSIFIED,
+            "category": "not-walked",
+            "reason": f"cannot be read ({error})",
+        }
+
+    def mounted(path: Path, st: os.stat_result) -> bool:
+        return _descends(st) and bool(
+            str(path) in mounts or (st.st_dev and st.st_dev != root_st.st_dev)
+        )
+
+    def summed(
+        top: Path, top_st: os.stat_result
+    ) -> Generator[dict[str, Any], None, int | None]:
+        """Bytes under ``top`` without a row per entry, under the deep walk's rules.
+
+        A mount, an unreadable entry or directory, and a bounded store below
+        ``top`` each still yield their row, so a shallow walk reports the same
+        coverage gaps and store bounds as a deep one. None when ``top`` itself
+        could not be read.
+        """
+        size, pending = 0, [(top, top_st)]
+        while pending:
+            current, current_st = pending.pop()
+            try:
+                with os.scandir(current) as it:
+                    entries = list(it)
+            except OSError as exc:
+                why = f"unreadable ({type(exc).__name__}: {exc})"
+                yield not_entered(current, current_st, why)
+                if current == top:
+                    return None
+                continue
+            for entry in entries:
+                if entry.path in skip:
+                    continue
+                path = Path(entry.path)
+                try:
+                    st = entry.stat(follow_symlinks=False)
+                except OSError as exc:
+                    yield unread(path, f"{type(exc).__name__}: {exc}")
+                    continue
+                if not _descends(st):
+                    size += st.st_size
+                elif mounted(path, st):
+                    yield not_entered(path, st, "another filesystem is mounted here")
+                elif (store := bounded_store_match(path, home, stores)) is not None:
+                    store_row = bounded(path, st, store)
+                    size += store_row["size"]
+                    yield store_row
+                else:
+                    pending.append((path, st))
+        return size
+
     target = Path(target).resolve()
     stores = [
         store
@@ -681,20 +741,9 @@ def inventory_rows(
             continue
         path, st, error = pending.pop()
         if st is None:
-            yield {
-                "name": str(path),
-                "ext": path.suffix,
-                "size": 0,
-                "mtime": None,
-                "owner": None,
-                **UNCLASSIFIED,
-                "category": "not-walked",
-                "reason": f"cannot be read ({error})",
-            }
+            yield unread(path, error)
             continue
-        if _descends(st) and (
-            str(path) in mounts or (st.st_dev and st.st_dev != root_st.st_dev)
-        ):
+        if mounted(path, st):
             yield not_entered(path, st, "another filesystem is mounted here")
             continue
         store = bounded_store_match(path, home, stores) if _descends(st) else None
@@ -709,13 +758,10 @@ def inventory_rows(
             except OSError as exc:
                 yield not_entered(path, st, f"unreadable ({type(exc).__name__}: {exc})")
             continue
-        size = (
-            _tree_size(path, mounts=mounts, root_dev=root_st.st_dev)
-            if _descends(st)
-            else st.st_size
-        )
-        total[0] += size
-        yield row(path, st, size)
+        size = (yield from summed(path, st)) if _descends(st) else st.st_size
+        if size is not None:
+            total[0] += size
+            yield row(path, st, size)
 
 
 def _category_only(reason: str) -> bool:
