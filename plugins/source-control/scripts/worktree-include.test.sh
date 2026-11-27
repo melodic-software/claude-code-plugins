@@ -250,6 +250,7 @@ assert_exit "carried manifest: edited copy exits 1" 1 "$?"
 assert_contains "carried-index: edited copy is MODIFIED" "$OUT" $'MODIFIED\tnotes.env\t'
 
 cp -p "$WT_CI/keys.env" "$TEST_TMPDIR/keys.ref"
+sleep 1
 printf 'same-size-b\n' >"$WT_CI/keys.env"
 touch -r "$TEST_TMPDIR/keys.ref" "$WT_CI/keys.env"
 run_inc diff "$WT_CI" --main-root "$REPO_CI" --worktree-only
