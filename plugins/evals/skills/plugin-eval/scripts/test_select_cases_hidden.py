@@ -362,6 +362,13 @@ class SelectCasesHiddenTest(unittest.TestCase):
         block = self._select(SETUP, "# Prints the fixture.\n", "")
         self.assert_free(block, "set -euo pipefail sets options, not arguments")
 
+    def test_positional_copy_called_with_too_few_arguments_still_runs(self):
+        for call in ('bash "$(dirname "$0")/../fixtures/seed.sh"\n', 'bash "$(dirname "$0")/../fixtures/seed.sh" a.txt out/a b.txt\n'):
+            with self.subTest(call=call):
+                self._positional_base(call)
+                block = self._select(SETUP, "# Prints the fixture.\n", "")
+                self.assert_runs(block, "an empty src copies the whole fixtures folder")
+
     def test_positional_copy_naming_the_helper_still_runs(self):
         self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" setup.sh out/s\n')
         block = self._select(SETUP, "# Prints the fixture.\n", "")

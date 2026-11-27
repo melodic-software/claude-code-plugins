@@ -219,13 +219,13 @@ def _scripts_under(root):
 
 @functools.lru_cache(maxsize=None)
 def _call_site_args(helper, eval_norm):
-    """The literal words every call of the shell script `helper` passes it, from every script
-    under the repository's `plugins/`, or None when a script in another language names it, or a
-    shell line names it other than as a plain `bash`/`sh`/path run or passes anything but literal
+    """The literal words of each call of the shell script `helper`, one tuple per call, from every
+    text file under the repository's `plugins/`, or None when a file that is not shell names it, or
+    a shell line names it other than as a plain `bash`/`sh`/path run or passes anything but literal
     words."""
     plugins_dir = os.path.dirname(os.path.dirname(eval_norm))
     name_re = _name_re(os.path.basename(helper))
-    words = []
+    calls = []
     for fpath, text, is_shell in _scripts_under(plugins_dir):
         if not is_shell:
             if name_re.search(text):
@@ -251,8 +251,8 @@ def _call_site_args(helper, eval_norm):
                 raw = raw.rstrip()[:-1] + " " + lines[index]
             if re.search(r"[$`*?\[\]{}<>|;&()~#\\]", raw):
                 return None
-            words.extend(shlex.split(raw))
-    return tuple(words)
+            calls.append(tuple(shlex.split(raw)))
+    return tuple(calls)
 
 
 def _sets_positional_args(code):
@@ -273,8 +273,9 @@ def _sets_positional_args(code):
 
 def _positional_copy_is_safe(fpath, text, line, target, eval_norm):
     """`line` of the shell script `fpath` is `cp "$dir/$var" "<dest>"` with `$dir` a resolved
-    folder and `$var` set only from positional arguments, and no literal argument any call of the
-    script passes names `target` or a folder holding it under that folder."""
+    folder and `$var` set only from positional arguments, every call of the script passes each
+    argument those assignments read (a whole number of them per `shift` loop), and no literal
+    argument names `target` or a folder holding it under that folder."""
     copy = POSITIONAL_COPY_RE.match(line.strip())
     if not copy:
         return False
@@ -308,10 +309,14 @@ def _positional_copy_is_safe(fpath, text, line, target, eval_norm):
         code,
     ) or _sets_positional_args(code):
         return False
-    words = _call_site_args(os.path.normpath(fpath), eval_norm)
-    if words is None:
+    calls = _call_site_args(os.path.normpath(fpath), eval_norm)
+    if calls is None:
         return False
-    for word in words:
+    read = max(int(n) for c in (code_lines[n] for n in var_lines) for n in re.findall(r"\$\{?([1-9])", c))
+    loops = re.search(r"\bshift\b", code)
+    if any(len(call) < read or loops and len(call) % read for call in calls):
+        return False
+    for word in (word for call in calls for word in call):
         named = os.path.normpath(os.path.join(folder, word))
         if named == target or target.startswith(named + os.sep):
             return False
