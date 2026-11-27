@@ -77,11 +77,26 @@ test("an item that names a security defect in its title or body is dropped, and 
     { title: "t", body: "This lets a caller exfiltrate the key" },
     { title: "t", body: "A privilege escalation through the helper" },
     { title: "t", body: "An exploitable parse of the record" },
+    { title: "The lanes token reaches the step summary unmasked", body: "b" },
+    { title: "t", body: "Path traversal through the record flag" },
+    { title: "t", body: "An XSS through the rendered page" },
+    { title: "t", body: "SSRF via the fetch helper" },
+    { title: "t", body: "RCE in the loader" },
+    { title: "t", body: "A sandbox escape through the helper" },
+    { title: "t", body: "The key can leak into the log" },
+    { title: "t", body: "Unsanitized input reaches the shell" },
+    { title: "t", body: "A TOCTOU race on the lock file" },
   ];
   const { kept, dropped } = withoutSecurityDefects([item(1), ...named, item(2)]);
   assert.deepEqual(kept, [item(1), item(2)]);
   assert.equal(dropped, named.length);
   assert.deepEqual(withoutSecurityDefects([{ title: "Secure the seam", body: "No defect named here; the author module stays shallow." }]).dropped, 0);
+  const cited = [
+    { title: "Deepen the leg generator", body: "Evidence: `scripts/credential-legs/maintenance-scan-architecture.mjs:1`" },
+    { title: "Merge the credential helpers", body: "Evidence: .github/scripts/lib/model-credential.mjs:12 and `select-model-credential`" },
+  ];
+  assert.equal(withoutSecurityDefects(cited).dropped, 1, "a term in a cited path or code span is not a named defect; the same term in prose still is");
+  assert.equal(withoutSecurityDefects([cited[0]]).dropped, 0);
 });
 
 test("an item shaped like an issue another script trusts is dropped: an Upstream drift: title or any HTML comment marker", () => {

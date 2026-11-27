@@ -48,6 +48,8 @@
     "Bash(bash -c *)",
     "Bash(*/proc/*)",
     "Bash(*../*)",
+    "Bash(git *--ou*)",
+    "Bash(sort *-*o*)",
     "Read(//proc/**)",
     "WebFetch",
     "WebSearch",

@@ -88,6 +88,7 @@ const matches = (rule, command) => {
   return body !== undefined && new RegExp(`^${body.split("*").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`, "s").test(command);
 };
 const HELPERS = ["improvement/lib/state-key.sh", "architecture/lib/resolve-convention-home.sh", "architecture/lib/read-verification.sh", "architecture/skills/improve/scripts/improve-settings.mjs"];
+const HELPER_IMPORTS = ["architecture/lib/default-branch-file.sh", "architecture/lib/config-root.sh", "architecture/lib/config-cascade.mjs", "architecture/lib/yaml-subset.mjs"];
 const permitted = ({ allowed, disallowed }, command) => allowed.some((rule) => matches(rule, command)) && !disallowed.some((rule) => matches(rule, command));
 
 test("the model legs' Bash rules admit none of the escape routes and still allow the scan's own commands (Claude Code auto-approves read-only commands, so reads outside the checkout also wait on the sandbox read block, ci-workflows#1241)", () => {
@@ -120,6 +121,8 @@ test("the model legs' Bash rules admit none of the escape routes and still allow
     "head -50 src/a.mjs",
     "grep -rn KEY .",
     "git log -p",
+    "git log -1 --format='[core]%n\tfsmonitor = id' --output=.git/config",
+    "git status --porcelain --output=.git/config",
     "git log --since='90 days ago' --pretty=format: --name-only --output=src/a.mjs",
     `node ${ws}/.lane/plugins/architecture/skills/improve/scripts/improve-settings.mjs --home /home/runner`,
     `node ${ws}/.lane/plugins/architecture/scripts/build-view.mjs deepening --record .work/../../../etc/passwd`,
@@ -192,9 +195,12 @@ test("every model leg runs sandboxed, and its Bash rules allow no network-capabl
     const manifest = JSON.parse(readFileSync(join(REPO_ROOT, `plugins/${plugin}/.claude-plugin/plugin.json`), "utf8"));
     assert.ok(!("hooks" in manifest) && !("mcpServers" in manifest), `${plugin}'s manifest declares no hooks or MCP servers`);
   }
-  for (const helper of HELPERS) {
+  for (const helper of [...HELPERS, ...HELPER_IMPORTS]) {
     const text = readFileSync(join(REPO_ROOT, "plugins", helper), "utf8");
-    assert.doesNotMatch(text, /child_process|\bspawn|\bexecFile|\beval\b|\bbash -c\b/, `${helper} runs no command from its input`);
+    assert.doesNotMatch(text, /child_process|\bspawn|\bexecFile|\beval\b|\bbash -c\b|\b(curl|wget|nc|python\d?|perl|ruby|npx|npm)\s|node -e\b/, `${helper} holds no process spawner, eval, network fetch or interpreter call; the hold floor keeps a person on any other command it adds`);
+  }
+  for (const imported of HELPER_IMPORTS) {
+    assert.ok([...HELPERS, ...HELPER_IMPORTS].some((file) => file !== imported && readFileSync(join(REPO_ROOT, "plugins", file), "utf8").includes(imported.split("/").at(-1))), `${imported} is sourced or imported by a helper`);
   }
   for (const deny of ["Bash(curl *)", "Bash(wget *)", "Bash(env*)", "Bash(printenv*)", "Bash(node -e *)", "Bash(python* -c *)", "Bash(*/proc/*)", "Bash(*../*)", "Bash(gh *)", "Bash(git push *)", "WebFetch", "WebSearch"]) {
     assert.ok(disallowed.includes(deny), deny);
@@ -396,7 +402,7 @@ test("the prepared working tree is read-only but for .git and .work, so no comma
   const script = join(REPO_ROOT, ".github/scripts/maintenance-scan-architecture/prepare-working-tree.sh");
   try {
     execFileSync("bash", [script], { cwd: dir, env: { PATH: process.env.PATH, MODEL: "m", STAGE: stage, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" }, stdio: "pipe" });
-    for (const path of ["src/a.mjs", "src/new.mjs", "README.md", ".lane/plugins/architecture/run.sh", ".lane/plugins/new.sh"]) {
+    for (const path of ["src/a.mjs", "src/new.mjs", "README.md", ".lane/plugins/architecture/run.sh", ".lane/plugins/new.sh", ".git/hooks/post-checkout"]) {
       assert.throws(() => writeFileSync(join(dir, path), "overwritten\n"), /EACCES/, path);
     }
     assert.equal(readFileSync(join(dir, "src/a.mjs"), "utf8"), "export {};\n");
