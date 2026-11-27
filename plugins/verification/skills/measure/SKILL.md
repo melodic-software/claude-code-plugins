@@ -1,5 +1,5 @@
 ---
-description: "Verify a measurable-improvement claim against a baseline captured BEFORE the change. Two metric families (`performance`: wall time, memory, allocations, throughput, latency; `metrics`: complexity, coverage, coupling), each with a `baseline` phase at planning time and a `compare` phase after the change. Never claims improvement without a baseline (no baseline → honest 'cannot quantify'). Use when: 'is it faster', 'before/after', 'prove the improvement', 'did that actually speed it up', 'how much faster is it', 'measure this', 'capture a baseline', 'benchmark before and after', 'did complexity go down'; applies to a code-shape or metrics claim, or a baseline-and-compare of the change, while a host whose wall-clock spread makes a duration comparison meaningless goes to /performance:snapshot; intent/outcome confirmation stays with /verification:confirm."
+description: "Verify an improvement claim against a pre-change baseline and compare the delta for performance (time, memory, allocations, throughput, latency) or metrics (complexity, coverage, coupling). Use when 'is it faster', 'capture a baseline', 'benchmark before and after'. Not intent checks (/verification:confirm) or noisy hosts (/performance:snapshot)."
 user-invocable: true
 argument-hint: "[performance|metrics] [baseline|compare]"
 disable-model-invocation: false
