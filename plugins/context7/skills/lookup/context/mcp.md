@@ -2,10 +2,11 @@
 
 Context7 HTTP MCP server, reading the same backend as the `ctx7` CLI. This plugin does not ship or auto-start an MCP server; the consuming project opts in by declaring it in its own MCP configuration.
 
-> Server URL and header facts verified 2026-07-18 against `ctx7` 0.5.5 source and
-> [Context7's docs](https://context7.com/docs) (linked without a section anchor: the fetched page
-> exposes no stable MCP heading id, checked 2026-10-11). Recheck when the installed `ctx7` is newer than
-> 0.5.5 (the `update` action reports it) or Context7's docs change the MCP URL or header name.
+> Server URL and header facts verified 2026-11-27 against `ctx7` 0.13.1 source
+> (`packages/cli/src/setup/agents.ts` at `upstash/context7@17839096`) and
+> [Context7 MCP Clients](https://context7.com/docs/resources/all-clients) (no stable auth-header
+> section anchor; checked 2026-11-27). **Recheck trigger**: `ctx7` ships a new minor release (the
+> `update` action reports it) or Context7's MCP Clients docs change the server URL or auth header.
 
 - **Pointer**: when deciding where the entry goes and how a `${VAR}` in it expands, fetch
   [MCP installation scopes](https://code.claude.com/docs/en/mcp#mcp-installation-scopes),
@@ -28,7 +29,7 @@ Add to the consuming project's `.mcp.json` (or user-scope MCP config). Anonymous
 }
 ```
 
-With an API key (higher limits), add the `CONTEXT7_API_KEY` request header (the header name Context7's server expects). Use this form only once `CONTEXT7_API_KEY` is set in your environment, or add a `${VAR:-default}` fallback, so the server never starts with a header value you did not intend. What an unset variable does is in the Unset variables without a default pointer at the top of this file, which sits under no section heading:
+With an API key (higher limits), add the `Authorization: Bearer` request header. Use this form only once `CONTEXT7_API_KEY` is set in your environment, or add a `${VAR:-default}` fallback, so the server never starts with a header value you did not intend. What an unset variable does is in the Unset variables without a default pointer at the top of this file, which sits under no section heading:
 
 ```json
 {
@@ -36,7 +37,7 @@ With an API key (higher limits), add the `CONTEXT7_API_KEY` request header (the 
     "context7": {
       "type": "http",
       "url": "https://mcp.context7.com/mcp",
-      "headers": { "CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}" }
+      "headers": { "Authorization": "Bearer ${CONTEXT7_API_KEY}" }
     }
   }
 }
