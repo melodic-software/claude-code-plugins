@@ -65,10 +65,10 @@ const orgTokens = {
 function filesUnder(directory) {
   if (!existsSync(directory)) return [];
   const files = [];
-  for (const entry of readdirSync(directory)) {
-    if (entry === "node_modules" || entry === ".git") continue;
-    const path = join(directory, entry);
-    if (statSync(path).isDirectory()) files.push(...filesUnder(path));
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    if (entry.name === "node_modules" || entry.name === ".git") continue;
+    const path = join(directory, entry.name);
+    if (entry.isSymbolicLink() ? statSync(path).isDirectory() : entry.isDirectory()) files.push(...filesUnder(path));
     else files.push(path);
   }
   return files;
@@ -101,8 +101,11 @@ function filesIn(directory) {
   return pluginFiles.filter((path) => path.startsWith(directory + sep));
 }
 
+const pathParts = new Map();
 function pluginPathParts(path) {
-  return relative(pluginRoot, path).split(sep);
+  let parts = pathParts.get(path);
+  if (!parts) pathParts.set(path, (parts = relative(pluginRoot, path).split(sep)));
+  return parts;
 }
 
 const setupSkills = pluginFiles.filter((path) =>
