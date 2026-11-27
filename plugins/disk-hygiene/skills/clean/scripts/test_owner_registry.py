@@ -642,8 +642,8 @@ class EngineSourceTest(unittest.TestCase):
             self.callers("purge_directory_contents"),
         )
         for lane, keywords in (
-            ("apply_plan", []),
-            ("unlink_handoff_path", ["purge_protected"]),
+            ("apply_plan", ["resolved_parents"]),
+            ("unlink_handoff_path", ["purge_protected", "resolved_parents"]),
         ):
             (call,) = (
                 node for _, node in self.calls("anchored_remove", self.function(lane))

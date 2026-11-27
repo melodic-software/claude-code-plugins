@@ -13,7 +13,7 @@ import os
 import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import engine_grammar
@@ -129,13 +129,28 @@ def protection_glob_is_absolute(pattern: str) -> bool:
     return bool(_ABSOLUTE_GLOB.match(pattern))
 
 
+def _relative_subject(path: Path, target: Path) -> str:
+    if (
+        os.name != "nt"
+        and isinstance(path, PurePosixPath)
+        and isinstance(target, PurePosixPath)
+    ):
+        child, root = str(path), str(target)
+        if child == root:
+            return "."
+        prefix = root.rstrip("/") + "/"
+        if child.startswith(prefix) and child[:1] == root[:1] == "/":
+            return child[len(prefix) :]
+    try:
+        return path.relative_to(target).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
 def consumer_protection_matches(
     path: Path, target: Path, globs: Iterable[Any]
 ) -> list[dict[str, str]]:
-    try:
-        relative = path.relative_to(target).as_posix()
-    except ValueError:
-        relative = path.as_posix()
+    relative = _relative_subject(path, target)
     absolute = path.as_posix()
     absolute_subjects = (absolute, absolute.replace("\\", "/"))
     matches: list[dict[str, str]] = []

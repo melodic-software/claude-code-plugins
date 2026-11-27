@@ -449,6 +449,14 @@ def _validate_protection_glob_entry(entry: Any) -> None:
 
 
 def is_within(path: Path, parent: Path) -> bool:
+    if (
+        os.name != "nt"
+        and isinstance(path, PurePosixPath)
+        and isinstance(parent, PurePosixPath)
+    ):
+        child, root = str(path), str(parent)
+        if child[:1] == root[:1] == "/" and "//" not in (child[:2], root[:2]):
+            return child == root or child.startswith(root.rstrip("/") + "/")
     try:
         return os.path.commonpath(
             [os.path.normcase(path), os.path.normcase(parent)]
@@ -4233,14 +4241,18 @@ def anchored_remove(
     target: Path,
     *,
     purge_protected: Callable[[Path], bool] | None = None,
+    resolved_parents: dict[str, Path] | None = None,
 ) -> None:
     parent_fd, name = open_anchored_parent(target_fd, relative, entries)
     try:
         current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
-        expected_parent = target.joinpath(*PurePosixPath(relative).parts[:-1]).resolve(
-            strict=True
-        )
-        actual_parent = Path(f"/proc/self/fd/{parent_fd}").resolve(strict=True)
+        parent_parts = PurePosixPath(relative).parts[:-1]
+        cache = {} if resolved_parents is None else resolved_parents
+        key = "/".join(parent_parts)
+        if key not in cache:
+            cache[key] = target.joinpath(*parent_parts).resolve(strict=True)
+        expected_parent = cache[key]
+        actual_parent = Path(os.readlink(f"/proc/self/fd/{parent_fd}"))
         if actual_parent != expected_parent:
             raise HygieneError("anchored parent is no longer at its expected path")
         if entry["kind"] == "directory":
@@ -4437,6 +4449,7 @@ def apply_plan(
             if fresh_mount_error
             else candidate_handle_skips(target, candidate["path"], selected)
         )
+        resolved_parents: dict[str, Path] = {}
         for relative in selected:
             entry = entries[relative]
             path = target.joinpath(*PurePosixPath(relative).parts)
@@ -4469,7 +4482,14 @@ def apply_plan(
                 skipped.append(handle_skips[relative])
                 continue
             try:
-                anchored_remove(target_fd, relative, entry, entries, target)
+                anchored_remove(
+                    target_fd,
+                    relative,
+                    entry,
+                    entries,
+                    target,
+                    resolved_parents=resolved_parents,
+                )
             except (HygieneError, OSError) as exc:
                 skipped.append(removal_failure_skip(relative, exc))
                 continue
@@ -5256,6 +5276,7 @@ def unlink_handoff_path(
     handle_skips = (
         {} if fresh_mount_error else candidate_handle_skips(target, relative, selected)
     )
+    resolved_parents: dict[str, Path] = {}
     for name in selected:
         entry = entries[name]
         path = target.joinpath(*PurePosixPath(name).parts)
@@ -5286,6 +5307,7 @@ def unlink_handoff_path(
                 entries,
                 target,
                 purge_protected=consumer_protected if purge else None,
+                resolved_parents=resolved_parents,
             )
         except (HygieneError, OSError) as exc:
             skipped.append(removal_failure_skip(name, exc))

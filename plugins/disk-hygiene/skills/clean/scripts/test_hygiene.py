@@ -18358,5 +18358,18 @@ class ApplyPerCandidateProbeTests(unittest.TestCase):
         self.assertFalse(self.batch.exists())
         self.assertEqual(2, self.calls.count("lsof"), "token preview + apply")
 
+    def test_is_within_matches_whole_components_only(self) -> None:
+        cases = {
+            ("/a/b", "/a"): True,
+            ("/a", "/a"): True,
+            ("/a", "/"): True,
+            ("/ab", "/a"): False,
+            ("/a", "/a/b"): False,
+            ("a/b", "/a"): False,
+        }
+        for (child, parent), expected in cases.items():
+            with self.subTest(child=child, parent=parent):
+                self.assertIs(expected, hygiene.is_within(Path(child), Path(parent)))
+
 if __name__ == "__main__":
     unittest.main()
