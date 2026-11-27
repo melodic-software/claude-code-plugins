@@ -806,7 +806,7 @@ DECISIONS = {
         _link(7),
         _comment(7, body=f'{LINE}\nOwner, xverbatim: "yes"'),
     ),
-    "through an App": (
+    "through an App with quote": (
         _link(7),
         _comment(7, performed_via_github_app={"id": 1}),
     ),
@@ -1311,7 +1311,7 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
             "a quote inside an HTML comment",
             "an empty quote",
             "a quote run into a word",
-            "through an App",
+            "through an App with quote",
             "edited with quote",
         ):
             self.assertIsNone(answers[case], case)
