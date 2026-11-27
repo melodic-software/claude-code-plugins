@@ -17,8 +17,16 @@
     "Bash(head *)",
     "Bash(wc *)",
     "Bash(cut *)",
-    "Bash(bash WORKSPACE/.lane/plugins/*)",
-    "Bash(node WORKSPACE/.lane/plugins/*)"
+    "Bash(bash WORKSPACE/.lane/plugins/improvement/lib/state-key.sh)",
+    "Bash(bash WORKSPACE/.lane/plugins/improvement/lib/state-key.sh *)",
+    "Bash(bash \"WORKSPACE/.lane/plugins/improvement/lib/state-key.sh\")",
+    "Bash(bash \"WORKSPACE/.lane/plugins/improvement/lib/state-key.sh\" *)",
+    "Bash(bash WORKSPACE/.lane/plugins/architecture/lib/read-verification.sh *)",
+    "Bash(bash \"WORKSPACE/.lane/plugins/architecture/lib/read-verification.sh\" *)",
+    "Bash(node WORKSPACE/.lane/plugins/architecture/skills/improve/scripts/improve-settings.mjs *)",
+    "Bash(node \"WORKSPACE/.lane/plugins/architecture/skills/improve/scripts/improve-settings.mjs\" *)",
+    "Bash(node WORKSPACE/.lane/plugins/architecture/scripts/build-view.mjs *)",
+    "Bash(node \"WORKSPACE/.lane/plugins/architecture/scripts/build-view.mjs\" *)"
   ],
   "disallowed": [
     "Bash(git push *)",

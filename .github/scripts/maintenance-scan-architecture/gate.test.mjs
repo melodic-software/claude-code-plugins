@@ -87,6 +87,7 @@ const matches = (rule, command) => {
   const body = /^Bash\((.*)\)$/.exec(rule)?.[1];
   return body !== undefined && new RegExp(`^${body.split("*").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`, "s").test(command);
 };
+const HELPERS = ["improvement/lib/state-key.sh", "architecture/lib/read-verification.sh", "architecture/skills/improve/scripts/improve-settings.mjs", "architecture/scripts/build-view.mjs"];
 const permitted = ({ allowed, disallowed }, command) => allowed.some((rule) => matches(rule, command)) && !disallowed.some((rule) => matches(rule, command));
 
 test("the model legs' Bash rules refuse each route to arbitrary code, the environment or a write outside .work, and still allow the scan's own commands", () => {
@@ -107,6 +108,8 @@ test("the model legs' Bash rules refuse each route to arbitrary code, the enviro
     "sort -uo src/example.mjs notes.txt",
     "sort --output=src/example.mjs notes.txt",
     "uniq notes.txt src/example.mjs",
+    `node ${ws}/.lane/plugins/architecture/lib/prerequisites.mjs check .work/p`,
+    `bash ${ws}/.lane/plugins/architecture/skills/map-containers/scripts/collect-containers.sh --out src/example.mjs`,
   ]) {
     assert.equal(permitted(tools, command), false, command);
   }
@@ -120,6 +123,10 @@ test("the model legs' Bash rules refuse each route to arbitrary code, the enviro
     "grep -rn deepening plugins/architecture",
     `bash ${ws}/.lane/plugins/architecture/lib/read-verification.sh --plugin architecture --skill improve`,
     `node ${ws}/.lane/plugins/architecture/skills/improve/scripts/improve-settings.mjs --home .work`,
+    `bash "${ws}/.lane/plugins/architecture/lib/read-verification.sh" --plugin architecture --skill improve`,
+    `node "${ws}/.lane/plugins/architecture/skills/improve/scripts/improve-settings.mjs" --home .work`,
+    `node "${ws}/.lane/plugins/architecture/scripts/build-view.mjs" deepening --record .work/deepening-report-20261127T070000Z.json`,
+    `bash "${ws}/.lane/plugins/improvement/lib/state-key.sh"`,
   ]) {
     assert.equal(permitted(tools, command), true, command);
   }
@@ -141,7 +148,13 @@ test("every model leg runs sandboxed, and its Bash rules allow no network-capabl
   for (const rule of allowed.filter((r) => r.startsWith("Bash("))) {
     const command = /^Bash\((.*)\)$/.exec(rule)[1];
     assert.doesNotMatch(command, NETWORK, rule);
-    if (/^(bash|node) /.test(command)) assert.match(command, /^(bash|node) \/runner\/work\/r\/r\/\.lane\/plugins\/\*$/, `${rule} runs only staged plugin scripts`);
+    if (!/^(bash|node) /.test(command)) continue;
+    const script = /^(?:bash|node) "?\/runner\/work\/r\/r\/\.lane\/plugins\/([^"* ]+)"?(?: \*)?$/.exec(command)?.[1];
+    assert.ok(HELPERS.includes(script), `${rule} runs one named helper, never a plugin wildcard`);
+  }
+  for (const helper of HELPERS) {
+    const text = readFileSync(join(REPO_ROOT, "plugins", helper), "utf8");
+    assert.doesNotMatch(text, /child_process|\bspawn|\bexecFile|\beval\b|\bbash -c\b/, `${helper} runs no command from its input`);
   }
   for (const deny of ["Bash(curl *)", "Bash(wget *)", "Bash(env*)", "Bash(printenv*)", "Bash(node -e *)", "Bash(python* -c *)", "Bash(*/proc/*)", "Bash(*../*)", "Bash(gh *)", "Bash(git push *)", "WebFetch", "WebSearch"]) {
     assert.ok(disallowed.includes(deny), deny);
