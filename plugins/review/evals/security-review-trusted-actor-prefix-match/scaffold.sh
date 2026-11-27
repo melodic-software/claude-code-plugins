@@ -4,9 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# The lane runs with a write token only when the sender passes the trusted
-# check. main matches logins exactly; the branch matches by prefix, so any
-# login that starts with a trusted one passes.
 mkdir -p .github/standards/trusted-actors .github/actions/check-trusted-trigger .github/workflows
 
 cat >.github/standards/trusted-actors/actors.json <<'JSON'

@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Tests for the eval fixture forge (fixtures/gh-forge): install.sh in a throwaway repository, then the gh stand-in it
-# installs. Expected values come from GitHub's mergeStateStatus enum (UNSTABLE: mergeable with a
-# non-passing commit status) and gh's `pr checks` source (the --json path exits 0 whatever the
-# checks say; the table exits 1 when one failed).
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -158,7 +153,6 @@ assert_exit "pr comment: exit 0" 0 "$?"
 assert_eq "pr comment: the call is recorded" \
   '{"command":"pr comment","pr":7,"args":["7","--body-file","-"]}' "$(tail -n 1 "$CALLS")"
 
-# The eval sandbox holds .git read-only and a fetch opens FETCH_HEAD for writing before it reads anything.
 READONLY="$TEST_TMPDIR/readonly"
 make_forge readonly --no-pr
 chmod -R a-w "$READONLY/.git"

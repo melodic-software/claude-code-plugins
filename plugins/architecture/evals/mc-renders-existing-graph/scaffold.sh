@@ -66,6 +66,5 @@ cat >docs/architecture/dependency-graph.json <<'JSON'
 JSON
 
 git add -A
-# Commit on the date the graph records, so the renderer reports no stale graph.
 GIT_AUTHOR_DATE=2026-11-07T12:00:00Z GIT_COMMITTER_DATE=2026-11-07T12:00:00Z \
   git commit -q -m "Billing API, application and domain with the collected dependency graph"

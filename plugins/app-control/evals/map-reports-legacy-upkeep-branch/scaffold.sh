@@ -3,14 +3,11 @@
 # feature-map-upkeep/claude-skills-feature-map, local and remote, so a refresh must find and report it.
 set -euo pipefail
 
-# Init a repository here unless this directory already is one's top level, so the commit never lands
-# in an enclosing repository.
 if [[ "$(git rev-parse --show-toplevel 2>/dev/null || true)" != "$(pwd -P)" ]]; then
   git init -q -b main
 fi
 git config user.name eval
 git config user.email eval@example.invalid
-# Keep a .gitconfig in the workspace out of git status, so the clean status the prompt states holds.
 exclude="$(git rev-parse --git-path info/exclude)"
 mkdir -p "$(dirname "$exclude")"
 printf '%s\n' .gitconfig >>"$exclude"
@@ -74,14 +71,11 @@ MD
 : >src/routes.ts
 git add -A
 git commit -q -m "Clockwork web with its control skill"
-# Name the starting branch main whatever branch an existing repository started on.
 git branch -M main
-# The testing-era upkeep branch, with its own commit, local and as a remote-tracking ref.
 git switch -q -c feature-map-upkeep/claude-skills-feature-map
 : >src/.feature-map-upkeep
 git add src/.feature-map-upkeep
 git commit -q -m "Refresh the feature map"
 git switch -q main
 git update-ref refs/remotes/origin/feature-map-upkeep/claude-skills-feature-map feature-map-upkeep/claude-skills-feature-map
-# Keep the loose refs and also list every ref in .git/packed-refs, one readable file.
 git pack-refs --all --no-prune

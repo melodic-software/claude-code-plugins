@@ -4,9 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# notes is an existing plugin. The branch adds a layout userConfig key whose
-# options only pick how the summary skill prints; the skill passes it as one
-# quoted argument to lib/layout.mjs, which rejects any other value.
 mkdir -p .claude-plugin plugins/notes/.claude-plugin plugins/notes/skills/summary plugins/notes/lib
 
 cat >.claude-plugin/marketplace.json <<'JSON'

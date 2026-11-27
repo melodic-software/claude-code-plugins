@@ -278,7 +278,6 @@ Tidewrite client's `Depth()`.
 - Latency: the Phase 2 measurement at the replayed rate.
 MD
 
-# Each phase heading takes its status tag here, outside the heredoc.
 plan=.work/review-target/PLAN.md
 text="$(cat "$plan")"
 printf '%s\n' "${text//'[STATUS]'/[TODO]}" >"$plan"

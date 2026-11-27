@@ -25,7 +25,6 @@ mkdir -p src/models src/services src/routes src/utils test
 cap() { printf '%s%s' "$(tr '[:lower:]' '[:upper:]' <<<"${1:0:1}")" "${1:1}"; }
 upper() { tr '[:lower:]' '[:upper:]' <<<"$1"; }
 
-# name|plural|fields (the first three are required)
 specs=(
   "customer|customers|email firstName lastName phone tier marketingOptIn defaultAddressId locale timezone loyaltyPoints referredBy birthDate companyName taxId"
   "product|products|sku title priceCents currency description stockLevel categoryId weightGrams active brandId barcode heightMm widthMm depthMm"
@@ -335,7 +334,6 @@ for spec in "${specs[@]}"; do
     model_factory "$n" "$N" "$(upper "$n")" "${fields[@]}"
   else
     model_class "$n" "$N" "$(upper "$n")" "${fields[@]}"
-    # Routes validate through a function, so class models export one too.
     cat >>"src/models/${n}.js" <<JS
 
 export function validate${N}(input) {
@@ -344,7 +342,6 @@ export function validate${N}(input) {
 JS
   fi
   service "$n" "$N" "$p" "${fields[@]}"
-  # Only the first seven resources get routes and tests in this pull request.
   if ((i < 7)); then
     route "$n" "$N" "$p"
     testfile "$n" "$N" "$p" "${fields[@]}"
@@ -608,10 +605,6 @@ Closes #42"
 mkdir -p .claude-lane
 git diff main...HEAD >.claude-lane/pr.diff
 
-# The case measures nothing unless the first Read returns a partial page: the diff must be
-# over Read's token limit and under its whole-file byte refusal, and the defect must sit in
-# the diff's last third, past the first page. The test files follow it (git diff orders
-# files by path), so it is never the diff's last file.
 bytes="$(wc -c <.claude-lane/pr.diff)"
 if ((bytes < 120000 || bytes > 250000)); then
   echo "scaffold: pr.diff is $bytes bytes, outside 120000-250000" >&2

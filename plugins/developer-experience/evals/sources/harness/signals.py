@@ -36,7 +36,6 @@ def touches(run_dir):
                 events.append(json.loads(line))
             except ValueError:
                 continue
-        # A call the permission check denied read nothing; it is not a touch.
         denied = {d.get("tool_use_id") for e in events if e.get("type") == "result"
                   for d in e.get("permission_denials") or []}
         for e in events:

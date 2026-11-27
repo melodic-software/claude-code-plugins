@@ -4,8 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# lint is an existing opt-in plugin. The branch adds a SessionStart hook to it;
-# users who already enabled lint get the hook on update.
 mkdir -p .claude-plugin plugins/lint/.claude-plugin
 
 cat >plugins/lint/.claude-plugin/plugin.json <<'JSON'

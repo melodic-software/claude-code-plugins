@@ -96,7 +96,6 @@ done
 SRC="$EVALS_DIR/fixtures/$FIXTURE/$STATE"
 [[ -d "$SRC" ]] || die 4 "fixture state missing: $SRC (run build-fixtures.py)"
 RUNS_ROOT="${EVAL_RUNS_DIR:?set EVAL_RUNS_DIR to a scratch directory outside the repository}"
-# The parent walk below and the worktree check need an absolute path; a relative one never reaches /.
 [[ "$RUNS_ROOT" == /* ]] || die 2 "EVAL_RUNS_DIR must be an absolute path: $RUNS_ROOT"
 RUN_DIR="$RUNS_ROOT/$SCENARIO/$ARM/$MODEL/run-$RUN"
 WS="$RUN_DIR/ws"
@@ -109,7 +108,6 @@ if [[ -e "$OUT" || -e "$RUN_DIR" ]]; then
   rm -rf "${OUT:?}" "${RUN_DIR:?}"
 fi
 
-# A CLAUDE.md in the workspace's parents would replace the fixture's AGENTS.md.
 dir="$RUNS_ROOT"
 mkdir -p "$dir" || die 4 "cannot create $dir"
 while [[ "$dir" != / ]]; do
@@ -138,8 +136,6 @@ if [[ "$ARM" == A2 ]]; then
   cp -a "$WORKTREE/plugins/developer-experience" "$RUN_DIR/developer-experience" ||
     die 4 "plugin copy failed"
   PLUGIN_ARGS=(--plugin-dir "$RUN_DIR/developer-experience")
-  # A2-only (DEVIATIONS 2026-10-09): setup's helper, by its plugin-copy path; nothing else.
-  # Both spellings of that one path: unquoted, and quoted as the skill body writes it.
   HELPER="$RUN_DIR/developer-experience/skills/setup/scripts/pointer-line.sh"
   TOOLS+=("Bash(bash $HELPER:*)" "Bash(bash \"$HELPER\":*)")
 fi
@@ -154,7 +150,6 @@ home_state() {
   if [[ -e "$dx_dir" ]]; then find "$dx_dir" -type f -exec sha256sum {} + | sort | sha256sum | cut -d' ' -f1; else echo absent; fi
 }
 
-# Parent-session variables (session ids, sockets, effort, plugin data) never reach the run.
 UNSET=()
 while IFS= read -r name; do UNSET+=(-u "$name"); done < <(compgen -e | grep -E '^(CLAUDE|ANTHROPIC|OTEL_)')
 CLAUDE_ENV=(env "${UNSET[@]}" CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 DISABLE_AUTOUPDATER=1)
@@ -205,7 +200,6 @@ if [[ -n "$TURN2" ]]; then
   fi
 fi
 
-# Isolation: only built-in cc-plugin-* plugins, plus developer-experience in A2.
 if [[ ! -s "$OUT/init.json" ]]; then
   PROBLEMS+=("no system/init event")
   PLUGINS="[]"

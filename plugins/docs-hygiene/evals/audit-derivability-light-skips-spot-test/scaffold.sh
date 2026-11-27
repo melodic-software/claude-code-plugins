@@ -9,7 +9,6 @@ mkdir -p docs/conventions src
 
 printf 'verification: light\n' >docs/conventions/docs-hygiene.yaml
 
-# make needs a tab before each recipe line; printf writes it, so this file keeps spaces.
 {
   printf '%s\n' '.PHONY: build test lint release'
   printf '%s\n' ''

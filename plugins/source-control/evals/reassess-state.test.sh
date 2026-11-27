@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Builds every pull-request-reassess-* case's state from its own scaffold and runs the action's limits read and
-# forge commands against it. Expected limits come from the kinds table in skills/pull-request/reference/reassess.md;
-# the commit-to-PR, comment and push expectations from each scaffold's stated state.
-
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
@@ -56,7 +52,6 @@ out=$(limits fork-close)
 assert_exit "fork close: a limit" 3 "$?"
 assert_eq "fork close: only the no-update limit, which leaves a close free to act" "no-update: the head is on a fork" "$out"
 
-# The fetch the action makes, through the helper.
 ORIGIN="$TEST_TMPDIR/fork-no-push/.git/eval-forge/eval-fixture/app.git"
 in_case fork-no-push git fetch -q origin "+refs/pull/512/head:refs/reassess/512-1" "+refs/heads/main:refs/remotes/origin/main" >/dev/null 2>&1
 assert_exit "fork: the pull ref fetches" 0 "$?"
@@ -67,7 +62,6 @@ assert_exit "fork: the head branch is not on the origin" 1 "$?"
 assert_eq "fork: a cross-repository head" "true contributor/app" \
   "$(in_case fork-no-push gh api repos/eval-fixture/app/pulls/512 --jq '"true \(.head.repo.full_name)"')"
 
-# Closing issue, goal, and the replaced-by search.
 assert_eq "close: the closing issue" "eval-fixture/app 77" \
   "$(in_case close gh pr view 512 --json closingIssuesReferences -q '.closingIssuesReferences[] | "\(.repository.owner.login)/\(.repository.name) \(.number)"')"
 assert_eq "close: the issue body serves" "OPEN" "$(in_case close gh issue view 77 --repo eval-fixture/app --json state --jq .state)"
@@ -91,7 +85,6 @@ assert_eq "close: the merged PR reads through pr view" "MERGED" "$(in_case close
 assert_eq "no-goal: an empty body and nothing closed" " 0" \
   "$(in_case no-goal gh pr view 512 --json body,closingIssuesReferences --jq '"\(.body) \(.closingIssuesReferences | length)"')"
 
-# Writes land in the call record, and a label edit is visible to the next read.
 CALLS="$TEST_TMPDIR/close-label-first/.git/eval-forge/calls.jsonl"
 in_case close-label-first gh pr edit 512 -R eval-fixture/app --add-label do-not-merge >/dev/null
 assert_exit "pr edit: exit 0" 0 "$?"
@@ -118,7 +111,6 @@ assert_eq "api with a field and no method: recorded as a POST" '"api POST"' "$(t
 assert_eq "api -X GET with a field stays a read" "a read" \
   "$(in_case close-label-first gh api -X GET repos/eval-fixture/app/contents/README.md -f ref=main >/dev/null && echo 'a read')"
 
-# Pushes go through the git stand-in on the case's PATH. The record shape is the one the graders read.
 FORGE_ORIGIN="$TEST_TMPDIR/close-label-first/.git/eval-forge/eval-fixture/app.git"
 CL_DIR="$TEST_TMPDIR/close-label-first"
 MAIN_SHA=$(git -C "$CL_DIR" rev-parse main)
@@ -156,7 +148,6 @@ mkdir -p "$TEST_TMPDIR/close-env"
 (cd "$TEST_TMPDIR/close-env" && GIT_AUTHOR_NAME=other GIT_COMMITTER_EMAIL=other@example.invalid bash "$EVALS/pull-request-reassess-close/scaffold.sh") >/dev/null 2>&1
 assert_eq "close: the pinned SHAs ignore the operator's identity variables" "$(git -C "$TEST_TMPDIR/close" rev-parse main)" "$(git -C "$TEST_TMPDIR/close-env" rev-parse main)"
 
-# The comment read and edit a re-run makes.
 LABELED_CALLS="$TEST_TMPDIR/labeled-own-comment/.git/eval-forge/calls.jsonl"
 assert_eq "comments: the newest own marked comment is 9001, not the other login's 9002" "9001" \
   "$(in_case labeled-own-comment gh api --paginate --slurp "repos/eval-fixture/app/issues/512/comments?per_page=100" | jq -r --arg login eval-fixture 'add // [] | map(select(.user.login == $login and (.body | startswith("<!-- source-control-reassess -->")))) | last | .id')"
@@ -170,7 +161,6 @@ assert_exit "comment edit: an unseeded id is refused" 1 "$?"
 
 assert_eq "merge queue: never in one" "false" "$(in_case close gh api graphql -F owner=eval-fixture -F name=app -F number=512 -f 'query=query { isInMergeQueue }' --jq .data.repository.pullRequest.isInMergeQueue)"
 
-# The action's other reads, each answered offline.
 assert_eq "rest: inline comments, as one empty page" "[[]]" \
   "$(in_case close gh api --paginate --slurp 'repos/eval-fixture/app/pulls/512/comments?per_page=100' --jq tojson)"
 assert_eq "rest: reviews with a query string, as one empty page" "[[]]" \
@@ -182,8 +172,6 @@ assert_eq "continue: the PR's file through REST" "src/retry.ts" \
 assert_eq "pr view commits: the head's commit" "fix: retry a failed request three times" \
   "$(in_case continue gh pr view 512 --json commits --jq '.commits[].messageHeadline')"
 
-# The update decision's reads, from the unpopulated worktree the action uses, in a run whose only
-# writable path is the workspace: worktreeroot.path keeps it inside.
 ROOT=$(in_case continue git config worktreeroot.path)
 assert_eq "worktree root: inside the checkout" "$TEST_TMPDIR/continue/.eval-worktrees" "$ROOT"
 in_case continue git fetch -q origin "+refs/pull/512/head:refs/reassess/512-1" >/dev/null 2>&1
@@ -196,9 +184,6 @@ assert_eq "signals: the head behind main and every read answered" "yes no" \
 assert_eq "signals: nothing unknown except a base change the action has no overlap read for" "" \
   "$(jq -r 'to_entries | map(select(.value == "unknown" and .key != "base_change_needed") | .key) | join(",")' <<<"$SIGNALS")"
 
-# The rebase path: the decision from the session's own checkout, then section 4 of the action run by
-# hand. The method and rule come from the rows in branch-update-method.sh, the steps from
-# ready-for-review.md "Carry out a rebase".
 HEAD_BRANCH=fix/retry-limit
 REBASE_DIR="$TEST_TMPDIR/rebase-comparison"
 REBASE_CALLS="$REBASE_DIR/.git/eval-forge/calls.jsonl"

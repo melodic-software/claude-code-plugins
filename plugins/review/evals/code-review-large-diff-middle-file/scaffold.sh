@@ -26,7 +26,6 @@ mkdir -p src/models src/services src/routes src/utils test
 cap() { printf '%s%s' "$(tr '[:lower:]' '[:upper:]' <<<"${1:0:1}")" "${1:1}"; }
 upper() { tr '[:lower:]' '[:upper:]' <<<"$1"; }
 
-# name|plural|fields (the first three are required)
 specs=(
   "customer|customers|email firstName lastName phone tier marketingOptIn defaultAddressId locale timezone loyaltyPoints referredBy birthDate companyName taxId"
   "product|products|sku title priceCents currency description stockLevel categoryId weightGrams active brandId barcode heightMm widthMm depthMm"
@@ -134,7 +133,6 @@ model_class() {
   } >"src/models/${n}.js"
 }
 
-# Each service carries one or two operations of its own, so no service is a pure template.
 service_extras() {
   case "$1" in
   category)
@@ -471,7 +469,6 @@ for spec in "${specs[@]}"; do
     model_factory "$n" "$N" "$(upper "$n")" "${fields[@]}"
   else
     model_class "$n" "$N" "$(upper "$n")" "${fields[@]}"
-    # Routes validate through a function, so class models export one too.
     cat >>"src/models/${n}.js" <<JS
 
 export function validate${N}(input) {
@@ -480,7 +477,6 @@ export function validate${N}(input) {
 JS
   fi
   service "$n" "$N" "$p" "${fields[@]}"
-  # Only the first seven resources get routes and tests in this pull request.
   if ((i < 7)); then
     route "$n" "$N" "$p"
     testfile "$n" "$N" "$p" "${fields[@]}"
@@ -744,9 +740,6 @@ Closes #42"
 mkdir -p .claude-lane
 git diff main...HEAD >.claude-lane/pr.diff
 
-# The case measures nothing unless the first Read returns a partial page and the defect
-# sits in the middle band: past that first page and before the utils, so the test files
-# and the utils follow it in the diff (git diff orders files by path).
 bytes="$(wc -c <.claude-lane/pr.diff)"
 if ((bytes < 120000 || bytes > 250000)); then
   echo "scaffold: pr.diff is $bytes bytes, outside 120000-250000" >&2

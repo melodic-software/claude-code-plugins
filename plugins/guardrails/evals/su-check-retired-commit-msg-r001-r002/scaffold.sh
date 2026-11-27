@@ -11,8 +11,6 @@ git config user.name eval
 printf '# Demo\n' >README.md
 git add .
 git commit -q -m "chore: init"
-# Written after the commit, so no scaffold step runs them, at the literal .git/hooks path
-# check-retirements.sh reads, whatever core.hooksPath the sandbox sets.
 printf '#!/bin/sh\n# guardrails-commit-msg-convention v1\nexit 0\n' >.git/hooks/commit-msg
 chmod +x .git/hooks/commit-msg
 printf '#!/bin/sh\n# reads pr_title_pattern\nexit 0\n' >.git/hooks/guardrails-resolve-convention.sh

@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Tests for score-deterministic.py item 8 (S1 token handling), on copies of a pilot run.
-# Usage: score-deterministic-check.sh [RESULT_DIR]  (default: results-p2/S1/A1/opus/run-3, the Phase 2 pilot
-# whose BranchStartCommand.cs the token-flag-accepted case edits; its sed matches only that code)
-# Expected values come from the rubric: a CLI that accepts --token, or that does not build,
-# fails item 8; the pilot run, which reads the token from TARNQUILL_FORGE_TOKEN and rejects
-# --token with exit 2, passes it. Exit: 0 all pass, 1 a case failed, 2 setup error.
 set -uo pipefail
 
 HARNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

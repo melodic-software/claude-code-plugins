@@ -4,9 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# recap is an existing plugin that writes a local session summary. The branch
-# adds a share boolean userConfig key; when true, lib/recap.mjs uploads the
-# summary to an external URL.
 mkdir -p .claude-plugin plugins/recap/.claude-plugin plugins/recap/skills/recap plugins/recap/lib
 
 cat >.claude-plugin/marketplace.json <<'JSON'

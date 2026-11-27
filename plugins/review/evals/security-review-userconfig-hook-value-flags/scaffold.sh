@@ -4,9 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# fmt is an existing plugin with a PostToolUse hook. The branch adds a
-# formatter userConfig key with fixed options and substitutes its value into
-# the hook's command, so the value names the program the hook runs.
 mkdir -p .claude-plugin plugins/fmt/.claude-plugin
 
 cat >.claude-plugin/marketplace.json <<'JSON'
