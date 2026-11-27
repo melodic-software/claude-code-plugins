@@ -52,6 +52,9 @@ class DockerLinksTest(unittest.TestCase):
             os.symlink(target, self.store / name)
         self.env = dict(os.environ, HOME=str(self.home))
         self.env.pop("DOCKER_CONFIG", None)
+        self.manifest = self.home / ".ev" / ".docker-link-swap.json"
+        self.legacy_manifest = self.home / ".docker-link-swap.json"
+        self.legacy_lock = self.home / ".docker-link-swap.lock"
 
     def cli(self, *args):
         return subprocess.run(
@@ -83,7 +86,9 @@ class DockerLinksTest(unittest.TestCase):
             (self.store / "config.json").read_text(encoding="utf-8"),
             '{"auths": {}}\n',
         )
-        self.assertFalse((self.home / ".docker-link-swap.json").exists())
+        self.assertFalse(self.manifest.exists())
+        self.assertFalse(self.legacy_manifest.exists())
+        self.assertFalse(self.legacy_lock.exists())
 
     def links_during_run(self):
         return (self.home / "links-during-run").read_text(encoding="utf-8")
@@ -172,7 +177,7 @@ class DockerLinksTest(unittest.TestCase):
         os.kill(child, signal.SIGKILL)
         proc.communicate(timeout=20)
         self.assertEqual(self.find_links(), [], "the killed run left no copies")
-        self.assertTrue((self.home / ".docker-link-swap.json").is_file())
+        self.assertTrue(self.manifest.is_file())
 
     def test_interrupted_run_restores_the_links(self):
         proc = self.start("a")
@@ -264,7 +269,7 @@ class DockerLinksTest(unittest.TestCase):
         self.assertEqual(os.readlink(self.store), str(real_store))
         for name, target in self.links.items():
             self.assertEqual(os.readlink(real_store / name), target)
-        self.assertFalse((self.home / ".docker-link-swap.json").exists())
+        self.assertFalse(self.manifest.exists())
 
     def test_restore_leaves_a_link_docker_desktop_recreated(self):
         self.kill_run(self.start("a"), "a")
@@ -273,6 +278,54 @@ class DockerLinksTest(unittest.TestCase):
         os.symlink(self.links["features.json"], copy)
         self.assertEqual(self.cli("restore").returncode, 0)
         self.assert_restored()
+
+    def test_swap_state_lives_under_a_private_ev_and_not_in_home(self):
+        result = self.wrapped(
+            'ls -A "$HOME" > "$HOME/home-during-run"'
+            ' && ls -A "$HOME/.ev" > "$HOME/ev-during-run"'
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        during = (self.home / "home-during-run").read_text(encoding="utf-8")
+        self.assertNotIn(".docker-link-swap", during)
+        self.assertEqual(
+            (self.home / "ev-during-run").read_text(encoding="utf-8").split(),
+            [".docker-link-swap.json", ".docker-link-swap.lock"],
+        )
+        self.assertEqual(os.stat(self.home / ".ev").st_mode & 0o777, 0o700)
+        self.assert_restored()
+
+    def leave_legacy_state(self):
+        """A killed run, its manifest at the earlier version's home-root paths."""
+        self.kill_run(self.start("a"), "a")
+        os.replace(self.manifest, self.legacy_manifest)
+        self.legacy_lock.write_text("", encoding="utf-8")
+
+    def test_restore_recovers_a_killed_run_from_the_legacy_manifest(self):
+        self.leave_legacy_state()
+        restore = self.cli("restore")
+        self.assertEqual(restore.returncode, 0, restore.stderr)
+        self.assert_restored()
+
+    def test_next_run_start_recovers_the_legacy_manifest(self):
+        self.leave_legacy_state()
+        result = self.wrapped(LIST_LINKS)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("restored a killed run", result.stderr)
+        self.assertEqual(self.links_during_run(), "")
+        self.assert_restored()
+
+    def test_manifest_at_both_paths_is_refused_with_nothing_changed(self):
+        self.leave_legacy_state()
+        (self.home / ".ev").mkdir(exist_ok=True)
+        self.manifest.write_text('{"links": [], "holders": []}\n', encoding="utf-8")
+        for args in (("restore",), ("run", "--", "sh", "-c", 'touch "$HOME/ran"')):
+            result = self.cli(*args)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("refused: both", result.stderr)
+        self.assertFalse((self.home / "ran").exists())
+        self.assertTrue(self.legacy_manifest.is_file())
+        self.assertTrue(self.legacy_lock.exists())
+        self.assertEqual(self.find_links(), [], "the killed run's copies were touched")
 
 
 if __name__ == "__main__":
