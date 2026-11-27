@@ -36,7 +36,7 @@
       - **Copy to main:** overwrite main's copy with worktree's version. Safe for cosmetic changes (reordering), new additions, or when this is the only active session
       - **Skip:** proceed without syncing. User accepts that worktree changes will be lost on cleanup
       - For an `ABSENT` file only: **Remove from main**, offered only if the user confirms the file was deliberately deleted in this worktree this session. ABSENT is ambiguous (a manual or pre-`.worktreeinclude` worktree never received the copy), so default to **Skip**; never remove main's copy without that explicit confirmation
-   4. Apply the user's choices through `worktree-include.sh sync-back` (which rejects path traversal or any path outside the `.worktreeinclude` ∩ `.gitignore` intersection):
+   4. Apply the user's choices through `worktree-include.sh sync-back` (which rejects path traversal or any path outside the `.worktreeinclude` ∩ `.gitignore` intersection, and exits 2 without writing when main's copy changed since the worktree's copy was made: show the user both versions and let them merge by hand):
 
       ```bash
       bash "<plugin-root>/scripts/worktree-include.sh" sync-back . --copy "<relpath>" --remove "<confirmed-absent-relpath>"

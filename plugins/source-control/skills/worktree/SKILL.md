@@ -1,14 +1,14 @@
 ---
-description: "When the built-in EnterWorktree or ExitWorktree tool resolves in this session, prefer ExitWorktree with action keep to leave a worktree; this skill to create one, to enter an existing one (claim check, then work by path or EnterWorktree by path), and to inventory, clean up, or audit worktrees. Manage git worktree lifecycle for parallel-session isolation: create (external root, then work by path or enter), status (PR + staleness inventory), cleanup (file-lock-aware removal), audit (infrastructure health). Use when: 'create worktree', 'worktree status', 'clean up worktrees', 'orphaned worktrees', or proactively when on main before writing code, not for PR lifecycle (use /pull-request)."
+description: "When the built-in EnterWorktree or ExitWorktree tool resolves in this session, prefer ExitWorktree with action keep to leave a worktree; this skill to create one, to enter an existing one (claim check, then work by path or EnterWorktree by path), and to inventory, clean up, audit, or review kept worktrees. Manage git worktree lifecycle for parallel-session isolation: create (external root, then work by path or enter), status (PR + staleness inventory), cleanup (file-lock-aware removal), audit (infrastructure health). Use when: 'create worktree', 'worktree status', 'clean up worktrees', 'orphaned worktrees', or proactively when on main before writing code, not for PR lifecycle (use /pull-request)."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[create|status|cleanup|audit] [args]"
+argument-hint: "[create|status|cleanup|audit|review] [args]"
 metadata:
   workflow-stage: session
   summary: Create, inspect, and clean git worktrees for parallel sessions
 ---
 
-**Arguments.** `[create|status|cleanup|audit] [args]`. e.g., /worktree create feat/my-feature, /worktree status, /worktree cleanup [<path>...] [--dry-run], /worktree audit
+**Arguments.** `[create|status|cleanup|audit|review] [args]`. e.g., /worktree create feat/my-feature, /worktree status, /worktree cleanup [<path>...] [--dry-run], /worktree audit, /worktree review
 
 ## Repository context. Gather first
 
