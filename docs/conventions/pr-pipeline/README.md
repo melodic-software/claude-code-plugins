@@ -189,7 +189,8 @@ reader applies. It is the one list of lane ids: each is its workflow's file stem
 another repository's [`lane-grants.json`](../../../.github/actions/resolve-config/lane-grants.json)
 row admits. `lane-registry.json` and `lane-funding.json` key their entries by workflow file, and
 `lane-ids.test.mjs` fails when a file names a workflow that is neither a lane nor one it records as
-not a lane, such as `maintenance-measure-skill-edit-pass` (a `workflow_call` reusable).
+not a lane, such as `maintenance-measure-skill-edit-pass` and `maintenance-scan-architecture-find`
+(`workflow_call` reusables).
 
 | Lane | Starts on |
 |---|---|
@@ -214,7 +215,9 @@ the open `source: architecture-improve` issues are at or above the cap, `not-due
 `every-days` calendar days passed since the last run on main whose `Scan` job succeeded (read back
 through the newest 400 runs; none found there is a first scan), or `no-merges`
 when nothing merged to main since it; `first-scan` means no such run exists. A dispatch's `force`
-input skips only `lane-off` and `not-due`; a schedule run never reads it. The model legs run
+input skips only `lane-off` and `not-due`; a schedule run never reads it. The key's credit read
+and the three model legs live in `maintenance-scan-architecture-find.yml`, a `workflow_call`
+reusable the lane's `find` job calls once with the three credential secrets by name. The model legs run
 sandboxed (`sandbox: "true"`), with the Bash commands and deny rules in
 `.github/scripts/maintenance-scan-architecture/model-tools.json`, and hold no write token: they
 return the candidates find may file, sealed for the `Scan` job, which drops any naming a security
