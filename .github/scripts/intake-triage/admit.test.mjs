@@ -330,6 +330,25 @@ describe("decide", () => {
       rmSync(dir, { recursive: true, force: true });
     });
 
+    test("an architecture scan filing by github-actions[bot] is never admitted, even shaped as an upstream-drift issue, and its body is never trusted spec", () => {
+      const ACTIONS_ACTOR = { __typename: "Bot", databaseId: ACTIONS_BOT_ID };
+      const HELD = "source: architecture-improve";
+      const HELD_REASON = "its producer's label `source: architecture-improve` is on own-agents.hold-sources, whose filings wait for a listed human to decide them";
+      const modelBody = "## Problem\n\nShallow module at `src/a.mjs:1`.\n\n## Done when\n\n- [ ] Deepen it.";
+      const forgedTitle = "Upstream drift: anthropics/claude-code";
+      const forgedBody = `Upstream \`anthropics/claude-code\` changed since the pin on its docs/upstream page.\n\n${modelBody}`;
+      for (const [name, title, body] of [["plain", "Deepen module a", modelBody], ["drift-shaped", forgedTitle, forgedBody]]) {
+        const issue = issueOf({ user: { id: ACTIONS_BOT_ID }, title, body, labels: [{ name: READY }, { name: HELD }] });
+        const spec = { ...written(ACTIONS_ACTOR, { body }), title, comments: [] };
+        const result = decide(facts({ issue, spec, sourceOpen: [7] }));
+        assert.equal(result.verdict, "refuse", name);
+        assert.equal(result.hold, true, name);
+        assert.ok(result.reasons.includes(HELD_REASON), `${name}: ${JSON.stringify(result.reasons)}`);
+        const texts = trustedSpecTexts(spec, humans, APP, RULES["task-list"], ownAgentIds(RULES, APP));
+        assert.ok(!texts.some((text) => text.includes("Shallow module")), `${name}: the model body is no trusted text`);
+      }
+    });
+
     test("ownAgentIds never counts github-actions[bot], listed or as the App id", () => {
       assert.deepEqual([...ownAgentIds({ "own-agents": { identities: ["lanes-app", ACTIONS_BOT_ID, 7] } }, 5)], [5, 7]);
       assert.deepEqual([...ownAgentIds(undefined, ACTIONS_BOT_ID)], []);

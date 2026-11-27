@@ -617,6 +617,11 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (unsplit && !rules.sizes.includes("large")) {
     rules = { ...rules, sizes: [...rules.sizes, "large"] };
   }
+  const heldSources = (rules["own-agents"]?.["hold-sources"] ?? []).map((label) => label.toLowerCase());
+  for (const label of sourceLabels(issue.labels).filter((name) => heldSources.includes(String(name).toLowerCase()))) {
+    refuse.push(heldSource(label));
+    holdFor("intent");
+  }
   const ownIds = ownAgentIds(rules, appId);
   const ownAgent = !splitChild && ownIds.has(issue.user?.id) && !String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER);
   let source;
@@ -634,11 +639,6 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     const sources = sourceLabels(issue.labels);
     if (sources.length === 1 && SOURCE_LABEL.test(sources[0])) {
       source = sources[0];
-      const held = (rules["own-agents"]?.["hold-sources"] ?? []).map((label) => label.toLowerCase());
-      if (held.includes(source.toLowerCase())) {
-        refuse.push(heldSource(source));
-        holdFor("intent");
-      }
     } else {
       refuse.push(NO_SOURCE);
       holdFor("security");
