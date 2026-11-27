@@ -20,17 +20,29 @@
 
 set -uo pipefail
 
-HELPER_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)" || { echo "error: cannot resolve the helper's directory" >&2; exit 4; }
+HELPER_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)" || {
+  echo "error: cannot resolve the helper's directory" >&2
+  exit 4
+}
 
 # shellcheck source=lib/worktree-facts.sh
-source "$HELPER_DIR/lib/worktree-facts.sh" || { echo "error: cannot load lib/worktree-facts.sh" >&2; exit 4; }
+source "$HELPER_DIR/lib/worktree-facts.sh" || {
+  echo "error: cannot load lib/worktree-facts.sh" >&2
+  exit 4
+}
 
 PROG=${0##*/}
 
 # shellcheck source=worktree-root-resolve.sh
-source "$HELPER_DIR/worktree-root-resolve.sh" || { echo "error: cannot load worktree-root-resolve.sh" >&2; exit 4; }
+source "$HELPER_DIR/worktree-root-resolve.sh" || {
+  echo "error: cannot load worktree-root-resolve.sh" >&2
+  exit 4
+}
 # shellcheck source=../hooks/worktree-path-lib.sh
-source "$HELPER_DIR/../hooks/worktree-path-lib.sh" || { echo "error: cannot load hooks/worktree-path-lib.sh" >&2; exit 4; }
+source "$HELPER_DIR/../hooks/worktree-path-lib.sh" || {
+  echo "error: cannot load hooks/worktree-path-lib.sh" >&2
+  exit 4
+}
 
 windows_drive_letter() {
   local path="$1"
@@ -39,13 +51,13 @@ windows_drive_letter() {
     return 0
   fi
   case "$(uname -s 2>/dev/null || true)" in
-  MINGW* | MSYS* | CYGWIN*)
-    if [[ "$path" =~ ^/([A-Za-z])(/|$) ]]; then
-      printf '%s' "${BASH_REMATCH[1]^^}"
-      return 0
-    fi
-    ;;
-  *) ;;
+    MINGW* | MSYS* | CYGWIN*)
+      if [[ "$path" =~ ^/([A-Za-z])(/|$) ]]; then
+        printf '%s' "${BASH_REMATCH[1]^^}"
+        return 0
+      fi
+      ;;
+    *) ;;
   esac
   return 1
 }
@@ -283,73 +295,73 @@ need_value() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --name)
-    need_value "$@"
-    name="$2"
-    shift 2
-    ;;
-  --root)
-    need_value "$@"
-    root="$2"
-    root_given=1
-    shift 2
-    ;;
-  --root-file)
-    need_value "$@"
-    root_file="$2"
-    root_file_given=1
-    shift 2
-    ;;
-  --fallback-root)
-    need_value "$@"
-    fallback_root="$2"
-    fallback_root_given=1
-    shift 2
-    ;;
-  --fallback-root-file)
-    need_value "$@"
-    fallback_root_file="$2"
-    fallback_root_file_given=1
-    shift 2
-    ;;
-  --data-root-file)
-    need_value "$@"
-    data_root_file="$2"
-    data_root_file_given=1
-    shift 2
-    ;;
-  --base-ref)
-    need_value "$@"
-    base_ref="$2"
-    shift 2
-    ;;
-  --existing-branch)
-    existing_branch=1
-    shift
-    ;;
-  --repo-dir)
-    need_value "$@"
-    repo_dir="$2"
-    shift 2
-    ;;
-  --session-id)
-    need_value "$@"
-    session_id="$2"
-    shift 2
-    ;;
-  --remove-input-files)
-    trap remove_input_files_on_exit EXIT
-    shift
-    ;;
-  -h | --help)
-    usage
-    exit 0
-    ;;
-  *)
-    printf '%s: unknown argument: %s\n' "$PROG" "$1" >&2
-    usage
-    exit 2
-    ;;
+    --name)
+      need_value "$@"
+      name="$2"
+      shift 2
+      ;;
+    --root)
+      need_value "$@"
+      root="$2"
+      root_given=1
+      shift 2
+      ;;
+    --root-file)
+      need_value "$@"
+      root_file="$2"
+      root_file_given=1
+      shift 2
+      ;;
+    --fallback-root)
+      need_value "$@"
+      fallback_root="$2"
+      fallback_root_given=1
+      shift 2
+      ;;
+    --fallback-root-file)
+      need_value "$@"
+      fallback_root_file="$2"
+      fallback_root_file_given=1
+      shift 2
+      ;;
+    --data-root-file)
+      need_value "$@"
+      data_root_file="$2"
+      data_root_file_given=1
+      shift 2
+      ;;
+    --base-ref)
+      need_value "$@"
+      base_ref="$2"
+      shift 2
+      ;;
+    --existing-branch)
+      existing_branch=1
+      shift
+      ;;
+    --repo-dir)
+      need_value "$@"
+      repo_dir="$2"
+      shift 2
+      ;;
+    --session-id)
+      need_value "$@"
+      session_id="$2"
+      shift 2
+      ;;
+    --remove-input-files)
+      trap remove_input_files_on_exit EXIT
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf '%s: unknown argument: %s\n' "$PROG" "$1" >&2
+      usage
+      exit 2
+      ;;
   esac
 done
 
@@ -549,23 +561,23 @@ read_branch_naming() {
   fi
   while IFS=$'\t' read -r key value; do
     case "$key" in
-    worktree_branch_naming) naming="$value" ;;
-    worktree_branch_default_type) default_type="$value" ;;
-    worktree_branch_extra_prefixes.[0-9]*)
-      if branch_type_is_valid "$value"; then
-        branch_extra_prefixes+=("$value")
-      else
-        printf '%s: worktree_branch_extra_prefixes entry %q is not one lowercase segment; skipping it\n' "$PROG" "$value" >&2
-      fi
-      ;;
-    *) ;;
+      worktree_branch_naming) naming="$value" ;;
+      worktree_branch_default_type) default_type="$value" ;;
+      worktree_branch_extra_prefixes.[0-9]*)
+        if branch_type_is_valid "$value"; then
+          branch_extra_prefixes+=("$value")
+        else
+          printf '%s: worktree_branch_extra_prefixes entry %q is not one lowercase segment; skipping it\n' "$PROG" "$value" >&2
+        fi
+        ;;
+      *) ;;
     esac
   done <<<"$records"
   case "$naming" in
-  "" | verbatim) ;;
-  conventional-commits) branch_naming="$naming" ;;
-  *) printf '%s: worktree_branch_naming %q in %s is not verbatim or conventional-commits; keeping the branch name verbatim\n' \
-    "$PROG" "$naming" "$CONVENTION_YAML_REL" >&2 ;;
+    "" | verbatim) ;;
+    conventional-commits) branch_naming="$naming" ;;
+    *) printf '%s: worktree_branch_naming %q in %s is not verbatim or conventional-commits; keeping the branch name verbatim\n' \
+      "$PROG" "$naming" "$CONVENTION_YAML_REL" >&2 ;;
   esac
   if [[ -n "$default_type" ]]; then
     if branch_type_is_valid "$default_type"; then
@@ -592,20 +604,20 @@ derive_conventional_branch() {
     type="${name%%/*}"
     type="${type,,}"
     case "$type" in
-    feat | feature) canonical="feat" ;;
-    fix | bugfix | hotfix) canonical="fix" ;;
-    docs | documentation | doc) canonical="docs" ;;
-    test | tests) canonical="test" ;;
-    perf | performance) canonical="perf" ;;
-    build | chore | ci | refactor | revert | style) canonical="$type" ;;
-    *)
-      for prefix in ${branch_extra_prefixes[@]+"${branch_extra_prefixes[@]}"}; do
-        if [[ "$type" == "$prefix" ]]; then
-          canonical="$prefix"
-          break
-        fi
-      done
-      ;;
+      feat | feature) canonical="feat" ;;
+      fix | bugfix | hotfix) canonical="fix" ;;
+      docs | documentation | doc) canonical="docs" ;;
+      test | tests) canonical="test" ;;
+      perf | performance) canonical="perf" ;;
+      build | chore | ci | refactor | revert | style) canonical="$type" ;;
+      *)
+        for prefix in ${branch_extra_prefixes[@]+"${branch_extra_prefixes[@]}"}; do
+          if [[ "$type" == "$prefix" ]]; then
+            canonical="$prefix"
+            break
+          fi
+        done
+        ;;
     esac
     if [[ -n "$canonical" ]]; then
       branch_ref_segment "${name#*/}"
@@ -627,7 +639,7 @@ derive_conventional_branch() {
 }
 
 branch="$name"
-if ((!existing_branch)); then
+if ((! existing_branch)); then
   read_branch_naming
   if [[ "$branch_naming" == conventional-commits ]]; then
     derive_conventional_branch "$name"
@@ -797,6 +809,8 @@ reuse_existing_target() {
     fi
     bash "$claim" handover "$top" --repo-dir "$toplevel" --session-id "$old_sid" --to "$session_id" >&2 ||
       reuse_refuse "could not hand the stale claim on $worktree_path over to session $session_id"
+    bash "$claim" claim "$top" --repo-dir "$toplevel" --session-id "$session_id" >&2 ||
+      reuse_refuse "could not claim $worktree_path for session $session_id after the stale claim ended"
     printf '%s: took over the stale claim of session %s on %s\n' "$PROG" "$old_sid" "$worktree_path" >&2
   fi
   printf '%s: reusing the existing worktree at %s (branch %s)\n' "$PROG" "$worktree_path" "$branch" >&2
@@ -860,7 +874,7 @@ if ((existing_branch)); then
     printf '%s: --existing-branch cannot be combined with --base-ref\n' "$PROG" >&2
     exit 2
   fi
-  if ((!branch_exists)); then
+  if ((! branch_exists)); then
     printf '%s: --existing-branch requires a local branch named %q\n' "$PROG" "$name" >&2
     exit 2
   fi
@@ -873,37 +887,37 @@ else
   [[ -z "$base_ref" ]] && base_ref="fresh"
   base_label="$base_ref"
   case "$base_ref" in
-  head)
-    base_commit="HEAD"
-    ;;
-  fresh)
-    default_remote=$(resolve_default_remote "$toplevel") || default_remote=""
-    head_ref=""
-    if [[ -n "$default_remote" ]]; then
-      head_ref=$(git -C "$toplevel" symbolic-ref -q "refs/remotes/$default_remote/HEAD" 2>/dev/null | tr -d '\r')
-    fi
-    if [[ -n "$head_ref" ]]; then
-      if ! refresh_remote_branch "$toplevel" "$default_remote" "${head_ref#"refs/remotes/$default_remote/"}"; then
-        printf '%s: warning: --base-ref fresh could not refresh %s within %ss (fetch failed or timed out); basing on the cached ref, which may be behind the remote.\n' \
-          "$PROG" "${head_ref#refs/remotes/}" "$FETCH_CAP_SECONDS" >&2
-        base_label="${head_ref#refs/remotes/}@$(git -C "$toplevel" rev-parse --short "$head_ref" 2>/dev/null | tr -d '\r'), not refreshed"
-      fi
-      base_commit="$head_ref"
-    else
+    head)
       base_commit="HEAD"
+      ;;
+    fresh)
+      default_remote=$(resolve_default_remote "$toplevel") || default_remote=""
+      head_ref=""
       if [[ -n "$default_remote" ]]; then
-        printf '%s: warning: --base-ref fresh could not resolve the remote default branch (%s/HEAD not set); branching from local HEAD instead. Run: git remote set-head %s --auto  to cache it.\n' \
-          "$PROG" "$default_remote" "$default_remote" >&2
-      else
-        printf '%s: warning: --base-ref fresh could not resolve the remote default branch (no default remote: the repository has no remotes, or has several with neither a branch-configured remote nor an origin); branching from local HEAD instead.\n' \
-          "$PROG" >&2
+        head_ref=$(git -C "$toplevel" symbolic-ref -q "refs/remotes/$default_remote/HEAD" 2>/dev/null | tr -d '\r')
       fi
-    fi
-    ;;
-  *)
-    printf '%s: --base-ref must be fresh or head, got: %q\n' "$PROG" "$base_ref" >&2
-    exit 2
-    ;;
+      if [[ -n "$head_ref" ]]; then
+        if ! refresh_remote_branch "$toplevel" "$default_remote" "${head_ref#"refs/remotes/$default_remote/"}"; then
+          printf '%s: warning: --base-ref fresh could not refresh %s within %ss (fetch failed or timed out); basing on the cached ref, which may be behind the remote.\n' \
+            "$PROG" "${head_ref#refs/remotes/}" "$FETCH_CAP_SECONDS" >&2
+          base_label="${head_ref#refs/remotes/}@$(git -C "$toplevel" rev-parse --short "$head_ref" 2>/dev/null | tr -d '\r'), not refreshed"
+        fi
+        base_commit="$head_ref"
+      else
+        base_commit="HEAD"
+        if [[ -n "$default_remote" ]]; then
+          printf '%s: warning: --base-ref fresh could not resolve the remote default branch (%s/HEAD not set); branching from local HEAD instead. Run: git remote set-head %s --auto  to cache it.\n' \
+            "$PROG" "$default_remote" "$default_remote" >&2
+        else
+          printf '%s: warning: --base-ref fresh could not resolve the remote default branch (no default remote: the repository has no remotes, or has several with neither a branch-configured remote nor an origin); branching from local HEAD instead.\n' \
+            "$PROG" >&2
+        fi
+      fi
+      ;;
+    *)
+      printf '%s: --base-ref must be fresh or head, got: %q\n' "$PROG" "$base_ref" >&2
+      exit 2
+      ;;
   esac
 fi
 
