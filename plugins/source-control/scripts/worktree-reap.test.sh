@@ -15,9 +15,18 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
+export XDG_STATE_HOME="$TEST_TMPDIR/state"
+RUNS="$XDG_STATE_HOME/worktree-reap/runs"
 
 OLD_TS=1700000000
 NOW_TS=$((OLD_TS + 72 * 3600))
+
+latest_run() { find "$RUNS" -maxdepth 1 -type f -name '*.jsonl' 2>/dev/null | sort | tail -n 1; }
+row() {
+  jq -rs --arg p "$2" '.[] | select(.type == "worktree" and (.path | endswith($p)))
+    | "\(.verdict) \(.reason) \(.outcome)"' "$1"
+}
+wt_lines() { jq -s '[.[] | select(.type == "worktree")] | length' "$1"; }
 
 assert_dir_exists() {
   local label="$1" path="$2"
@@ -175,13 +184,14 @@ OUT="$(
     bash "$REAP" --dry-run --no-log --no-pr-proof 2>&1
 )"
 assert_exit "dry-run exits 0" 0 "$?"
+RUN_DRY="$(latest_run)"
 assert_contains "dry-run discovers root1 and includeIf root2" "$OUT" "$ROOT2"
 assert_contains "dry-run proposes --no-track FF worktree 1" "$OUT" "would remove $WT1_PHYS"
 assert_contains "dry-run counts BOTH project and local plugin records (2)" "$OUT" "leaves 2 project/local-scope plugin record(s)"
 assert_contains "dry-run proposes worktree under includeIf root2" "$OUT" "would remove $(physical_dir "$ROOT2/wt-chez")"
 assert_contains "dry-run skips detached HEAD cleanly" "$OUT" "detached=1"
-assert_contains "dry-run skips untracked-dirty worktree" "$OUT" "skip unsafe-work"
-assert_contains "dry-run skips carried-file diff worktree" "$OUT" "skip carried-file"
+assert_contains "dry-run skips untracked-dirty worktree" "$OUT" "skip dirty"
+assert_contains "dry-run routes a carried worktree with no manifest to review" "$OUT" "skip no-manifest"
 assert_contains "dry-run skips reasonless lock as live-lock" "$OUT" "skip live-lock"
 assert_eq "dry-run: 4 locked candidates (3 stale + 1 reasonless) make exactly 1 stale --batch call (vs 4 in old reap.sh)" \
   "1" "$(wc -l <"$STALE_LOG" | tr -d ' ')"
@@ -259,6 +269,7 @@ OUT_DOWN="$(
     bash "$REAP" --root "$ROOT_DOWN" --no-log --no-pr-proof 2>&1
 )"
 assert_exit "workspace-down guard exits 0" 0 "$?"
+RUN_DOWN="$(latest_run)"
 assert_contains "workspace-down skips the repo" "$OUT_DOWN" "workspace-down=1"
 assert_dir_exists "workspace-down leaves worktree untouched" "$ROOT_DOWN/wt-down"
 
@@ -319,6 +330,7 @@ OUT_ROLL="$(
     bash "$REAP" --root "$ROOT_ROLL" --no-log --no-pr-proof 2>&1
 )"
 assert_exit "failed worktree remove exits non-zero (1)" 1 "$?"
+RUN_ROLL="$(latest_run)"
 assert_contains "failed remove logs FAILED" "$OUT_ROLL" "FAILED to remove"
 ROLL_STANZA="$(git -C "$REPO_ROLL" worktree list --porcelain | awk -v RS= '/wt-roll/')"
 assert_contains "failed remove restores the original lock reason" "$ROLL_STANZA" "$ROLL_REASON"
@@ -381,7 +393,116 @@ OUT_CARRY="$(
     bash "$REAP" --root "$ROOT_CARRY" --no-log --no-pr-proof 2>&1
 )"
 assert_exit "directory .worktreeinclude guard exits 0" 0 "$?"
-assert_contains "directory .worktreeinclude skips as carried-file" "$OUT_CARRY" "carried-file=1"
+assert_contains "directory .worktreeinclude keeps as carried-unreadable" "$OUT_CARRY" "carried-unreadable=1"
 assert_dir_exists "worktree with directory .worktreeinclude stays on disk" "$ROOT_CARRY/wt-carry-dir"
+
+run_reap() {
+  CLAUDE_CONFIG_DIR="$CFG" HOSTNAME="$HOST_NAME" \
+    WORKTREE_REAP_PROC_ROOT="$PROC_OK" WORKTREE_REAP_NOW="$NOW_TS" \
+    bash "$REAP" --no-log --no-pr-proof "$@" >/dev/null 2>&1
+  latest_run
+}
+
+assert_eq "record: dry run writes one line per examined worktree (8)" "8" "$(wt_lines "$RUN_DRY")"
+assert_eq "record: dry run records 4 would-remove outcomes" "4" \
+  "$(jq -s '[.[] | select(.outcome == "would-remove")] | length' "$RUN_DRY")"
+assert_eq "record: a carried worktree with no manifest is review" "review no-manifest kept" "$(row "$RUN_DRY" /wt-carried)"
+assert_eq "record: workspace-down records the repo's worktree" "keep workspace-down kept" "$(row "$RUN_DOWN" /wt-down)"
+assert_eq "record: a failed remove records its outcome" "remove landed remove-failed" "$(row "$RUN_ROLL" /wt-roll)"
+assert_eq "record: the run line closes the file" "run" "$(tail -n 1 "$RUN_DRY" | jq -r .type)"
+
+IFS=$'\t' read -r REPO_FF _ORIGIN_FF <<<"$(mkrepo_with_origin)"
+ROOT_FF="$TEST_TMPDIR/root-ff"
+mkdir -p "$ROOT_FF"
+git -C "$REPO_FF" worktree add -q --no-track -b feat/ff "$ROOT_FF/wt-ff" origin/main >/dev/null 2>&1
+git -C "$REPO_FF" remote set-url origin "$TEST_TMPDIR/no-such-origin"
+RUN_FF="$(run_reap --root "$ROOT_FF")"
+assert_eq "record: a failed fetch records the repo's worktree" "keep fetch-failed kept" "$(row "$RUN_FF" /wt-ff)"
+
+IFS=$'\t' read -r REPO_MISS _ORIGIN_MISS <<<"$(mkrepo_with_origin)"
+ROOT_MISS="$TEST_TMPDIR/root-miss"
+mkdir -p "$ROOT_MISS"
+git -C "$REPO_MISS" worktree add -q --no-track -b feat/miss "$ROOT_MISS/wt-miss" origin/main >/dev/null 2>&1
+git -C "$REPO_MISS" worktree add -q --no-track -b feat/present "$ROOT_MISS/wt-present" origin/main >/dev/null 2>&1
+rm -rf "${ROOT_MISS:?}/wt-miss"
+RUN_MISS="$(run_reap --root "$ROOT_MISS" --dry-run)"
+assert_eq "record: a missing directory is keep missing" "keep missing kept" "$(row "$RUN_MISS" /wt-miss)"
+
+IFS=$'\t' read -r REPO_ST _ORIGIN_ST <<<"$(mkrepo_with_origin)"
+ROOT_ST="$TEST_TMPDIR/root-st"
+mkdir -p "$ROOT_ST"
+git -C "$REPO_ST" worktree add -q --no-track -b feat/st "$ROOT_ST/wt-st" origin/main >/dev/null 2>&1
+commit_at "$ROOT_ST/wt-st" "st.txt" "st" "st" "$OLD_TS"
+touch -d "@$OLD_TS" "$ROOT_ST/wt-st/.git"
+RUN_ST="$(run_reap --root "$ROOT_ST" --dry-run)"
+assert_eq "record: stranded work is review" "review stranded kept" "$(row "$RUN_ST" /wt-st)"
+
+WEIRD_SCRIPTS="$TEST_TMPDIR/weird-scripts"
+mkdir -p "$WEIRD_SCRIPTS/lib"
+cp -p "$SCRIPT_DIR/lib/worktree-facts.sh" "$WEIRD_SCRIPTS/lib/"
+cp -p "$SCRIPT_DIR/worktree-root-resolve.sh" "$SCRIPT_DIR/worktree-root-legacy.sh" \
+  "$SCRIPT_DIR/worktree-include.sh" "$SCRIPT_DIR/worktree-claim.sh" "$WEIRD_SCRIPTS/"
+cat >"$WEIRD_SCRIPTS/landed-work.sh" <<EOF
+#!/usr/bin/env bash
+bash "$SCRIPT_DIR/landed-work.sh" "\$@" | awk 'BEGIN { FS = OFS = "\t" } NR > 1 { \$14 = "weird" } { print }'
+exit "\${PIPESTATUS[0]}"
+EOF
+RUN_WEIRD="$(WORKTREE_REAP_SCRIPTS="$WEIRD_SCRIPTS" run_reap --root "$ROOT_ST" --dry-run)"
+assert_eq "record: a fact value no case names is keep unknown" "keep unknown kept" "$(row "$RUN_WEIRD" /wt-st)"
+
+IFS=$'\t' read -r REPO_OK _ORIGIN_OK <<<"$(mkrepo_with_origin)"
+ROOT_OK="$TEST_TMPDIR/root-ok"
+mkdir -p "$ROOT_OK"
+git -C "$REPO_OK" worktree add -q -b feat/ok "$ROOT_OK/wt-ok" origin/main >/dev/null 2>&1
+commit_at "$ROOT_OK/wt-ok" "ok.txt" "ok" "ok" "$OLD_TS"
+{
+  git -C "$ROOT_OK/wt-ok" push -q -u origin feat/ok
+  git -C "$ROOT_OK/wt-ok" push -q origin HEAD:refs/heads/keep-ok
+  git -C "$REPO_OK" push -q origin --delete feat/ok
+} >/dev/null 2>&1
+touch -d "@$OLD_TS" "$ROOT_OK/wt-ok/.git"
+RUN_OK="$(run_reap --root "$ROOT_OK" --dry-run)"
+assert_eq "record: a [gone] worktree whose commits a remote holds (risk ok) is removable" \
+  "remove landed would-remove" "$(row "$RUN_OK" /wt-ok)"
+
+ODD_SCRIPTS="$TEST_TMPDIR/odd-scripts"
+mkdir -p "$ODD_SCRIPTS/lib"
+cp -p "$SCRIPT_DIR/lib/worktree-facts.sh" "$ODD_SCRIPTS/lib/"
+cp -p "$SCRIPT_DIR/worktree-root-resolve.sh" "$SCRIPT_DIR/worktree-root-legacy.sh" \
+  "$SCRIPT_DIR/landed-work.sh" "$SCRIPT_DIR/worktree-claim.sh" "$ODD_SCRIPTS/"
+printf '#!/usr/bin/env bash\nprintf '"'"'ODDSTATUS\\tx\\ty\\n'"'"'\nexit 1\n' >"$ODD_SCRIPTS/worktree-include.sh"
+RUN_ODD="$(WORKTREE_REAP_SCRIPTS="$ODD_SCRIPTS" run_reap --root "$ROOT_OK" --dry-run)"
+assert_eq "record: carried diff exit 1 with an unlisted status is keep carried-unreadable" \
+  "keep carried-unreadable kept" "$(row "$RUN_ODD" /wt-ok)"
+
+ROOT_Q="$TEST_TMPDIR/root-q"
+mkdir -p "$ROOT_Q"
+QNAME='wt-q"b\s' # portability-ok: a literal directory name, not a regex
+git -C "$REPO_ST" worktree add -q --no-track -b feat/q "$ROOT_Q/$QNAME" origin/main >/dev/null 2>&1
+touch -d "@$OLD_TS" "$ROOT_Q/$QNAME/.git"
+RUN_Q="$(run_reap --root "$ROOT_Q" --dry-run)"
+assert_eq "record: a path holding a quote and a backslash round-trips" "$ROOT_Q/$QNAME" \
+  "$(jq -rs '.[] | select(.type == "worktree") | .path' "$RUN_Q" | sed "s|^$(physical_dir "$ROOT_Q")|$ROOT_Q|")"
+
+all_parse=yes
+for f in "$RUNS"/*.jsonl; do
+  jq -s . "$f" >/dev/null 2>&1 || all_parse="no: $f"
+done
+assert_eq "record: every run file parses as JSON lines" "yes" "$all_parse"
+
+REVIEWS="$XDG_STATE_HOME/worktree-reap/reviews"
+mkdir -p "$REVIEWS"
+touch -d '15 days ago' "$RUNS/20200101T000000.000000Z.jsonl" "$REVIEWS/20200101T000000.000000Z.1.jsonl"
+touch -d '13 days ago' "$RUNS/20200102T000000.000000Z.jsonl"
+run_reap --root "$ROOT_MISS" --dry-run >/dev/null
+assert_eq "record: a 15-day-old run file is deleted" "no" "$([[ -e "$RUNS/20200101T000000.000000Z.jsonl" ]] && echo yes || echo no)"
+assert_eq "record: a 15-day-old review file is deleted" "no" "$([[ -e "$REVIEWS/20200101T000000.000000Z.1.jsonl" ]] && echo yes || echo no)"
+assert_eq "record: a 13-day-old run file is kept" "yes" "$([[ -e "$RUNS/20200102T000000.000000Z.jsonl" ]] && echo yes || echo no)"
+
+REPORT_OUT="$(bash "$REAP" --report "$RUN_DRY" 2>&1)"
+assert_eq "record: report verdict counts equal the record's" \
+  "verdicts: $(jq -rs '[.[] | select(.type == "worktree")] | group_by(.verdict) | map("\(.[0].verdict)=\(length)") | join(" ")' "$RUN_DRY")" \
+  "$(printf '%s\n' "$REPORT_OUT" | head -n 1)"
+assert_contains "record: report keeps the closing total wording" "$REPORT_OUT" "would remove 4 worktrees"
 
 [[ $FAILED -eq 0 ]] || exit 1
