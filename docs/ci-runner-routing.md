@@ -17,11 +17,13 @@ melodic-software/github-iac
 
 ## Configuration contract
 
-`.github/runner-policy.json` declares `visibility: "public"` and
-`selfHostedCi: false`; the policy engine cross-checks that declaration against
-the live repository-visibility evidence on every CI run and fails closed on a
-mismatch, so a visibility change must land together with the matching posture
-change in this repository's workflows.
+No `.github/runner-policy.json` is needed here: the standards `runner-policy`
+engine applies its built-in public hosted-only default (`visibility: "public"`,
+`selfHostedCi: false`, empty `exceptions`) when the file is absent and the live
+repository-visibility evidence is `"public"`, and fails closed otherwise. A
+visibility change must therefore land together with an explicit
+`.github/runner-policy.json` and the matching posture change in this
+repository's workflows.
 
 Workflow source contains no organization runner label, host name, or GitHub
 App identifier. Each reusable workflow from `melodic-software/ci-workflows` is
