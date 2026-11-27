@@ -82,7 +82,39 @@ test("the gate is the first job, runs a script and no model, and every model leg
 });
 
 const LEGS = ["find-candidates", "find-candidates-subscription", "find-candidates-fallback"];
-const NETWORK = /^(curl|wget|nc|ncat|socat|ssh|scp|telnet|ftp|python\S*|perl|ruby|php|env|printenv|npm|npx|pip\S*|gh|git (push|fetch|clone|pull|remote|ls-remote|submodule))\b/;
+const NETWORK = /^(curl|wget|nc|ncat|socat|ssh|scp|telnet|ftp|python\S*|perl|ruby|php|awk|gawk|mawk|sed|env|printenv|npm|npx|pip\S*|gh|git (push|fetch|clone|pull|remote|ls-remote|submodule))\b/;
+const matches = (rule, command) => {
+  const body = /^Bash\((.*)\)$/.exec(rule)?.[1];
+  return body !== undefined && new RegExp(`^${body.split("*").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`, "s").test(command);
+};
+const permitted = ({ allowed, disallowed }, command) => allowed.some((rule) => matches(rule, command)) && !disallowed.some((rule) => matches(rule, command));
+
+test("the model legs' Bash rules refuse each route to arbitrary code or the environment, and still allow the scan's own commands", () => {
+  const ws = "/runner/work/r/r";
+  const tools = modelTools(ws);
+  for (const command of [
+    `awk 'BEGIN{system("id")}'`,
+    `sort --compress-program=sh notes.txt`,
+    `sort -u --comp=sh notes.txt`,
+    `bash ${ws}/.lane/plugins/../../.work/x.sh`,
+    `node ${ws}/.lane/plugins/architecture/../../../.work/x.mjs`,
+    `head -c 4000 /proc/self/environ`,
+    `grep -a KEY /proc/1/environ`,
+    `head ../../../home/runner/.claude/.credentials.json`,
+  ]) {
+    assert.equal(permitted(tools, command), false, command);
+  }
+  for (const command of [
+    "git log --oneline HEAD~20..HEAD",
+    "git rev-list --count main...HEAD",
+    "sort -u",
+    "grep -rn deepening plugins/architecture",
+    `bash ${ws}/.lane/plugins/architecture/lib/read-verification.sh --plugin architecture --skill improve`,
+    `node ${ws}/.lane/plugins/architecture/skills/improve/scripts/improve-settings.mjs --home .work`,
+  ]) {
+    assert.equal(permitted(tools, command), true, command);
+  }
+});
 
 test("every model leg runs sandboxed, and its Bash rules allow no network-capable or interpreter command", () => {
   const workflow = parse(WORKFLOW_TEXT);
@@ -102,7 +134,7 @@ test("every model leg runs sandboxed, and its Bash rules allow no network-capabl
     assert.doesNotMatch(command, NETWORK, rule);
     if (/^(bash|node) /.test(command)) assert.match(command, /^(bash|node) \/runner\/work\/r\/r\/\.lane\/plugins\/\*$/, `${rule} runs only staged plugin scripts`);
   }
-  for (const deny of ["Bash(curl *)", "Bash(wget *)", "Bash(env*)", "Bash(printenv*)", "Bash(node -e *)", "Bash(python* -c *)", "Bash(cat /proc/*)", "Bash(gh *)", "Bash(git push *)", "WebFetch", "WebSearch"]) {
+  for (const deny of ["Bash(curl *)", "Bash(wget *)", "Bash(env*)", "Bash(printenv*)", "Bash(node -e *)", "Bash(python* -c *)", "Bash(*/proc/*)", "Bash(*../*)", "Bash(gh *)", "Bash(git push *)", "WebFetch", "WebSearch"]) {
     assert.ok(disallowed.includes(deny), deny);
   }
   assert.throws(() => modelTools("relative/path"), /absolute path/);
@@ -305,6 +337,14 @@ test("lane-off and a cap of 0 stop the gate before any API read, and its status 
     assert.deepEqual([result.run, result.reason, fake.calls], [false, reason, []], reason);
     assert.match(statusLine(result), /open n\/a of cap .* merges since the last scan n\/a/);
   }
+});
+
+test("an at-cap gate reads only the open count, never the run history", async () => {
+  const fake = forge({ open: 5, runs: [{ at: NOW - 2 * DAY, sha: "a".repeat(40) }] });
+  const result = await runGate(configRoot(), { fake });
+  assert.deepEqual([result.run, result.reason, result.open, result.lastScan], [false, "at-cap", 5, null]);
+  assert.ok(fake.calls.length > 0, "the open count was read");
+  assert.ok(!fake.calls.some((path) => path.includes("/actions/")), `no Actions read: ${fake.calls.join(", ")}`);
 });
 
 test("forty stopped runs before the last scan still leave it not-due or no-merges, never a first scan", async () => {

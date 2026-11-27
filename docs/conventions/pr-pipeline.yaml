@@ -929,6 +929,10 @@ merge:
         class: enforcement
       - glob: ".github/scripts/maintenance-monitor-signals/issues.mjs"
         class: enforcement
+      - glob: ".github/scripts/maintenance-scan-architecture/file-findings.mjs"
+        class: enforcement
+      - glob: ".github/scripts/maintenance-scan-architecture/model-tools.json"
+        class: enforcement
       - glob: ".github/scripts/lib/github-rest.mjs"
         class: enforcement
       - glob: "plugins/work-items/scripts/charge-words.json"

@@ -84,6 +84,7 @@ export async function gate({ root, env, call, now = Date.now() }) {
   const early = configStop({ ...settings, cap: capping.cap, force });
   if (early !== null) return { run: false, reason: early, room: 0, ...unread };
   const open = await countOpen(call, env.REPOSITORY, SOURCE_LABEL, capping.cap);
+  if (open >= capping.cap) return { run: false, reason: "at-cap", room: 0, ...unread, open };
   const scan = await lastScan(call, env.REPOSITORY);
   const merges = scan === null ? null : mergesSince(root, scan);
   const result = decide({ ...settings, cap: capping.cap, open, lastScan: scan, merges, now, force });
