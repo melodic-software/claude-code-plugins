@@ -203,4 +203,5 @@ Vendor facts this shape depends on, for Slack, where Claude ships as two separat
 - **Claude Tag.** Pointer:
   [Plans that include Claude Tag](https://claude.com/docs/claude-tag/overview#plans-that-include-claude-tag).
 - **Claude Code in Slack, the earlier version.** Pointer:
-  [Access and permissions](https://code.claude.com/docs/en/slack#access-and-permissions).
+  [Claude Code in Slack](https://code.claude.com/docs/en/slack) and
+  [the migration guide](https://claude.com/docs/claude-tag/admins/migrate-from-earlier).
