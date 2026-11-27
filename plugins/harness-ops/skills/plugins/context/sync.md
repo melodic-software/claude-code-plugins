@@ -48,14 +48,15 @@ What the model still owns, because the script cannot:
 
 - **The `install_new` policy.** The `user_config.install_new` placeholder substitutes only when Claude Code
   renders SKILL.md; a `context/*.md` spoke is read raw. SKILL.md's "Configured value" line is the
-  rendered value, and the model passes it as `--install-new`. On `ask` with a non-empty install gap
+  rendered value, and the model passes its text verbatim, single-quoted, as `--install-new`; the
+  script reads the option's own unrendered token as the default `ask`. On `ask` with a non-empty install gap
   the script reports the gap and stops before Step 4, because only the model can run the chunked
   prompt; it then re-enters with `--only-install <ids> --run-dir <the digest's run_dir>`, which
   performs Step 4, Step 5, and, when this pass skipped it, Step 5b against the same run journal
   and re-emits the digest.
 - **The pull offer.** The `directory_source_pull` and `quiet_auto_update_marketplaces` values
-  render in SKILL.md the same way, and the model passes them as `--source-pull` and
-  `--quiet-auto-update`. Only the model can ask the user, so a checkout the digest marks
+  render in SKILL.md the same way, and the model passes them, token or word, as `--source-pull`
+  and `--quiet-auto-update`. Only the model can ask the user, so a checkout the digest marks
   `offered` is asked about there, and a yes reruns with `--pull-source`; see Step 1's
   "Directory-source fast-forward".
 - **The journal root.** `${CLAUDE_PLUGIN_DATA}` substitutes in SKILL.md and not here, so SKILL.md

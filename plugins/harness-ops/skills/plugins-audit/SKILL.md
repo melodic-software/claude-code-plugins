@@ -57,19 +57,16 @@ Substitute the target and the configured values below into one call:
 ```bash
 "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-run.sh \
   [--marketplace <name> | --all] --audit \
-  --install-new <policy> [--quiet-auto-update <names>] [--update-other-paths] --render
+  --install-new '<policy>' --quiet-auto-update '<names>' [--update-other-paths] --render
 ```
 
 That path is exact and the script lives in the `plugins` skill, so run it as written with no search
 for it.
 
-- `<policy>` is the word on the **Configured value** line under "userConfig: `install_new`":
-  `all`, `none` or `ask`, and `ask` while that line shows the unset placeholder token. Pass the
-  word, never the token: a placeholder inside a command is a shell substitution error. Any other
-  word is treated as `ask` and named back in the digest's `install_new_invalid`.
-- `--quiet-auto-update` takes the names on the **Configured value** line under "userConfig:
-  `quiet_auto_update_marketplaces`". Leave the flag out while that line shows the placeholder
-  token or nothing.
+- `<policy>` and `<names>` are the text of the **Configured value** lines under "userConfig:
+  `install_new`" and "userConfig: `quiet_auto_update_marketplaces`", copied verbatim inside the
+  single quotes, a word or the unset placeholder token alike: the quotes keep the shell from
+  expanding a token, and the script reads each option's own token as its default.
 - Pass `--update-other-paths` only when the **Configured value** line under "userConfig:
   `update_other_paths`" reads `true`.
 - Never pass `--journal-root`, `--pull-source` or `--only-install`: they are `sync` requests, and
@@ -121,8 +118,8 @@ the script predicts the hold `sync` applies: nothing installed, the gap under `A
 person to resolve through the ask offer.
 
 **Configured value: `${user_config.install_new}`**. The value renders only when the key is set in
-user settings, `--settings` or managed settings; an unset key leaves the literal placeholder token,
-which means the default, `ask`, and is not an invalid value. The probe record behind that reading is
+user settings, `--settings` or managed settings; an unset key leaves the literal placeholder token.
+The probe record behind that reading is
 `${CLAUDE_PLUGIN_ROOT}/skills/plugins/context/scope-semantics.md`.
 
 ## userConfig: `update_other_paths`
@@ -138,8 +135,7 @@ default, `false`.
 Comma-separated marketplace names whose `Marketplace:` line shows `autoUpdate: off` without the
 suggestion to enable it.
 
-**Configured value: `${user_config.quiet_auto_update_marketplaces}`**. The unset placeholder token,
-or nothing, means no names: leave the flag out.
+**Configured value: `${user_config.quiet_auto_update_marketplaces}`**.
 
 ## Next
 

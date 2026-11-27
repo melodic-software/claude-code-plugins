@@ -362,14 +362,24 @@ write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source":
 write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
 setup_case "$case_dir"
 EXTRA_ENV=()
+out=$(run_sync "$case_dir" --marketplace market1 --audit --install-new sometimes)
+assert_eq "invalid policy: a real word other than all, none or ask falls back to ask and is named" \
+  "ask sometimes" "$(jq -r '"\(.install_new) \(.install_new_invalid)"' <<<"$out")"
 # shellcheck disable=SC2016  # the unrendered placeholder token is the literal input under test
-out=$(run_sync "$case_dir" --marketplace market1 --audit --install-new '${user_config.install_new}')
+out=$(run_sync "$case_dir" --marketplace market1 --audit --install-new '${user_config.install_new}' \
+  --source-pull '${user_config.directory_source_pull}' \
+  --quiet-auto-update '${user_config.quiet_auto_update_marketplaces}')
 rc=$?
 assert_exit "audit: exit 0" 0 "$rc"
-assert_eq "invalid policy: falls back to ask" "ask" "$(jq -r '.install_new' <<<"$out")"
+assert_eq "unset placeholders: install_new and source_pull run as ask, neither named invalid, no quiet names" \
+  'ask null ask null []' \
+  "$(jq -c -r '"\(.install_new) \(.install_new_invalid) \(.source_pull) \(.source_pull_invalid) \(.quiet_auto_update)"' <<<"$out")"
+# shellcheck disable=SC2016  # another key's placeholder token is not this option's unset state
+out2=$(run_sync "$case_dir" --marketplace market1 --audit --install-new '${user_config.directory_source_pull}')
 # shellcheck disable=SC2016  # the unrendered placeholder token is the literal expected value
-assert_eq "invalid policy: the value is named, not swallowed" '${user_config.install_new}' \
-  "$(jq -r '.install_new_invalid' <<<"$out")"
+assert_eq "unset placeholders: another key's token is still an invalid policy, named back" \
+  'ask ${user_config.directory_source_pull}' \
+  "$(jq -r '"\(.install_new) \(.install_new_invalid)"' <<<"$out2")"
 assert_eq "audit: mode is audit" "audit" "$(jq -r '.mode' <<<"$out")"
 assert_eq "audit: zero claude invocations" "0" "$(wc -l <"$case_dir/claude.log" | tr -d ' ')"
 assert_eq "audit: refresh is a prediction" "true" "$(jq -r '.marketplaces[0].refresh.predicted' <<<"$out")"

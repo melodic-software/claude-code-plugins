@@ -105,6 +105,8 @@ issuing it, and leaves nothing behind.
 its refresh, only when the checkout is clean, tracking, not ahead and behind.
 --update-other-paths updates the lagging records of every other present path, one
 call per record; without it they are counted in the report and left alone.
+--install-new, --source-pull and --quiet-auto-update each also take their
+userConfig key's unrendered ${user_config.<key>} token, read as the default.
 
 Exit: 0 the run completed (per-marketplace and per-id failures are in the digest);
 2 usage error, jq missing, or a run-level failure that left no digest.
@@ -199,6 +201,15 @@ if ((ALL == 1)) && [[ -n "$TARGET_MP" ]]; then
   exit 2
 fi
 
+if [[ "$INSTALL_NEW" == "\${user_config.install_new}" ]]; then
+  INSTALL_NEW="ask"
+fi
+if [[ "$SOURCE_PULL" == "\${user_config.directory_source_pull}" ]]; then
+  SOURCE_PULL="ask"
+fi
+if [[ "$QUIET_AUTO_UPDATE" == "\${user_config.quiet_auto_update_marketplaces}" ]]; then
+  QUIET_AUTO_UPDATE=""
+fi
 case "$INSTALL_NEW" in
   all | none | ask) ;;
   *)

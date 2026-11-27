@@ -109,23 +109,19 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
    "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-run.sh \
      [--marketplace <name> | --all] \
      --journal-root "${CLAUDE_PLUGIN_DATA}/plugins-sync/runs" \
-     --install-new <policy> --source-pull <pull> [--quiet-auto-update <names>] \
+     --install-new '<policy>' --source-pull '<pull>' --quiet-auto-update '<names>' \
      [--allow-downgrade] [--update-other-paths] --render
    ```
 
-   `<pull>` is the word from the **Configured value** line under "userConfig:
-   `directory_source_pull`", and `ask` while that line shows the unset placeholder token. Pass
-   `never` instead when the session is autonomous or you cannot tell a human is present.
-   `--quiet-auto-update` takes the names from the **Configured value** line under "userConfig:
-   `quiet_auto_update_marketplaces`"; leave the flag out while that line shows the placeholder
-   token or nothing.
-
-   `<policy>` is the word from the **Configured value** line under "userConfig: `install_new`"
-   below: `all`, `none`, or `ask`, and `ask` when that line still shows the unset placeholder
-   token. Pass the word, never the token: a placeholder inside a command is a shell substitution
-   error, not a policy. Any other value is treated as `ask` and named back in the digest's
-   `install_new_invalid` so the report can flag it, on the first pass and on an `--only-install`
-   re-entry alike.
+   `<policy>`, `<pull>` and `<names>` are the text of the **Configured value** lines under
+   "userConfig: `install_new`", "userConfig: `directory_source_pull`" and "userConfig:
+   `quiet_auto_update_marketplaces`" below, copied verbatim inside the single quotes, whether
+   that text is a word or the unset placeholder token: the quotes keep the shell from expanding
+   a token, and the script reads each option's own token as its default. Pass `--source-pull
+   never` instead when the session is autonomous or you cannot tell a human is present. A
+   policy or pull value the script does not know runs as `ask` and is named back in the
+   digest's `install_new_invalid` or `source_pull_invalid` for the report, on the first pass and
+   on an `--only-install` re-entry alike.
 
 2. **Read the output.** The first line is one compact JSON digest, also written to
    `<run_dir>/digest.json`; after a blank line comes the rendered report, also written to
@@ -302,8 +298,8 @@ record; for option types and fixed options, see
   disabled by default stays off and is reported
 - `none`. Report them in "Action needed" only, never install
 
-Any explicitly-set value other than these three is invalid; treat it as `ask` and note the invalid
-value in the report.
+Any explicitly-set value other than these three is invalid; the script runs it as `ask` and names
+it in the report.
 
 With the `all` marketplace target, `sync-run.sh` holds an `all` install gap the way it stops for
 `ask` (`stopped_before_install: true`, `install_held: "all-target"`) and installs nothing; a person
@@ -333,13 +329,9 @@ literal placeholder". Read it when the rendered value looks wrong or before re-r
 Substitution into content happens in what Claude Code renders, and never in a file a spoke read
 returns, which is why the **Configured value** line lives here and cannot move to a spoke. So for
 the common default-config user, with no `pluginConfigs` set anywhere, the **Configured value** line
-above still shows that literal placeholder token, not `ask`.
-
-Read that literal placeholder token as the **expected unset state → use the default `ask`**, and do not
-report it as an invalid value. Only a rendered value that is a real word other than
-`ask`/`all`/`none` (i.e. the key *was* set, to something unsupported) is the invalid-value case worth
-flagging. Sync's Step 4 branches on the **Configured value** line's rendered value, or on the `ask`
-default when that render is still the placeholder token, not on the option's name or description above.
+above still shows that literal placeholder token. Pass the line's text as it stands, per step 1 of
+"Running `sync`": `sync-run.sh` reads the token as the default and flags only a set word it does
+not know.
 
 ## userConfig: `directory_source_pull`
 
@@ -347,20 +339,18 @@ What `sync` does with a `directory` marketplace whose git checkout is clean (no 
 files), on a branch with an upstream, not ahead of it and behind it. A `string` with the picker
 values below, default `"ask"`, read and rendered the same way as `install_new` above:
 
-- `ask` (default). Pass `--source-pull ask`; the digest marks such a checkout `offered`, and
+- `ask` (default). The digest marks such a checkout `offered`, and
   step 3 of "Running `sync`" asks once per marketplace and reruns with
   `--pull-source` on a yes. A dirty, ahead, diverged, detached or upstream-less checkout is never
   offered, and the script refuses a `--pull-source` for one, so the pull cannot discard or tangle
   local work.
-- `never`. Pass `--source-pull never`; nothing is offered or pulled, and the report keeps its
-  pull-and-rerun bullet.
+- `never`. Nothing is offered or pulled, and the report keeps its pull-and-rerun bullet.
 
 An autonomous or ambiguous session behaves as `never` whatever the value: no human can answer the
 offer there. The script applies the same rule on its own when `CLAUDE_CODE_REMOTE` is set. A word
-other than these two is treated as `ask` and named in the report.
+other than these two runs as `ask` and is named in the report.
 
-**Configured value: `${user_config.directory_source_pull}`**. The unset placeholder token here
-means the default, `ask`.
+**Configured value: `${user_config.directory_source_pull}`**.
 
 ## userConfig: `update_other_paths`
 
@@ -377,10 +367,9 @@ default, `false`.
 
 Comma-separated marketplace names whose `Marketplace:` line shows `autoUpdate: off` without the
 suggestion to enable it, for a marketplace the user keeps off on purpose. A `string`, default
-empty, which keeps the suggestion everywhere. Pass the names as `--quiet-auto-update`.
+empty, which keeps the suggestion everywhere. Pass the line's text as `--quiet-auto-update`.
 
-**Configured value: `${user_config.quiet_auto_update_marketplaces}`**. The unset placeholder token
-here, or nothing, means no names: leave the flag out.
+**Configured value: `${user_config.quiet_auto_update_marketplaces}`**.
 
 For the option fields, the picker and where a value is stored, see
 [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).

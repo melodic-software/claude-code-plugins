@@ -80,8 +80,8 @@ step's prose, is what to branch on:
 `ask`** (the flag: [CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags)).
 `pluginConfigs` is read from user settings, `--settings`, and managed settings only (see
 [scope-semantics.md](scope-semantics.md)), so dropping `user` from the source list drops the
-configured `install_new` with it, and the render falls back to the unset placeholder, which this
-step correctly reads as `ask`. That is the right fallback and the wrong silence: say so in the
+configured `install_new` with it, and the render falls back to the unset placeholder, which `sync-run.sh`
+correctly reads as `ask`. That is the right fallback and the wrong silence: say so in the
 report rather than letting a policy the user set appear to have been honored.
 
 **Caveat (document, don't silently absorb):** with `install_new: all`, a plugin this step installed
