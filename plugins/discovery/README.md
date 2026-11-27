@@ -175,8 +175,6 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `research_recency_standard_days` | number<br>*min 1* | `30` | Recency window /discovery:research applies to a standard library, tool, CLI or API. Default 30. docs/conventions/discovery.yaml overrides this. |
 | `research_recency_guide_days` | number<br>*min 1* | `90` | Recency window /discovery:research applies to a tool- or vendor-specific architecture guide. Default 90. docs/conventions/discovery.yaml overrides this. |
 | `medium` | string | `"auto"` | Where the /discovery:blindspot view goes. auto (default): a local file. terminal: no page; file: a local file; artifact: a private Artifact; hosted = artifact. A terminal or file value in any rendered-views setting wins over this option. |
-| `transcript_sources_file` | file | *(none)* | JSON file of the Claude Code configuration directories this plugin's transcript-mining skills read, here and on hosts reached over ssh. Unset: only this host's, CLAUDE_CONFIG_DIR or ~/.claude. A missing file falls back to that with a warning; a malformed one stops the run. |
-| `redact_identifiers` | string | *(none)* | Comma-separated names and paths the publish redactor also replaces in reports this plugin's transcript-mining scripts publish. Empty adds none. |
 
 ### How to set these
 

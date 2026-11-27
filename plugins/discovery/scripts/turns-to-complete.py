@@ -150,8 +150,8 @@ def main() -> int:
     ap.add_argument("--since", type=date.fromisoformat, metavar="YYYY-MM-DD")
     ap.add_argument("--ceiling", type=int, default=40, help="turn ceiling (default 40)")
     ap.add_argument("--json", action="store_true", help="emit JSON instead of markdown")
-    ap.add_argument("--sources-file", default="", help="the transcript_sources_file option, whose identifiers markdown redacts")
-    ap.add_argument("--redact-identifiers", default="", help="the redact_identifiers option: more names and paths markdown redacts")
+    ap.add_argument("--sources-file", default="", help="a transcript sources file, whose identifiers markdown redacts")
+    ap.add_argument("--redact-identifiers", default="", help="comma-separated names and paths markdown also redacts")
     ap.add_argument("--diagnostics-dir", help="write a lookup gap here as a diagnostics record")
     args = ap.parse_args()
 
