@@ -7,6 +7,7 @@ import { test } from "node:test";
 
 import { ARM_MUTATION, AUTO_MERGE_STATE_QUERY, DETAIL_QUERY, DISARM_MUTATION, PULLS_QUERY, WAKE_OUTPUT, decideTrusted, main, pinBody, pinMoved, pinned, pythonLaneSource, pythonVerify } from "./enable-auto-merge.mjs";
 import { COMMENT_EDITED_QUERY, LANES_APP_LOGIN, PULL_OPENED_QUERY, pinHold } from "./merge-holds.mjs";
+import { GitHubError } from "../lib/github-client.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -104,6 +105,9 @@ async function run(pulls, { env = {}, verdicts = {}, laneSource, fail = {}, room
       return { data: { repository: { pullRequests: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: pulls } } } };
     }
     if (method === "POST" && path === "/graphql" && body.query === ARM_MUTATION) {
+      if (fail.firstArm && calls.filter(({ query }) => query === ARM_MUTATION).length === 1) {
+        throw new GitHubError(422, "POST /graphql");
+      }
       if (fail.arm) {
         throw new Error("POST /graphql failed with status 502");
       }
@@ -202,6 +206,22 @@ test("the trusted arm counts against merge.max-in-flight: none at 5 of 5 in flig
   const room = await run(six(), { room: { ...ROOM, count: 3, cap: 5 } });
   assert.equal(armedHeads(room), 2, room.lines.join("\n"));
   assert.equal(room.lines.filter((line) => / trusted author: left: merge\.max-in-flight is 5 and 5 merges are in flight$/.test(line)).length, 4, "the four after the cap are refused with its reason");
+});
+
+test("a trusted pull request armed in an earlier sweep and not yet queued holds its slot: at 4 of 5 it fills the fifth, and no clean one arms", async () => {
+  const earlier = clean({ number: 510, id: "PR_510", autoMergeRequest: { enabledAt: "2026-11-27T14:00:00Z" }, isInMergeQueue: false });
+  const result = await run([earlier, ...six().slice(0, 2)], { room: { ...ROOM, count: 4, cap: 5 } });
+  assert.equal(armedHeads(result), 0, result.lines.join("\n"));
+  for (const number of [501, 502]) {
+    assert.match(leftLine(result, number), /trusted author: left: merge\.max-in-flight is 5 and 5 merges are in flight$/, `#${number} is refused at the cap`);
+  }
+});
+
+test("an arm GitHub refuses on its first send gives its slot back: at 4 of 5 the second clean trusted pull request still arms", async () => {
+  const result = await run(six().slice(0, 2), { room: { ...ROOM, count: 4, cap: 5 }, fail: { firstArm: true } });
+  assert.equal(armedHeads(result), 2, result.lines.join("\n"));
+  assert.equal(result.lines.filter((line) => /trusted author: arm not made, skipped this run: /.test(line)).length, 1, "the refused arm is skipped with a warning");
+  assert.equal(result.lines.filter((line) => /trusted author: armed at /.test(line)).length, 1, "the other one arms in the freed slot");
 });
 
 test("a rung or post-merge refusal, or a room that does not read, arms no trusted pull request", async () => {

@@ -2367,9 +2367,11 @@ fails refuses, with the reason on the run's `left:` line, with one exception: an
 whose comments do not read stays armed, its pin unchecked this run, and the merge queue's `pinHold`
 still holds it if its pin went stale. Each arm counts against the lane room the lanes path reads
 (`lane-room`): a rung or post-merge refusal, a room that does not read, or `merge.max-in-flight`
-reached refuses it with that reason and posts no pin, and each arm sent in a sweep counts as in
-flight for the next. Just before the arm it posts the lanes
-App's `<!-- babysit-merge-pin sha=... -->` comment for that head, unless its newest pin already
+reached refuses it with that reason and posts no pin. A trusted person's pull request armed in an
+earlier sweep and not yet queued counts as in flight, as a lanes App one does. Each arm the sweep
+attempts holds a slot for the rest of the sweep, even when its pin does not post or the arm fails;
+only an arm GitHub refuses on its first send gives its slot back. Just before the arm it posts
+the lanes App's `<!-- babysit-merge-pin sha=... -->` comment for that head, unless its newest pin already
 names it, and posts no label or status. GitHub keeps the arm through a push by
 someone with write access, so the merge queue's `ci-status` holds any pull request whose newest
 lanes App pin names another head, or was edited, or whose edit time does not read, whoever opened it
