@@ -1,0 +1,1 @@
+^#![[:blank:]]*/([^[:space:]]*/)?(env[[:blank:]]+(-S[[:blank:]]+)?)?(sh|bash|dash|zsh|node|python3)([[:space:]]|$)

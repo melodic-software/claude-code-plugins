@@ -75,6 +75,14 @@ line_count=$(printf '%s\n' "$out" | grep -c .)
 assert_exit "capped run exits 0" 0 "$rc"
 assert_equal "cap of 1 emits 1 line" 1 "$line_count"
 
+MANY="$TEST_TMPDIR/many"
+make_repo "$MANY"
+for i in $(seq 1 400); do printf 'x\n' >"$MANY/f$i.ts"; done
+err=$(cd "$MANY" && trap '' PIPE && bash "$SCRIPT" 1 2>&1 >/dev/null)
+out=$(cd "$MANY" && trap '' PIPE && bash "$SCRIPT" 1 2>/dev/null)
+assert_equal "cap of 1 over 400 files emits 1 line" 1 "$(printf '%s\n' "$out" | grep -c .)"
+assert_equal "cap closing the pipe writes nothing to stderr" "" "$err"
+
 CLEAN="$TEST_TMPDIR/clean"
 make_repo "$CLEAN"
 printf 'base\n' >"$CLEAN/a.ts"
@@ -94,10 +102,14 @@ assert_exit "outside a repo exits 1" 1 "$rc"
 
 UNION="$TEST_TMPDIR/union"
 make_repo "$UNION"
-for ext in cs ts tsx js jsx py sh ps1 go rs java rb lua sql c h cpp hpp yaml yml toml mts cts mjs cjs pyi bash psm1; do
+for ext in cs ts tsx js jsx py sh ps1 go rs java rb lua sql c h cpp hpp yaml yml toml mts cts mjs cjs pyi bash psm1 awk css scss html htm xml jsonc psd1 kt cc; do
   printf 'x\n' >"$UNION/f.$ext"
 done
 printf 'x\n' >"$UNION/notes.txt"
+printf 'root = true\n' >"$UNION/.editorconfig"
+printf '#!/usr/bin/env python3\n' >"$UNION/tool"
+printf '#!/usr/bin/perl\n' >"$UNION/old"
+printf '#!/bin/dash\n' >"$UNION/dsh"
 out=$(cd "$UNION" && bash "$SCRIPT" 100 2>&1)
 rc=$?
 assert_exit "one file per extension exits 0" 0 "$rc"
@@ -105,11 +117,15 @@ lines=$'\n'"$out"$'\n'
 for ext in cs ts tsx js jsx py sh ps1 go rs java rb lua sql c h cpp hpp yaml yml toml; do
   assert_contains "characterization: f.$ext listed" "$lines" $'\n'"f.$ext"$'\n'
 done
-for ext in mts cts mjs cjs pyi bash psm1; do
+for ext in mts cts mjs cjs pyi bash psm1 awk css scss html htm xml jsonc psd1 kt cc; do
   assert_contains "added extension: f.$ext listed" "$lines" $'\n'"f.$ext"$'\n'
 done
 assert_absent "a .txt file is still excluded" "$out" "notes.txt"
-assert_equal "28 code files listed" 28 "$(printf '%s\n' "$out" | grep -c .)"
+assert_contains "an extensionless python3 script is listed" "$lines" $'\n'"tool"$'\n'
+assert_contains "a .editorconfig is listed" "$lines" $'\n'".editorconfig"$'\n'
+assert_absent "a perl script is excluded" "$lines" $'\n'"old"$'\n'
+assert_contains "an extensionless dash script is listed" "$lines" $'\n'"dsh"$'\n'
+assert_equal "41 code files listed" 41 "$(printf '%s\n' "$out" | grep -c .)"
 
 
 LONE="$TEST_TMPDIR/lone"

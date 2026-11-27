@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/code-tidying/skills/remove-comments/actions/audit.md plugins/code-tidying/scripts/generated-marker.ere
+# test-scope: plugins/code-tidying/skills/remove-comments/actions/audit.md plugins/code-tidying/scripts/generated-marker.ere plugins/code-tidying/scripts/code-extensions.txt plugins/code-tidying/scripts/code-shebang.ere
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -902,6 +902,42 @@ if [[ "$cost_added" =~ ^[0-9]+$ ]] && ((cost_added <= 10)); then
 else
   fail "--added-since detection calls track the added lines, not the file length" "at most 10" "$cost_added"
 fi
+
+shared="$TEST_TMPDIR/shared"
+mkdir -p "$shared"
+printf '#!/usr/bin/env bash\nx=1\n' >"$shared/tool"
+printf '#!/usr/bin/perl\n' >"$shared/old"
+printf 'a { }\n' >"$shared/UPPER.CSS"
+printf '<p>x</p>\n' >"$shared/page.html"
+printf 'x\n' >"$shared/legacy.kt"
+printf 'x\n' >"$shared/legacy.cc"
+printf 'x\n' >"$shared/notes.txt"
+kept="$(
+  # shellcheck source=lib/comment-shapes.sh
+  source "$SCRIPT_DIR/lib/comment-shapes.sh"
+  for f in tool old UPPER.CSS page.html legacy.kt legacy.cc notes.txt; do cr_is_code_file "$shared/$f" && printf '%s ' "$f"; done
+)"
+assert_contains "cr_is_code_file reads the shared extension list and shebang admission" "$kept" "tool UPPER.CSS page.html legacy.kt legacy.cc "
+assert_not_contains "cr_is_code_file admits no perl script" "$kept" "old"
+assert_not_contains "cr_is_code_file admits no unlisted extension" "$kept" "notes.txt"
+
+gitdir="$TEST_TMPDIR/gitdir"
+mkdir -p "$gitdir/.git/hooks" "$gitdir/src/.git"
+printf '#!/bin/sh\n# this used to be a list\n' >"$gitdir/.git/hooks/pre-commit"
+printf '#!/bin/sh\n# this used to be a list\n' >"$gitdir/src/.git/pre-push"
+printf '#!/bin/sh\n# this used to be a list\n' >"$gitdir/src/run.sh"
+gitdir_out="$(bash "$DETECT" "$gitdir")"
+assert_contains "a directory target audits its own code files" "$gitdir_out" "Summary file: $gitdir/src/run.sh"
+assert_not_contains "a directory target never reads a file under a .git segment" "$gitdir_out" "/.git/"
+gitfile_out="$(bash "$DETECT" "$gitdir/.git/hooks/pre-commit")"
+assert_not_contains "a file target under a .git segment is not audited" "$gitfile_out" "Summary file:"
+html="$(
+  # shellcheck source=lib/comment-shapes.sh
+  source "$SCRIPT_DIR/lib/comment-shapes.sh"
+  cr_comment_text '<p>x</p> <!-- a note -->'
+  printf '%s' "$REPLY"
+)"
+assert_contains "cr_comment_text reads an HTML comment's text" "[$html]" "[ a note ]"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed, %d host skip(s).\n' "$CASE_NUM" "$SKIPPED"
