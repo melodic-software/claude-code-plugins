@@ -136,6 +136,10 @@ report() {
     printf '%s: no readable run file: %s\n' "$PROG" "$f"
     return 1
   fi
+  if ! grep -q '"type":"run"' "$f"; then
+    printf '%s: run did not finish (no closing run line), so it has no totals: %s\n' "$PROG" "$f"
+    return 1
+  fi
   if command -v jq >/dev/null 2>&1; then
     jq -rs "$REPORT_JQ" "$f"
   elif command -v python3 >/dev/null 2>&1; then
@@ -263,13 +267,6 @@ if $use_log; then
   fi
 fi
 
-mkdir -p "$runs_dir" "$state_dir/reviews"
-find "$runs_dir" "$state_dir/reviews" -maxdepth 1 -type f -name '*.jsonl' -mtime +14 -delete 2>/dev/null || true
-t_now="$EPOCHREALTIME"
-TZ=UTC0 printf -v run_stamp '%(%Y%m%dT%H%M%S)T' "${t_now%[.,]*}"
-run_file="$runs_dir/$run_stamp.${t_now#*[.,]}Z.jsonl"
-: >"$run_file"
-
 export GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never
 
 scripts="${WORKTREE_REAP_SCRIPTS:-$SCRIPT_DIR}"
@@ -311,6 +308,13 @@ if ((${#roots[@]} == 0)); then
   printf '%s: no worktree root resolved; nothing to do\n' "$PROG"
   exit 0
 fi
+
+mkdir -p "$runs_dir" "$state_dir/reviews"
+find "$runs_dir" "$state_dir/reviews" -maxdepth 1 -type f -name '*.jsonl' -mtime +14 -delete 2>/dev/null || true
+t_now="$EPOCHREALTIME"
+TZ=UTC0 printf -v run_stamp '%(%Y%m%dT%H%M%S)T' "${t_now%[.,]*}"
+run_file="$runs_dir/$run_stamp.${t_now#*[.,]}Z.jsonl"
+: >"$run_file"
 
 mode=reap
 $dry_run && mode=dry-run

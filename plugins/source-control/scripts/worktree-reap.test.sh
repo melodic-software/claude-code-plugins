@@ -499,6 +499,15 @@ assert_eq "record: a 15-day-old run file is deleted" "no" "$([[ -e "$RUNS/202001
 assert_eq "record: a 15-day-old review file is deleted" "no" "$([[ -e "$REVIEWS/20200101T000000.000000Z.1.jsonl" ]] && echo yes || echo no)"
 assert_eq "record: a 13-day-old run file is kept" "yes" "$([[ -e "$RUNS/20200102T000000.000000Z.jsonl" ]] && echo yes || echo no)"
 
+BEFORE_NOROOT="$(latest_run)"
+bash "$REAP" --no-log --root "$TEST_TMPDIR/no-such-root" >/dev/null 2>&1
+assert_eq "record: a run with no resolvable root writes no run file" "$BEFORE_NOROOT" "$(latest_run)"
+: >"$RUNS/20990101T000000.000000Z.jsonl"
+UNFINISHED_OUT="$(bash "$REAP" --report 2>&1)"
+assert_exit "record: --report on a run file with no run line exits 1" 1 "$?"
+assert_contains "record: --report names an unfinished run" "$UNFINISHED_OUT" "run did not finish"
+rm -f "$RUNS/20990101T000000.000000Z.jsonl"
+
 REPORT_OUT="$(bash "$REAP" --report "$RUN_DRY" 2>&1)"
 assert_eq "record: report verdict counts equal the record's" \
   "verdicts: $(jq -rs '[.[] | select(.type == "worktree")] | group_by(.verdict) | map("\(.[0].verdict)=\(length)") | join(" ")' "$RUN_DRY")" \
@@ -517,7 +526,8 @@ assert_eq "report: the run line names every phase" "carried,fetch,landed-work,re
   "$(tail -n 1 "$RUN_WORK" | jq -r '.phases_ms | keys | join(",")')"
 assert_eq "report: phase times are integers" "true" \
   "$(tail -n 1 "$RUN_WORK" | jq '[.phases_ms[] | type == "number" and . == floor] | all')"
-if locale -a 2>/dev/null | grep -qix 'de_DE.utf8'; then
+LOCALES="$(locale -a 2>/dev/null)"
+if grep -qix 'de_DE.utf8' <<<"$LOCALES"; then
   RUN_DE="$(LC_ALL=de_DE.UTF-8 run_reap --root "$ROOT_MISS" --dry-run)"
   assert_eq "report: phase times stay integers under a comma-decimal locale" "true" \
     "$(tail -n 1 "$RUN_DE" | jq '[.phases_ms[] | type == "number" and . == floor] | all')"
