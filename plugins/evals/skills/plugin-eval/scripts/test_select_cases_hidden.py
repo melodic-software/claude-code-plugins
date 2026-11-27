@@ -362,12 +362,36 @@ class SelectCasesHiddenTest(unittest.TestCase):
         block = self._select(SETUP, "# Prints the fixture.\n", "")
         self.assert_free(block, "set -euo pipefail sets options, not arguments")
 
-    def test_positional_copy_called_with_too_few_arguments_still_runs(self):
-        for call in ('bash "$(dirname "$0")/../fixtures/seed.sh"\n', 'bash "$(dirname "$0")/../fixtures/seed.sh" a.txt out/a b.txt\n'):
+    def test_positional_copy_after_an_unguarded_shift_still_runs(self):
+        for extra in ("shift\n", "shift 3\n"):
+            with self.subTest(extra=extra):
+                self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" a.txt out/a\n')
+                seed = self.repo / "plugins/alpha/evals/fixtures/seed.sh"
+                seed.write_text(seed.read_text(encoding="utf-8").replace("while", extra + "while", 1), encoding="utf-8")
+                _commit_all(self.repo, "shift")
+                _git(self.repo, "branch", "-f", "base", "HEAD")
+                block = self._select(SETUP, "# Prints the fixture.\n", "")
+                self.assert_runs(block, "the extra shift can leave src empty")
+
+    def test_unguarded_positional_copy_called_with_too_few_arguments_still_runs(self):
+        for call in ("", " out/a"):
             with self.subTest(call=call):
-                self._positional_base(call)
+                self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh"%s\n' % call)
+                seed = self.repo / "plugins/alpha/evals/fixtures/seed.sh"
+                seed.write_text(
+                    '#!/usr/bin/env bash\nfixtures="$(dirname "${BASH_SOURCE[0]}")"\n'
+                    'dest="$1"\nsrc="$2"\ncp -r "$fixtures/$src" "$dest"\n',
+                    encoding="utf-8",
+                )
+                _commit_all(self.repo, "unguarded")
+                _git(self.repo, "branch", "-f", "base", "HEAD")
                 block = self._select(SETUP, "# Prints the fixture.\n", "")
                 self.assert_runs(block, "an empty src copies the whole fixtures folder")
+
+    def test_guarded_positional_copy_called_with_no_arguments_is_no_run(self):
+        self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh"\n')
+        block = self._select(SETUP, "# Prints the fixture.\n", "")
+        self.assert_free(block, "the while guard never reads a missing argument")
 
     def test_positional_copy_naming_the_helper_still_runs(self):
         self._positional_base('bash "$(dirname "$0")/../fixtures/seed.sh" setup.sh out/s\n')

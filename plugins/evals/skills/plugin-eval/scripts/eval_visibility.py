@@ -274,7 +274,8 @@ def _sets_positional_args(code):
 def _positional_copy_is_safe(fpath, text, line, target, eval_norm):
     """`line` of the shell script `fpath` is `cp "$dir/$var" "<dest>"` with `$dir` a resolved
     folder and `$var` set only from positional arguments, every call of the script passes each
-    argument those assignments read (a whole number of them per `shift` loop), and no literal
+    argument those assignments read, or the one `shift` is a `while [[ $# -ge N ]]` loop's own
+    `shift N` right after the assignment, and no literal
     argument names `target` or a folder holding it under that folder."""
     copy = POSITIONAL_COPY_RE.match(line.strip())
     if not copy:
@@ -313,8 +314,15 @@ def _positional_copy_is_safe(fpath, text, line, target, eval_norm):
     if calls is None:
         return False
     read = max(int(n) for c in (code_lines[n] for n in var_lines) for n in re.findall(r"\$\{?([1-9])", c))
-    loops = re.search(r"\bshift\b", code)
-    if any(len(call) < read or loops and len(call) % read for call in calls):
+    shifts = re.findall(r"\bshift\b", code)
+    guarded = re.search(
+        r"^\s*while \[\[ \$# -ge %d \]\]; do\n\s*%s\n\s*shift %d\n" % (read, re.escape(code_lines[var_lines[0]].strip()), read),
+        code,
+        re.M,
+    )
+    if shifts and not (len(shifts) == 1 and len(var_lines) == 1 and guarded):
+        return False
+    if not shifts and any(len(call) < read for call in calls):
         return False
     for word in (word for call in calls for word in call):
         named = os.path.normpath(os.path.join(folder, word))
