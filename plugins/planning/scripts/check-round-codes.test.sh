@@ -720,6 +720,34 @@ round basis-judgment-only-ctx.md \
   '➡️ My recommendation: **no, keep logs quiet**'
 runx "a recommendation whose Context only has (judgment) lines and no Basis fails" 1 empty-ledger.md basis-judgment-only-ctx.md '^basis=5:missing$'
 
+round basis-ctx-unverified.md \
+  'Scope check: 1 questions asked so far' \
+  '❓ Q1 (cache): **Where should the counters live?**' \
+  'Context:' \
+  '1. Redis has enough capacity (unverified).' \
+  '➡️ My recommendation: **Redis.**' \
+  'Basis: verified, Context 1'
+runx "Basis citing an (unverified) numbered Context line fails" 1 empty-ledger.md basis-ctx-unverified.md '^basis=6:uncheckable$'
+
+round basis-ctx-arbitrary-parens.md \
+  'Scope check: 1 questions asked so far' \
+  '❓ Q1 (cache): **Where should the counters live?**' \
+  'Context:' \
+  '1. Redis has enough capacity (estimated by team).' \
+  '➡️ My recommendation: **Redis.**' \
+  'Basis: verified, Context 1'
+runx "Basis citing a numbered Context line with arbitrary parenthetical prose fails" 1 empty-ledger.md basis-ctx-arbitrary-parens.md '^basis=6:uncheckable$'
+
+round flips-if-concise.md \
+  'Scope check: 1 questions asked so far' \
+  '❓ Q1 (cache): **Where should the counters live?**' \
+  'Context:' \
+  '1. Redis 7 is already deployed for sessions (user, round 1).' \
+  '➡️ My recommendation: **the existing Redis 7 instance.**' \
+  'Basis: verified, Context 1' \
+  'Flips if: writes fail.'
+runx "concise confirmable Flips if condition passes" 0 empty-ledger.md flips-if-concise.md 'bare=0 status=ok structure=0$'
+
 TERMS_SAMPLES="$EVALS_DIR/interview-context-unfamiliar-term-upstream/samples/answerable-without-follow-up.json"
 for kind in pass fail; do
   count="$(python3 -c 'import json, sys; print(len(json.load(open(sys.argv[1], encoding="utf-8"))[sys.argv[2]]))' "$TERMS_SAMPLES" "$kind")"

@@ -494,9 +494,10 @@ LC_ALL=C awk '
   }
   function is_ctx_line_sourced(line,    low) {
     low = tolower(line)
-    if (low ~ /\([ \t]*judgment[ \t]*\)[ \t.]*$/ || low ~ /(^|[^a-z])judgment[ \t.]*$/) return -1
+    if (low ~ /\([ \t]*(judgment|unverified|assumption|assumed|unconfirmed|guess|unknown|tbd)[ \t]*\)[ \t.]*$/ ||
+      low ~ /(^|[^a-z])(judgment|unverified)[ \t.]*$/) return -1
     if (has_file_line(line) || has_url(line) || has_user_source(low) || has_tool_check_with_result(low)) return 1
-    if (line ~ /\([^()]*[A-Za-z][^()]*\)[ \t.]*$/) return 1
+    if (low ~ /\([ \t]*(survey|glob|grep|git[ \t]+[a-z]+|read|command|tool)[ \t]*,[ \t]*this[ \t]+session[ \t]*\)[ \t.]*$/) return 1
     return 0
   }
   function cites_sourced_context(s,    low, rest, k, i) {
@@ -524,13 +525,12 @@ LC_ALL=C awk '
     if (has_file_line(s) || has_url(s) || has_user_source(low) || has_tool_check_with_result(low)) return 1
     return 0
   }
-  function is_uncheckable_flip(body,    s, nw, fw) {
+  function is_uncheckable_flip(body,    s) {
     s = tolower(body)
     gsub(/^[ \t]+|[ \t.]+$/, "", s)
-    nw = split(s, fw, /[ \t]+/)
-    if (nw < 3) return 1
+    if (s == "") return 1
     if (s ~ /^(things|requirements|circumstances|needs|priorities|plans|it|something)[ \t]+(change|changes|differ|differs)$/) return 1
-    if (s ~ /^(if[ \t]+needed|if[ \t]+required|otherwise|you[ \t]+prefer[ \t]+otherwise|you[ \t]+disagree|tbd|none|n\/a)$/) return 1
+    if (s ~ /^(if[ \t]+needed|if[ \t]+required|otherwise|you[ \t]+prefer[ \t]+otherwise|you[ \t]+disagree|it[ \t]+depends|tbd|none|n\/a|unknown|unclear|maybe|later|varies|depends)$/) return 1
     return 0
   }
   FNR == 1 && NR > 1 && in_fence { exit 4 }
