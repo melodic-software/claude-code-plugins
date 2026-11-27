@@ -120,8 +120,8 @@ path. Rows the user already has are the report: quote them as given and never ch
 The new-catalog-plugin policy `sync` would apply, which the audit predicts against: `ask`
 (default; the gap is reported for the user to choose from), `all` (would install every
 not-yet-installed catalog plugin) or `none` (reported only). Under `all` with the `all` target,
-the predicted install gap is every plugin in every known catalog: state that count plainly, since
-`sync` would install all of it.
+the script predicts the hold `sync` applies: nothing installed, the gap under `Action needed` for a
+person to resolve through the ask offer.
 
 **Configured value: `${user_config.install_new}`**. The value renders only when the key is set in
 user settings, `--settings` or managed settings; an unset key leaves the literal placeholder token,

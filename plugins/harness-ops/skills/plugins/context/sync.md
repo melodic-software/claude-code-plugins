@@ -859,8 +859,9 @@ cannot stand in for `pre-enable.<mp>.json`. The two are never collapsed.
 non-empty, the script reports the gap and issues no install: the chunked prompt belongs to the
 model, which runs it and re-enters with `--only-install <the chosen ids>` against the same run
 directory. The digest says so in `stopped_before_install`, so a gap left unresolved is a reported
-state rather than a silent skip. Under `all` the gap is installed; under `none` it is reported and
-Step 5 still runs.
+state rather than a silent skip. Under `all` the gap is installed, except under `--all`, where the
+script stops the same way and sets `install_held: "all-target"` (kept on the re-entry's blocks);
+under `none` it is reported and Step 5 still runs.
 
 - **Step 4: install new catalog plugins.** Installs the `missing_from_user_install` ids at `user`
   scope per the configured `install_new` policy, then normalizes the user-scope `enabledPlugins`

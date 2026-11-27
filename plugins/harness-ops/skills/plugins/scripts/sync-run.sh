@@ -48,9 +48,9 @@ clock_into() {
   local __var="$1"
   local t
   case "$CLOCK_RESOLUTION" in
-  microseconds) t="${EPOCHREALTIME:-}" ;;
-  nanoseconds) t=$(LC_ALL=C date +%s.%N) ;;
-  *) t=$(date +%s) ;;
+    microseconds) t="${EPOCHREALTIME:-}" ;;
+    nanoseconds) t=$(LC_ALL=C date +%s.%N) ;;
+    *) t=$(date +%s) ;;
   esac
   printf -v "$__var" '%s' "${t//,/.}"
 }
@@ -117,77 +117,77 @@ need_value() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --marketplace)
-    need_value $# "--marketplace requires a name"
-    TARGET_MP="$2"
-    shift 2
-    ;;
-  --all)
-    ALL=1
-    shift
-    ;;
-  --audit)
-    MODE="audit"
-    shift
-    ;;
-  --allow-downgrade)
-    ALLOW_DOWNGRADE=1
-    shift
-    ;;
-  --render)
-    RENDER=1
-    shift
-    ;;
-  --install-new)
-    need_value $# "--install-new requires a value"
-    INSTALL_NEW="$2"
-    shift 2
-    ;;
-  --journal-root)
-    need_value $# "--journal-root requires a directory"
-    JOURNAL_ROOT="$2"
-    shift 2
-    ;;
-  --run-dir)
-    need_value $# "--run-dir requires a directory"
-    RUN_DIR="$2"
-    shift 2
-    ;;
-  --only-install)
-    need_value $# "--only-install requires an id list (an empty string is legal)"
-    ONLY_INSTALL="$2"
-    ONLY_INSTALL_MODE=1
-    shift 2
-    ;;
-  --source-pull)
-    need_value $# "--source-pull requires a value"
-    SOURCE_PULL="$2"
-    shift 2
-    ;;
-  --pull-source)
-    need_value $# "--pull-source requires marketplace names"
-    PULL_SOURCES="$2"
-    PULL_SOURCES_SET=1
-    shift 2
-    ;;
-  --quiet-auto-update)
-    need_value $# "--quiet-auto-update requires marketplace names"
-    QUIET_AUTO_UPDATE="$2"
-    shift 2
-    ;;
-  --update-other-paths)
-    UPDATE_OTHER_PATHS=1
-    shift
-    ;;
-  -h | --help)
-    usage
-    exit 0
-    ;;
-  *)
-    echo "ERROR: unknown argument: $1" >&2
-    usage >&2
-    exit 2
-    ;;
+    --marketplace)
+      need_value $# "--marketplace requires a name"
+      TARGET_MP="$2"
+      shift 2
+      ;;
+    --all)
+      ALL=1
+      shift
+      ;;
+    --audit)
+      MODE="audit"
+      shift
+      ;;
+    --allow-downgrade)
+      ALLOW_DOWNGRADE=1
+      shift
+      ;;
+    --render)
+      RENDER=1
+      shift
+      ;;
+    --install-new)
+      need_value $# "--install-new requires a value"
+      INSTALL_NEW="$2"
+      shift 2
+      ;;
+    --journal-root)
+      need_value $# "--journal-root requires a directory"
+      JOURNAL_ROOT="$2"
+      shift 2
+      ;;
+    --run-dir)
+      need_value $# "--run-dir requires a directory"
+      RUN_DIR="$2"
+      shift 2
+      ;;
+    --only-install)
+      need_value $# "--only-install requires an id list (an empty string is legal)"
+      ONLY_INSTALL="$2"
+      ONLY_INSTALL_MODE=1
+      shift 2
+      ;;
+    --source-pull)
+      need_value $# "--source-pull requires a value"
+      SOURCE_PULL="$2"
+      shift 2
+      ;;
+    --pull-source)
+      need_value $# "--pull-source requires marketplace names"
+      PULL_SOURCES="$2"
+      PULL_SOURCES_SET=1
+      shift 2
+      ;;
+    --quiet-auto-update)
+      need_value $# "--quiet-auto-update requires marketplace names"
+      QUIET_AUTO_UPDATE="$2"
+      shift 2
+      ;;
+    --update-other-paths)
+      UPDATE_OTHER_PATHS=1
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "ERROR: unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
   esac
 done
 
@@ -197,18 +197,18 @@ if ((ALL == 1)) && [[ -n "$TARGET_MP" ]]; then
 fi
 
 case "$INSTALL_NEW" in
-all | none | ask) ;;
-*)
-  INSTALL_NEW_INVALID="$INSTALL_NEW"
-  INSTALL_NEW="ask"
-  ;;
+  all | none | ask) ;;
+  *)
+    INSTALL_NEW_INVALID="$INSTALL_NEW"
+    INSTALL_NEW="ask"
+    ;;
 esac
 case "$SOURCE_PULL" in
-ask | never) ;;
-*)
-  SOURCE_PULL_INVALID="$SOURCE_PULL"
-  SOURCE_PULL="ask"
-  ;;
+  ask | never) ;;
+  *)
+    SOURCE_PULL_INVALID="$SOURCE_PULL"
+    SOURCE_PULL="ask"
+    ;;
 esac
 apply_pull_policy() {
   if [[ -n "${CLAUDE_CODE_REMOTE:-}" ]]; then
@@ -518,16 +518,16 @@ cli_move_result() {
   if [[ -n "$json" ]]; then
     jq_to outcome -r '.updateOutcome // ""' <<<"$json"
     case "$outcome" in
-    updated) printf -v "$__var" '%s' "updated" ;;
-    up_to_date) printf -v "$__var" '%s' "noop" ;;
-    *) printf -v "$__var" '%s' "other" ;;
+      updated) printf -v "$__var" '%s' "updated" ;;
+      up_to_date) printf -v "$__var" '%s' "noop" ;;
+      *) printf -v "$__var" '%s' "other" ;;
     esac
     return 0
   fi
   case "$text" in
-  *"updated from"*) printf -v "$__var" '%s' "updated" ;;
-  *"already at the latest version"*) printf -v "$__var" '%s' "noop" ;;
-  *) printf -v "$__var" '%s' "other" ;;
+    *"updated from"*) printf -v "$__var" '%s' "updated" ;;
+    *"already at the latest version"*) printf -v "$__var" '%s' "noop" ;;
+    *) printf -v "$__var" '%s' "other" ;;
   esac
 }
 
@@ -583,8 +583,8 @@ install_disabled_notice() {
   local text
   cli_message text "$1"
   case "$text" in
-  *"disabled by default"* | *"Disabled by default"*) return 0 ;;
-  *) return 1 ;;
+    *"disabled by default"* | *"Disabled by default"*) return 0 ;;
+    *) return 1 ;;
   esac
 }
 
@@ -688,8 +688,8 @@ linked_worktree_paths() {
     IFS= read -r line <"$fs/.git" || true
     line="${line//$'\r'/}"
     case "$line" in
-    "gitdir:"*".git/worktrees/"*) found+=("$p") ;;
-    *) ;;
+      "gitdir:"*".git/worktrees/"*) found+=("$p") ;;
+      *) ;;
     esac
   done <<<"$paths"
   json_strings_of "$__var" ${found[@]+"${found[@]}"}
@@ -1002,6 +1002,7 @@ reset_marketplace_state() {
   WITHHELD=() DOWNGRADED=() INSTALLED_ROWS=() ENABLED_ROWS=() PROJECT_ROWS=() RECOVERED_ROWS=()
   INSTALL_GAP="[]" ENABLE_GAP="[]" NORMALIZE_JSON="null" CACHE_JSON="null"
   SELF_UPDATED="false" SELF_UPDATE="null" INSTALL_DEFERRED="false" STOPPED_BEFORE_INSTALL="false"
+  INSTALL_HELD="null"
   REFRESH_RC="null" REFRESH_OUT="" REFRESH_REASON="" REFRESH_PREDICTED="false" REFRESH_FAILED=0
   REFRESH_SKIP_JSON="null"
   CATALOG_LAST_UPDATED="" PROJECT_ROOT_JSON="null" SOURCE_PULL_JSON="null"
@@ -1580,10 +1581,17 @@ run_marketplace() {
 
   recover_pending "$mp"
 
+  if ((ONLY_INSTALL_MODE == 1)); then
+    [[ ! -f "$RUN_DIR/install-held.$mp" ]] || INSTALL_HELD='"all-target"'
+  fi
   if ((REFRESH_FAILED == 1)); then
     INSTALL_DEFERRED="true"
   elif [[ "$MODE" == "sync" && "$INSTALL_NEW" == "ask" ]] && ((gap_count > 0)) && ((ONLY_INSTALL_MODE == 0)); then
     STOPPED_BEFORE_INSTALL="true"
+  elif ((ALL == 1)) && [[ "$INSTALL_NEW" == "all" ]] && ((gap_count > 0)) && ((ONLY_INSTALL_MODE == 0)); then
+    STOPPED_BEFORE_INSTALL="true"
+    INSTALL_HELD='"all-target"'
+    [[ "$MODE" == "audit" ]] || : >"$RUN_DIR/install-held.$mp"
   elif ((gap_count > 0)) || ((enable_gap_count > 0)) || ((ONLY_INSTALL_MODE == 1)); then
     clock_into T_IE_S
     run_install_step "$mp" "$gap_count"
@@ -1615,13 +1623,13 @@ run_marketplace() {
     for row in ${IR_UPDATED[@]+"${IR_UPDATED[@]}"} ${US_UPDATED[@]+"${US_UPDATED[@]}"} \
       ${DOWNGRADED[@]+"${DOWNGRADED[@]}"} ${MOVED_DURING[@]+"${MOVED_DURING[@]}"}; do
       case "$row" in
-      *"\"id\":\"$own@"*)
-        SELF_UPDATED="true"
-        if [[ "$SELF_UPDATE" == "null" ]]; then
-          jq_to SELF_UPDATE -c '{id, scope, old, new}' <<<"$row"
-        fi
-        ;;
-      *) ;;
+        *"\"id\":\"$own@"*)
+          SELF_UPDATED="true"
+          if [[ "$SELF_UPDATE" == "null" ]]; then
+            jq_to SELF_UPDATE -c '{id, scope, old, new}' <<<"$row"
+          fi
+          ;;
+        *) ;;
       esac
     done
   fi
@@ -1670,16 +1678,16 @@ recover_pending() {
       | if ($in | not) then "absent" elif $en == false then "off" else "on" end' \
       "$RUN_DIR/pre-install.$mp.json" || continue
     case "$state" in
-    off)
-      enable_one "$id" user
-      if ((CLI_RC == 0)); then
-        pending_remove "$id"
-        RECOVERED_ROWS+=("$(jq -c -n --arg id "$id" '{id: $id, outcome: "enabled"}')")
-      else
-        RECOVERED_ROWS+=("$(jq -c -n --arg id "$id" '{id: $id, outcome: "enable_failed"}')")
-      fi
-      ;;
-    *) pending_remove "$id" ;;
+      off)
+        enable_one "$id" user
+        if ((CLI_RC == 0)); then
+          pending_remove "$id"
+          RECOVERED_ROWS+=("$(jq -c -n --arg id "$id" '{id: $id, outcome: "enabled"}')")
+        else
+          RECOVERED_ROWS+=("$(jq -c -n --arg id "$id" '{id: $id, outcome: "enable_failed"}')")
+        fi
+        ;;
+      *) pending_remove "$id" ;;
     esac
   done <"$PENDING_FILE"
 }
@@ -1945,15 +1953,15 @@ finalize_moves() {
       version_direction_to dir "$old" "$new"
     fi
     case "$dir" in
-    same) continue ;;
-    backward)
-      downgrade_row_to row "$id" "$scope" "$old" "$new"
-      DOWNGRADED+=("$row")
-      ;;
-    *)
-      move_row_to row "$id" "$scope" "$old" "$new" "$dir"
-      if [[ "$kind" == "in_repo" ]]; then IR_UPDATED+=("$row"); else US_UPDATED+=("$row"); fi
-      ;;
+      same) continue ;;
+      backward)
+        downgrade_row_to row "$id" "$scope" "$old" "$new"
+        DOWNGRADED+=("$row")
+        ;;
+      *)
+        move_row_to row "$id" "$scope" "$old" "$new" "$dir"
+        if [[ "$kind" == "in_repo" ]]; then IR_UPDATED+=("$row"); else US_UPDATED+=("$row"); fi
+        ;;
     esac
   done <<<"$joined"
 }
@@ -2092,29 +2100,29 @@ monitor_count_at() {
       jq_to __mc_kind -r 'if .present == true then "true" else "false" end' <<<"$__mc_spec" 2>/dev/null || __mc_kind="unreadable"
     fi
     case "$__mc_kind" in
-    true)
-      # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-      jq_to __mc_n -r '
+      true)
+        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+        jq_to __mc_n -r '
         .value
         | if type == "array" then "array:\(length)"
           elif type == "string" then "path:\(.)"
           else "other" end' <<<"$__mc_spec" 2>/dev/null || __mc_n="other"
-      case "$__mc_n" in
-      array:*) __mc_n="${__mc_n#array:}" ;;
-      path:*)
-        __mc_path="${__mc_n#path:}"
-        __mc_path="${__mc_path#./}"
-        __mc_n="0"
-        [[ -f "$__mc_root/$__mc_path" ]] &&
-          jq_to __mc_n -r 'if type == "array" then length else 0 end' "$__mc_root/$__mc_path" 2>/dev/null
+        case "$__mc_n" in
+          array:*) __mc_n="${__mc_n#array:}" ;;
+          path:*)
+            __mc_path="${__mc_n#path:}"
+            __mc_path="${__mc_path#./}"
+            __mc_n="0"
+            [[ -f "$__mc_root/$__mc_path" ]] &&
+              jq_to __mc_n -r 'if type == "array" then length else 0 end' "$__mc_root/$__mc_path" 2>/dev/null
+            ;;
+          *) __mc_n="0" ;;
+        esac
         ;;
-      *) __mc_n="0" ;;
-      esac
-      ;;
-    false) ;;
-    *)
-      __mc_kind="unreadable"
-      ;;
+      false) ;;
+      *)
+        __mc_kind="unreadable"
+        ;;
     esac
   fi
   if [[ "$__mc_kind" != "true" && "$__mc_kind" != "unreadable" && -f "$__mc_root/monitors/monitors.json" ]]; then
@@ -2230,7 +2238,7 @@ emit_marketplace_block() {
     moved "$moved" noop_unverified "$NOOP_UNVERIFIED" \
     install_gap "$INSTALL_GAP" inst "$inst" \
     enable_gap "$ENABLE_GAP" en "$en" pr "$pr" rec "$rec" \
-    deferred "$INSTALL_DEFERRED" stopped "$STOPPED_BEFORE_INSTALL" \
+    deferred "$INSTALL_DEFERRED" stopped "$STOPPED_BEFORE_INSTALL" held "$INSTALL_HELD" \
     normalize "$NORMALIZE_JSON" cache "$CACHE_JSON" reg_rows "$reg_rows" \
     div "$div" self_updated "$SELF_UPDATED" self_update "$SELF_UPDATE" \
     extras "$extras" checkout "${checkout:-null}" pull "${pull:-null}" \
@@ -2267,7 +2275,7 @@ emit_marketplace_block() {
       if $s == "" or $e == "" then null else ([0, ((ms($s; $e) | ceil) / 1000)] | max) end;
     . as {$refresh_rc, $refresh_predicted, $refresh_skipped, $project_root, $ir_u, $ir_f, $ir_w, $ir_l,
           $us_u, $us_f, $us_w, $wh, $dg, $moved, $noop_unverified, $install_gap, $inst,
-          $enable_gap, $en, $pr, $rec, $deferred, $stopped, $normalize, $cache, $reg_rows,
+          $enable_gap, $en, $pr, $rec, $deferred, $stopped, $held, $normalize, $cache, $reg_rows,
           $div, $self_updated, $self_update, $extras, $checkout, $pull, $unset_cfg,
           $installed_disabled, $monitors, $errors, $other_paths}
     | {pre_refresh_read: dur($t_prr_s; $t_prr_e),
@@ -2307,6 +2315,7 @@ emit_marketplace_block() {
      installed_disabled: $installed_disabled,
      install_enable_deferred: $deferred,
      stopped_before_install: $stopped,
+     install_held: $held,
      enable_gap: $enable_gap,
      enabled: $en,
      project_enable_rows: $pr,
@@ -2343,24 +2352,24 @@ if ((ONLY_INSTALL_MODE == 1)); then
     jq_to SAVED_INSTALL_NEW -r '.install_new // ""' "$RUN_DIR/flags.json" 2>/dev/null
     jq_to SAVED_INSTALL_NEW_INVALID -r '.install_new_invalid // ""' "$RUN_DIR/flags.json" 2>/dev/null
     case "$SAVED_INSTALL_NEW" in
-    all | none | ask)
-      INSTALL_NEW="$SAVED_INSTALL_NEW"
-      INSTALL_NEW_INVALID="$SAVED_INSTALL_NEW_INVALID"
-      ;;
-    *) ;;
+      all | none | ask)
+        INSTALL_NEW="$SAVED_INSTALL_NEW"
+        INSTALL_NEW_INVALID="$SAVED_INSTALL_NEW_INVALID"
+        ;;
+      *) ;;
     esac
     SAVED_SOURCE_PULL=""
     jq_to SAVED_SOURCE_PULL -r '.source_pull // ""' "$RUN_DIR/flags.json" 2>/dev/null
     case "$SAVED_SOURCE_PULL" in
-    ask | never)
-      SOURCE_PULL="$SAVED_SOURCE_PULL"
-      jq_to SOURCE_PULL_INVALID -r '.source_pull_invalid // ""' "$RUN_DIR/flags.json" 2>/dev/null
-      jq_to SOURCE_PULL_OFF -r '.source_pull_off // ""' "$RUN_DIR/flags.json" 2>/dev/null
-      jq_to QUIET_AUTO_UPDATE -r '.quiet_auto_update // [] | join(",")' "$RUN_DIR/flags.json" 2>/dev/null
-      jq_to UPDATE_OTHER_PATHS -r 'if .update_other_paths == true then 1 else 0 end' "$RUN_DIR/flags.json" 2>/dev/null
-      [[ -z "${CLAUDE_CODE_REMOTE:-}" ]] || apply_pull_policy
-      ;;
-    *) ;;
+      ask | never)
+        SOURCE_PULL="$SAVED_SOURCE_PULL"
+        jq_to SOURCE_PULL_INVALID -r '.source_pull_invalid // ""' "$RUN_DIR/flags.json" 2>/dev/null
+        jq_to SOURCE_PULL_OFF -r '.source_pull_off // ""' "$RUN_DIR/flags.json" 2>/dev/null
+        jq_to QUIET_AUTO_UPDATE -r '.quiet_auto_update // [] | join(",")' "$RUN_DIR/flags.json" 2>/dev/null
+        jq_to UPDATE_OTHER_PATHS -r 'if .update_other_paths == true then 1 else 0 end' "$RUN_DIR/flags.json" 2>/dev/null
+        [[ -z "${CLAUDE_CODE_REMOTE:-}" ]] || apply_pull_policy
+        ;;
+      *) ;;
     esac
   fi
 else

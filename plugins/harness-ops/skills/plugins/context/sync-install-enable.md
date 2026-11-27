@@ -71,7 +71,9 @@ step's prose, is what to branch on:
   when nothing was answered re-enter with `--only-install ""` (SKILL.md Step 4), which installs
   nothing and still completes Step 5, and the report lists the declined gap under "Action needed". Under `ask`
   the only persistent opt-out is `enabledPlugins: false`; a decline is re-offered on the next run
-- **`all`**: `claude plugin install <id> -s user` for every entry, no prompt
+- **`all`**: `claude plugin install <id> -s user` for every entry, no prompt. Under the `all`
+  marketplace target the script holds the gap instead (`install_held: "all-target"`): run the `ask`
+  offer above
 - **`none`**: install nothing; list the entries under "Action needed" in the report only
 
 **A headless run launched with `--setting-sources` that omits `user` silently reverts this policy to

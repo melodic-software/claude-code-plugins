@@ -611,6 +611,8 @@ assert_eq "all: the normalizer heals the key order the install disturbed" "1" \
   "$(grep -cv -- '--report-project' "$case_dir2/normalize.log")"
 assert_eq "all: Steps 4 and 5 ran, so install_enable is timed" "number" \
   "$(jq -r '.marketplaces[0].timings.install_enable | type' <<<"$out")"
+assert_eq "all: a single-marketplace target holds nothing" "false null" \
+  "$(jq -r '.marketplaces[0] | "\(.stopped_before_install) \(.install_held)"' <<<"$out")"
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -1527,6 +1529,46 @@ assert_eq "render second-marketplace id: no error row" "0" \
   "$(grep -c 'matches no marketplace' <<<"$REPORT_TEXT" || true)"
 assert_eq "render second-marketplace id: it was installed" "1" \
   "$(grep -c 'plugin install gamma@market2' "$case_dir/claude.log")"
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 true
+catalog_plugin "$case_dir" market1 beta 0.1.0
+catalog_plugin "$case_dir" market2 gamma 0.1.0
+write "$case_dir/known_marketplaces.json" "{
+  \"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m1\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"},
+  \"market2\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m2\"}, \"installLocation\": \"$case_dir/mkt2\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}
+}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+write "$case_dir/catalog/market2.json" '{"plugins": [{"name": "gamma", "source": "gamma"}]}'
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+report_of "$case_dir" --all --install-new all --journal-root "$case_dir/journal"
+assert_exit "all-target hold: exit 0" 0 "$REPORT_RC"
+assert_eq "all-target hold: no claude plugin install is issued" "0" "$(grep -c 'plugin install' "$case_dir/claude.log")"
+assert_eq "all-target hold: every marketplace with a gap stops before Step 4" "true true" \
+  "$(jq -r '[.marketplaces[].stopped_before_install] | map(tostring) | join(" ")' <<<"$REPORT_DIGEST")"
+assert_eq "all-target hold: the digest names why" "all-target all-target" \
+  "$(jq -r '[.marketplaces[].install_held] | join(" ")' <<<"$REPORT_DIGEST")"
+assert_eq "all-target hold: the gaps are reported" "beta@market1 gamma@market2" \
+  "$(jq -r '[.marketplaces[].install_gap[]] | join(" ")' <<<"$REPORT_DIGEST")"
+assert_golden "all-target hold: the report matches the golden" all-target-install-held.txt "$REPORT_TEXT"
+run_dir=$(jq -r '.run_dir' <<<"$REPORT_DIGEST")
+report_of "$case_dir" --only-install beta@market1 --run-dir "$run_dir"
+assert_exit "all-target hold re-entry: exit 0" 0 "$REPORT_RC"
+assert_eq "all-target hold re-entry: only the pick is installed" "plugin install beta@market1 -s user --json" \
+  "$(grep 'plugin install' "$case_dir/claude.log")"
+assert_eq "all-target hold re-entry: the blocks keep the reason" "all-target all-target" \
+  "$(jq -r '[.marketplaces[].install_held] | join(" ")' <<<"$REPORT_DIGEST")"
+assert_contains "all-target hold re-entry: the declined gap is a pending action" "$REPORT_TEXT" \
+  "1 catalog plugin(s) offered and not installed (install held for the all-marketplaces target): gamma@market2"
+: >"$case_dir/claude.log"
+report_of "$case_dir" --all --audit --install-new all
+assert_eq "all-target hold audit: zero claude invocations" "0" "$(wc -l <"$case_dir/claude.log" | tr -d ' ')"
+assert_eq "all-target hold audit: predicts the same stop" "true true all-target all-target" \
+  "$(jq -r '[(.marketplaces[] | .stopped_before_install | tostring), (.marketplaces[].install_held)] | join(" ")' <<<"$REPORT_DIGEST")"
+assert_not_contains "all-target hold audit: no install is predicted" "$REPORT_TEXT" "would run: claude plugin install"
+assert_contains "all-target hold audit: the held gap is under Action needed" "$REPORT_TEXT" \
+  "sync would stop before Step 4 and offer them through the ask prompt"
 
 CASE_NUM=$((CASE_NUM + 1))
 needs_policy=none

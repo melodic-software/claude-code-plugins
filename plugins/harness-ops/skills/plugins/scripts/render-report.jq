@@ -91,11 +91,16 @@ def block($d):
   # (an install declined, skipped by policy or held for the ask prompt, an unfilled
   # enable, a withheld downgrade, a delisted plugin). The header counts them; a gap
   # deferred by a failed refresh is refresh state instead, so it is not among them.
-  | [if .stopped_before_install == true then
+  | (.install_held == "all-target") as $held
+  | [if .stopped_before_install == true and $held then
+       listed("\(.install_gap | length) catalog plugin(s) not installed at user scope (install held: policy all across every marketplace would install every catalog, so a person picks)"; .install_gap)
+       + (if $audit then ["sync would stop before Step 4 and offer them through the ask prompt"]
+          else ["remedy: pick from the ask offer, then rerun with --only-install <picked ids> --run-dir <run journal>"] end)
+     elif .stopped_before_install == true then
        listed("\(.install_gap | length) catalog plugin(s) not installed at user scope (policy ask, stopped before Step 4 pending the batched prompt)"; .install_gap)
      elif $install_deferred then empty
-     elif ($audit | not) and $d.install_new == "ask" and ($install_left | length) > 0 then
-       listed("\($install_left | length) catalog plugin(s) offered and not installed (policy ask)"; $install_left)
+     elif ($audit | not) and ($d.install_new == "ask" or $held) and ($install_left | length) > 0 then
+       listed("\($install_left | length) catalog plugin(s) offered and not installed (\(if $held then "install held for the all-marketplaces target" else "policy ask" end))"; $install_left)
        + ["remedy: disable any you never want with enabledPlugins: false, or ask offers it again on every sync"]
      elif ($d.install_new == "none" or ($audit and $d.install_new == "ask")) and (.install_gap | length) > 0 then
        listed("\(.install_gap | length) catalog plugin(s) not installed at user scope (policy \($d.install_new))"; .install_gap)
@@ -149,7 +154,7 @@ def block($d):
   # would update, install or enable itself.
   | (if $audit then
        (($would | length) > 0 or ($would_enable | length) > 0 or (($op.would_update // []) | length) > 0
-        or ($d.install_new == "all" and (.install_gap | length) > 0 and .install_enable_deferred != true))
+        or ($d.install_new == "all" and (.install_gap | length) > 0 and .install_enable_deferred != true and ($held | not)))
      else
        (($failed | length) > 0 or .install_enable_deferred == true or (($op.failed // []) | length) > 0
         or ($installed_failed | length) > 0 or ($enabled_failed | length) > 0
@@ -334,7 +339,7 @@ def block($d):
        else empty end),
 
       (if $audit then
-         (if $d.install_new == "all" and (.install_gap | length) > 0 and .install_enable_deferred != true then
+         (if $d.install_new == "all" and (.install_gap | length) > 0 and .install_enable_deferred != true and ($held | not) then
             "Would install: \(.install_gap | length) new catalog plugin(s) (policy install_new: all)",
             (.install_gap[] | "  would run: claude plugin install \(.) -s user"),
             "  once installed, a later sync would reinstall any of these you uninstall",
