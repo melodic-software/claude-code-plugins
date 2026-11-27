@@ -27,8 +27,8 @@ covers this checkout, as it always has.
 
 - The findings are agreed and ready to apply: `/code-tidying:remove-comments` on the same target.
 - The surviving comments restate the code rather than narrate its past: `/code-tidying:tidy`.
-- An `unjustified-workaround` finding marks code whose cause is still unfixed: `/debugging:debug` or
-  `/implementation:implement`.
+- An `unjustified-workaround` finding marks a bug whose cause is unknown: `/debugging:debug`.
+- An `unjustified-workaround` finding marks a known cause ready to fix: `/implementation:implement`.
 
 ## Gotchas
 

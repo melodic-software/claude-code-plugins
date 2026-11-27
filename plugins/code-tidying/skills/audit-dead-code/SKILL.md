@@ -242,7 +242,7 @@ to staticcheck, per
 A committed vulture whitelist raises `F821` under a consumer's ruff config; say so when you emit
 one.
 
-## Boundaries
+## What this skill does not do
 
 - `/code-tidying:tidy` applies Beck's Dead Code tidying inside one rotated focus area; this hunts the
   whole repository and reports.

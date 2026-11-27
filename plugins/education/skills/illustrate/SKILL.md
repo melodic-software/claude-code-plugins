@@ -1,5 +1,5 @@
 ---
-description: "Visual explainer for a concept or codebase topic, one idea per diagram, grounded in the real artifact and written as a markdown record plus an interactive page (markdown only on request). Presets: newcomer (default) and zero-knowledge (ELI5). Options: an STE register, and a video view too when explainer-video is installed. Use when the user says 'ELI5', 'explain like I'm five', 'illustrate this', 'picture explainer', 'show me a diagram of this', 'explain this visually' or 'explainer video'. A prose drop to plainer words is education:explain; restructuring a dense message is adhd:clarify (if installed)."
+description: "Visual explainer for a concept or codebase topic, one idea per diagram, grounded in the real artifact and written as a markdown record plus an interactive page (markdown only on request). Presets: newcomer (default) and zero-knowledge (ELI5). Options: an STE register, and a video view too when explainer-video is installed. Use when the user says 'ELI5', 'explain like I'm five', 'illustrate this', 'picture explainer', 'show me a diagram of this', 'explain this visually' or 'explainer video'. A prose drop to plainer words is /education:explain; restructuring a dense message is /adhd:clarify (if installed)."
 argument-hint: "[topic] [zero-knowledge] [ste] [markdown] [medium]"
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/build-explainer.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/build-explainer.mjs\":*)"]
 user-invocable: true
@@ -181,7 +181,7 @@ record. On a yes, hand it the record as a storyboard, not as a topic:
 When it is not listed, say in one line that the video view is
 unavailable because the explainer-video plugin is not enabled. Never install it.
 
-## Boundaries
+## What this skill does not do
 
 - **Plainer words, not a picture** ("explain this simply", "I don't get it") is
   `/education:explain`; invoke it via the Skill tool.

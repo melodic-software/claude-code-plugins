@@ -251,8 +251,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 ## Next
 
-- /toolchain:setup apply powershell, with the drafted `fix-cmd` and `lint-cmd`, when the repository
-  wants a tool the plugin ships no adapter for; /toolchain:lint then runs it on request.
+- Repository wants a tool the plugin ships no adapter for (drafted commands ready): /toolchain:setup apply powershell.
 - A hook stage over its time budget in `setup check inspect`: /performance:target.
 
 ## What this skill does not do

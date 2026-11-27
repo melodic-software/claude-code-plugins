@@ -401,8 +401,6 @@ records live in [context/bundled-run.md](context/bundled-run.md).
 - All scenarios pass, the change is not yet reviewed, and no other Test-stage check (coverage plan, test quality) is still pending: `/review:quality-gate`.
 - All scenarios pass after review: `/verification:confirm outcome`.
 - A scenario fails: `/testing:fix-failing`.
-- Touched features not matched (app-control not installed): enable app-control, installing it
-  first if it is not installed, then run this skill again.
 
 ## Gotchas
 

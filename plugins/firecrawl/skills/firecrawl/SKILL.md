@@ -188,5 +188,8 @@ Keeping in sync is a **maintainer-facing** concern, split into its own sibling s
 
 ## Related
 
-- `/firecrawl:setup`. Runtime prerequisite verification (CLI binary + `FIRECRAWL_API_KEY` auth).
+- Runtime prerequisite verification (CLI binary and `FIRECRAWL_API_KEY` auth): `/firecrawl:setup`.
+
+## See also
+
 - Firecrawl docs: <https://docs.firecrawl.dev/sdks/cli>. Upstream skill source: <https://www.firecrawl.dev/agent-onboarding/SKILL.md>. MCP-vs-CLI guidance: <https://www.firecrawl.dev/blog/mcp-vs-cli>.

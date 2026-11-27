@@ -298,8 +298,7 @@ stored one.
 
 ## Next
 
-- After a baseline capture: `/implementation:implement` for the change, then
-  `/performance:snapshot post`.
+- After a baseline capture: `/implementation:implement` for the change.
 - After a baseline capture with a frozen harness, when the goal plans a loop: `/performance:climb`.
 - After a post capture: `/performance:verify`.
 

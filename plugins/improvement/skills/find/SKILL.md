@@ -1,5 +1,5 @@
 ---
-description: "Rank improvements across code, performance, product, config, Claude Code setup, evidence-cited and sized S/M/L; unmeasured targets yield 'instrument this'. Never edits; unattended files work items. Use when: 'what should we improve', 'improvement sweep', 'what could we improve in X', 'tech debt sweep', 'where is the highest-value work', 'what would move the needle', 'run an improvement scan'. Skip: `architecture:improve`, `code-tidying:tidy`, `codebase-health:audit`, `review:fanout`, `work-items:scan-todos`."
+description: "Rank improvements across code, performance, product, config, Claude Code setup, evidence-cited and sized S/M/L; unmeasured targets yield 'instrument this'. Never edits; unattended files work items. Use when: 'what should we improve', 'improvement sweep', 'what could we improve in X', 'tech debt sweep', 'where is the highest-value work', 'what would move the needle', 'run an improvement scan'. Skip: `/architecture:improve`, `/code-tidying:tidy`, `/codebase-health:audit`, `/review:fanout`, `/work-items:scan-todos`."
 argument-hint: "[target] [--small|--medium|--large] [--unattended] [repo-path] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

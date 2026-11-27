@@ -347,9 +347,8 @@ pointer with an as-of date and a recheck trigger, live in
   /source-control:pull-request evidence --before <report.json>.
 - Improvement claimed without data: /verification:measure.
 - Gaps found, evidence loop count below 3 before this verdict: fix them, then /verification:confirm.
-- Lessons listed, or a touched feature's control skill not refreshed: /app-control:map refresh
-  <feature> ["<lesson>"] (or <control skill path> for every feature), or /corrections:codify
-  "<lesson>" for one not about driving the app.
+- A touched feature's control skill not refreshed: /app-control:map refresh <feature> ["<lesson>"].
+- A lesson outside driving the app: /corrections:codify "<lesson>".
 
 ## Related
 

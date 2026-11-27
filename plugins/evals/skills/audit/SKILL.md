@@ -66,3 +66,8 @@ file and starts no run.
 
 - A missing case or gate side: /evals:design.
 - A repaired case or grader: /evals:validate.
+
+## Gotchas
+
+- **Relay script counts verbatim.** Do not recount or merge `audit-suite.py` categories by hand.
+- **Cite every judged finding.** Drop any finding that cannot cite a case path and skill line.

@@ -49,7 +49,7 @@ An adopted standards file names each concept by its id in backticks and holds no
 When one is in context, run the lookup with `--counterweights-of` and the ids it cites, comma
 separated, and keep each printed line (one per counterweight or conflict) beside its entry.
 
-## Boundaries
+## What this skill does not do
 
 - A single question about the catalog, with nothing to keep in view: `/engineering-concepts:lookup`.
 - Interface effect names: `/user-interface:glossary` (if enabled).

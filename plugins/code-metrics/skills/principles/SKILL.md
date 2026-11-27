@@ -135,7 +135,7 @@ substitutes for it, unless the bullet names its own fallback.
 Per-source annotation, including what each does not claim and the confidence behind it, is in
 [literature.md](reference/literature.md).
 
-## Scope boundary
+## What this skill does not do
 
 This skill is **knowledge**, not **workflow**. It measures nothing, runs no collector, and reads no
 repository. The `audit-*` skills in this plugin produce the numbers; this one explains them, and

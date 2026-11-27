@@ -28,7 +28,7 @@ The fifth question, *so what should I delete?*, is deliberately not answered. Th
 report-only and never writes to the target tree. Deletion belongs to `/disk-hygiene:clean` (if enabled), and
 shedding project state belongs to `claude purge`.
 
-## Scope boundary
+## What this skill does not do
 
 | Question | Owner |
 |---|---|
