@@ -134,10 +134,11 @@ nothing is adopted.
 
 ## Step 5: Adopt now
 
-Only the report's "Adopt now" items are offered. Decline any other change the user asked for, in
-your reply, and never adopt it or start working that way. Say why: lower effort, a smaller model
-or shallower verification is `flag-only`; skipping or removing a check goes to
-`/overengineering:audit` (if enabled).
+Only the report's "Adopt now" items are offered. Decline any other speedup or change to how the
+session works that the user asked for, in your reply, and never adopt it or start working that
+way; ordinary task work is not declined. Say why: lower effort, a smaller model or shallower
+verification is `flag-only`; skipping or removing a check goes to `/overengineering:audit` (if
+enabled); any other speedup is not in this report, and the next run can measure it.
 
 When the report has an "Adopt now" section, ask about each item in your reply, one numbered line
 per item, and take a yes or no for each. For every yes:
