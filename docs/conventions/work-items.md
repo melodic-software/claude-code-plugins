@@ -41,7 +41,11 @@ these rules shape (`.github/scripts/intake-triage/apply-verdict.mjs` and `admit.
   that is empty, name it as the decision comment by its author). Never paraphrase or reword it; keep
   the whole comment under 2800 characters, and when the quote would not fit, quote its opening lines
   and end with `> [quote truncated; the full decision is at the link]`. Under `Open questions:` list
-  only the questions the decision leaves open: a point it settles is never asked again.
+  only the questions the decision leaves open: a point it settles is never asked again. When one or
+  more stay open, set `Flags: intent`, apply `needs-owner-decision` and keep `needs_human` false, and
+  ask each as a numbered question with a `RECOMMENDED:` answer and its `Basis:`. When the decision
+  settles every open question and no person is needed, apply no status label, say in one sentence
+  that it settles them, and write `Open questions: none`.
 - **Re-entry that still needs a person.** After a recorded decision, when the remaining work needs a
   person (spend, with `Flags: cost`, or a trust-boundary decision the recorded decision leaves open,
   with `Flags: security` only at the CRITICAL tier and `Flags: intent` otherwise), apply the
