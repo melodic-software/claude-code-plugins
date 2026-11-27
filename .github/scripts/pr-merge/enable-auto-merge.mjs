@@ -626,7 +626,7 @@ export const unpinBody = (sha, disarmed = true) =>
     "### pr-merge / enable-auto-merge",
     disarmed
       ? `Disarmed and unpinned: native auto-merge is off at head \`${sha}\`, a head its arm never judged or one a hold now stands on.`
-      : `Unpinned: head \`${sha}\` is unarmed, out of the merge queue and not the head the earlier pin names.`,
+      : `Unpinned: head \`${sha}\` is unarmed and out of the merge queue, and a hold or a head the earlier pin never judged keeps it so.`,
     "- The merge queue now reads this pull request as one the lanes App never pinned, until the path pins a head again.",
   ].join("\n");
 
@@ -984,29 +984,34 @@ export function decideTrusted(pull, humanGated, facts = {}, bot = undefined) {
   if (pull.isInMergeQueue !== false) {
     return none(queue);
   }
-  if (pull.stack != null) {
-    return none("it is a layer of a stack, and only the lanes App's stack path merges a stack");
-  }
   const held =
-    pull.isDraft !== false
-      ? "it is a draft"
-      : pull.isCrossRepository !== false
-        ? "it is from another repository"
-        : !SHA.test(String(pull.headRefOid))
-          ? "its head is not a commit SHA"
-          : trustedHoldReason(pull, humanGated);
-  if (held !== null) {
-    return none(held);
-  }
-  const judged = judgeUnheld(pull, facts, bot);
+    pull.stack != null
+      ? "it is a layer of a stack, and only the lanes App's stack path merges a stack"
+      : pull.isDraft !== false
+        ? "it is a draft"
+        : pull.isCrossRepository !== false
+          ? "it is from another repository"
+          : !SHA.test(String(pull.headRefOid))
+            ? "its head is not a commit SHA"
+            : trustedHoldReason(pull, humanGated);
+  const judged = held === null ? judgeUnheld(pull, facts, bot) : none(held);
   if (judged.action !== "none") {
     return judged;
   }
   if (!("comments" in facts)) {
     return { action: "comments", reason: `${judged.reason}; its comments are not read yet, so a stale pin is not checked` };
   }
-  const moved = Array.isArray(facts.comments) ? pinMoved(facts.comments, bot, pull.headRefOid, true) : null;
-  return moved === null ? judged : { action: "unpin", reason: `${judged.reason}; ${moved}` };
+  const stale = Array.isArray(facts.comments) ? stalePin(facts.comments, bot, pull.headRefOid) : null;
+  return stale === null ? judged : { action: "unpin", reason: `${judged.reason}; ${stale}` };
+}
+
+function stalePin(comments, bot, head) {
+  const moved = pinMoved(comments, bot, head, true);
+  if (moved !== null) {
+    return moved;
+  }
+  const pin = newestPin(comments, bot, true);
+  return pin === undefined || UNPIN_RE.test(firstLine(pin.body)) ? null : `its newest lanes App pin names ${head}, a head it stays unarmed at`;
 }
 
 function judgeUnheld(pull, facts, bot) {
@@ -1905,16 +1910,17 @@ export async function main({ env = process.env, github, actions, laneReads, veri
     };
     const order = rotated(pulls, Number(env.GITHUB_RUN_NUMBER));
     for (let pull of scarce ? oldestFirst(order, candidate) : order) {
-      if (trustedAuthor(pull)) {
-        await armTrusted(pull);
-        continue;
-      }
-      if (stopped === null && lanes(pull) && !(pull.labels?.totalCount <= (pull.labels?.nodes?.length ?? 0))) {
+      const trusted = trustedAuthor(pull);
+      if (stopped === null && (lanes(pull) || trusted) && !(pull.labels?.totalCount <= (pull.labels?.nodes?.length ?? 0))) {
         try {
           pull = { ...pull, labels: await allLabels(github, repo[0], pull.number) };
         } catch (error) {
           console.log(`enable-auto-merge: #${pull.number} labels did not read whole: ${describe(error)}`);
         }
+      }
+      if (trusted) {
+        await armTrusted(pull);
+        continue;
       }
       if (reads && stopped === null && lanes(pull) && carries(pull, VETO_LABEL)) {
         try {

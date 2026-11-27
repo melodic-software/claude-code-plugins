@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-import { ARM_MUTATION, AUTO_MERGE_STATE_QUERY, DETAIL_QUERY, DISARM_MUTATION, PULLS_QUERY, WAKE_OUTPUT, decideTrusted, main, pinBody, pinMoved, pinned, pythonLaneSource, pythonVerify } from "./enable-auto-merge.mjs";
+import { ARM_MUTATION, AUTO_MERGE_STATE_QUERY, DETAIL_QUERY, DISARM_MUTATION, PULLS_QUERY, WAKE_OUTPUT, decideTrusted, main, pinBody, pinMoved, pinned, pythonLaneSource, pythonVerify, unpinBody } from "./enable-auto-merge.mjs";
 import { COMMENT_EDITED_QUERY, LANES_APP_LOGIN, PULL_OPENED_QUERY, pinHold } from "./merge-holds.mjs";
 import { GitHubError } from "../lib/github-client.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -144,6 +144,14 @@ async function run(pulls, { env = {}, verdicts = {}, laneSource, fail = {}, room
     if (method === "GET" && files) {
       const found = pulls.find((candidate) => candidate.number === Number(files[1]));
       return found.files.slice((Number(files[2]) - 1) * 100, Number(files[2]) * 100).map((filename) => ({ filename }));
+    }
+    const labelPage = /^\/repos\/melodic-software\/claude-code-plugins\/issues\/([0-9]+)\/labels\?per_page=100&page=([0-9]+)$/.exec(path);
+    if (method === "GET" && labelPage) {
+      const found = pulls.find((candidate) => candidate.number === Number(labelPage[1]));
+      if (!Array.isArray(found.labelPages)) {
+        throw new Error(`GET ${path} failed with status 502`);
+      }
+      return found.labelPages[Number(labelPage[2]) - 1] ?? [];
     }
     const cost = costReads(method, path, body);
     if (cost !== undefined) {
@@ -716,4 +724,48 @@ test("the trusted verdict read asks evidence for the verdict alone, with no lane
     "500",
     CLEAN_HEAD,
   ]);
+});
+
+test("an unpin that fails after a hold disarm at the pinned head is posted by the next sweep, which still refuses the arm for the hold", async () => {
+  const pinAtHead = lanesComment(pinBody(CLEAN_HEAD));
+  const doNotMerge = { labels: { totalCount: 1, nodes: [{ name: "do-not-merge" }] } };
+  const failed = await run([lanesArmed(doNotMerge)], { fail: { unpin: true } });
+  assert.equal(disarms(failed).length, 1, "the first sweep disarms for the hold label");
+  assert.notEqual(failed.code, 0, "the failed unpin fails the run");
+  for (const [label, pull, why] of [
+    ["hold label", clean({ ...doNotMerge, comments: [pinAtHead] }), "it carries do-not-merge"],
+    ["body hold", clean({ body: "Closes #499\n\nHold: the owner reads this first.", comments: [pinAtHead] }), "its body holds it"],
+    ["draft", clean({ isDraft: true, comments: [pinAtHead] }), "it is a draft"],
+    ["veto", clean({ comments: [pinAtHead, VETO] }), "kyle-sexton asked not to merge it"],
+  ]) {
+    const next = await run([pull]);
+    assert.deepEqual(
+      unpinPosts(next).map(({ body }) => body.split("\n")[0]),
+      [`<!-- babysit-merge-unpin sha=${CLEAN_HEAD} -->`],
+      `${label}: the next sweep posts the unpin it missed`,
+    );
+    assert.equal(armedHeads(next), 0, `${label}: still not armed`);
+    assert.equal(pinPosts(next).length, 0, `${label}: no new pin`);
+    assert.match(leftLine(next, 500), new RegExp(`left: ${why}; .*unpinned at ${CLEAN_HEAD}$`), label);
+  }
+  const lostPass = await run([clean({ comments: [pinAtHead] })], { verdicts: UNVERIFIED });
+  assert.equal(unpinPosts(lostPass).length, 1, "a lost PASS at the pinned head also posts the missed unpin");
+  const settled = await run([clean({ ...doNotMerge, comments: [pinAtHead, lanesComment(unpinBody(CLEAN_HEAD), "2026-11-27T14:30:00Z")] })]);
+  assert.equal(unpinPosts(settled).length, 0, "once the newest record is an unpin, nothing more posts");
+  assert.match(leftLine(settled, 500), /left: it carries do-not-merge$/);
+});
+
+const PLAIN_LABELS = Array.from({ length: 100 }, (_, i) => ({ name: `area-${i}` }));
+
+test("a label list cut at 100 is read again whole before the trusted arm: a hold label on the second page refuses, none arms, and a re-read that fails refuses unarmed", async () => {
+  const truncated = { labels: { totalCount: 101, nodes: PLAIN_LABELS } };
+  const held = await run([clean({ ...truncated, labelPages: [PLAIN_LABELS, [{ name: "do-not-merge" }]] })]);
+  assert.equal(armedHeads(held), 0, held.lines.join("\n"));
+  assert.match(leftLine(held, 500), /left: it carries do-not-merge$/);
+  const unheld = await run([clean({ ...truncated, labelPages: [PLAIN_LABELS, [{ name: "area-100" }]] })]);
+  assert.equal(armedHeads(unheld), 1, unheld.lines.join("\n"));
+  const unread = await run([clean(truncated)]);
+  assert.equal(armedHeads(unread), 0, unread.lines.join("\n"));
+  assert.equal(pinPosts(unread).length, 0);
+  assert.match(leftLine(unread, 500), /left: its labels could not all be read$/);
 });

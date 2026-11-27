@@ -2351,7 +2351,9 @@ trusted person. It arms
 with the lanes App token and `expectedHeadOid` the head it judged, only when the pull request is
 open into main from a branch of this repository, not a draft, not armed, not in the merge queue and
 not a stack layer; carries none of the gate's hold labels (`do-not-merge`, `pr-verify-failed`,
-`security: outside-actor`), `needs-human` or the human-gated label; has no body line that
+`security: outside-actor`), `needs-human` or the human-gated label, judged over its whole label
+list (`allLabels` reads it again past the first 100, as for a lanes App pull request, and a list
+that still does not read whole refuses); has no body line that
 `BODY_HOLD` matches (the adoption rule's `BODY_MERGE_HOLD_RE`, a `Hold:` line or "do not merge"),
 whoever wrote it; changes no cost path (`costHold`) unless its body links a recorded cost decision
 (`costDecision`), as for a lanes App pull request; changes no lane source pr-review-main reviews
@@ -2367,9 +2369,10 @@ fails refuses, with the reason on the run's `left:` line, with one exception: an
 whose comments do not read stays armed, its pin unchecked this run, and the merge queue's `pinHold`
 still holds it if its pin went stale. Each arm counts against the lane room the lanes path reads
 (`lane-room`): a rung or post-merge refusal, a room that does not read, or `merge.max-in-flight`
-reached refuses it with that reason and posts no pin. A trusted person's pull request armed in an
-earlier sweep and not yet queued counts as in flight, as a lanes App one does; while the trusted-actor
-list does not read, every armed, unqueued `User`'s pull request counts. Each arm the sweep
+reached refuses it with that reason and posts no pin. Every armed, unqueued trusted person's pull
+request counts as in flight, as a lanes App one does, whoever armed it: a session's own arm with no
+lanes App pin takes a slot too; while the trusted-actor list does not read, every armed, unqueued
+`User`'s pull request counts. Each arm the sweep
 attempts holds a slot for the rest of the sweep, even when its pin does not post or the arm fails;
 only an arm GitHub refuses on its first send gives its slot back. Just before the arm it posts
 the lanes App's `<!-- babysit-merge-pin sha=... -->` comment for that head, unless its newest pin already
@@ -2388,9 +2391,10 @@ or does not read (`trustedVerdictHold`); a run out of time or stopped by a rate 
 armed. Just before either unpin it reads the pull request's state again (`AUTO_MERGE_STATE_QUERY`,
 one GraphQL call per unpin) and posts only when it is still open, out of the merge queue and
 unarmed at the head it judged; otherwise it logs why and posts nothing. A run that refuses an
-unarmed trusted person's pull request out of the queue past its draft, label and body holds (a lane
-source or no PASS, as after a queue ejection) posts the same unpin when its newest pin record names
-another head or was edited, and posts nothing once the newest record is an unpin. An unpin is never posted while the pull request
+unarmed trusted person's pull request out of the queue, for any reason (a draft, a hold label or
+body line, a veto, a lane source or no PASS), reads its comments and posts the same unpin whenever
+its newest lanes App record is a pin, at any head or edited, so an unpin that did not post after a
+disarm is posted by the next sweep; it posts nothing once the newest record is an unpin. An unpin is never posted while the pull request
 is in the merge queue, or its queue state does not read: an armed one there stays armed with its
 pin, so the queue's `pinHold` ejects the moved head. As the newest record, an unpin reads as no pin
 to `pinMoved`, `pinned`, `pinHold` and `babysit_postmerge.py`'s pin read, so the sweep judges the
