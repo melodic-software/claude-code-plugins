@@ -125,7 +125,7 @@ into another plugin's tree, and this file's own preamble stops naming a skill th
   read ``Enforced by the [`audit-permission-grants`](../../../plugins/claude-config/skills/audit-permission-grants) skill in the `claude-config` plugin``. That link resolves only inside the marketplace checkout, and
   three plugin surfaces fetch this README over `raw.githubusercontent.com` at run time, so the
   enforcement route was unreachable exactly where the convention binds.
-  [ADR 0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)
+  ADR 0018
   makes the plugin the encapsulation boundary for citation: name the public invocation, never a path
   into another plugin's private tree. The sentence now reads
   "Enforced by `/claude-config:audit-permission-grants`", which resolves for an installed reader and

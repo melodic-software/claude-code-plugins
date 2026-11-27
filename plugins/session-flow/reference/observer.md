@@ -122,7 +122,9 @@ disputed, dismissed, ignored, resolved, and the answers after Dismiss) appends o
 `auto_sent` rows (delivery `append` or `submit`, note length in `chars`, and `stepsLate` for an
 append), `auto_send_failed` rows with the error, and one row per observer turn with its token usage;
 gate rows carry trigger `gate`, outcome `refused`, `none`, `timeout`, `error` or
-`allowed_after_refusals`, and `repeat`. That file is
+`allowed_after_refusals`, and `repeat`. A `parse_failed` row, check or gate, adds `reason`
+(`no_finding`, `no_rule`, `bad_category` or `field_too_long:<field>`) and, when the reply had a
+finding, the `lengths` of its finding, rule and evidence; never the reply text. That file is
 how a day's cost is read, and its presence tells the catch-up this session had live checks.
 
 **Storage and retention.** One usage file per session and per machine, each with one writer, so no

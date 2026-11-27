@@ -3,6 +3,40 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.0] - 2026-11-26
+
+### Added
+
+- Standalone read-only JSONL CLI in `deep_inventory.py` (`TARGET [--deep|--shallow] [--out PATH] [--claude-dir PATH] [--no-claude] [--no-validate]`) requiring no `--data-root` and writing nothing to disk by default.
+- Injectable `EntryClassifierPort` adapters (`ClaudeHarnessClassifier`, `TmpProducerClassifier`, `SupersededVersionClassifier`, `DanglingSymlinkClassifier`, `DictClassifierAdapter`) and strictly read-only `VersionLivenessPort` (`/proc` + `/proc/locks` inode lock matching and `InMemoryLivenessAdapter`).
+
+- `plugins/disk-hygiene/lib/install_authority.py` owning explicit-input install-layout derivation, trusted OS-account config-dir lookup, and launch disclosure with zero ambient `sys.argv` or environment trust.
+- `plugins/disk-hygiene/lib/data_root_state.py` owning `DataRoot`, `CleanRunStore`, the complete 6-directory `ENGINE_OWNED_DIRS` set, strict ASCII `sanitize_session_id`, and cross-language parity tests against `hooks.json`, `resume-notice.mjs`, and `run-python-hook.sh`.
+- `plugins/disk-hygiene/lib/policy_cascade.py` owning immutable `BaselineSnapshot`, `snapshot_protected_exact_names`, ADR 0075 standing policy cascade, and YAML/JSON policy overlay validation.
+- `killswitch_config.probe_effective` sharing managed-over-user, `managed-settings.d/*.json`, and Linux root-ownership trust precedence with `resolve_effective`.
+
+### Changed
+
+- `deep_inventory.py` computes mount-safe and `st_dev`-safe sizes in a single pass, classifies subpath targets (`~/.claude/projects`, `~/.claude/plugins/cache`), honors `CLAUDE_CONFIG_DIR`, indexes `launcher_dirs` once per walk, separates depth-1 `plugins/cache/temp_git_*` directories from plugin versions, and resolves `projects/` slugs via the shared cached `lib/claude_projects.py` module.
+
+- Rewired `engine_context.py` and `kill_switch_probe.py` to consume `lib/install_authority.py` and `killswitch_config.probe_effective` directly with zero `destructive_guard` imports.
+- Rewired `policy_migration.py` to consume `lib/policy_cascade.py` and `lib/yaml_subset.py` directly with zero `hygiene` imports.
+- Cached `system_roots()` and pre-casefolded `exact_names` across `hygiene.py` scan and revalidation hot loops, and pre-indexed snapshot descendants (`O(N log N)`) in `investigated_catalog.py`.
+
+### Fixed
+
+- `hygiene.py inventory` no longer calls `close_clean_runs()`, keeping read-only inventory from mutating `clean-runs/` markers.
+
+- Added `clean-invoked` and `guard-no-interpreter` to `ENGINE_OWNED_DIRS` and aligned Python session-ID sanitization to strict ASCII (`[^A-Za-z0-9_-]`) matching Bash and Node hooks.
+- Fixed `apply_plan` inner per-entry revalidation dropping `snapshot["policy"]["protected_exact_names"]` and re-reading `baseline-policy.json` from disk on every entry.
+- Fixed `kill_switch_probe.py` missing managed-settings overrides and install-scoped `plugin_id` narrowing.
+
+## [1.1.4] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [1.1.3] - 2026-11-24
 
 ### Changed

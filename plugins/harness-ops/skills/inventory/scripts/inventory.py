@@ -740,7 +740,7 @@ def _unparen(text: str) -> str:
         for k, ch in enumerate(text):
             depth += (ch == "(") - (ch == ")")
             if depth == 0 and k < len(text) - 1:
-                return text  # `(a)||(b)`: the first group closes early
+                return text
         text = text[1:-1].strip()
     return text
 
@@ -1277,7 +1277,7 @@ def _operand(
         elif (
             computed
             or not values
-            or _ELLIPSIS in values  # a bare runtime value settles nothing
+            or _ELLIPSIS in values
             or (or_op and not all(values))
         ):
             for v in values or []:
@@ -1437,7 +1437,7 @@ def _array_join(
             if src.startswith("]", start):
                 continue
             if start > stop or src.startswith(",", start):
-                out.append([""])  # a hole joins as the empty string
+                out.append([""])
                 continue
             if src.startswith("...[", start):
                 inner = _match_close(src, braces, start + 3, n)
@@ -4467,7 +4467,7 @@ def _frontmatter(text: str) -> dict[str, str]:
                 more.append(lines[i].strip())
                 i += 1
             if more and value.startswith(("'", '"')):
-                continue  # a multi-line quoted scalar is not read
+                continue
             out[kv.group(1)] = " ".join([value, *more]).strip("\"'")
     return out
 
@@ -5410,7 +5410,7 @@ def _classify(rel: str, present: set[str]) -> tuple[str, str, str] | None:
     if re.search(r"(^|/)\.claude/rules/.+\.md$", rel):
         if not rel.startswith(".claude/rules/"):
             return "project", "rule", "on-demand"
-        return "project", "rule", ""  # launch or path-scoped, read from the file
+        return "project", "rule", ""
     if name not in ("CLAUDE.md", "CLAUDE.local.md", "AGENTS.md"):
         return None
     folder = _instruction_dir(rel)

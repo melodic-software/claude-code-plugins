@@ -321,8 +321,10 @@ lift_tool() {
   local tool="$1/.base/plugins/source-control/skills/babysit-prs/scripts/babysit_lift.py"
   mkdir -p "${tool%/*}"
   cat >"$tool" <<PY
-import sys
+import os, sys
 open("$TMP_ROOT/stub/lift", "a").write(" ".join(sys.argv[1:]) + "\n")
+if "${LIFT_REMOVED:-}" and os.environ.get("REMOVED_BY_SINK"):
+    open(os.environ["REMOVED_BY_SINK"], "a").write("""${LIFT_REMOVED:-}""" + "\n")
 if ${LIFT_RC:-0} == 0:
     print("""${LIFT_OUT:-}""")
 sys.exit(${LIFT_RC:-0})
@@ -2511,6 +2513,24 @@ if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" != *"lift-content"* &&
   ok "a canary record whose deleted content could not be recorded stays human-close"
 else
   fail "canary without block: rc=$RC body='$body' out='$OUT'"
+fi
+earlier="$(git -C "$PUSH_REPO" rev-parse HEAD~1)"
+LIFT_TOOL=1 LIFT_OUT="$BLOCK" LIFT_REMOVED="$earlier" canary_fail
+body="$(post_fields 2>/dev/null)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == *"title=Post-merge canary failure after #1260: unattended"* &&
+  "$body" == *"- Pull request: https://github.com/o/r/pull/1260 (commit \`$earlier\`)"* &&
+  "$body" != *"/pull/1261"* && "$body" != *"/pull/1234"* ]]; then
+  ok "a canary record names the pull request whose commit the scan fired on, not the push head's"
+else
+  fail "canary remover: rc=$RC body='$body' out='$OUT'"
+fi
+LIFT_TOOL=1 LIFT_OUT="$BLOCK" canary_fail
+body="$(post_fields 2>/dev/null)"
+if [[ "$RC" -eq 0 && "$body" == *"title=Post-merge canary failure at ${HEAD_SHA:0:12}: unattended"* &&
+  "$body" == *"- Pull request: unknown: no scan named which of the 2 pushed commits removed the lines"* ]]; then
+  ok "a canary record of a multi-commit push no scan attributed names no pull request as the remover"
+else
+  fail "canary unnamed remover: rc=$RC body='$body' out='$OUT'"
 fi
 mapfile -t many < <(for i in $(seq 21); do echo "feat: change $i (#$((1300 + i)))"; done)
 push_repo "${many[@]}"

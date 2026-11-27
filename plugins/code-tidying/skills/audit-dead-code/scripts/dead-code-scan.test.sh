@@ -166,9 +166,9 @@ printf 'no typescript here\n' >"$EMPTY_REPO/README.md"
 stage_repo "$EMPTY_REPO"
 
 knip_exit=0
-knip_out="$(cd "$TS_REPO" && FAKE_KNIP_OUT="$FIXTURES/knip-report.json" FAKE_KNIP_EXIT=1 bash "$SCAN" --lane knip 2>/dev/null)" || knip_exit=$?
+knip_out="$(cd "$TS_REPO" && FAKE_KNIP_OUT="$FIXTURES/knip-report.json" FAKE_KNIP_EXIT=1 bash "$SCAN" --analyzer knip 2>/dev/null)" || knip_exit=$?
 assert_exit "knip fixture scan exits 0" 0 "$knip_exit"
-assert_contains "knip lane ran over the four TS files" "$knip_out" "Lane: knip | root=. | state=ran | files=4 | detail=3 candidate(s)"
+assert_contains "knip analyzer ran over the four TS files" "$knip_out" "Analyzer: knip | root=. | state=ran | files=4 | detail=3 candidate(s)"
 assert_contains "orphan file reported as ts-unused-file" "$knip_out" "Finding shape: ts-unused-file"
 assert_contains "orphan file is the fixture's orphan module" "$knip_out" "File: ts-orphan.ts"
 assert_contains "orphan-file excerpt names the module" "$knip_out" "Finding excerpt: ts-orphan.ts"
@@ -183,8 +183,8 @@ assert_not_contains "used-export control file not reported" "$knip_out" "File: t
 assert_not_contains "used-export control symbol not reported" "$knip_out" "formatBytes"
 assert_not_contains "statically imported export not reported" "$knip_out" "mountPanel"
 
-tgt_out="$(cd "$TS_REPO" && FAKE_KNIP_OUT="$FIXTURES/knip-report.json" FAKE_KNIP_EXIT=1 bash "$SCAN" --lane knip ts-orphan.ts 2>/dev/null)"
-assert_contains "narrow target counts only the requested file" "$tgt_out" "Lane: knip | root=. | state=ran | files=1"
+tgt_out="$(cd "$TS_REPO" && FAKE_KNIP_OUT="$FIXTURES/knip-report.json" FAKE_KNIP_EXIT=1 bash "$SCAN" --analyzer knip ts-orphan.ts 2>/dev/null)"
+assert_contains "narrow target counts only the requested file" "$tgt_out" "Analyzer: knip | root=. | state=ran | files=1"
 assert_contains "narrow target still reports the requested orphan" "$tgt_out" "File: ts-orphan.ts"
 assert_not_contains "narrow target drops the other file's unused exports" "$tgt_out" "File: dead-and-dynamic.ts"
 assert_not_contains "narrow target drops formatLegacyRow" "$tgt_out" "formatLegacyRow"
@@ -192,20 +192,20 @@ assert_not_contains "narrow target drops renderPanel" "$tgt_out" "renderPanel"
 assert_contains "narrow target totals only the orphan" "$tgt_out" "Summary total: files-with-findings=1 T1=0 T2=1 T3=0"
 
 deg_exit=0
-deg_out="$(cd "$TS_REPO" && FAKE_KNIP_OUT="$FIXTURES/knip-report.json" FAKE_KNIP_ERR="$FIXTURES/knip-degraded.stderr.txt" FAKE_KNIP_EXIT=1 bash "$SCAN" --lane knip 2>/dev/null)" || deg_exit=$?
+deg_out="$(cd "$TS_REPO" && FAKE_KNIP_OUT="$FIXTURES/knip-report.json" FAKE_KNIP_ERR="$FIXTURES/knip-degraded.stderr.txt" FAKE_KNIP_EXIT=1 bash "$SCAN" --analyzer knip 2>/dev/null)" || deg_exit=$?
 assert_exit "degraded knip scan still exits 0" 0 "$deg_exit"
-assert_contains "ERROR: on stderr marks the lane degraded" "$deg_out" "state=degraded"
-assert_not_contains "degraded lane is not also ran" "$deg_out" "state=ran"
-assert_not_contains "degraded lane emits no unused-file record" "$deg_out" "Finding shape: ts-unused-file"
-assert_not_contains "degraded lane emits no unused-export record" "$deg_out" "Finding shape: ts-unused-export"
-assert_not_contains "degraded lane emits no finding at all" "$deg_out" "Finding tier:"
-assert_not_contains "degraded lane leaks no symbol from the blob" "$deg_out" "formatLegacyRow"
-assert_contains "degraded lane counts zero candidates" "$deg_out" "Summary candidates: total=0 emitted=0 dropped-by-cap=0 cap=0"
-assert_contains "degraded lane counts zero findings" "$deg_out" "Summary total: files-with-findings=0 T1=0 T2=0 T3=0"
-assert_contains "degraded lane leaves every TS file uncovered" "$deg_out" "Summary coverage: covered=0 uncovered=4"
-assert_contains "degraded lane names its reason per file" "$deg_out" "Note: uncovered ts-orphan.ts — lane degraded"
-assert_not_contains "degraded-only run is not called a scan of nothing" "$deg_out" "Note: no lane ran"
-assert_not_contains "degraded-only run never prints the clean-result note" "$deg_out" "Note: no candidates from the lanes that ran"
+assert_contains "ERROR: on stderr marks the analyzer degraded" "$deg_out" "state=degraded"
+assert_not_contains "degraded analyzer is not also ran" "$deg_out" "state=ran"
+assert_not_contains "degraded analyzer emits no unused-file record" "$deg_out" "Finding shape: ts-unused-file"
+assert_not_contains "degraded analyzer emits no unused-export record" "$deg_out" "Finding shape: ts-unused-export"
+assert_not_contains "degraded analyzer emits no finding at all" "$deg_out" "Finding tier:"
+assert_not_contains "degraded analyzer leaks no symbol from the blob" "$deg_out" "formatLegacyRow"
+assert_contains "degraded analyzer counts zero candidates" "$deg_out" "Summary candidates: total=0 emitted=0 dropped-by-cap=0 cap=0"
+assert_contains "degraded analyzer counts zero findings" "$deg_out" "Summary total: files-with-findings=0 T1=0 T2=0 T3=0"
+assert_contains "degraded analyzer leaves every TS file uncovered" "$deg_out" "Summary coverage: covered=0 uncovered=4"
+assert_contains "degraded analyzer names its reason per file" "$deg_out" "Note: uncovered ts-orphan.ts — analyzer degraded"
+assert_not_contains "degraded-only run is not called a scan of nothing" "$deg_out" "Note: no analyzer ran"
+assert_not_contains "degraded-only run never prints the clean-result note" "$deg_out" "Note: no candidates from the analyzers that ran"
 
 DEGMIX_REPO="$TEST_TMPDIR/degraded-mixed"
 init_repo "$DEGMIX_REPO"
@@ -216,12 +216,12 @@ printf '%s\n' '#!/usr/bin/env bash' 'echo hi' >"$DEGMIX_REPO/a.sh"
 cp "$FIXTURES/ts-orphan.ts" "$DEGMIX_REPO/"
 stage_repo "$DEGMIX_REPO"
 degmix_out="$(cd "$DEGMIX_REPO" && FAKE_KNIP_OUT="$FIXTURES/knip-report.json" FAKE_KNIP_ERR="$FIXTURES/knip-degraded.stderr.txt" FAKE_KNIP_EXIT=1 bash "$SCAN" 2>/dev/null)"
-assert_contains "grep lane ran beside the degraded knip lane" "$degmix_out" "Lane: grep | root=. | state=ran"
-assert_contains "knip lane is degraded" "$degmix_out" "Lane: knip | root=. | state=degraded"
-assert_contains "the TS file is uncovered with reason lane degraded" "$degmix_out" "Note: uncovered ts-orphan.ts — lane degraded"
-assert_not_contains "the shell file the grep lane ran on is not uncovered" "$degmix_out" "Note: uncovered a.sh"
+assert_contains "grep analyzer ran beside the degraded knip analyzer" "$degmix_out" "Analyzer: grep | root=. | state=ran"
+assert_contains "knip analyzer is degraded" "$degmix_out" "Analyzer: knip | root=. | state=degraded"
+assert_contains "the TS file is uncovered with reason analyzer degraded" "$degmix_out" "Note: uncovered ts-orphan.ts — analyzer degraded"
+assert_not_contains "the shell file the grep analyzer ran on is not uncovered" "$degmix_out" "Note: uncovered a.sh"
 assert_contains "coverage does not count the degraded file" "$degmix_out" "Summary coverage: covered=1 uncovered=1"
-assert_not_contains "a degraded lane suppresses the clean-result note" "$degmix_out" "Note: no candidates from the lanes that ran"
+assert_not_contains "a degraded analyzer suppresses the clean-result note" "$degmix_out" "Note: no candidates from the analyzers that ran"
 
 MULTI_DEG="$TEST_TMPDIR/multi-degraded"
 init_repo "$MULTI_DEG"
@@ -238,23 +238,23 @@ MULTI_DEG_ERR="$TEST_TMPDIR/knip-err"
 cp "$FIXTURES/knip-degraded.stderr.txt" "$MULTI_DEG_ERR.inner"
 
 md_exit=0
-md_out="$(cd "$MULTI_DEG" && FAKE_KNIP_OUT="$MULTI_DEG_KNIP" FAKE_KNIP_ERR="$MULTI_DEG_ERR" FAKE_KNIP_EXIT=1 bash "$SCAN" --lane knip 2>/dev/null)" || md_exit=$?
+md_out="$(cd "$MULTI_DEG" && FAKE_KNIP_OUT="$MULTI_DEG_KNIP" FAKE_KNIP_ERR="$MULTI_DEG_ERR" FAKE_KNIP_EXIT=1 bash "$SCAN" --analyzer knip 2>/dev/null)" || md_exit=$?
 assert_exit "multi-root scan exits 0" 0 "$md_exit"
-assert_contains "the nested root is its own lane line, degraded" "$md_out" "Lane: knip | root=packages/inner | state=degraded | files=2"
-assert_contains "the outer root counts only the files it owns" "$md_out" "Lane: knip | root=. | state=ran | files=3 | detail=2 candidate(s);"
+assert_contains "the nested root is its own analyzer line, degraded" "$md_out" "Analyzer: knip | root=packages/inner | state=degraded | files=2"
+assert_contains "the outer root counts only the files it owns" "$md_out" "Analyzer: knip | root=. | state=ran | files=3 | detail=2 candidate(s);"
 assert_contains "the outer root says what it dropped" "$md_out" "1 finding(s) this root does not own dropped"
 assert_not_contains "no record names a file inside the degraded nested root" "$md_out" "File: packages/inner"
 assert_not_contains "the degraded root's module leaks into no record" "$(printf '%s\n' "$md_out" | grep -v '^Note: uncovered ')" "ts-orphan"
-assert_contains "the degraded root's module is listed uncovered" "$md_out" "Note: uncovered packages/inner/ts-orphan.ts — lane degraded"
+assert_contains "the degraded root's module is listed uncovered" "$md_out" "Note: uncovered packages/inner/ts-orphan.ts — analyzer degraded"
 assert_not_contains "the degraded root emits no unused-file record" "$md_out" "Finding shape: ts-unused-file"
 assert_contains "the healthy outer root still reports its own file" "$md_out" "File: dead-and-dynamic.ts"
 assert_contains "the healthy outer root still reports its own export" "$md_out" "Finding excerpt: formatLegacyRow"
 assert_contains "and the second one" "$md_out" "Finding excerpt: renderPanel"
 assert_contains "totals count only the owned findings" "$md_out" "Summary total: files-with-findings=1 T1=0 T2=2 T3=0"
-assert_contains "the lane roster carries both roots' states" "$md_out" "Summary lanes: ran=1 skipped=0 degraded=1 scanned-zero-files=0"
+assert_contains "the analyzer roster carries both roots' states" "$md_out" "Summary analyzers: ran=1 skipped=0 degraded=1 scanned-zero-files=0"
 
-hoist_out="$(cd "$MULTI_DEG" && FAKE_KNIP_OUT="$MULTI_DEG_KNIP" FAKE_KNIP_EXIT=1 bash "$SCAN" --lane knip 2>/dev/null)"
-assert_contains "hoisted nested root is restored and ran" "$hoist_out" "Lane: knip | root=packages/inner | state=ran | files=2"
+hoist_out="$(cd "$MULTI_DEG" && FAKE_KNIP_OUT="$MULTI_DEG_KNIP" FAKE_KNIP_EXIT=1 bash "$SCAN" --analyzer knip 2>/dev/null)"
+assert_contains "hoisted nested root is restored and ran" "$hoist_out" "Analyzer: knip | root=packages/inner | state=ran | files=2"
 assert_not_contains "hoisted nested root is not degraded for missing local node_modules" "$hoist_out" "root=packages/inner | state=degraded"
 
 MULTI_OK="$TEST_TMPDIR/multi-healthy"
@@ -273,9 +273,9 @@ sed -e 's|"ts-orphan.ts"|"packages/inner/ts-orphan.ts"|g' \
   "$FIXTURES/knip-report.json" >"$MULTI_OK_KNIP"
 cp "$FIXTURES/knip-report.json" "$MULTI_OK_KNIP.inner"
 
-mo_out="$(cd "$MULTI_OK" && FAKE_KNIP_OUT="$MULTI_OK_KNIP" FAKE_KNIP_EXIT=1 bash "$SCAN" --lane knip 2>/dev/null)"
-assert_contains "both roots ran" "$mo_out" "Lane: knip | root=packages/inner | state=ran | files=2 | detail=3 candidate(s)"
-assert_contains "the outer root reports none of the nested root's files" "$mo_out" "Lane: knip | root=. | state=ran | files=2 | detail=0 candidate(s); 3 finding(s) this root does not own dropped"
+mo_out="$(cd "$MULTI_OK" && FAKE_KNIP_OUT="$MULTI_OK_KNIP" FAKE_KNIP_EXIT=1 bash "$SCAN" --analyzer knip 2>/dev/null)"
+assert_contains "both roots ran" "$mo_out" "Analyzer: knip | root=packages/inner | state=ran | files=2 | detail=3 candidate(s)"
+assert_contains "the outer root reports none of the nested root's files" "$mo_out" "Analyzer: knip | root=. | state=ran | files=2 | detail=0 candidate(s); 3 finding(s) this root does not own dropped"
 assert_contains "the nested root reports its own orphan module" "$mo_out" "File: packages/inner/ts-orphan.ts"
 assert_contains "the nested root reports its own exports' file" "$mo_out" "File: packages/inner/dead-and-dynamic.ts"
 assert_not_contains "no nested path is re-reported at the outer root" "$mo_out" "File: ts-orphan.ts"
@@ -284,19 +284,19 @@ assert_contains "three findings total, none duplicated across roots" "$mo_out" "
 assert_contains "the candidate count matches the owned findings" "$mo_out" "Summary candidates: total=3 emitted=3 dropped-by-cap=0 cap=0"
 
 parse_exit=0
-parse_out="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$FIXTURES/vulture-report.txt" FAKE_VULTURE_ERR="$FIXTURES/vulture-parse-error.txt" FAKE_VULTURE_EXIT=3 bash "$SCAN" --lane vulture 2>/dev/null)" || parse_exit=$?
+parse_out="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$FIXTURES/vulture-report.txt" FAKE_VULTURE_ERR="$FIXTURES/vulture-parse-error.txt" FAKE_VULTURE_EXIT=3 bash "$SCAN" --analyzer vulture 2>/dev/null)" || parse_exit=$?
 assert_exit "vulture input-note scan exits 0" 0 "$parse_exit"
-assert_contains "input parse error keeps the lane RAN" "$parse_out" "Lane: vulture | root=. | state=ran"
-assert_not_contains "input parse error does NOT degrade the lane" "$parse_out" "state=degraded"
+assert_contains "input parse error keeps the analyzer RAN" "$parse_out" "Analyzer: vulture | root=. | state=ran"
+assert_not_contains "input parse error does NOT degrade the analyzer" "$parse_out" "state=degraded"
 assert_contains "unparsable input is reported as a Note" "$parse_out" "Note: vulture could not parse one input and skipped it (an input note, not a degraded run):"
 assert_contains "the note carries the captured stderr line" "$parse_out" "vulture-parse-error-input.toml:8: cannot assign to expression here."
-assert_contains "the unparsable input is counted in the lane detail" "$parse_out" "1 input file(s) skipped as unparsable"
+assert_contains "the unparsable input is counted in the analyzer detail" "$parse_out" "1 input file(s) skipped as unparsable"
 assert_contains "real findings survive the input note" "$parse_out" "Finding excerpt: unused function 'format_legacy_row' (60% confidence)"
 assert_contains "all four captured findings emitted" "$parse_out" "Summary total: files-with-findings=2 T1=0 T2=4 T3=0"
 
 PYBAD_ERR="$TEST_TMPDIR/vulture-pybad.stderr.txt"
 printf '%s\n' 'py-entry.py:3: invalid syntax' >"$PYBAD_ERR"
-pybad_out="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$FIXTURES/vulture-report.txt" FAKE_VULTURE_ERR="$PYBAD_ERR" FAKE_VULTURE_EXIT=3 bash "$SCAN" --lane vulture 2>/dev/null)"
+pybad_out="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$FIXTURES/vulture-report.txt" FAKE_VULTURE_ERR="$PYBAD_ERR" FAKE_VULTURE_EXIT=3 bash "$SCAN" --analyzer vulture 2>/dev/null)"
 assert_contains "an unparsable tracked .py is uncovered" "$pybad_out" \
   "Note: uncovered py-entry.py — tool could not parse it"
 assert_contains "the parsed .py stays covered" "$pybad_out" "Summary coverage: covered=1 uncovered=1"
@@ -305,15 +305,15 @@ TRACEBACK_ERR="$TEST_TMPDIR/vulture-traceback.stderr.txt"
 printf '%s\n' 'Traceback (most recent call last):' \
   '  File "/usr/lib/vulture/core.py", line 1, in <module>' \
   'TypeError: unsupported operand' >"$TRACEBACK_ERR"
-vdeg_out="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$FIXTURES/vulture-report.txt" FAKE_VULTURE_ERR="$TRACEBACK_ERR" FAKE_VULTURE_EXIT=1 bash "$SCAN" --lane vulture 2>/dev/null)"
-assert_contains "non-input stderr DOES degrade the lane" "$vdeg_out" "Lane: vulture | root=. | state=degraded"
+vdeg_out="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$FIXTURES/vulture-report.txt" FAKE_VULTURE_ERR="$TRACEBACK_ERR" FAKE_VULTURE_EXIT=1 bash "$SCAN" --analyzer vulture 2>/dev/null)"
+assert_contains "non-input stderr DOES degrade the analyzer" "$vdeg_out" "Analyzer: vulture | root=. | state=degraded"
 assert_not_contains "degraded vulture emits no records" "$vdeg_out" "Finding shape: py-unused-symbol"
 assert_contains "degraded vulture counts zero findings" "$vdeg_out" "Summary total: files-with-findings=0 T1=0 T2=0 T3=0"
-assert_contains "degraded vulture leaves its .py files uncovered" "$vdeg_out" "Note: uncovered py-entry.py — lane degraded"
+assert_contains "degraded vulture leaves its .py files uncovered" "$vdeg_out" "Note: uncovered py-entry.py — analyzer degraded"
 assert_contains "degraded vulture covers nothing" "$vdeg_out" "Summary coverage: covered=0 "
-assert_not_contains "degraded vulture never prints the clean-result note" "$vdeg_out" "Note: no candidates from the lanes that ran"
+assert_not_contains "degraded vulture never prints the clean-result note" "$vdeg_out" "Note: no candidates from the analyzers that ran"
 
-vul_out="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$FIXTURES/vulture-report.txt" FAKE_VULTURE_EXIT=3 bash "$SCAN" --lane vulture 2>/dev/null)"
+vul_out="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$FIXTURES/vulture-report.txt" FAKE_VULTURE_EXIT=3 bash "$SCAN" --analyzer vulture 2>/dev/null)"
 assert_contains "vulture finding at line 13" "$vul_out" "Finding line: 13"
 assert_contains "vulture finding at line 18" "$vul_out" "Finding line: 18"
 assert_contains "vulture finding at line 23" "$vul_out" "Finding line: 23"
@@ -327,18 +327,18 @@ VERB_OUT="$TEST_TMPDIR/vulture-verbs.txt"
 cp "$FIXTURES/vulture-report.txt" "$VERB_OUT"
 printf '%s\n' "dead-and-dynamic.py:36: unreachable code after 'raise' (100% confidence)" >>"$VERB_OUT"
 printf '%s\n' "dead-and-dynamic.py:31: obsolete function 'ghost' (60% confidence)" >>"$VERB_OUT"
-verb_out="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$VERB_OUT" FAKE_VULTURE_EXIT=3 bash "$SCAN" --lane vulture 2>/dev/null)"
+verb_out="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$VERB_OUT" FAKE_VULTURE_EXIT=3 bash "$SCAN" --analyzer vulture 2>/dev/null)"
 assert_contains "unreachable verb maps to py-unreachable" "$verb_out" "Finding shape: py-unreachable"
 assert_contains "py-unreachable is tier 1" "$verb_out" "Finding tier: 1"
 assert_contains "non-verb look-alike becomes drift" "$verb_out" "Finding excerpt: vulture line not in the finding grammar: dead-and-dynamic.py:31: obsolete function 'ghost' (60% confidence)"
 assert_contains "drift is filed under the no-file marker" "$verb_out" "Summary file: - | T1=0 T2=0 T3=1"
 assert_contains "verb gate tallies 1/4/1 across three files" "$verb_out" "Summary total: files-with-findings=3 T1=1 T2=4 T3=1"
-assert_contains "drift is counted in the lane detail" "$verb_out" "1 unrecognized stdout line(s)"
+assert_contains "drift is counted in the analyzer detail" "$verb_out" "1 unrecognized stdout line(s)"
 
 go_exit=0
-go_out="$(cd "$GO_REPO" && FAKE_GOPLS_OUT="$FIXTURES/gopls-hints.txt" bash "$SCAN" --lane gopls 2>/dev/null)" || go_exit=$?
+go_out="$(cd "$GO_REPO" && FAKE_GOPLS_OUT="$FIXTURES/gopls-hints.txt" bash "$SCAN" --analyzer gopls 2>/dev/null)" || go_exit=$?
 assert_exit "gopls fixture scan exits 0" 0 "$go_exit"
-assert_contains "gopls lane ran" "$go_out" "Lane: gopls | root=. | state=ran"
+assert_contains "gopls analyzer ran" "$go_out" "Analyzer: gopls | root=. | state=ran"
 assert_contains "absolute gopls path relativized to the repo root" "$go_out" "File: dead-and-dynamic.go"
 assert_not_contains "no absolute path leaks into a Location" "$go_out" "File: $GO_REPO"
 assert_not_contains "no absolute path leaks anywhere in the record" "$go_out" "$GO_REPO/dead-and-dynamic.go"
@@ -352,7 +352,7 @@ assert_not_contains "exported symbol absent from the capture stays absent" "$go_
 GO_EXPORTED="$TEST_TMPDIR/gopls-hints-exported.txt"
 cp "$FIXTURES/gopls-hints.txt" "$GO_EXPORTED"
 printf '%s\n' '/gopls-fixture/dead-and-dynamic.go:9:6-19: function "ExportedEntry" is unused' >>"$GO_EXPORTED"
-goexp_out="$(cd "$GO_REPO" && FAKE_GOPLS_OUT="$GO_EXPORTED" bash "$SCAN" --lane gopls 2>/dev/null)"
+goexp_out="$(cd "$GO_REPO" && FAKE_GOPLS_OUT="$GO_EXPORTED" bash "$SCAN" --analyzer gopls 2>/dev/null)"
 assert_contains "unexported symbol still reported alongside the control" "$goexp_out" 'Finding excerpt: function "deadHandler" is unused'
 assert_not_contains "exported symbol is not reported" "$goexp_out" "ExportedEntry"
 assert_contains "exported symbol is filtered, not counted as drift" "$goexp_out" "1 unexported candidate(s), 0 unrecognized line(s)"
@@ -361,28 +361,28 @@ assert_contains "exported control does not inflate the totals" "$goexp_out" "Sum
 GO_DEGRADED="$TEST_TMPDIR/gopls-degraded.txt"
 cp "$FIXTURES/gopls-hints.txt" "$GO_DEGRADED"
 printf '%s\n' '/gopls-fixture/dead-and-dynamic.go:6:1: could not import example.com/missing (no required module provides package example.com/missing)' >>"$GO_DEGRADED"
-godeg_out="$(cd "$GO_REPO" && FAKE_GOPLS_OUT="$GO_DEGRADED" bash "$SCAN" --lane gopls 2>/dev/null)"
-assert_contains "an import error on stdout degrades the module" "$godeg_out" "Lane: gopls | root=. | state=degraded"
+godeg_out="$(cd "$GO_REPO" && FAKE_GOPLS_OUT="$GO_DEGRADED" bash "$SCAN" --analyzer gopls 2>/dev/null)"
+assert_contains "an import error on stdout degrades the module" "$godeg_out" "Analyzer: gopls | root=. | state=degraded"
 assert_not_contains "degraded gopls emits no unexported record" "$godeg_out" "Finding shape: go-unused-unexported"
 assert_not_contains "degraded gopls emits no finding at all" "$godeg_out" "Finding tier:"
 assert_not_contains "degraded gopls leaks no symbol parsed before the gate" "$godeg_out" "deadHandler"
 assert_contains "degraded gopls counts zero candidates" "$godeg_out" "Summary candidates: total=0 emitted=0 dropped-by-cap=0 cap=0"
 assert_contains "degraded gopls counts zero findings" "$godeg_out" "Summary total: files-with-findings=0 T1=0 T2=0 T3=0"
-assert_contains "degraded gopls leaves its .go file uncovered" "$godeg_out" "— lane degraded"
+assert_contains "degraded gopls leaves its .go file uncovered" "$godeg_out" "— analyzer degraded"
 assert_contains "degraded gopls covers nothing" "$godeg_out" "Summary coverage: covered=0 "
-assert_not_contains "degraded gopls never prints the clean-result note" "$godeg_out" "Note: no candidates from the lanes that ran"
+assert_not_contains "degraded gopls never prints the clean-result note" "$godeg_out" "Note: no candidates from the analyzers that ran"
 
 GO_ERR="$TEST_TMPDIR/gopls-stderr.txt"
 printf '%s\n' 'gopls: loading workspace: go.mod file not found in any parent directory' >"$GO_ERR"
-goerr_out="$(cd "$GO_REPO" && FAKE_GOPLS_OUT="$FIXTURES/gopls-hints.txt" FAKE_GOPLS_ERR="$GO_ERR" bash "$SCAN" --lane gopls 2>/dev/null)"
-assert_contains "a non-empty gopls stderr degrades the module" "$goerr_out" "Lane: gopls | root=. | state=degraded"
+goerr_out="$(cd "$GO_REPO" && FAKE_GOPLS_OUT="$FIXTURES/gopls-hints.txt" FAKE_GOPLS_ERR="$GO_ERR" bash "$SCAN" --analyzer gopls 2>/dev/null)"
+assert_contains "a non-empty gopls stderr degrades the module" "$goerr_out" "Analyzer: gopls | root=. | state=degraded"
 assert_not_contains "stderr-degraded gopls emits no records" "$goerr_out" "deadHandler"
 assert_contains "stderr-degraded gopls counts zero findings" "$goerr_out" "Summary total: files-with-findings=0 T1=0 T2=0 T3=0"
 
 grep_exit=0
-grep_out="$(cd "$SH_REPO" && bash "$SCAN" --lane grep 2>/dev/null)" || grep_exit=$?
-assert_exit "grep lane scan exits 0" 0 "$grep_exit"
-assert_contains "grep lane ran over the one shell file" "$grep_out" "Lane: grep | root=. | state=ran | files=1 | detail=2 symbol candidate(s) from 3 distinct definition name(s); 1 unreferenced-file candidate(s)"
+grep_out="$(cd "$SH_REPO" && bash "$SCAN" --analyzer grep 2>/dev/null)" || grep_exit=$?
+assert_exit "grep analyzer scan exits 0" 0 "$grep_exit"
+assert_contains "grep analyzer ran over the one shell file" "$grep_out" "Analyzer: grep | root=. | state=ran | files=1 | detail=2 symbol candidate(s) from 3 distinct definition name(s); 1 unreferenced-file candidate(s)"
 assert_not_contains "the fixture is not self-referencing into zero candidates" "$grep_out" "detail=0 candidate(s)"
 assert_contains "grep shape is unreferenced-symbol" "$grep_out" "Finding shape: unreferenced-symbol"
 assert_contains "unreferenced-symbol is tier 1" "$grep_out" "Finding tier: 1"
@@ -393,11 +393,11 @@ assert_contains "trap function line number" "$grep_out" "Finding line: 26"
 assert_contains "both symbol candidates attributed to the one file" "$grep_out" "Summary file: dead-and-dynamic.sh | T1=2 T2=1 T3=0"
 assert_contains "the shell file itself is an unreferenced-file candidate" "$grep_out" "Finding shape: unreferenced-file"
 assert_contains "unreferenced-file is tier 2" "$grep_out" "Finding tier: 2"
-assert_contains "grep lane totals" "$grep_out" "Summary total: files-with-findings=1 T1=2 T2=1 T3=0"
+assert_contains "grep analyzer totals" "$grep_out" "Summary total: files-with-findings=1 T1=2 T2=1 T3=0"
 assert_not_contains "the literally called function is not a candidate" "$grep_out" "Finding excerpt: main() {"
 
 root_exit=0
-root_out="$(cd "$TEST_TMPDIR" && bash "$SCAN" --lane grep --root "$SH_REPO" 2>/dev/null)" || root_exit=$?
+root_out="$(cd "$TEST_TMPDIR" && bash "$SCAN" --analyzer grep --root "$SH_REPO" 2>/dev/null)" || root_exit=$?
 assert_exit "--root scan exits 0" 0 "$root_exit"
 assert_equal "--root from outside gives the in-repository report" "$grep_out" "$root_out"
 ROOT_REPO="$TEST_TMPDIR/root-repo"
@@ -405,9 +405,9 @@ init_repo "$ROOT_REPO"
 cp "$FIXTURES/dead-and-dynamic.sh" "$ROOT_REPO/"
 printf '#!/usr/bin/env bash\norphan_helper() {\n  :\n}\n' >"$ROOT_REPO/extra.sh"
 stage_repo "$ROOT_REPO"
-root_all_out="$(cd "$TEST_TMPDIR" && bash "$SCAN" --lane grep --root "$ROOT_REPO" 2>/dev/null)"
+root_all_out="$(cd "$TEST_TMPDIR" && bash "$SCAN" --analyzer grep --root "$ROOT_REPO" 2>/dev/null)"
 assert_contains "--root untargeted scan reports the second file" "$root_all_out" "File: extra.sh"
-root_tgt_out="$(cd "$TEST_TMPDIR" && bash "$SCAN" --lane grep --root "$ROOT_REPO" dead-and-dynamic.sh 2>/dev/null)"
+root_tgt_out="$(cd "$TEST_TMPDIR" && bash "$SCAN" --analyzer grep --root "$ROOT_REPO" dead-and-dynamic.sh 2>/dev/null)"
 assert_contains "--root resolves a relative target against the root" "$root_tgt_out" "File: dead-and-dynamic.sh"
 assert_not_contains "--root target narrows the candidates to that file" "$root_tgt_out" "File: extra.sh"
 
@@ -417,29 +417,29 @@ assert_contains "Finding shape: prefix" "$knip_out" "Finding shape: ts-unused-ex
 assert_contains "Finding line: prefix" "$knip_out" "Finding line: 13"
 assert_contains "Finding excerpt: prefix" "$knip_out" "Finding excerpt: formatLegacyRow"
 assert_contains "record separator" "$knip_out" "---"
-assert_contains "Lane: prefix" "$knip_out" "Lane: knip |"
+assert_contains "Analyzer: prefix" "$knip_out" "Analyzer: knip |"
 assert_contains "per-file summary with T1/T2/T3 counters" "$knip_out" "Summary file: ts-orphan.ts | T1=0 T2=1 T3=0"
-assert_contains "lane roster summary" "$knip_out" "Summary lanes: ran=1 skipped=0 degraded=0 scanned-zero-files=0"
+assert_contains "analyzer roster summary" "$knip_out" "Summary analyzers: ran=1 skipped=0 degraded=0 scanned-zero-files=0"
 assert_contains "candidate/cap summary" "$knip_out" "Summary candidates: total=3 emitted=3 dropped-by-cap=0 cap=0"
 assert_contains "total summary with T1/T2/T3 counters" "$knip_out" "Summary total: files-with-findings=2 T1=0 T2=3 T3=0"
-cap_out="$(cd "$TS_REPO" && FAKE_KNIP_OUT="$FIXTURES/knip-report.json" FAKE_KNIP_EXIT=1 bash "$SCAN" --lane knip --max 1 2>/dev/null)"
+cap_out="$(cd "$TS_REPO" && FAKE_KNIP_OUT="$FIXTURES/knip-report.json" FAKE_KNIP_EXIT=1 bash "$SCAN" --analyzer knip --max 1 2>/dev/null)"
 assert_contains "cap reports what it dropped" "$cap_out" "Summary candidates: total=3 emitted=1 dropped-by-cap=2 cap=1"
 assert_contains "cap keeps the counters honest" "$cap_out" "Summary total: files-with-findings=1 T1=0 T2=1 T3=0"
 
 GARBAGE="$TEST_TMPDIR/knip-garbage.json"
 printf '%s\n' '<!DOCTYPE html><html><body>knip changed its reporter</body></html>' >"$GARBAGE"
 drift_exit=0
-drift_out="$(cd "$TS_REPO" && FAKE_KNIP_OUT="$GARBAGE" FAKE_KNIP_EXIT=1 bash "$SCAN" --lane knip 2>/dev/null)" || drift_exit=$?
+drift_out="$(cd "$TS_REPO" && FAKE_KNIP_OUT="$GARBAGE" FAKE_KNIP_EXIT=1 bash "$SCAN" --analyzer knip 2>/dev/null)" || drift_exit=$?
 assert_exit "unrecognized knip output still exits 0" 0 "$drift_exit"
 assert_contains "unrecognized output becomes a drift record" "$drift_out" "Finding shape: detector-drift"
 assert_contains "drift is tier 3" "$drift_out" "Finding tier: 3"
 assert_contains "drift record explains itself" "$drift_out" "Finding excerpt: knip produced output no parser recognized"
-assert_contains "drift is named in the lane detail" "$drift_out" "output not recognized — recorded as T3 drift, never as clean"
+assert_contains "drift is named in the analyzer detail" "$drift_out" "output not recognized — recorded as T3 drift, never as clean"
 assert_contains "drift is counted as T3, not as clean" "$drift_out" "Summary total: files-with-findings=1 T1=0 T2=0 T3=1"
 assert_not_contains "unrecognized output never reports zero findings" "$drift_out" "Summary total: files-with-findings=0 T1=0 T2=0 T3=0"
-assert_not_contains "unrecognized output is never called clean" "$drift_out" "Note: no candidates from the lanes that ran"
+assert_not_contains "unrecognized output is never called clean" "$drift_out" "Note: no candidates from the analyzers that ran"
 
-driftcap_out="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$VERB_OUT" FAKE_VULTURE_EXIT=3 bash "$SCAN" --lane vulture --max 1 2>/dev/null)"
+driftcap_out="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$VERB_OUT" FAKE_VULTURE_EXIT=3 bash "$SCAN" --analyzer vulture --max 1 2>/dev/null)"
 assert_contains "drift survives a cap of 1" "$driftcap_out" "Finding shape: detector-drift"
 assert_contains "drift is exempt from the cap, ordinary candidates are not" "$driftcap_out" "Summary candidates: total=6 emitted=2 dropped-by-cap=4 cap=1"
 assert_contains "the capped run still counts its T3" "$driftcap_out" "Summary total: files-with-findings=2 T1=0 T2=1 T3=1"
@@ -453,64 +453,64 @@ bash "$SCAN" --bogus >/dev/null 2>&1 || unknown_exit=$?
 assert_exit "unknown flag exits 2" 2 "$unknown_exit"
 
 badlane_exit=0
-bash "$SCAN" --lane nosuchlane >/dev/null 2>&1 || badlane_exit=$?
-assert_exit "unknown --lane exits 2" 2 "$badlane_exit"
+bash "$SCAN" --analyzer nosuchlane >/dev/null 2>&1 || badlane_exit=$?
+assert_exit "unknown --analyzer exits 2" 2 "$badlane_exit"
 
 badmax_exit=0
 bash "$SCAN" --max notanumber >/dev/null 2>&1 || badmax_exit=$?
 assert_exit "non-numeric --max exits 2" 2 "$badmax_exit"
 
 missingval_exit=0
-timeout 30 bash "$SCAN" --lane >/dev/null 2>&1 || missingval_exit=$?
-assert_exit "--lane with no value exits 2" 2 "$missingval_exit"
+timeout 30 bash "$SCAN" --analyzer >/dev/null 2>&1 || missingval_exit=$?
+assert_exit "--analyzer with no value exits 2" 2 "$missingval_exit"
 
 badroot_exit=0
 bash "$SCAN" --root "$TEST_TMPDIR/no-such-dir" >/dev/null 2>&1 || badroot_exit=$?
 assert_exit "--root that is not a directory exits 2" 2 "$badroot_exit"
 
-zero_out="$(cd "$EMPTY_REPO" && bash "$SCAN" --lane knip 2>/dev/null)"
+zero_out="$(cd "$EMPTY_REPO" && bash "$SCAN" --analyzer knip 2>/dev/null)"
 assert_contains "no TS file under the root is scanned-zero-files" "$zero_out" "state=scanned-zero-files"
 assert_contains "scanned-zero-files says so in words" "$zero_out" "a scan of nothing, not a clean bill"
-assert_contains "scanned-zero-files counts as no lane run" "$zero_out" "Summary lanes: ran=0 skipped=0 degraded=0 scanned-zero-files=1"
-assert_contains "scanned-zero-files closes with the scan-of-nothing note" "$zero_out" "Note: no lane ran — this is a scan of nothing, not a clean bill."
-assert_not_contains "scanned-zero-files is not the clean note" "$zero_out" "Note: no candidates from the lanes that ran"
+assert_contains "scanned-zero-files counts as no analyzer run" "$zero_out" "Summary analyzers: ran=0 skipped=0 degraded=0 scanned-zero-files=1"
+assert_contains "scanned-zero-files closes with the scan-of-nothing note" "$zero_out" "Note: no analyzer ran — this is a scan of nothing, not a clean bill."
+assert_not_contains "scanned-zero-files is not the clean note" "$zero_out" "Note: no candidates from the analyzers that ran"
 
-clean_out="$(cd "$TS_REPO" && bash "$SCAN" --lane knip 2>/dev/null)"
-assert_contains "an empty knip report is a RAN lane" "$clean_out" "Lane: knip | root=. | state=ran | files=4"
-assert_contains "clean lane names what it covered" "$clean_out" "no unused file, export, type, or enum member reported"
-assert_contains "clean lane counts as a run" "$clean_out" "Summary lanes: ran=1 skipped=0 degraded=0 scanned-zero-files=0"
-assert_contains "clean closes with the lanes-that-ran note" "$clean_out" "Note: no candidates from the lanes that ran"
+clean_out="$(cd "$TS_REPO" && bash "$SCAN" --analyzer knip 2>/dev/null)"
+assert_contains "an empty knip report is a RAN analyzer" "$clean_out" "Analyzer: knip | root=. | state=ran | files=4"
+assert_contains "clean analyzer names what it covered" "$clean_out" "no unused file, export, type, or enum member reported"
+assert_contains "clean analyzer counts as a run" "$clean_out" "Summary analyzers: ran=1 skipped=0 degraded=0 scanned-zero-files=0"
+assert_contains "clean closes with the analyzers-that-ran note" "$clean_out" "Note: no candidates from the analyzers that ran"
 assert_not_contains "clean is not scanned-zero-files" "$clean_out" "scanned-zero-files=1"
 assert_contains "clean has zero findings" "$clean_out" "Summary total: files-with-findings=0 T1=0 T2=0 T3=0"
 assert_contains "scanned-zero-files has zero findings too" "$zero_out" "Summary total: files-with-findings=0 T1=0 T2=0 T3=0"
 
-knip_rc1="$(cd "$TS_REPO" && FAKE_KNIP_OUT="$FIXTURES/knip-report.json" FAKE_KNIP_EXIT=1 bash "$SCAN" --lane knip 2>/dev/null)"
-knip_rc0="$(cd "$TS_REPO" && FAKE_KNIP_OUT="$FIXTURES/knip-report.json" FAKE_KNIP_EXIT=0 bash "$SCAN" --lane knip 2>/dev/null)"
-knip_rc2="$(cd "$TS_REPO" && FAKE_KNIP_OUT="$FIXTURES/knip-report.json" FAKE_KNIP_EXIT=2 bash "$SCAN" --lane knip 2>/dev/null)"
+knip_rc1="$(cd "$TS_REPO" && FAKE_KNIP_OUT="$FIXTURES/knip-report.json" FAKE_KNIP_EXIT=1 bash "$SCAN" --analyzer knip 2>/dev/null)"
+knip_rc0="$(cd "$TS_REPO" && FAKE_KNIP_OUT="$FIXTURES/knip-report.json" FAKE_KNIP_EXIT=0 bash "$SCAN" --analyzer knip 2>/dev/null)"
+knip_rc2="$(cd "$TS_REPO" && FAKE_KNIP_OUT="$FIXTURES/knip-report.json" FAKE_KNIP_EXIT=2 bash "$SCAN" --analyzer knip 2>/dev/null)"
 assert_equal "knip exit 1 and exit 0 give the same report" "$knip_rc1" "$knip_rc0"
 assert_equal "knip exit 2 and exit 0 give the same report" "$knip_rc2" "$knip_rc0"
 
-vul_rc3="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$FIXTURES/vulture-report.txt" FAKE_VULTURE_EXIT=3 bash "$SCAN" --lane vulture 2>/dev/null)"
-vul_rc0="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$FIXTURES/vulture-report.txt" FAKE_VULTURE_EXIT=0 bash "$SCAN" --lane vulture 2>/dev/null)"
-vul_rc1="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$FIXTURES/vulture-report.txt" FAKE_VULTURE_EXIT=1 bash "$SCAN" --lane vulture 2>/dev/null)"
+vul_rc3="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$FIXTURES/vulture-report.txt" FAKE_VULTURE_EXIT=3 bash "$SCAN" --analyzer vulture 2>/dev/null)"
+vul_rc0="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$FIXTURES/vulture-report.txt" FAKE_VULTURE_EXIT=0 bash "$SCAN" --analyzer vulture 2>/dev/null)"
+vul_rc1="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$FIXTURES/vulture-report.txt" FAKE_VULTURE_EXIT=1 bash "$SCAN" --analyzer vulture 2>/dev/null)"
 assert_equal "vulture exit 3 and exit 0 give the same report" "$vul_rc3" "$vul_rc0"
-assert_equal "vulture exit 1 alone does not degrade the lane" "$vul_rc1" "$vul_rc0"
+assert_equal "vulture exit 1 alone does not degrade the analyzer" "$vul_rc1" "$vul_rc0"
 
-knip_rc1_empty="$(cd "$TS_REPO" && FAKE_KNIP_EXIT=1 bash "$SCAN" --lane knip 2>/dev/null)"
-assert_contains "nonzero exit with no output is still a ran lane" "$knip_rc1_empty" "Lane: knip | root=. | state=ran"
-assert_not_contains "nonzero exit alone never degrades a lane" "$knip_rc1_empty" "state=degraded"
+knip_rc1_empty="$(cd "$TS_REPO" && FAKE_KNIP_EXIT=1 bash "$SCAN" --analyzer knip 2>/dev/null)"
+assert_contains "nonzero exit with no output is still a ran analyzer" "$knip_rc1_empty" "Analyzer: knip | root=. | state=ran"
+assert_not_contains "nonzero exit alone never degrades an analyzer" "$knip_rc1_empty" "state=degraded"
 
 scan_exit=0
-(cd "$TS_REPO" && FAKE_KNIP_ERR="$FIXTURES/knip-degraded.stderr.txt" FAKE_KNIP_EXIT=1 bash "$SCAN" --lane knip) >/dev/null 2>&1 || scan_exit=$?
-assert_exit "a degraded lane never fails the caller" 0 "$scan_exit"
+(cd "$TS_REPO" && FAKE_KNIP_ERR="$FIXTURES/knip-degraded.stderr.txt" FAKE_KNIP_EXIT=1 bash "$SCAN" --analyzer knip) >/dev/null 2>&1 || scan_exit=$?
+assert_exit "a degraded analyzer never fails the caller" 0 "$scan_exit"
 
 if [[ -n "$LIVE_MISSING" ]]; then
   printf 'SKIP: live end-to-end detector run needs real tools on PATH; missing:%s. Every canned-fixture case above ran.\n' "$LIVE_MISSING"
 else
   live_exit=0
-  live_out="$(cd "$PY_REPO" && PATH="$REAL_PATH" bash "$SCAN" --lane vulture 2>/dev/null)" || live_exit=$?
+  live_out="$(cd "$PY_REPO" && PATH="$REAL_PATH" bash "$SCAN" --analyzer vulture 2>/dev/null)" || live_exit=$?
   assert_exit "live vulture scan exits 0" 0 "$live_exit"
-  assert_contains "live vulture lane reports a state" "$live_out" "Lane: vulture | root=. | state="
+  assert_contains "live vulture analyzer reports a state" "$live_out" "Analyzer: vulture | root=. | state="
 fi
 
 count_shape() {
@@ -533,7 +533,7 @@ jobs:
 EOF
 stage_repo "$REF_REPO"
 ref_exit=0
-ref_out="$(cd "$REF_REPO" && bash "$SCAN" --lane grep 2>/dev/null)" || ref_exit=$?
+ref_out="$(cd "$REF_REPO" && bash "$SCAN" --analyzer grep 2>/dev/null)" || ref_exit=$?
 assert_exit "unreferenced-file scan exits 0" 0 "$ref_exit"
 assert_equal "exactly one unreferenced-file candidate" "1" "$(count_shape "$ref_out" "Finding shape: unreferenced-file")"
 assert_contains "the orphan script is the candidate" "$ref_out" "File: scripts/orphan.sh"
@@ -554,7 +554,7 @@ printf '%s\n' '{"hooks":{"command":"bash scripts/from-settings.sh"}}' >"$EVID_RE
 printf '%s\n' 'Run scripts/from-docs.sh nightly.' >"$EVID_REPO/README.md"
 printf '%s\n' '{"scripts":{"lint":"bash scripts/from-manifest.sh"}}' >"$EVID_REPO/package.json"
 stage_repo "$EVID_REPO"
-evid_out="$(cd "$EVID_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+evid_out="$(cd "$EVID_REPO" && bash "$SCAN" --analyzer grep 2>/dev/null)"
 assert_equal "settings, docs, and manifest each save a script" "1" "$(count_shape "$evid_out" "Finding shape: unreferenced-file")"
 assert_contains "the unreferenced script is nowhere.sh" "$evid_out" "File: scripts/nowhere.sh"
 assert_not_contains "settings reference saves the script" "$evid_out" "File: scripts/from-settings.sh"
@@ -568,7 +568,7 @@ printf '%s\n' '#!/usr/bin/env bash' 'echo t' >"$TAB_REPO/scripts/a"$'\t'"b.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'echo o' >"$TAB_REPO/scripts/plain-orphan.sh"
 stage_repo "$TAB_REPO"
 tab_exit=0
-tab_out="$(cd "$TAB_REPO" && bash "$SCAN" --lane grep 2>/dev/null)" || tab_exit=$?
+tab_out="$(cd "$TAB_REPO" && bash "$SCAN" --analyzer grep 2>/dev/null)" || tab_exit=$?
 assert_exit "tab-in-path scan exits 0" 0 "$tab_exit"
 assert_equal "only the plain orphan is a candidate" "1" "$(count_shape "$tab_out" "Finding shape: unreferenced-file")"
 assert_contains "the plain orphan is reported" "$tab_out" "File: scripts/plain-orphan.sh"
@@ -580,7 +580,7 @@ mkdir -p "$BASE_REPO/scripts"
 printf '%s\n' '#!/usr/bin/env bash' 'echo b' >"$BASE_REPO/scripts/only-base.sh"
 printf '%s\n' 'Invoke only-base.sh by name.' >"$BASE_REPO/NOTE.md"
 stage_repo "$BASE_REPO"
-base_out="$(cd "$BASE_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+base_out="$(cd "$BASE_REPO" && bash "$SCAN" --analyzer grep 2>/dev/null)"
 assert_equal "a basename mention in a doc saves the file" "0" "$(count_shape "$base_out" "Finding shape: unreferenced-file")"
 
 GLOB_REPO="$TEST_TMPDIR/unref-glob"
@@ -591,7 +591,7 @@ printf '%s\n' '#!/usr/bin/env bash' 'echo g' >"$GLOB_REPO/scripts/generated.sh"
 # shellcheck disable=SC2016
 printf '%s\n' 'run: bash "scripts/${name}.sh"' >"$GLOB_REPO/.github/workflows/ci.yml"
 stage_repo "$GLOB_REPO"
-glob_out="$(cd "$GLOB_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+glob_out="$(cd "$GLOB_REPO" && bash "$SCAN" --analyzer grep 2>/dev/null)"
 assert_equal "a computed path does not count as a reference" "1" "$(count_shape "$glob_out" "Finding shape: unreferenced-file")"
 assert_contains "the computed-path script stays uncertain" "$glob_out" "File: scripts/generated.sh"
 
@@ -606,7 +606,7 @@ printf '%s\n' 'def main():' '    print("guard")' 'if __name__ == "__main__":' ' 
 printf '%s\n' 'def main():' '    print("saved")' 'if __name__ == "__main__":' '    main()' >"$PYE_REPO/pkg/guard_used.py"
 printf '%s\n' 'run: python3 pkg/used_entry.py' 'run: python3 pkg/guard_used.py' >"$PYE_REPO/.github/workflows/ci.yml"
 stage_repo "$PYE_REPO"
-pye_out="$(cd "$PYE_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+pye_out="$(cd "$PYE_REPO" && bash "$SCAN" --analyzer grep 2>/dev/null)"
 assert_equal "python entry points only, and only the unreferenced ones" "3" "$(count_shape "$pye_out" "Finding shape: unreferenced-file")"
 assert_contains "the shebang entry with no reference is a candidate" "$pye_out" "File: pkg/entry.py"
 assert_contains " __main__.py with no reference is a candidate" "$pye_out" "File: pkg/__main__.py"
@@ -622,7 +622,7 @@ printf '%s\n' '{"name":"pkg","version":"0.0.0","private":true}' >"$JS_REPO/pkg/p
 printf '%s\n' 'export const owned = 1' >"$JS_REPO/pkg/owned.mjs"
 printf '%s\n' 'export const loose = 1' >"$JS_REPO/scripts/loose.mjs"
 stage_repo "$JS_REPO"
-js_out="$(cd "$JS_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+js_out="$(cd "$JS_REPO" && bash "$SCAN" --analyzer grep 2>/dev/null)"
 assert_equal "standalone js is one unreferenced-file" "1" "$(count_shape "$js_out" "Finding shape: unreferenced-file")"
 assert_contains "the mjs outside the package root is a candidate" "$js_out" "File: scripts/loose.mjs"
 assert_not_contains "mjs inside a package.json root is not repeated here" "$js_out" "File: pkg/owned.mjs"
@@ -634,8 +634,8 @@ printf '%s\n' 'fn main() {}' >"$RS_REPO/src/main.rs"
 printf '%s\n' 'fn used() {}' >"$RS_REPO/src/used.rs"
 printf '%s\n' 'See src/used.rs.' >"$RS_REPO/README.md"
 stage_repo "$RS_REPO"
-rs_out="$(cd "$RS_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
-assert_equal "a language with no lane still yields one unreferenced file" "1" "$(count_shape "$rs_out" "Finding shape: unreferenced-file")"
+rs_out="$(cd "$RS_REPO" && bash "$SCAN" --analyzer grep 2>/dev/null)"
+assert_equal "a language with no analyzer still yields one unreferenced file" "1" "$(count_shape "$rs_out" "Finding shape: unreferenced-file")"
 assert_contains "the unreferenced rust file is a candidate" "$rs_out" "File: src/main.rs"
 assert_not_contains "a doc path saves the other rust file" "$rs_out" "File: src/used.rs"
 
@@ -651,7 +651,7 @@ printf '%s\n' '#! /bin/sh' 'echo sync' >"$XT_REPO/bin/syncdata"
 printf '%s\n' 'MIT License' >"$XT_REPO/LICENSE"
 printf '%s\n' 'Uses contracts/escrowpool.sol, boot/bootloader.s and bin/syncdata.' >"$XT_REPO/README.md"
 stage_repo "$XT_REPO"
-xt_out="$(cd "$XT_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+xt_out="$(cd "$XT_REPO" && bash "$SCAN" --analyzer grep 2>/dev/null)"
 assert_equal "three unreferenced files, one per kind" "3" "$(count_shape "$xt_out" "Finding shape: unreferenced-file")"
 assert_contains "an unreferenced .sol file is a candidate" "$xt_out" "File: contracts/tokenvault.sol"
 assert_contains "an unreferenced .s file is a candidate" "$xt_out" "File: boot/kernelentry.s"
@@ -667,8 +667,8 @@ init_repo "$XT_OTHER"
 mkdir -p "$XT_OTHER/bin"
 printf '%s\n' '#!/usr/bin/env python3' 'print(1)' >"$XT_OTHER/bin/pyjob"
 stage_repo "$XT_OTHER"
-xo_out="$(cd "$XT_OTHER" && bash "$SCAN" --lane grep 2>/dev/null)"
-assert_contains "a non-shell shebang is a source file with no lane" "$xo_out" "File: bin/pyjob"
+xo_out="$(cd "$XT_OTHER" && bash "$SCAN" --analyzer grep 2>/dev/null)"
+assert_contains "a non-shell shebang is a source file with no analyzer" "$xo_out" "File: bin/pyjob"
 
 CS_REPO="$TEST_TMPDIR/unref-cs"
 init_repo "$CS_REPO"
@@ -676,7 +676,7 @@ printf '%s\n' 'class Widget {}' >"$CS_REPO/Widget.cs"
 printf '%s\n' 'class Orphan {}' >"$CS_REPO/Orphan.cs"
 printf '%s\n' 'class App { Widget w = new Widget(); }' >"$CS_REPO/App.cs"
 stage_repo "$CS_REPO"
-cs_out="$(cd "$CS_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+cs_out="$(cd "$CS_REPO" && bash "$SCAN" --analyzer grep 2>/dev/null)"
 assert_not_contains "a stem reference saves a C# file" "$cs_out" "File: Widget.cs"
 assert_contains "a stem named nowhere else is a candidate" "$cs_out" "File: Orphan.cs"
 
@@ -684,7 +684,7 @@ MD_REPO="$TEST_TMPDIR/unref-md"
 init_repo "$MD_REPO"
 printf '%s\n' 'just docs' >"$MD_REPO/README.md"
 stage_repo "$MD_REPO"
-md_only="$(cd "$MD_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+md_only="$(cd "$MD_REPO" && bash "$SCAN" --analyzer grep 2>/dev/null)"
 assert_contains "markdown is not unreferenced-file input" "$md_only" "state=scanned-zero-files"
 assert_equal "markdown produces no unreferenced-file candidate" "0" "$(count_shape "$md_only" "Finding shape: unreferenced-file")"
 
@@ -699,17 +699,17 @@ mix_exit=0
 mix_out="$(cd "$MIX_REPO" && bash "$SCAN" 2>/dev/null)" || mix_exit=$?
 assert_exit "sh+mjs scan exits 0" 0 "$mix_exit"
 assert_contains "knip with no package.json reports the real mjs count" "$mix_out" \
-  "Lane: knip | root=- | state=no-manifest | files=2 |"
+  "Analyzer: knip | root=- | state=no-manifest | files=2 |"
 assert_contains "gopls with no go.mod reports zero go files, not a hidden count" "$mix_out" \
-  "Lane: gopls | root=- | state=no-manifest | files=0 |"
+  "Analyzer: gopls | root=- | state=no-manifest | files=0 |"
 assert_contains "grep still covers the shell file" "$mix_out" \
-  "Lane: grep | root=. | state=ran | files=3 |"
+  "Analyzer: grep | root=. | state=ran | files=3 |"
 assert_contains "the grep symbol pass covers the shell file and both standalone mjs" "$mix_out" \
   "Summary coverage: covered=3 uncovered=0"
 assert_not_contains "a readme is not a source file" "$mix_out" "README.md"
 mix_out2="$(cd "$MIX_REPO" && bash "$SCAN" 2>/dev/null)"
 assert_equal "coverage scan is byte-identical on a second read-only run" "$mix_out" "$mix_out2"
-mixk_out="$(cd "$MIX_REPO" && bash "$SCAN" --lane knip 2>/dev/null)"
+mixk_out="$(cd "$MIX_REPO" && bash "$SCAN" --analyzer knip 2>/dev/null)"
 assert_contains "knip alone leaves the shell file unselected and both mjs uncovered" "$mixk_out" \
   "Summary coverage: covered=0 uncovered=3"
 assert_contains "first uncovered mjs is listed" "$mixk_out" \
@@ -718,9 +718,9 @@ assert_contains "second uncovered mjs is listed" "$mixk_out" \
   "Note: uncovered two.mjs — no manifest root"
 assert_not_contains "a readme is not an uncovered source file" "$mixk_out" "README.md"
 assert_not_contains "uncovered files suppress the clean-result note" "$mixk_out" \
-  "Note: no candidates from the lanes that ran"
+  "Note: no candidates from the analyzers that ran"
 assert_not_contains "uncovered files suppress the scan-of-nothing note" "$mixk_out" \
-  "Note: no lane ran"
+  "Note: no analyzer ran"
 
 OUT_REPO="$TEST_TMPDIR/outside-mjs"
 init_repo "$OUT_REPO"
@@ -730,16 +730,16 @@ printf '%s\n' '{"name":"pkg","version":"0.0.0","private":true}' >"$OUT_REPO/pkg/
 printf '%s\n' 'export const owned = 1' >"$OUT_REPO/pkg/owned.mjs"
 printf '%s\n' 'export const loose = 1' >"$OUT_REPO/scripts/loose.mjs"
 stage_repo "$OUT_REPO"
-out_out="$(cd "$OUT_REPO" && bash "$SCAN" --lane knip 2>/dev/null)"
+out_out="$(cd "$OUT_REPO" && bash "$SCAN" --analyzer knip 2>/dev/null)"
 assert_contains "the manifest root scans the file it owns" "$out_out" \
-  "Lane: knip | root=pkg | state=ran | files=1 |"
+  "Analyzer: knip | root=pkg | state=ran | files=1 |"
 assert_contains "the outside mjs is uncovered" "$out_out" \
   "Note: uncovered scripts/loose.mjs — no manifest root"
 assert_not_contains "the owned mjs is not uncovered" "$out_out" "Note: uncovered pkg/owned.mjs"
 assert_contains "outside-mjs coverage is one and one" "$out_out" \
   "Summary coverage: covered=1 uncovered=1"
 assert_not_contains "outside-mjs is not a clean result" "$out_out" \
-  "Note: no candidates from the lanes that ran"
+  "Note: no candidates from the analyzers that ran"
 
 KNIPLESS=""
 IFS=':' read -ra _kdirs <<<"$REAL_PATH"
@@ -755,9 +755,9 @@ printf 'restored\n' >"$TOOL_REPO/node_modules/marker"
 printf '%s\n' '{"name":"tool","version":"0.0.0","private":true}' >"$TOOL_REPO/package.json"
 printf '%s\n' 'export const only = 1' >"$TOOL_REPO/only.mjs"
 stage_repo "$TOOL_REPO"
-tool_out="$(cd "$TOOL_REPO" && PATH="$KNIPLESS" bash "$SCAN" --lane knip 2>/dev/null)"
+tool_out="$(cd "$TOOL_REPO" && PATH="$KNIPLESS" bash "$SCAN" --analyzer knip 2>/dev/null)"
 assert_contains "missing knip still counts the input file" "$tool_out" \
-  "Lane: knip | root=. | state=skipped | files=1 |"
+  "Analyzer: knip | root=. | state=skipped | files=1 |"
 assert_contains "missing knip names the file" "$tool_out" \
   "Note: uncovered only.mjs — tool not installed"
 assert_contains "missing knip coverage is uncovered" "$tool_out" \
@@ -767,9 +767,9 @@ GO_BARE="$TEST_TMPDIR/go-bare"
 init_repo "$GO_BARE"
 printf '%s\n' 'package main' 'func main() {}' >"$GO_BARE/main.go"
 stage_repo "$GO_BARE"
-gobare_out="$(cd "$GO_BARE" && bash "$SCAN" --lane gopls 2>/dev/null)"
+gobare_out="$(cd "$GO_BARE" && bash "$SCAN" --analyzer gopls 2>/dev/null)"
 assert_contains "gopls with no go.mod counts the go file" "$gobare_out" \
-  "Lane: gopls | root=- | state=no-manifest | files=1 |"
+  "Analyzer: gopls | root=- | state=no-manifest | files=1 |"
 assert_contains "the bare go file is uncovered" "$gobare_out" \
   "Note: uncovered main.go — no manifest root"
 
@@ -778,20 +778,20 @@ init_repo "$NOLANE_REPO"
 mkdir -p "$NOLANE_REPO/src"
 printf '%s\n' 'fn main() {}' >"$NOLANE_REPO/src/main.rs"
 stage_repo "$NOLANE_REPO"
-nolane_out="$(cd "$NOLANE_REPO" && bash "$SCAN" --lane knip 2>/dev/null)"
-assert_contains "rust is uncovered when the grep lane is not selected" "$nolane_out" \
-  "Note: uncovered src/main.rs — no lane for the language"
+nolane_out="$(cd "$NOLANE_REPO" && bash "$SCAN" --analyzer knip 2>/dev/null)"
+assert_contains "rust is uncovered when the grep analyzer is not selected" "$nolane_out" \
+  "Note: uncovered src/main.rs — no analyzer for the language"
 assert_contains "nolane coverage is one uncovered file" "$nolane_out" \
   "Summary coverage: covered=0 uncovered=1"
-nolane_grep_out="$(cd "$NOLANE_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
-assert_contains "the grep lane covers a file with no symbol lane" "$nolane_grep_out" \
+nolane_grep_out="$(cd "$NOLANE_REPO" && bash "$SCAN" --analyzer grep 2>/dev/null)"
+assert_contains "the grep analyzer covers a file with no symbol analyzer" "$nolane_grep_out" \
   "Summary coverage: covered=1 uncovered=0"
 
 SHORT_REPO="$TEST_TMPDIR/nolane-short"
 init_repo "$SHORT_REPO"
 printf '%s\n' '#!/usr/bin/python3' 'print(1)' >"$SHORT_REPO/py"
 stage_repo "$SHORT_REPO"
-short_out="$(cd "$SHORT_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+short_out="$(cd "$SHORT_REPO" && bash "$SCAN" --analyzer grep 2>/dev/null)"
 assert_contains "a file too short to search is uncovered" "$short_out" \
   "Summary coverage: covered=0 uncovered=1"
 
@@ -799,7 +799,7 @@ ENVOPT_REPO="$TEST_TMPDIR/env-option"
 init_repo "$ENVOPT_REPO"
 printf '%s\n' '#!/usr/bin/env -S -u PYTHONPATH bash' 'unused_helper() { :; }' >"$ENVOPT_REPO/tool-launcher"
 stage_repo "$ENVOPT_REPO"
-envopt_out="$(cd "$ENVOPT_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+envopt_out="$(cd "$ENVOPT_REPO" && bash "$SCAN" --analyzer grep 2>/dev/null)"
 assert_contains "env -u ARG bash is a shell script" "$envopt_out" "unused_helper"
 
 SA_REPO="$TEST_TMPDIR/standalone-js"
@@ -810,10 +810,10 @@ printf '%s\n' 'export function handleAlpha() {' '  return 1;' '}' \
   'const suffix = "Alpha";' 'console.log(globalThis["handle" + suffix]);' >"$SA_REPO/computed.mjs"
 stage_repo "$SA_REPO"
 sa_exit=0
-sa_out="$(cd "$SA_REPO" && bash "$SCAN" --lane grep 2>/dev/null)" || sa_exit=$?
+sa_out="$(cd "$SA_REPO" && bash "$SCAN" --analyzer grep 2>/dev/null)" || sa_exit=$?
 assert_exit "standalone js scan exits 0" 0 "$sa_exit"
-assert_contains "the grep lane takes the standalone js files as symbol input" "$sa_out" \
-  "Lane: grep | root=. | state=ran | files=6 | detail=4 symbol candidate(s) from"
+assert_contains "the grep analyzer takes the standalone js files as symbol input" "$sa_out" \
+  "Analyzer: grep | root=. | state=ran | files=6 | detail=4 symbol candidate(s) from"
 assert_equal "four ts-unreferenced-symbol candidates" "4" "$(count_shape "$sa_out" "Finding shape: ts-unreferenced-symbol")"
 assert_not_contains "no standalone js candidate uses the shell symbol shape" "$sa_out" \
   "Finding shape: unreferenced-symbol"
@@ -841,15 +841,15 @@ printf '%s\n' '{"name":"pkg","version":"0.0.0","private":true}' >"$OWN_REPO/pkg/
 printf '%s\n' 'export function ownedDeadHelper() {' '  return 1;' '}' >"$OWN_REPO/pkg/owned.mjs"
 printf '%s\n' 'export function looseDeadHelper() {' '  return 1;' '}' >"$OWN_REPO/scripts/loose.mjs"
 stage_repo "$OWN_REPO"
-own_out="$(cd "$OWN_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+own_out="$(cd "$OWN_REPO" && bash "$SCAN" --analyzer grep 2>/dev/null)"
 assert_not_contains "a package.json-owned mjs yields no grep candidate" "$own_out" "File: pkg/owned.mjs"
 assert_not_contains "a package.json-owned mjs symbol is not extracted" "$own_out" "ownedDeadHelper"
 assert_contains "the standalone mjs beside the root yields a symbol candidate" "$own_out" \
   "Finding excerpt: export function looseDeadHelper() {"
-assert_contains "only the standalone file is covered by the grep lane" "$own_out" \
-  "Lane: grep | root=. | state=ran | files=1 |"
+assert_contains "only the standalone file is covered by the grep analyzer" "$own_out" \
+  "Analyzer: grep | root=. | state=ran | files=1 |"
 
-CSL_REPO="$TEST_TMPDIR/csharp-lane"
+CSL_REPO="$TEST_TMPDIR/csharp-analyzer"
 init_repo "$CSL_REPO"
 cp "$FIXTURES/cs-orders.cs" "$FIXTURES/cs-program.cs" "$FIXTURES/OrderCounter.razor.cs" \
   "$FIXTURES/OrderCounter.razor" "$FIXTURES/OrderPage.razor" "$CSL_REPO/"
@@ -862,14 +862,14 @@ for build_tool in dotnet msbuild; do
   chmod +x "$BUILD_BIN/$build_tool"
 done
 csl_exit=0
-csl_out="$(cd "$CSL_REPO" && PATH="$BUILD_BIN:$PATH" bash "$SCAN" --lane grep 2>/dev/null)" || csl_exit=$?
+csl_out="$(cd "$CSL_REPO" && PATH="$BUILD_BIN:$PATH" bash "$SCAN" --analyzer grep 2>/dev/null)" || csl_exit=$?
 assert_exit "C# scan exits 0" 0 "$csl_exit"
 build_state='absent'
 [[ -e "$BUILD_MARK" ]] && build_state='present'
 assert_equal "no build tool ran" "absent" "$build_state"
-assert_contains "the grep lane line counts the three C# files" "$csl_out" \
-  "Lane: grep | root=. | state=ran | files=3 | detail=6 symbol candidate(s) from"
-assert_contains "the grep lane line labels the C# pass" "$csl_out" "3 C# file(s) read as text, nothing built"
+assert_contains "the grep analyzer line counts the three C# files" "$csl_out" \
+  "Analyzer: grep | root=. | state=ran | files=3 | detail=6 symbol candidate(s) from"
+assert_contains "the grep analyzer line labels the C# pass" "$csl_out" "3 C# file(s) read as text, nothing built"
 assert_equal "three private candidates" "3" "$(count_shape "$csl_out" "Finding shape: cs-unreferenced-private")"
 assert_equal "three symbol candidates" "3" "$(count_shape "$csl_out" "Finding shape: cs-unreferenced-symbol")"
 assert_contains "the dead private method is a candidate" "$csl_out" \
@@ -894,10 +894,10 @@ assert_contains "the C# corpus totals" "$csl_out" "Summary file: cs-orders.cs | 
 assert_equal "two unreferenced C# files" "2" "$(count_shape "$csl_out" "Finding shape: unreferenced-file")"
 assert_not_contains "a code-behind file is keyed on its component name" "$csl_out" "File: OrderCounter.razor.cs"
 assert_contains "every C# file is covered" "$csl_out" "Summary coverage: covered=3 uncovered=0"
-cs_knip_out="$(cd "$CSL_REPO" && bash "$SCAN" --lane knip 2>/dev/null)"
-assert_contains "a C# file is unselected, not language-less, without the grep lane" "$cs_knip_out" \
-  "Note: uncovered cs-orders.cs — lane not selected"
-assert_not_contains "a C# file is never reported as having no lane" "$cs_knip_out" "no lane for the language"
+cs_knip_out="$(cd "$CSL_REPO" && bash "$SCAN" --analyzer knip 2>/dev/null)"
+assert_contains "a C# file is unselected, not language-less, without the grep analyzer" "$cs_knip_out" \
+  "Note: uncovered cs-orders.cs — analyzer not selected"
+assert_not_contains "a C# file is never reported as having no analyzer" "$cs_knip_out" "no analyzer for the language"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

@@ -1,5 +1,3 @@
-# Offline input for test_vendor_gitleaks_rules.py, shaped like gitleaks'
-# config/gitleaks.toml. Patterns only: no rule carries an example secret.
 title = "vendor_gitleaks_rules.py offline fixture"
 
 [[rules]]

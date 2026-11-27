@@ -36,9 +36,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: read # check out main
-      actions: read # the pr-verify run's verdict
-      pull-requests: write # read the PR and its threads; post a fail's notes; add or remove pr-verify-failed
+      contents: read
+      actions: read
+      pull-requests: write
     outputs:
       pr-number: ${{ steps.post.outputs.pr-number }}
       head-sha: ${{ steps.post.outputs.head-sha }}
@@ -222,11 +222,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: read # check out main
-      pull-requests: read # the PR, its comments and review threads
-      checks: read # skip a head that already has an address-feedback check run; a refused round's annotations
-      statuses: read # the sweep's read of a head's pr-unblock/address-feedback stop
-      actions: write # list pr-unblock runs; dispatch pr-unblock.yml
+      contents: read
+      pull-requests: read
+      checks: read
+      statuses: read
+      actions: write
     env:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
@@ -552,9 +552,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
-      contents: read # check out the default branch's trusted-actors list
-      actions: write # list review and pr-require-checks runs and jobs; re-run the ci-status job
-      pull-requests: read # the PR's state and live head
+      contents: read
+      actions: write
+      pull-requests: read
     env:
       API_BUDGET_TOKEN: github-token
     steps:

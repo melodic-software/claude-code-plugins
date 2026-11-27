@@ -3,6 +3,24 @@
 All notable changes to the `rate-limits` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.2.6] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [4.2.5] - 2026-11-26
+
+### Changed
+
+- `/rate-limits:setup` points at the hooks reference for what a hook that cannot start does, and at the plugin CLI reference for what an uninstall deletes, instead of stating them ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [4.2.4] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [4.2.3] - 2026-11-23
 
 ### Changed

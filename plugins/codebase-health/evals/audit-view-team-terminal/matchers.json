@@ -21,6 +21,6 @@
     {
       "use": "token_argument"
     },
-    "--lane(?:\\s|=)+(?:\\\\\"|')?codebase-health:audit\\b"
+    "--producer(?:\\s|=)+(?:\\\\\"|')?codebase-health:audit\\b"
   ]
 }

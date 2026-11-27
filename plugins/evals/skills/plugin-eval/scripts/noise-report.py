@@ -52,18 +52,18 @@ Z95 = 1.959963984540054
 MIN_CASES = 3
 CEILING = 0.95
 DROP = 1.0 / 3.0
-ARMS = ("with", "without")  # cases[].arms.<arm>[]
+ARMS = ("with", "without")
 
-CASE_GRADER_DEFS = "graders"  # cases[].graders[]: name, type, weight
-RUN_SCORE = "score"  # cases[].arms.<arm>[].score
-RUN_GRADERS = "graders"  # cases[].arms.<arm>[].graders[]
-GRADER_NAME = "name"  # graders[].name, the join key to the case definition
-GRADER_TYPE = "type"  # cases[].graders[].type
-GRADER_PASSED = "passed"  # cases[].arms.<arm>[].graders[].passed
-GRADER_WEIGHT = "weight"  # graders[].weight, run result first, then definition
-GRADER_SCORED = "scored"  # cases[].arms.<arm>[].graders[].scored, true when absent
-GRADER_VOTES = ("judgeVotes", "votes", "judge_votes")  # graders[].<key>[]
-VOTE_VERDICT = ("passed", "pass", "verdict", "vote")  # a vote that is an object
+CASE_GRADER_DEFS = "graders"
+RUN_SCORE = "score"
+RUN_GRADERS = "graders"
+GRADER_NAME = "name"
+GRADER_TYPE = "type"
+GRADER_PASSED = "passed"
+GRADER_WEIGHT = "weight"
+GRADER_SCORED = "scored"
+GRADER_VOTES = ("judgeVotes", "votes", "judge_votes")
+VOTE_VERDICT = ("passed", "pass", "verdict", "vote")
 
 
 def mean(values):

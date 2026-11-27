@@ -40,7 +40,7 @@ if WINDOWS:
     _k32.QueryFullProcessImageNameW.argtypes = (wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD))
     _k32.GetProcessTimes.argtypes = (wintypes.HANDLE,) + (ctypes.POINTER(wintypes.FILETIME),) * 4
     _k32.CloseHandle.argtypes = (wintypes.HANDLE,)
-    _QUERY = 0x1000  # PROCESS_QUERY_LIMITED_INFORMATION
+    _QUERY = 0x1000
     _STILL_ACTIVE = 259
 else:
     import fcntl
@@ -109,9 +109,9 @@ def which(name):
     """`name` on PATH, never from the current folder: Windows searches it first unless told not to."""
     if not WINDOWS:
         return shutil.which(name)
-    os.environ["NoDefaultCurrentDirectoryInExePath"] = "1"  # honored by shutil.which from Python 3.12
+    os.environ["NoDefaultCurrentDirectoryInExePath"] = "1"
     found = shutil.which(name)
-    if found and Path(found).resolve().parent == Path.cwd().resolve():  # older Pythons still look there
+    if found and Path(found).resolve().parent == Path.cwd().resolve():
         return None
     return found
 
@@ -144,7 +144,7 @@ def data_dir_problem(path):
         home = ntpath.normcase(ntpath.realpath(profile)) if profile else ""
         try:
             inside = bool(home) and ntpath.commonpath([where, home]) == home
-        except ValueError:  # another drive
+        except ValueError:
             inside = False
         if not inside:
             return f"the data folder {path} is outside your user profile ({profile or 'USERPROFILE is not set'}); Windows keeps it private only there"
@@ -172,7 +172,7 @@ def spawn(cmd, log=None, env=None, cwd=None):
         flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
         try:
             return subprocess.Popen(cmd, creationflags=flags | subprocess.CREATE_BREAKAWAY_FROM_JOB, **kw)
-        except OSError:  # the job this process runs in forbids breakaway
+        except OSError:
             return subprocess.Popen(cmd, creationflags=flags, **kw)
     finally:
         if log:
@@ -182,7 +182,7 @@ def spawn(cmd, log=None, env=None, cwd=None):
 def release(proc):
     """Stop tracking a spawned child that should run on: `alive` reaps it once it exits."""
     if proc.poll() is None:
-        proc.returncode = 0  # Popen then neither warns about it nor waits for it at exit
+        proc.returncode = 0
 
 
 def _pid_ok(pid):
@@ -237,7 +237,7 @@ def exe_name(pid):
         return os.path.basename(os.readlink(f"/proc/{pid}/exe")).removesuffix(" (deleted)")
     except OSError:
         if Path("/proc/self/exe").exists():
-            return None  # Linux, and the link cannot be read (another user's process)
+            return None
     return os.path.basename((_output(["ps", "-o", "comm=", "-p", str(pid)]) or "").strip()) or None
 
 
@@ -280,7 +280,7 @@ def started(pid):
         return (Path("/proc") / str(pid) / "stat").read_text().rsplit(")", 1)[1].split()[19]
     except (OSError, IndexError):
         if Path("/proc/self/stat").exists():
-            return None  # Linux, and pid is gone or hidden
+            return None
     out = _output(["ps", "-o", "lstart=", "-p", str(pid)], env={**os.environ, "LC_ALL": "C", "TZ": "UTC"})
     return " ".join((out or "").split()) or None
 
@@ -294,7 +294,7 @@ def _running(pid):
             code = wintypes.DWORD()
             return bool(_k32.GetExitCodeProcess(h, ctypes.byref(code))) and code.value == _STILL_ACTIVE
     with contextlib.suppress(ChildProcessError, OSError):
-        if os.waitpid(pid, os.WNOHANG)[0] == pid:  # our own child that exited: reap it
+        if os.waitpid(pid, os.WNOHANG)[0] == pid:
             return False
     try:
         os.kill(pid, 0)
@@ -329,7 +329,7 @@ def stop(pid, marker, start=None, wait=5.0):
     if pid == os.getpid() or not alive(pid, marker, start):
         return False
     with contextlib.suppress(OSError):
-        os.kill(pid, signal.SIGTERM)  # TerminateProcess on Windows
+        os.kill(pid, signal.SIGTERM)
     if _gone_within(pid, wait):
         return True
     if not WINDOWS:

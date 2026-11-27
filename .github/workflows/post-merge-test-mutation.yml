@@ -954,7 +954,7 @@ jobs:
     timeout-minutes: 60
     cache-mode: read
     permissions:
-      contents: read # check out the pushed head; the mutants run here and no token can write
+      contents: read
     outputs:
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
       sha256: ${{ steps.execute.outputs.sha256 }}

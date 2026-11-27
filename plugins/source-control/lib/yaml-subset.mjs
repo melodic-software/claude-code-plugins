@@ -20,7 +20,7 @@ const put = (object, key, value) => Object.defineProperty(object, key, { value, 
  * after `: `, `- `, `[` or `,`), so an apostrophe inside a plain value is just a character. */
 function stripComment(text) {
   let q = null;
-  let last = -1; // index of the last non-whitespace character before i, so each test is O(1)
+  let last = -1;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     if (q) {
@@ -174,7 +174,7 @@ function plainKey(content) {
 class Parser {
   constructor(text, source = false) {
     this.source = source;
-    this.lines = []; // [indent, lineNumber, content]
+    this.lines = [];
     text
       .replace(/^﻿/, "")
       .split(/\r\n|\r|\n/)

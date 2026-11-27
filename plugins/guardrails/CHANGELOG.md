@@ -3,6 +3,44 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.5.3] - 2026-11-27
+
+### Changed
+
+- The merge guard reads the reviews, check runs, commit statuses, review threads and pr-verify settings in parallel once the pull request itself is read, so a merge on a ready PR waits about 4.5 s instead of 6.5 s. What it checks and how it reports a failed read are unchanged.
+
+## [5.5.2] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [5.5.1] - 2026-11-26
+
+### Fixed
+
+- **The foreground-wait guard no longer sends an `until` loop to the Monitor tool.** Its refusal said to "watch it with the Monitor tool", but a Monitor command also reaches Bash-matcher hooks as a Bash call, so the guard refused the very call it suggested. The message now points to Bash with `run_in_background` and says Monitor is for a stream of events, not a wait for one condition. Two captured payloads of one Monitor call, the Monitor event and its Bash twin, are test fixtures.
+
+## [5.5.0] - 2026-11-26
+
+### Changed
+
+- The shared `session-attended.env`, `session-attended.sh` and `session-attended.mjs` copies gain a reader for `CLAUDE_CODE_EXECPATH`, which the fleet peer list uses; the attended predicate and guardrails' ask-or-deny behavior do not change.
+
+### Removed
+
+- **`block-body-format-violation` no longer judges a `## Loosened checks` section.** It reads no
+  linked issue and refuses no body for a loosened check, so a pull request with
+  `No related issue: <reason>` and a reasoned section opens. Review and pr-verify judge the
+  section by the review plugin's loosened-check rule. The hook's section, opener and issue-format
+  checks are unchanged ([#19312](https://github.com/melodic-software/claude-code-plugins/issues/19312)).
+
+## [5.4.1] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [5.4.0] - 2026-11-26
 
 ### Changed
@@ -62,7 +100,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Added
 
-- `block-body-format-violation` refuses a pull request body (`gh pr create`, `gh pr edit` with a body, or a GitHub MCP pull request create or update) whose Loosened checks section is not empty unless an issue it links (by a closing keyword, or with none, by its one first-column `Refs:` issue) has a body holding the owner-decision record line link and the owner's words after the verbatim marker in double quotes. The heading, the record pattern and the marker come from the repository's `pr_body_loosened_checks_*` keys; a repository that sets none is not judged. It reads at most three linked issues with `gh api`, and an unreadable issue, or a linked issue past the third, passes with a warning.
+- `block-body-format-violation` refuses a pull request body (`gh pr create`, `gh pr edit` with a body, or a GitHub MCP pull request create or update) whose Loosened checks section is not empty unless an issue it links (by a closing keyword, or with none, by its one first-column `Refs:` issue) has a body holding the owner-decision record line link and the owner's words after the verbatim marker in double quotes. The heading, the record pattern and the marker come from the repository's three Loosened checks keys; a repository that sets none is not judged. It reads at most three linked issues with `gh api`, and an unreadable issue, or a linked issue past the third, passes with a warning.
 
 ## [5.0.0] - 2026-11-24
 

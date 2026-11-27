@@ -2351,7 +2351,7 @@ class RunValidityTest(unittest.TestCase):
 
     COPY = "/tmp/eval-ctl/plugins/demo"
     SELF_SEARCH = "denied read or search of the run's own plugin copy in a finished run"
-    LAST_LINE_END = 'permission settings."}]}}\n'  # self-read-unfinished.jsonl's denied result
+    LAST_LINE_END = 'permission settings."}]}}\n'
 
     def self_search(self, fixture, replace=(), plugin=COPY, grader_tool=None, flag=True):
         """The clean result at one run per arm with plugin as its suite.plugins

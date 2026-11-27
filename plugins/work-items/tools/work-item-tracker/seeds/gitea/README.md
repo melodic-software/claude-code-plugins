@@ -90,8 +90,11 @@ bash adapters/gitea/common.test.sh
 #    injected through WIT_GITEA_CURL).
 for t in adapters/gitea/*.test.sh; do bash "$t" || break; done
 
-# 3. The abstract conformance suite, through the core CLI only. Needs a throwaway
-#    target — see conformance/bindings/gitea.sh for the variables it requires.
+# 3. The abstract conformance suite, through the core CLI only. It creates, claims and
+#    closes items, so it needs a throwaway target and has no default; never point it at
+#    a coordination instance. Set WIT_CONFORMANCE_GITEA_HOST (throwaway Gitea or Forgejo
+#    host), WIT_CONFORMANCE_GITEA_SCOPE (e.g. owner/repo) and WIT_GITEA_TOKEN (credential
+#    for that instance); without them the binding refuses to run.
 bash tools/work-item-tracker/conformance/run-conformance.sh --binding gitea
 ```
 

@@ -178,8 +178,7 @@ that can decide the rule: a change that makes the mistake impossible first, then
 blocks it, then a test, and an instruction only when nothing a machine runs can decide it. Say
 that the `corrections` plugin was not available, so the proposal is unproven. A line that keeps
 getting missed means the file needs to be shorter. Bold is structure only: a list-item label
-or a defined term at its first use, never a whole sentence or a rule
-([ADR 0098](../../../../docs/adr/0098-state-instruction-rules-in-plain-words-without-emphasis-markers.md)).
+or a defined term at its first use, never a whole sentence or a rule.
 
 - **Pointer**: skill-creator,
   [How to think about improvements](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md#how-to-think-about-improvements).
@@ -205,22 +204,17 @@ Delete a failing sentence whole. A word too weak to beat the default is a no-op 
 stronger word: a more precise one, and a firm one only for a hard limit
 ([Be strict with precise words](#be-strict-with-precise-words)).
 
-## After writing
+## Next
 
-- Repeated the same prose in another file, even a second occurrence or a recap of an SSOT that
-  already exists? Invoke `/docs-hygiene:extract-ssot` via the Skill tool. A new shared home still
-  waits for the third occurrence; below that it remedies the repetition in place.
-- Resolved or coined a term in the **consuming project's** domain? Invoke
-  `/domain-driven-design:ubiquitous-language curate` (if enabled) via the Skill tool rather
-  than hand-writing the entry. A skill defining its own working vocabulary is out of that skill's
-  scope and stays where it is.
-- Editing exposed pre-existing problems in the surrounding doc? Invoke the fitting audit
-  sibling via the Skill tool (`/docs-hygiene:audit-noise`, `/docs-hygiene:audit-derivability`,
-  `/docs-hygiene:audit-progressive-disclosure`) rather than expanding this write into an audit.
+- The write repeated prose another file already holds, even once or as a recap of an existing
+  source of truth: /docs-hygiene:extract-ssot.
+- The write resolved or coined a term in the consuming project's domain, not this skill's own
+  working vocabulary: /domain-driven-design:ubiquitous-language curate.
+- The edit exposed pre-existing noise in the surrounding doc: /docs-hygiene:audit-noise.
 
 ## Related
 
-- Repeated prose across files: /docs-hygiene:extract-ssot.
+- Whether the surrounding doc earns its place: /docs-hygiene:audit-derivability.
 - Grade split or pointer quality: /docs-hygiene:audit-progressive-disclosure.
 - Rule must hold deterministically: /corrections:codify.
 - Authoring a skill structure rather than prose: /playbooks:skill-authoring.

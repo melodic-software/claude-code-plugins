@@ -9,7 +9,7 @@ _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 source "$_HOOK_SELF/abort-boundary.sh"
 guard::abort_boundary block-foreground-wait PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
-source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
+source "$_HOOK_SELF/hook-utils.sh" || exit 70
 
 hook::buffer_stdin_to INPUT || exit 0
 
@@ -133,7 +133,7 @@ fi
 
 # shellcheck disable=SC2016  # the backticks are literal text in the reasons
 if [[ "$FWG_HIT" == until ]]; then
-  echo 'BLOCKED: This `until` loop waits in the foreground. Run the command with run_in_background set to true, or watch it with the Monitor tool, and read the result when it finishes.' >&2
+  echo 'BLOCKED: This `until` loop waits in the foreground. Run it with Bash and run_in_background set to true, and read the result when it finishes. The Monitor tool is for a stream of events, not a wait for one condition.' >&2
 else
   echo 'BLOCKED: This `--watch` command waits in the foreground. Run it with run_in_background set to true, or watch it with the Monitor tool, and read the result when it finishes.' >&2
 fi

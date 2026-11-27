@@ -30,11 +30,18 @@ marked it thin), `split` (null, or the done-when items admission held it for), `
    flow makes the change; or `manual` with `class` one of the names in `attended` and
    `what` the step, when it needs a step of that class the owner takes by hand. Leave the
    other fields empty strings. Judge it from what the work does, not from words in the
-   issue. When the work is not exact, set `state` `none`.
+   issue. When the work is not exact and a question needs a person, set `state` `none`.
 5. Otherwise set `exact` false and ask each open question (at most 5) with `recommended`, your
-   answer, and `basis`, the `path:line`, candidate number or URL behind it, or `judgment`.
-   Never treat a recommendation as decided. Fill `outcome` with the most likely outcome or
-   leave it empty, and leave `criteria` empty. Leave `split` empty.
+   answer, `basis`, one line naming the `path:line`, candidate number or URL behind it, or
+   `judgment`, and `stop_reason`, who must answer it: `intent` when it decides what the issue
+   should achieve, `design` when it picks a primary design choice (a data format, a
+   convention, a new mechanism), `security` when it touches a secret, a permission or a trust
+   boundary, `cost` when the answer could start a charge, and `none` when the cited evidence
+   settles it and no person needs to answer. When every question's `stop_reason` is `none`,
+   also fill `outcome`, `criteria` and `external` as step 4 says, assuming each recommended
+   answer: the lanes App then records those answers as its own decision. Otherwise never treat
+   a recommendation as decided: fill `outcome` with the most likely outcome or leave it empty,
+   and leave `criteria` empty. Leave `split` empty.
 6. When `split` is not null, the issue is exact but admission held it because its done-when
    items `split.items` (each with its 1-based number `n` among the `split.count` task-list
    items, why a lane run cannot perform it, and its text) need a person. Set `exact` true only

@@ -1,21 +1,21 @@
 [
   {
     "Name": "C#",
-    "Lines": 15,
+    "Lines": 13,
     "Code": 12,
-    "Comment": 2,
+    "Comment": 0,
     "Blank": 1,
     "Files": [
       {
         "Language": "C#",
         "Filename": "CmSample.cs",
         "Location": "plugins/code-metrics/scripts/fixtures/sources/CmSample.cs",
-        "Lines": 15,
+        "Lines": 13,
         "Code": 12,
-        "Comment": 2,
+        "Comment": 0,
         "Blank": 1,
         "Complexity": 2,
-        "Bytes": 368
+        "Bytes": 231
       }
     ]
   },
@@ -55,7 +55,7 @@
         "Comment": 0,
         "Blank": 1,
         "Complexity": 0,
-        "Bytes": 150
+        "Bytes": 158
       }
     ]
   },
@@ -81,21 +81,21 @@
   },
   {
     "Name": "Shell",
-    "Lines": 15,
+    "Lines": 16,
     "Code": 9,
-    "Comment": 4,
+    "Comment": 5,
     "Blank": 2,
     "Files": [
       {
         "Language": "Shell",
         "Filename": "cm-sample.sh",
         "Location": "plugins/code-metrics/scripts/fixtures/sources/cm-sample.sh",
-        "Lines": 15,
+        "Lines": 16,
         "Code": 9,
-        "Comment": 4,
+        "Comment": 5,
         "Blank": 2,
         "Complexity": 1,
-        "Bytes": 382
+        "Bytes": 420
       }
     ]
   },

@@ -1,32 +1,4 @@
 #!/usr/bin/env bash
-# Multi-repo (fleet) clean for the selective tiers — run the single-repo
-# caches / build / git tiers across a set of repositories behind ONE confirmation
-# gate, with a separator-agnostic skip list and a per-repo outcome summary.
-#
-# This is a thin orchestrator. It runs no destructive command itself: every
-# removal is delegated to the UNCHANGED single-repo child (clean-caches.sh,
-# clean-build.sh, git-prune.sh), so every child gate — protection classes,
-# submodule/reparse guards, the dry-run manifest + re-stat staleness guard — is
-# reused verbatim. The batch layer adds only enumeration, path normalization,
-# skip-matching, shared-object-store dedup, per-repo outcomes, and the single
-# batch-wide dry-run -> confirm -> apply gate.
-#
-# Companion to git-tree-reset-batch.sh (the destructive `tree` tier's batch form);
-# the selective tiers get the same fleet plumbing here. Shared plumbing lives in
-# lib/batch-common.sh.
-#
-# Gated set (the fleet-snapshot-race fix): `--dry-run` writes a BATCH PLAN listing
-# exactly the repos/common-dirs to act on, plus a per-repo child manifest for the
-# caches/build tiers. `--apply --batch-plan <plan>` acts on THAT plan only — a
-# repo that vanished after the dry-run applies idempotently (paths already gone),
-# a repo that appeared is not in the plan so it is never touched. The plan is the
-# fleet-level analogue of the child's per-repo manifest staleness guard.
-#
-# --batch-plan FILE also works with --dry-run: it fixes the plan path (default: a
-# durable per-repo-set dir under the plugin data dir, resolved by plugin_data_dir).
-# Default: --dry-run. `--tier scan` is read-only (scan.sh per repo): it writes no
-# plan, and --apply / --batch-plan with it are usage errors.
-#
 # Exit: 0 ran to completion (skips/blocks are normal outcomes);
 #       1 one or more repos failed mid-apply (a child rm failure, or a structurally
 #         corrupt plan record failed closed);
@@ -131,14 +103,6 @@ fail_usage() {
   exit 2
 }
 
-# plugin_data_dir: print the directory the default batch plan lives under. The
-# environment is not trusted for this plugin's CLAUDE_PLUGIN_DATA (another
-# plugin's SessionStart hook can export its own data dir there under that name),
-# so the skill passes --data-dir "${CLAUDE_PLUGIN_DATA}", substituted when the
-# skill loads. An inherited value is used only when its last path segment names
-# this plugin (repo-hygiene-<marketplace>); otherwise the plan, and the run.*
-# pruning beside it, would land in another plugin's data dir. Relay: the pointer
-# record for where ${CLAUDE_PLUGIN_DATA} substitutes is in ../SKILL.md#spoke-paths.
 plugin_data_dir() {
   if [[ -n "$DATA_DIR_ARG" ]]; then
     # shellcheck disable=SC2016 # the literal, unexpanded token is what is matched
@@ -195,8 +159,6 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --repo)
-    # Consume every consecutive non-flag arg so a shell glob (`--repo ~/repos/*`)
-    # arrives whole. Stops at the next `-`-prefixed flag or end of args.
     [[ $# -ge 2 && "$2" != -* ]] || fail_usage "--repo requires a directory"
     shift
     while [[ $# -gt 0 && "$1" != -* ]]; do
@@ -254,10 +216,6 @@ CACHES_CHILD="$SCRIPT_DIR/clean-caches.sh"
 BUILD_CHILD="$SCRIPT_DIR/clean-build.sh"
 GIT_CHILD="$SCRIPT_DIR/git-prune.sh"
 
-# select_manifest_child <token>: set `child` (the script to run) and `extra`
-# (its tier flags) from a manifest record's token. One spelling for the plan
-# writer and the apply loop, so a `build` record cannot fold caches on one side
-# and not the other.
 select_manifest_child() {
   child="$CACHES_CHILD"
   extra=()
@@ -272,10 +230,6 @@ tier_has_git() { [[ "$TIER" == git || "$TIER" == all ]]; }
 
 manifest_child_token() { [[ "$TIER" == caches ]] && printf 'caches' || printf 'build'; }
 
-# The REPO manifest token the requested tier AUTHORIZES at apply, or empty for a
-# tier that authorizes no REPO record (git). Distinct from manifest_child_token,
-# which never returns empty and would wrongly authorize a build REPO record under
-# --tier git: authorization must fail closed for a tier that plans no REPO work.
 tier_repo_token() {
   case "$TIER" in
   caches) printf 'caches' ;;
@@ -284,25 +238,12 @@ tier_repo_token() {
   esac
 }
 
-# Is a plan record structurally well-formed — does it carry the fields the dry-run
-# writer emits? Shared by the tier pre-scan and the apply loop so both agree on
-# what counts as a record: a truncated or hand-edited line (a GITDIR naming no
-# representative worktree, a REPO naming no manifest) must neither satisfy the
-# `all` both-kinds-present requirement nor reach a child. Field SHAPE only —
-# whether the referenced manifest still EXISTS is deliberately not judged here,
-# because a manifest that vanished after the dry-run is a per-record runtime
-# failure the apply loop reports (exit 1), not a plan built for the wrong tier, and
-# judging it in the pre-scan would refuse the whole apply with the wrong diagnosis.
 plan_repo_record_wellformed() {
   local top="$1" token="$2" manifest="$3"
   [[ -n "$top" && ("$token" == caches || "$token" == build) && -n "$manifest" ]]
 }
 plan_gitdir_record_wellformed() { [[ -n "$1" ]]; }
 
-# Child `Summary: …` parsing, shared by the apply and dry-run loops so both read a
-# child's tallies the same way. summary_line <child-output> extracts the first
-# Summary line; summary_field <name> <summary-line> pulls one numeric `<name>=<n>`
-# field out of it, or 0 when the field is absent.
 summary_line() { sed -n 's/^Summary: //p' <<<"$1" | head -1; }
 summary_field() {
   local v
@@ -334,8 +275,6 @@ if [[ "$TIER" == scan ]]; then
     out="$(cd "$top" && bash "$SCRIPT_DIR/scan.sh" 2>&1)"
     rc=$?
     bytes="$(sed -n 's/^Total reclaimable: \([0-9]*\)$/\1/p' <<<"$out" | head -1)"
-    # scan.sh exits 0 even when it fails and then prints no total; a missing total
-    # is a blocked repo, never a silent 0.
     if [[ "$rc" -ne 0 || -z "$bytes" ]]; then
       batch_emit "$top" blocked "scan failed (child exit $rc, no total)"
       printf '%s\n' "$out" >&2
@@ -361,33 +300,6 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
   [[ -n "$BATCH_PLAN_ARG" ]] || fail_usage "--apply requires --batch-plan <path> from a prior --dry-run"
   [[ -f "$BATCH_PLAN_ARG" ]] || fail_usage "batch plan not found: $BATCH_PLAN_ARG"
 
-  # Tier-authorization pre-scan: refuse the whole apply — before the banner, before
-  # touching any disk — if the plan carries a record the requested --tier does not
-  # authorize. A plan built for a broader tier (e.g. a build plan, whose REPO
-  # records fold caches) applied under a narrower --tier caches would otherwise
-  # execute the broader gated content while the banner names the narrower tier —
-  # scope misrepresentation. Atomic refusal (exit 2, nothing removed, no banner)
-  # makes that structurally impossible. A malformed/unrecognized token is NOT judged
-  # here; the apply loop fails those closed per-record (exit 1) as structural
-  # corruption, a different error class from a well-formed plan for the wrong tier.
-  #
-  # Authorization alone is only half the match: `all` authorizes BOTH record kinds,
-  # so a narrower plan (a `build` plan with no GITDIR records, or a `git` plan with
-  # no REPO records) would pass every per-record test and then apply only part of
-  # the requested tier while the banner named `all`. The same misrepresentation,
-  # from the other direction. So the plan's record-kind SET must also be the set the
-  # tier plans: `all` requires both kinds present. Presence is required only when
-  # the plan carries records at all — a fleet where every repo was skipped or
-  # blocked plans nothing for either kind, and an empty plan removes nothing under
-  # any tier.
-  #
-  # Presence is satisfied only by a STRUCTURALLY WELL-FORMED record. A truncated
-  # line names no target, so counting it would let a narrower plan clear the `all`
-  # requirement on a record that removes nothing — apply would print `Tier: all` and
-  # `gitdirs=1` while performing no Git cleanup, the same misrepresentation this
-  # pre-scan exists to close. The record KIND is still authorization-judged
-  # regardless of its fields: a GITDIR line under a non-git tier is a wrong-tier
-  # plan however malformed it is.
   PLAN_HAS_REPO=0
   PLAN_HAS_GITDIR=0
   while IFS=$'\t' read -r kind a b c; do
@@ -431,13 +343,6 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
     printf 'Progress: apply %s %s\n' "$APPLY_INDEX" "${a:-<empty>}" >&2
     case "$kind" in
     REPO)
-      # a=toplevel b=child-token c=manifest-path. Validate the whole record before
-      # touching disk: a truncated or hand-edited plan line with an empty manifest
-      # field would pass --manifest "" to the child, which reads that as "no
-      # manifest" and RE-WALKS the live repo, removing artifacts never shown in the
-      # gated dry-run. Fail closed — the batch contract is "apply the plan only".
-      # The field-shape half is the pre-scan's predicate; the manifest must also
-      # still be on disk by the time apply reads it.
       if ! plan_repo_record_wellformed "$a" "$b" "$c" || [[ ! -f "$c" ]]; then
         batch_emit "${a:-<empty>}" failed "malformed plan record (tier='$b' manifest='$c')"
         FAILED=$((FAILED + 1))
@@ -454,11 +359,6 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
       removed="$(summary_field removed "$r")"
       failed="$(summary_field failed "$r")"
       bytes="$(summary_field bytes "$r")"
-      # Fail closed on a non-zero child that printed no parseable Summary (e.g. the
-      # repo lost its .git between dry-run and apply — the child refuses with "not a
-      # git repository" and exits before any Summary line). Without this the parsed
-      # failed=0 would let the batch report failed=0 and exit 0 despite a real
-      # failure. Count the child's own failed tally when it gave one, else one.
       if [[ "$failed" -eq 0 && "$rc" -ne 0 ]]; then failed=1; fi
       REMOVED=$((REMOVED + removed))
       FAILED=$((FAILED + failed))
@@ -471,12 +371,6 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
       fi
       ;;
     GITDIR)
-      # a=representative worktree toplevel (b=common-dir key, informational).
-      # Validate before counting, as the REPO arm does: a truncated line names no
-      # representative, so an empty `a` would count toward gitdirs= and then read as
-      # `! -d` — reporting a prune "skipped (vanished)" for a store that never had a
-      # target, and a gitdirs= tally larger than the prunes actually attempted. Fail
-      # closed as structural corruption instead.
       if ! plan_gitdir_record_wellformed "$a"; then
         batch_emit "<empty>" failed "malformed plan record (GITDIR names no representative worktree)"
         FAILED=$((FAILED + 1))
@@ -514,11 +408,6 @@ batch_resolve_repos "${REPO_INPUTS[@]}"
 if [[ "$FLEET" -eq 1 ]]; then batch_dedupe_clones; fi
 batch_reset_gitdirs
 
-# Batch plan + per-repo manifests live in one dir so they bundle and clean up
-# together; honor an explicit --batch-plan location for a stable, resumable path.
-# The default lives in one durable directory per tier, sorted repo set and skip list, with a
-# fresh run directory per dry-run, so a later dry-run never replaces a plan already confirmed;
-# run directories older than PLAN_RETAIN_DAYS are removed on the next dry-run of the same set.
 if [[ -n "$BATCH_PLAN_ARG" ]]; then
   PLAN="$BATCH_PLAN_ARG"
   PLAN_DIR="$(dirname "$PLAN")"
@@ -534,19 +423,12 @@ else
   PLAN_DIR="$(mktemp -d "$SET_DIR/run.XXXXXX" 2>/dev/null)" || fail_usage "cannot create batch-plan directory under: $SET_DIR"
   PLAN="$PLAN_DIR/plan"
 fi
-# Refuse to truncate an unrelated file: a typo'd --batch-plan path must not
-# silently destroy user data. An existing target is overwritten only when it is
-# already a batch plan (every non-empty line a REPO/GITDIR tab-record) — the
-# resumable case — mirroring the child --manifest non-manifest-overwrite guard.
 if [[ -n "$BATCH_PLAN_ARG" && -e "$PLAN" ]]; then
   [[ -f "$PLAN" ]] || fail_usage "--batch-plan target is not a regular file: $PLAN"
   if ! awk -F'\t' 'NF && $1 != "REPO" && $1 != "GITDIR" { exit 1 }' "$PLAN"; then
     fail_usage "refusing to overwrite a file that is not a batch plan (typo'd --batch-plan?): $PLAN"
   fi
 fi
-# Create the plan dir for BOTH branches (an explicit --batch-plan may name a
-# not-yet-existing parent) and verify the plan is actually writable — otherwise a
-# failed redirect would leave no plan yet still print BatchPlan/Summary and exit 0.
 mkdir -p "$PLAN_DIR" 2>/dev/null || fail_usage "cannot create batch-plan directory: $PLAN_DIR"
 : >"$PLAN" 2>/dev/null || fail_usage "cannot write batch plan: $PLAN"
 
@@ -586,16 +468,8 @@ if tier_has_manifest && ((${#BATCH_TOPS[@]} > 0)); then
 fi
 printf '%s\n' '---'
 
-# git_plan_measure <worktree> prints "<items> <bytes>": what the git-tier apply ops
-# act on in that object store. `git worktree prune` removes the worktrees its
-# --dry-run -v names, one line each on stderr. `git gc --auto` does nothing
-# until the loose objects exceed gc.auto (default 6700) or the packs exceed
-# gc.autoPackLimit (default 50; a gc.auto of 0 or less turns both checks off), so
-# only then do the loose objects and garbage from `git count-objects -v` count
-# (size figures are KiB), as an upper bound: gc packs reachable loose objects
-# instead of deleting them. Git samples one fan-out directory for its own check,
-# so this trigger is approximate. Remote-prune candidates are not counted;
-# finding them needs a network call.
+# git gc --auto acts only above gc.auto loose objects (default 6700) or gc.autoPackLimit packs (default 50):
+# https://git-scm.com/docs/git-config
 git_plan_measure() {
   local k v wt auto limit n=0 kib=0 loose=0 packs=0 garbage=0 kib_loose=0 kib_garbage=0
   while IFS=': ' read -r k v; do
@@ -618,11 +492,6 @@ git_plan_measure() {
   printf '%s %s\n' "$((n + wt))" "$((kib * 1024))"
 }
 
-# Per-repo manifest name. The plan index (unique per repo in this batch) prefixes
-# a sanitized key so two keys that differ only by punctuation the sanitizer
-# collapses (e.g. `repo-a` vs `repo_a` -> both `repo_a`) never share a manifest —
-# a collision would let the second dry-run truncate the first, dropping the first
-# repo's planned artifacts from apply. The sanitized key stays for readability.
 manifest_for() {
   local idx="$1" key="$2"
   printf '%s/%03d-%s.manifest' "$PLAN_DIR" "$idx" "${key//[^[:alnum:]]/_}"
@@ -651,11 +520,6 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
     select_manifest_child "$tok"
     out="$(cd "$top" && bash "$child" --dry-run --manifest "$manifest" "${extra[@]}" 2>&1)"
     rc=$?
-    # Fail closed on a non-zero child dry-run (repo lost .git after resolution, or
-    # the child refused an unwritable / pre-existing non-manifest path). Otherwise
-    # the missing Summary would default planned/bytes to 0, still write a REPO plan
-    # line, and report a clean preview — gating an incomplete plan. Block the repo
-    # (no plan line) so apply never touches it.
     if [[ "$rc" -ne 0 ]]; then
       batch_emit "$top" blocked "$tok dry-run failed (child exit $rc — not planned)"
       printf '%s\n' "$out" >&2
@@ -668,7 +532,6 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
     bytes="$(summary_field bytes "$r")"
     PLANNED=$((PLANNED + planned))
     PLAN_BYTES=$((PLAN_BYTES + bytes))
-    # Split by manifest class (`<class>\t<bytes>\t<rel>`): a build manifest folds caches in.
     read -r cb bb < <(awk -F'\t' '$1=="caches"{c+=$2} $1=="build"{b+=$2} END{print c+0, b+0}' "$manifest" 2>/dev/null)
     CACHES_BYTES=$((CACHES_BYTES + ${cb:-0}))
     BUILD_BYTES=$((BUILD_BYTES + ${bb:-0}))
@@ -680,11 +543,6 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
     reason_parts+=("$tok: $planned path(s), $(clean_human_size "$bytes")")
   fi
 
-  # 3. Git tier (git/all): record the repo's unique shared object store once. The
-  #    first-seen worktree is the plan's representative to cd into; if only THAT
-  #    worktree vanishes before apply while a live sibling remains, the prune is
-  #    reported skipped (deferred, not lost — non-destructive, idempotent, and a
-  #    re-run over the live siblings picks a new representative). See clean-batch.md.
   if tier_has_git; then
     if batch_add_gitdir "$top"; then
       new_gitdir=1
@@ -728,8 +586,6 @@ for ((i = 0; i < ${#ROW_TOPS[@]}; i++)); do
   printf '%s | %s | %s | %s\n' "${ROW_TOPS[$i]}" "${ROW_OUTCOMES[$i]}" "${ROW_PATHS[$i]}" "$(clean_human_size "${ROW_BYTES[$i]}")"
 done
 
-# Planned paths per repo, read from the manifests apply consumes, so the gate
-# names exactly the set shown. Largest first; manifest lines are class<TAB>bytes<TAB>rel.
 if [[ "$LIST_MAX" -gt 0 ]]; then
   for ((i = 0; i < ${#LIST_TOPS[@]}; i++)); do
     total="$(grep -c . "${LIST_MANIFESTS[$i]}")"

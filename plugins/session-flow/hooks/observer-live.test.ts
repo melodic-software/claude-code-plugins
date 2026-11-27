@@ -529,6 +529,16 @@ test('each check records its usage', async ($, on) => {
   expect(live(w)[0]).toMatchObject({ trigger: 'step', turnId: 't1', step: 6, outcome: 'none', usage: USAGE })
 })
 
+test('a parse_failed check row records the reason and field lengths, never the reply text', async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer('finding: x\ncategory: taste\nrule: r'))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  expect(live(w)[0]).toMatchObject({ trigger: 'step', outcome: 'parse_failed', reason: 'bad_category', lengths: { finding: 1, rule: 1, evidence: 0 } })
+  expect(JSON.stringify(live(w)[0])).not.toContain('taste')
+})
+
 kitTest('off unless observer_enabled', async ($, on) => {
   const w = world(on)
   await start($)
@@ -552,15 +562,16 @@ kitTest('parseReply reads none, a finding, and rejects malformed or overlong rep
   expect(parseReply('**finding:** None.')).toEqual({ kind: 'none' })
   const p = parseReply(`\u001b[1m${FINDING}\u001b[0m`)
   expect(p).toMatchObject({ kind: 'finding', value: { category: 'verification', finding: 'Merged without reading the pr-verify verdict.' } })
-  expect(parseReply('finding: x\ncategory: taste\nrule: r')).toEqual({ kind: 'unparsable' })
-  expect(parseReply('finding: x\ncategory: process')).toEqual({ kind: 'unparsable' })
-  expect(parseReply(`finding: ${'x'.repeat(241)}\ncategory: process\nrule: r`)).toEqual({ kind: 'unparsable' })
-  expect(parseReply('no labels here')).toEqual({ kind: 'unparsable' })
+  expect(parseReply('finding: x\ncategory: taste\nrule: r')).toEqual({ kind: 'unparsable', reason: 'bad_category', lengths: { finding: 1, rule: 1, evidence: 0 } })
+  expect(parseReply('finding: x\ncategory: process')).toEqual({ kind: 'unparsable', reason: 'no_rule', lengths: { finding: 1, rule: 0, evidence: 0 } })
+  expect(parseReply(`finding: ${'x'.repeat(241)}\ncategory: process\nrule: r`)).toEqual({ kind: 'unparsable', reason: 'field_too_long:finding', lengths: { finding: 241, rule: 1, evidence: 0 } })
+  expect(parseReply(`finding: x\ncategory: process\nrule: ${'r'.repeat(300)}\nevidence: ${'e'.repeat(250)}`)).toEqual({ kind: 'unparsable', reason: 'field_too_long:rule', lengths: { finding: 1, rule: 300, evidence: 250 } })
+  expect(parseReply('no labels here')).toEqual({ kind: 'unparsable', reason: 'no_finding' })
 })
 
 kitTest('parseReply stays linear on a long run of asterisks', async () => {
   const started = Date.now()
-  expect(parseReply(`${'*'.repeat(5000)}x\n${'*'.repeat(5000)}`)).toEqual({ kind: 'unparsable' })
+  expect(parseReply(`${'*'.repeat(5000)}x\n${'*'.repeat(5000)}`)).toEqual({ kind: 'unparsable', reason: 'no_finding' })
   expect(Date.now() - started).toBeLessThan(1000)
 })
 

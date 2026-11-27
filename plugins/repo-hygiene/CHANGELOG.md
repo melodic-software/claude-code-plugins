@@ -3,6 +3,24 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.11] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [0.22.10] - 2026-11-26
+
+### Changed
+
+- `/repo-hygiene:setup` points at the hooks reference's skills-and-agents section for how long the destructive guard's skill hook stays registered, instead of stating it ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [0.22.9] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [0.22.8] - 2026-11-24
 
 ### Fixed

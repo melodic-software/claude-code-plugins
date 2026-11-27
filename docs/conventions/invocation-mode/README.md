@@ -27,9 +27,9 @@ Moved to [this section](../../contracts/invocation-mode/README.md#splitting-by-i
 
 Moved to [this section](../../contracts/invocation-mode/README.md#router-skill-verdict-rejected-2026-08-17).
 
-## Fleet grade, 2026-08-17 (ADR 0005-bounded)
+## Fleet grade, 2026-08-17 (bounded by question)
 
-Moved to [this section](../../contracts/invocation-mode/README.md#fleet-grade-2026-08-17-adr-0005-bounded).
+Moved to [this section](../../contracts/invocation-mode/README.md#fleet-grade-2026-08-17-bounded-by-question).
 
 ## Fleet grade, 2026-10-18 (the six ungraded human-only skills, #7974)
 

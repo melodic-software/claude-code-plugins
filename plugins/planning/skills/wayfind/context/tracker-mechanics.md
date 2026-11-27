@@ -3,7 +3,7 @@
 `/planning:wayfind` operates the map through the `work-items` plugin's `/work-items:track` actions,
 invoked via the Skill tool. The bound tracker adapter owns every provider command, so wayfind names
 operations, never a tracker's commands
-([ADR 0060](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md)).
+([skills and agents review rules](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/review/skills-and-agents.md)).
 Item references below are the qualified IDs those actions return (`<provider>:<owner>/<repo>#<n>`
 on GitHub). Texts (a map body, a resolution, a comment) go in files written with the Write tool and
 are passed by path, never typed into a command.

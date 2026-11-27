@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for test-scan.sh, the testing plugin's PostToolUse-shaped scan
-# wrapper. No shipped hook row runs it; /testing:audit is the shipped route.
-#
-# Builds a throwaway git repository per run, writes test files into it, and
-# pipes hand-built PostToolUse payloads through the hook. Covers the option
-# gate (through the exec-form launcher), findings on a create, the once-per-
-# file-per-agent rules note, Edit scoping to the changed block, the scanner
-# timeout, gitignored paths, one Action per rule (recomputed and derived
-# expectations, constant restatements), the lead for findings of tests that
-# can fail, the marker prune, the per-call dedup that keeps two
-# overlapping `if` rows from reporting twice, and the per-write session state
-# (blocks, project key, prune).
 # test-scope: plugins/testing/hooks/hooks.json plugins/testing/skills/audit/adapters/*.yaml
 
 # shellcheck disable=SC2016 # fence lines in fixtures are literal text
@@ -26,9 +14,6 @@ source "$HOOK_DIR/../lib/test-ok-fail.sh"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-# The recorders skip files under the temp root. These fixtures live under the
-# real temp dir, so point that root at a directory that holds none of them.
-# A case below aims it at its own copy (#6037).
 export TEST_SCAN_SKIP_ROOT="$TMP/scan-skip-root"
 mkdir -p "$TEST_SCAN_SKIP_ROOT"
 REPO="$TMP/repo"
@@ -114,8 +99,6 @@ EOF
 
 cp "$REPO/src/sum.test.ts" "$REPO/scratch/ignored.test.ts"
 
-# payload <tool> <file> <session> <agent> <tool_use_id> <tool_response json>;
-# TPATH (empty: no transcript_path) and PCWD fill the session-state fields.
 TPATH="$TMP/transcripts/-repo/main.jsonl"
 PCWD="$REPO"
 payload() {
@@ -179,7 +162,6 @@ ctx4="$(jq -r '.hookSpecificOutput.additionalContext' <<<"$out")"
 if [[ "$(grep -c '^  \[rule-zero-assertion\] ' <<<"$ctx4")" == 10 ]]; then ok "(c4) ten findings listed"; else fail "(c4) ten findings listed (got: $ctx4)"; fi
 if [[ "$(grep -cxF '  ... and 2 more (/testing:audit lists the rest)' <<<"$ctx4")" == 1 ]]; then ok "(c4) the rest counted, with the audit pointer"; else fail "(c4) the rest counted, with the audit pointer (got: $ctx4)"; fi
 
-# (c5) ten findings with 2 KB test names still fit the 10000-character context cap.
 long="$(printf 'n%.0s' $(seq 1 2000))"
 {
   echo "import { test } from 'vitest';"
@@ -279,7 +261,6 @@ assert_contains "(k) names rule-throw-only-oracle" "$out" "rule-throw-only-oracl
 assert_contains "(k) leads with tests that check little" "$out" "tests that check little"
 assert_not_contains "(k) does not call a throw-only oracle a test that cannot fail" "$out" "tests that cannot fail"
 
-# Two overlapping `if` rows run the hook twice for one call; only one reports.
 run Write "$REPO/src/sum.test.ts" s1 "" dup-call
 first="$out"
 run Write "$REPO/src/sum.test.ts" s1 "" dup-call
@@ -344,9 +325,6 @@ else
   fail "outside the plugin cache, markers go under XDG_STATE_HOME, never TMPDIR"
 fi
 
-# Session state: one file per scanned write under
-# sessions/<pkey>/<session_id>/<tool_use_id>.json, naming the blocks the
-# write created or changed, for the task-end judge.
 S="$CLAUDE_PLUGIN_DATA/sessions"
 run Write "$REPO/src/mixed.test.ts" st1 "" st-create
 f="$(rec st1 st-create)"
@@ -387,8 +365,6 @@ else
   fail "state: two parallel writes give two whole files"
 fi
 
-# Nothing is written for an ignored path, an unsafe or empty id, or a payload
-# with no transcript_path.
 run Write "$REPO/scratch/ignored.test.ts" st1 "" st-ign
 assert_empty "state: a gitignored path writes nothing" "$(rec st1 st-ign)"
 run Write "$REPO/src/sum.test.ts" "../x" "" st-dots
@@ -401,9 +377,6 @@ assert_empty "state: an unsafe tool_use_id writes nothing" "$(find "$S" -path '*
 TPATH="" run Write "$REPO/src/sum.test.ts" st4 "" st-notp
 assert_empty "state: a missing transcript_path writes nothing" "$(find "$S" -path '*/st4/*')"
 
-# The project key: the first 16 hex of the sha256 of the project directory, a
-# newline and the transcript directory. The literal was worked out once from
-# that formula with sha256sum, outside this hook.
 P=/nonexistent/proj
 TP=/nonexistent/transcripts/-proj
 CLAUDE_PROJECT_DIR=$P TPATH="$TP/a.jsonl" run Write "$REPO/src/sum.test.ts" pk1 "" pk-a
@@ -437,15 +410,10 @@ run Write "$REPO/src/sum.test.ts" st5 "" st-prune2
 if [[ ! -e "$S/emptykey/emptysid" ]]; then ok "prune: an empty directory over an hour old is removed"; else fail "prune: an empty directory over an hour old is removed"; fi
 if [[ -d "$S/newkey/newsid" ]]; then ok "prune: a fresh empty directory stays for its writer"; else fail "prune: a fresh empty directory stays for its writer"; fi
 
-# A working copy under the temp root, or in a Claude session scratchpad, is
-# not a test the session authored: no judge record (#6037). The skip root is
-# injectable so the fixtures above still record.
 mkdir -p "$REPO/hold" "$REPO/claude/proj/sess/scratchpad" "$REPO/KYLESE~1"
 cp "$REPO/src/sum.test.ts" "$REPO/hold/copied.test.ts"
 cp "$REPO/src/sum.test.ts" "$REPO/claude/proj/sess/scratchpad/pad.test.ts"
 cp "$REPO/src/sum.test.ts" "$REPO/KYLESE~1/short.test.ts"
-# The assignment has to sit on the hook, not the payload: a prefix on the
-# left of a pipeline does not reach the right-hand command.
 out="$(payload Write "$REPO/hold/copied.test.ts" stskip "" sk-temp "$CREATE" |
   TEST_SCAN_SKIP_ROOT="$REPO/hold" bash "$HOOK" 2>/dev/null)"
 assert_empty "temp copy: no judge record" "$(rec stskip sk-temp)"
@@ -461,10 +429,6 @@ out="$(payload Write "$REPO/KYLESE~1/short.test.ts" stskip "" sk-short "$CREATE"
   TEST_SCAN_SKIP_ROOT="$TEST_SCAN_SKIP_ROOT" TESTING_OSTYPE=msys PATH="$TMP/shortbin:$PATH" bash "$HOOK" 2>/dev/null)"
 assert_empty "8.3 short temp copy: no judge record" "$(rec stskip sk-short)"
 
-# With TMPDIR, TMP and TEMP all unset, the POSIX defaults /tmp and /var/tmp
-# are still the temp root. The fixtures are made there by name, not through
-# mktemp's TMPDIR. The control shows the same copy records once the root is
-# elsewhere, so the quiet cases are not quiet for another reason.
 DEF_TMP="$(mktemp -d /tmp/test-scan-default.XXXXXX)"
 VAR_TMP="$(mktemp -d /var/tmp/test-scan-default.XXXXXX 2>/dev/null)" || VAR_TMP=""
 trap 'rm -rf "$TMP" "$DEF_TMP" ${VAR_TMP:+"$VAR_TMP"}' EXIT
@@ -481,9 +445,6 @@ if [[ -n "$VAR_TMP" ]]; then
   assert_empty "temp vars unset: a /var/tmp copy leaves no judge record" "$(rec stskip sk-var)"
 fi
 
-# Git Bash reports TMP and TEMP as /tmp, its usertemp mount of the Windows
-# temp folder, while the payload names the file by its long drive path. The
-# stub answers cygpath -l with the long spelling and -s with the short one.
 mkdir -p "$REPO/posixtmp" "$REPO/Long Temp" "$REPO/LONGTE~1"
 cp "$REPO/src/sum.test.ts" "$REPO/Long Temp/long.test.ts"
 cp "$REPO/src/sum.test.ts" "$REPO/LONGTE~1/short.test.ts"
@@ -508,6 +469,25 @@ assert_empty "POSIX-spelled temp var, long payload path: no judge record" "$(rec
 out="$(payload Write "$REPO/LONGTE~1/short.test.ts" stskip "" sk-long-short "$CREATE" |
   TEST_SCAN_SKIP_ROOT="$REPO/posixtmp" TESTING_OSTYPE=msys PATH="$TMP/formbin:$PATH" bash "$HOOK" 2>/dev/null)"
 assert_empty "POSIX-spelled temp var, short payload path: no judge record" "$(rec stskip sk-long-short)"
+
+judge_lib() { bash -c 'source "$1/scanner-run.sh" && source "$1/judge-lib.sh" && eval "$2"' _ "$HOOK_DIR" "$1"; }
+rule="$(judge_lib 'judge::read_rule r "/tmp/a*b[c]?"; printf %s "$r"')"
+assert_contains "read rule escapes glob characters in the directory" "$rule" 'Read(//tmp/a\*b\[c\]\?/**)'
+
+FD="$TMP/findings-dir"
+mkdir -p "$FD/repo" "$FD/outside" "$FD/data"
+ln -s "$FD/outside" "$FD/repo/.work"
+fdir_cd() { (cd "$FD/repo" && DATA="$FD/data" judge_lib 'judge::findings_dir "$PWD" main; printf %s "$FDIR"' 2>/dev/null); }
+fdir="$(fdir_cd)"
+assert_contains "a symlinked .work sends findings to the data dir" "$fdir" "$FD/data/findings"
+assert_empty "nothing is written through a symlinked .work" "$(ls -A "$FD/outside")"
+rm "$FD/repo/.work"
+mkdir -p "$FD/repo/.work"
+printf 'keep\n' >"$FD/outside/target"
+ln -s "$FD/outside/target" "$FD/repo/.work/.gitignore"
+fdir="$(fdir_cd)"
+assert_contains "a symlinked .work/.gitignore sends findings to the data dir" "$fdir" "$FD/data/findings"
+assert_contains "the symlinked .gitignore's target is untouched" "$(cat "$FD/outside/target")" "keep"
 
 echo
 echo "$PASS passed, $FAIL failed"

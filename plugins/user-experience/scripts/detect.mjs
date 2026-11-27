@@ -115,13 +115,13 @@ function inside(p) {
       try {
         stat = lstatSync(at);
       } catch (err) {
-        if (err.code === "ENOENT" || err.code === "ENOTDIR") break; // the rest does not exist yet
-        return null; // any other error leaves containment unproven
+        if (err.code === "ENOENT" || err.code === "ENOTDIR") break;
+        return null;
       }
       if (stat.isSymbolicLink() && escapes(relative(realRoot, realpathSync(at)))) return null;
     }
   } catch {
-    return null; // a dangling symlink, or a root that cannot be resolved
+    return null;
   }
   return rel.split(sep).join("/") || ".";
 }

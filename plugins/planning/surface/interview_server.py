@@ -395,7 +395,6 @@ class Settings:
         per data dir while the file's bytes are unchanged. Its values never apply."""
         path = self.retired_file
         try:
-            # Only a regular file: a symlink could point the notice at any file the user can read.
             regular = path is not None and not path.is_symlink() and path.is_file()
             raw = path.read_bytes() if regular else None
         except OSError:
@@ -487,7 +486,7 @@ def unchecked_constraints(doc):
 
 
 def answer_order(questions, threshold):
-    from exporters import natural  # exporters imports this module at its top
+    from exporters import natural
 
     path = [
         q
@@ -817,7 +816,6 @@ def read_visual_file(data_dir, file):
         not isinstance(file, str)
         or not file
         or ":" in file
-        # A Windows anchor covers a root on either separator and a UNC share.
         or PureWindowsPath(file).anchor
         or ".." in file.replace("\\", "/").split("/")
     ):
@@ -1057,7 +1055,7 @@ def open_prereqs(doc, r, q):
     """The ids in q's dependsOn still open, in dependsOn order: on the path (not archived,
     superseded or a declined proposal) and held, or with no decision that counts. Call
     release_user_holds first."""
-    from exporters import latest_decision  # exporters imports server at module top
+    from exporters import latest_decision
 
     qs = {x.get("id"): x for x in doc.get("questions") or [] if isinstance(x, dict)}
     out = []
@@ -1296,7 +1294,6 @@ class Hub(LoopbackWatcher):
             release_user_holds(q, r)
             derived, changed, waits, changed_by = derive_states(q, r)
             chains = supersede_chains(q)
-            # exporters imports server at module top
             from exporters import latest_decision
 
             for x in q.get("questions") or []:
@@ -1346,7 +1343,6 @@ class Hub(LoopbackWatcher):
             "session": self.session,
             "instance": self.instance,
             "api": API,
-            # The build this process started from; the page compares it with the one stamped in it.
             **self.build,
         }, stale
 
@@ -1613,8 +1609,6 @@ class Handler(LoopbackHandler):
                 )
             return self.send(200, raw, OCTET)
         if url.path == "/api/visual-open":
-            # A tab navigation cannot send the token header, so a one-time nonce stands in; the
-            # sandbox CSP makes the document an opaque origin that cannot reach the page's token.
             vid = (query.get("id") or [""])[0]
             if not hub.take_open((query.get("t") or [""])[0], vid):
                 return self.send(403, {"error": "open link expired or already used"})

@@ -108,6 +108,15 @@ else
   fail "apply with nothing to write exits 2" "$out"
 fi
 
+ph_dir="$TMP/ph-cwd"
+mkdir -p "$ph_dir"
+out="$(cd "$ph_dir" && CLAUDE_PROJECT_DIR='${CLAUDE_PROJECT_DIR}' bash "$SCRIPT" apply --extend-skip ph_skip 2>&1)"
+if [[ $? -eq 0 && -f "$ph_dir/.claude/repo-fleet-hygiene.conf" && ! -e "$ph_dir/\${CLAUDE_PROJECT_DIR}" ]]; then
+  pass "literal \${CLAUDE_PROJECT_DIR} falls back to cwd instead of creating a placeholder dir"
+else
+  fail "literal \${CLAUDE_PROJECT_DIR} falls back to cwd" "$out"
+fi
+
 if [[ $FAILED -ne 0 ]]; then
   printf '%s test(s) failed\n' "$FAILED" >&2
   exit 1

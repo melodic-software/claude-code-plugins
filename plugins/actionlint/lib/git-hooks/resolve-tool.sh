@@ -21,7 +21,7 @@ rt_git() {
   if declare -F hook::git_untrusted >/dev/null; then hook::git_untrusted "$@"; else git "$@"; fi
 }
 
-rt_resolve() { # <file> <concern> <root>
+rt_resolve() {
   rt__reset
   RT_ROOT="$3"
   if declare -F rt_adapter >/dev/null && rt_adapter "$2" "$1" "$3"; then
@@ -78,7 +78,7 @@ rt__arg() {
   RT__A="$abs"
 }
 
-rt_run() { # <files...>
+rt_run() {
   local f a size=0 status=0 rc chunk=()
   local args=()
   for f in "$@"; do
@@ -119,7 +119,7 @@ rt__finding() {
   RT__F="$rel:${BASH_REMATCH[2]}: ${BASH_REMATCH[4]}"
 }
 
-rt_normalize() { # <output file> <status>
+rt_normalize() {
   local line found=0
   while IFS= read -r line || [[ -n "$line" ]]; do
     rt__finding "$line"
@@ -134,7 +134,7 @@ rt_normalize() { # <output file> <status>
   return 0
 }
 
-rt_lint() { # <files...>
+rt_lint() {
   local out status tmp="${CHECKS_TMP:-}" own=""
   if [[ -z "$tmp" ]]; then
     tmp="$(mktemp -d "${TMPDIR:-/tmp}/rt.XXXXXX")" || return 3
@@ -173,7 +173,7 @@ rt_standards_file() {
   RT_STANDARDS_FILE="$RT__STD_DIR/$2"
 }
 
-rt_found() { # <bin>
+rt_found() {
   if [[ "$1" == */* ]]; then
     [[ -x "$1" ]]
   else
@@ -206,7 +206,7 @@ rt__record_note() {
   done
 }
 
-rt_print() { # <concern> <root> [<file>...]
+rt_print() {
   local concern="$1" root="$2" f found tool detail
   rt__record_note "$root"
   if (($# > 2)); then

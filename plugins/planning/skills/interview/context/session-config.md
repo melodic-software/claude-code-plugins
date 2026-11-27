@@ -135,7 +135,7 @@ that does not exist.
 Complexity and ambiguity apply to engineering and general sessions alike: a hard
 general decision can warrant the top model just as a subtle refactor can. Surface the
 recommendation for both; it is orthogonal to the engineering/general domain split and
-to the `me`/`auto`/`lock` action. Framing differs by what the session hands off to
+to the `auto`/`lock` action. Framing differs by what the session hands off to
 (SKILL.md Step 5): an engineering session's recommendation configures the
 **downstream execution session** it hands off to. A general session is **terminal**,
 with nothing downstream, so its recommendation configures the **current or next

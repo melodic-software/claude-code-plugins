@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Stopped: issue.json names issue 13, not issue 12, so no verdict is returned.", "why": "states the stop with no triage comment"},
+    {"answer": "", "why": "an empty reply returns no verdict"}
+  ],
+  "fail": [
+    {"answer": "Size: small\nComplexity: low\nFlags: none\n\nTriaged issue 13.", "why": "triages the other issue in prose"},
+    {"answer": "Triage of #13\n\nSize: medium\nFlags: intent", "why": "a triage comment after a heading"}
+  ]
+}

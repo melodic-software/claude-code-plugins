@@ -1,3 +1,4 @@
+# test-scope: plugins/planning/.claude-plugin/plugin.json plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json plugins/planning/surface/schema/*.schema.json
 """Live prototypes on the wire: liveserve.py (the static server), the build-folder walk add-live and the start run,
 and server.py's QuickTunnelStarter with the fake cloudflared (support.FAKE): Approve starts one tunnel and one static
 server, a restart brings a new address without a new Approve, the port refusals, Stop, and the server restart.
@@ -32,7 +33,7 @@ CSP = "default-src 'self'; connect-src 'self'; form-action 'self'; frame-ancesto
 def symlink(case, link, target, directory=False):
     try:
         os.symlink(target, link, target_is_directory=directory)
-    except (OSError, NotImplementedError) as exc:  # Windows without the symlink privilege
+    except (OSError, NotImplementedError) as exc:
         case.skipTest(f"no symlink here: {exc}")
 
 
@@ -186,6 +187,11 @@ class TestBuildWalk(unittest.TestCase):
             self.skipTest(f"no hard link here: {exc}")
         self.refused("hard link: a.txt")
 
+    def test_a_windows_reparse_point_reads_as_a_link(self):
+        regular = stat.S_IFREG | 0o600
+        self.assertTrue(liveserve._linked(mock.Mock(st_mode=regular, st_file_attributes=0x400)))
+        self.assertFalse(liveserve._linked(mock.Mock(st_mode=regular, st_file_attributes=0)))
+
     def test_a_folder_symlink_is_refused(self):
         symlink(self, self.src / "data", tmpdir(self), directory=True)
         self.refused("link: data")
@@ -212,7 +218,7 @@ class LiveCase(ServerCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.starter = self.app.live_starter = server.QuickTunnelStarter(self.app)
-        self.addCleanup(lambda: (self.app.shutdown(), tunnel.sweep_live(self.d, every=True, reason="stopped")))  # no watch left to restart one
+        self.addCleanup(lambda: (self.app.shutdown(), tunnel.sweep_live(self.d, every=True, reason="stopped")))
         code, _, out = self.post("/api/session/settings", {"prototypeTiers": ["screenshot", "snapshot", "live"]}, self.owner)
         self.assertEqual(code, 200, out)
         self.build = self.d / "staging" / "r1" / "live"
@@ -309,7 +315,7 @@ class TestStart(LiveCase):
         rec = self.record(lid)
         self.assertFalse(detached.alive(before["pid"], before["marker"], before["processStart"]))
         self.assertFalse(tunnel.server_running(before))
-        self.assertEqual((rec["reason"], rec["pid"]), ("stopped", before["pid"]))  # the record keeps what ran
+        self.assertEqual((rec["reason"], rec["pid"]), ("stopped", before["pid"]))
         self.assertIn("endedAt", rec)
         self.assertFalse((self.d / server.LIVE_COPIES / lid).exists())
 
@@ -343,7 +349,7 @@ class TestPorts(LiveCase):
         self.assertTrue(wait_for(lambda: self.status(lid)["kind"] == "ended", 15), self.status(lid))
         self.assertEqual(self.status(lid)["reason"], "failed")
         self.assertFalse(tunnel.tunnel_running(rec))
-        self.assertEqual(len(self.runs()), 1)  # never restarted
+        self.assertEqual(len(self.runs()), 1)
 
     def test_an_attested_port_gets_a_tunnel_only_and_its_server_keeps_running_after_stop(self):
         dev = http.server.ThreadingHTTPServer(("127.0.0.1", 0), http.server.SimpleHTTPRequestHandler)
@@ -358,7 +364,7 @@ class TestPorts(LiveCase):
         self.assertEqual(self.runs(), [f"tunnel --no-autoupdate --url http://127.0.0.1:{port}"])
         self.assertEqual(self.post("/api/live/stop", {"id": lid}, self.owner)[0], 200)
         self.assertFalse(tunnel.tunnel_running(rec))
-        self.assertEqual(call(port, "GET", "/")[0] // 100, 2)  # the owner's server is theirs: never stopped
+        self.assertEqual(call(port, "GET", "/")[0] // 100, 2)
 
 
 class TestSupervision(LiveCase):
@@ -374,7 +380,7 @@ class TestSupervision(LiveCase):
         self.assertRegex(url or "", ADDRESS)
         self.assertEqual(self.status(lid)["kind"], "running")
         rec = self.record(lid)
-        self.assertEqual((rec["url"], rec["server"]["pid"]), (url, before["server"]["pid"]))  # the static server stayed
+        self.assertEqual((rec["url"], rec["server"]["pid"]), (url, before["server"]["pid"]))
         self.assertEqual(len(self.runs()), 2)
         guest = self.join("Ann")[1]
         self.assertEqual(next(e for e in self.get("/api/state", guest)[2]["lives"] if e["id"] == lid)["url"], url)
@@ -391,7 +397,7 @@ class TestSupervision(LiveCase):
 
     def test_a_stop_from_outside_the_server_is_never_undone_by_a_restart(self):
         lid, before = self.started()
-        tunnel.end_live(tunnel.live_path(self.d, lid), "stopped")  # share.sh with the control call missed
+        tunnel.end_live(tunnel.live_path(self.d, lid), "stopped")
         self.assertTrue(wait_for(lambda: self.status(lid)["kind"] == "ended", 15), self.status(lid))
         self.assertEqual(self.status(lid)["reason"], "stopped")
         self.assertEqual(len(self.runs()), 1)
@@ -404,7 +410,7 @@ class TestSupervision(LiveCase):
             detached.stop(before["pid"], before["marker"], before["processStart"])
             self.assertTrue(wait_for(lambda: self.status(lid)["kind"] == "ended", 30), self.status(lid))
         self.assertEqual(self.status(lid)["reason"], "failed")
-        self.assertEqual(len(self.runs()), 3)  # the start, then two restarts
+        self.assertEqual(len(self.runs()), 3)
         rec = self.record(lid)
         self.assertFalse(tunnel.tunnel_running(rec) or tunnel.server_running(rec) or tunnel.server_running(before))
         guest = self.join("Ann")[1]

@@ -8,10 +8,10 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Agent]
 expected_outcome: "Round 2, headed by a Scope check: line, asks a question on each of date range, amount format and currencies, who may export, and large exports, every question with a Context line citing a stated fact, a recommendation whose printed reason names its evidence or a Withheld: line, and alternatives, with a three-dash rule line between questions, ending with the closing probe"
 ---
 
-/planning:interview me Add a CSV export of invoices to the billing admin page.
+/planning:interview Add a CSV export of invoices to the billing admin page.
 
 Round 1 is answered and the terms are agreed: Q1, the quality bar is production; Q2, the export is for the finance team's month-end reconciliation; Q3, "invoice" means an issued invoice, drafts excluded.
 
 What I know about the system: finance closes its books on the calendar month. Invoices store amounts as integer cents with a currency code, and customers are billed in USD, EUR and GBP. Finance opens exported files in a spreadsheet. The admin page has two roles, `support` and `finance`; support staff can see invoice lists but not payment details. One calendar month of invoices for the largest customer account is about 40,000 rows, and the page's other downloads build the file inside the web request, which times out after 30 seconds.
 
-Ask round 2 now, the whole round in one message, then stop for my answers.
+Ask round 2 now, the whole round in one message (up to 8 questions this round), then stop for my answers.

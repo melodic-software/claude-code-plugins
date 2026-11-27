@@ -115,7 +115,7 @@ an interface animation is the `animation-authoring` concern, and reviewing exist
 `animation-audit`.
 
 Invoke a skill route by its id without the leading slash (the Skill tool takes `plugin:skill`);
-for a plugin route, use the skill it provides for the concern; for a tool route, call that tool (Claude Design: see Gotchas). A skill only its user can start (the Skill tool refuses it) is handed over instead: give
+for a plugin route, use the skill it provides for the concern; for a tool route, call that tool (Claude Design: see Gotchas). A skill only its user can start ([control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill)) is handed over instead: give
 the user its slash command. Say which route you took and why.
 
 ## Combine routes and settle conflicts

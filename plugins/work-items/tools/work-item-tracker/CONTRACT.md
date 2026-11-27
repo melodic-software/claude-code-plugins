@@ -116,7 +116,7 @@ the repository binds in the pointer region of `AGENTS.md` or `CLAUDE.md`, read w
 copy of `resolve-convention-home.sh`; `docs/conventions` when the repository binds none. Layering
 and location follow
 [ADR 0075](../../../../docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md)
-fix 11, which supersedes ADR 0015: one team layer in the home, one gitignored personal override
+fix 11: one team layer in the home, one gitignored personal override
 beside it, deliberately no user-global layer. The seam turns the `tracker` mapping into one
 JSON object, so every adapter reads the same effective JSON.
 
@@ -959,7 +959,7 @@ The text that links a change (a pull request, a commit) to its work item, and th
 branch name carries to name that item, are provider grammar: `Closes #42` on GitHub, `Closes
 ENG-123` on Linear, an issue key on Jira. The adapter owns both, so a skill asks the bound
 adapter instead of writing GitHub's grammar
-([ADR 0060](../../../../docs/adr/0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md)).
+([skills and agents review rules](../../../../docs/review/skills-and-agents.md)).
 
 `change-link` is offline: it never calls the provider and does not check that the item exists
 (`get-item` does). It takes exactly one input form:

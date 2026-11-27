@@ -3,6 +3,48 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.3] - 2026-11-26
+
+### Fixed
+
+- `audit` keeps the coverage table a table in its reply, and `size` offers the ratchet only when
+  the user asks how to stop growth.
+
+## [2.0.2] - 2026-11-26
+
+### Fixed
+
+- `audit` names what a shortened reply keeps word for word: the coverage table, each reference's
+  provenance line with its section number, and that a measure with no reference has no standard.
+
+## [2.0.1] - 2026-11-26
+
+### Fixed
+
+- `audit` and `audit-suppressions` present the printed report whole, with notes after it, so the
+  coverage table and each reference's provenance reach the user; a frozen suppression count names
+  the command that printed it; a long file that rarely changes gets no recommendation.
+
+## [2.0.0] - 2026-11-26
+
+### Changed
+
+- **Code-metrics groups files by language, not by lane.** "Lane" now means only a worker that
+  serves one pipeline stage. The `docs/conventions/code-metrics.yaml` key is `languages` (rename a
+  `lanes:` key to `languages:`, with no alias), report rows carry `language`, the duplication
+  summary is `by_language`, the type-debt total row is labeled `language-total`, `unavailable`
+  lists `language/measure`, and `scripts/detect-lanes.sh` is `scripts/detect-languages.sh`. The
+  dispatcher's `--disable-lane` and `--lane-globs` are `--disable-language` and
+  `--language-globs`.
+- **Breaking: reports use `code-metrics/v3`.** The renamed fields mint a new schema identifier, so a
+  report or baseline written under `code-metrics/v2` is not compared with a new one; re-take it.
+
+## [1.8.1] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [1.8.0] - 2026-11-24
 
 ### Added

@@ -48,11 +48,11 @@ CANDIDATES = (*(f'python{a}.{b}' for a, b in reversed(PYTHONS)), 'python3', 'pyt
 REQUIREMENTS = Path(__file__).resolve().parent.parent / 'requirements.txt'
 PROBE = tuple(_CONFIG['probe'])
 BUILD_FROM_SOURCE = frozenset(n.lower() for n in _CONFIG.get('build_from_source', ()))
-BUILD_HINT = _CONFIG.get('build_hint')   # {"match": regex over pip's stderr, "text": the hint}
-PIP_TIMEOUT_S = int(_CONFIG['pip_timeout_s'])   # under the hook's timeout, so this one fires first
+BUILD_HINT = _CONFIG.get('build_hint')
+PIP_TIMEOUT_S = int(_CONFIG['pip_timeout_s'])
 STALE_PARTIAL_S = 2 * PIP_TIMEOUT_S
 CHECK_LABEL = _CONFIG.get('check', {}).get('label', 'Python packages')
-CHECK_TOOLS = dict(_CONFIG.get('check', {}).get('tools', {}))   # tool -> what to do when it is missing
+CHECK_TOOLS = dict(_CONFIG.get('check', {}).get('tools', {}))
 HANDED_OVER = re.sub(r'[^A-Z0-9]', '_', PLUGIN.upper()) + '_PYDEPS_INTERPRETER'
 HOOK_CANDIDATES = ('python3.13', 'python3.12', 'python3', 'python')
 STAMP_TAG = 'pydeps-hook-ready 1'
@@ -136,7 +136,7 @@ def loads(packages, probe):
 
 def repair_line(data):
     cmd = [sys.executable, str(Path(__file__).resolve()), 'install', '--data-dir', str(data)]
-    if sys.platform == 'win32':   # Windows PowerShell 5.1: call operator, single quotes doubled
+    if sys.platform == 'win32':
         return '& ' + ' '.join("'" + part.replace("'", "''") + "'" for part in cmd)
     return shlex.join(cmd)
 
@@ -151,7 +151,7 @@ def _drop_stale_partials(target):
             if path.stat().st_mtime < cutoff:
                 shutil.rmtree(path, ignore_errors=True)
         except OSError:
-            pass   # a concurrent install renamed or removed it first
+            pass
 
 
 def install(data, requirements=REQUIREMENTS, probe=PROBE):
@@ -166,7 +166,7 @@ def install(data, requirements=REQUIREMENTS, probe=PROBE):
     only_binary = binary_only(requirements) if BUILD_FROM_SOURCE else [':all:']
     try:
         if target.exists():
-            shutil.rmtree(target)   # present but not loading: rebuild it rather than trust it
+            shutil.rmtree(target)
         try:
             r = subprocess.run(
                 [sys.executable, '-P', '-m', 'pip', 'install', '--require-hashes', '--no-deps',
@@ -188,7 +188,7 @@ def install(data, requirements=REQUIREMENTS, probe=PROBE):
         try:
             os.replace(partial, target)
         except OSError:
-            if not (target.is_dir() and loads(target, probe)):   # a concurrent install may have won the rename
+            if not (target.is_dir() and loads(target, probe)):
                 raise Broken(f'could not move the installed packages into {target}')
         return 'installed'
     finally:

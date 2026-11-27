@@ -130,8 +130,19 @@ assert_eq "merged head ref reclassifies landed=no as superseded" \
   "superseded" "$(col "$R" $C_RISK)"
 
 R="$(row "$OUT" "$(basename "$W")")"
-assert_eq "nothing unpushed skips the landed computation" "n/a" "$(col "$R" $C_LANDED)"
-assert_eq "nothing unpushed is ok" "ok" "$(col "$R" $C_RISK)"
+assert_eq "HEAD at origin/main proves landed by ancestry" "yes" "$(col "$R" $C_LANDED)"
+assert_eq "HEAD at origin/main uses method ancestor" "ancestor" "$(col "$R" $C_METHOD)"
+assert_eq "HEAD at origin/main is risk=landed" "landed" "$(col "$R" $C_RISK)"
+
+WT_PUSHED="$TEST_TMPDIR/wt-pushed-unmerged"
+git -C "$W" worktree add -q -b feat-pushed "$WT_PUSHED" main >/dev/null 2>&1
+commit_in "$WT_PUSHED" pushed.txt "pushed only" "add pushed.txt"
+git -C "$WT_PUSHED" push -q -u origin feat-pushed >/dev/null 2>&1
+OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
+R="$(row "$OUT" "wt-pushed-unmerged")"
+assert_eq "pushed unmerged branch has zero unpushed" "0" "$(col "$R" $C_UNPUSHED)"
+assert_eq "pushed unmerged branch skips landed verdict" "n/a" "$(col "$R" $C_LANDED)"
+assert_eq "pushed unmerged branch is ok" "ok" "$(col "$R" $C_RISK)"
 
 W="$(mkfixture)"
 WT_DEL="$TEST_TMPDIR/wt-delete-only"
@@ -396,7 +407,7 @@ assert_eq "the header names every column" \
 R="$(row "$OUT" "$(basename "$W")")"
 unset _p _b _h _u _l _m _base _ip _st _un _cf _ut _pe _risk _reason
 IFS=$'\t' read -r _p _b _h _u _l _m _base _ip _st _un _cf _ut _pe _risk _reason <<<"$R"
-assert_eq "a tab-splitting consumer lands on the risk column" "ok" "$_risk"
+assert_eq "a tab-splitting consumer lands on the risk column" "landed" "$_risk"
 assert_contains "and on the reason column" "$_reason" "nothing-unpushed"
 assert_not_contains "no field is empty" "	$R	" "		"
 
@@ -684,5 +695,104 @@ for ORDER in newest-first oldest-first; do
       "$ALONE" "$(row "$OUT" "${WT##*/}")"
   done
 done
+
+W="$(mkfixture)"
+WT_UNTRACKED="$TEST_TMPDIR/wt-untracked-only"
+git -C "$W" worktree add -q -b feat-untracked "$WT_UNTRACKED" main >/dev/null 2>&1
+commit_in "$WT_UNTRACKED" tracked.txt "pushed" "pushed commit"
+git -C "$WT_UNTRACKED" push -q -u origin feat-untracked >/dev/null 2>&1
+printf 'untracked\n' >"$WT_UNTRACKED/loose.txt"
+OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
+R="$(row "$OUT" "wt-untracked-only")"
+assert_eq "untracked-only: unpushed is 0" "0" "$(col "$R" $C_UNPUSHED)"
+assert_eq "untracked-only: untracked count is 1" "1" "$(col "$R" 12)"
+assert_eq "untracked-only: risk is dirty, never ok" "dirty" "$(col "$R" $C_RISK)"
+
+WT_LANDED_DIRTY="$TEST_TMPDIR/wt-landed-dirty"
+git -C "$W" worktree add -q -b feat-landed-dirty "$WT_LANDED_DIRTY" main >/dev/null 2>&1
+commit_in "$WT_LANDED_DIRTY" ld.txt "landed" "add ld.txt"
+git -C "$W" merge --squash feat-landed-dirty >/dev/null 2>&1
+git -C "$W" commit -qm "squash feat-landed-dirty" >/dev/null 2>&1
+git -C "$W" push -q origin main >/dev/null 2>&1
+printf 'uncommitted edit\n' >>"$WT_LANDED_DIRTY/ld.txt"
+OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
+R="$(row "$OUT" "wt-landed-dirty")"
+assert_eq "landed+dirty: landed is yes" "yes" "$(col "$R" $C_LANDED)"
+assert_eq "landed+dirty: dirty outranks landed" "dirty" "$(col "$R" $C_RISK)"
+
+git -C "$WT_LANDED_DIRTY" checkout -- ld.txt >/dev/null 2>&1
+printf 'untracked on landed\n' >"$WT_LANDED_DIRTY/untracked-landed.txt"
+OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
+R="$(row "$OUT" "wt-landed-dirty")"
+assert_eq "landed+untracked: landed is yes" "yes" "$(col "$R" $C_LANDED)"
+assert_eq "landed+untracked: untracked outranks landed" "dirty" "$(col "$R" $C_RISK)"
+
+BAD_STATUS_BIN="$TEST_TMPDIR/bad-status-bin"
+mkdir -p "$BAD_STATUS_BIN"
+cat >"$BAD_STATUS_BIN/git" <<'SHIM'
+#!/usr/bin/env bash
+case " $* " in
+*" status --porcelain "*) exit 128 ;;
+*) exec "$REAL_GIT" "$@" ;;
+esac
+SHIM
+chmod +x "$BAD_STATUS_BIN/git"
+OUT="$(PATH="$BAD_STATUS_BIN:$PATH" REAL_GIT="$REAL_GIT" \
+  bash "$ENGINE" --worktree "$WT_LANDED_DIRTY" --no-peers)"
+R="$(row "$OUT" "wt-landed-dirty")"
+assert_eq "unreadable status: counts emit ?" "?" "$(col "$R" 9)"
+assert_eq "unreadable status: risk is UNKNOWN, outranking landed and dirty" "UNKNOWN" "$(col "$R" $C_RISK)"
+
+W="$(mkfixture)"
+WT_NOTRACK_FF="$TEST_TMPDIR/wt-notrack-ff"
+git -C "$W" worktree add -q --no-track -b feat-notrack-ff "$WT_NOTRACK_FF" origin/main >/dev/null 2>&1
+commit_in "$WT_NOTRACK_FF" ff.txt "fast-forward" "ff commit"
+git -C "$W" merge -q --ff-only feat-notrack-ff >/dev/null 2>&1
+git -C "$W" push -q origin main >/dev/null 2>&1
+
+WT_NOTRACK_MC="$TEST_TMPDIR/wt-notrack-mc"
+git -C "$W" worktree add -q --no-track -b feat-notrack-mc "$WT_NOTRACK_MC" origin/main >/dev/null 2>&1
+commit_in "$WT_NOTRACK_MC" mc.txt "merge-commit" "mc commit"
+commit_in "$W" base-side.txt "base side" "advance main"
+git -C "$W" merge -q --no-ff --no-edit feat-notrack-mc >/dev/null 2>&1
+git -C "$W" push -q origin main >/dev/null 2>&1
+
+OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
+R_FF="$(row "$OUT" "wt-notrack-ff")"
+assert_eq "no-track FF: unpushed is 0" "0" "$(col "$R_FF" $C_UNPUSHED)"
+assert_eq "no-track FF: landed is yes" "yes" "$(col "$R_FF" $C_LANDED)"
+assert_eq "no-track FF: method is ancestor" "ancestor" "$(col "$R_FF" $C_METHOD)"
+assert_eq "no-track FF: risk is landed" "landed" "$(col "$R_FF" $C_RISK)"
+R_MC="$(row "$OUT" "wt-notrack-mc")"
+assert_eq "no-track merge-commit: unpushed is 0" "0" "$(col "$R_MC" $C_UNPUSHED)"
+assert_eq "no-track merge-commit: landed is yes" "yes" "$(col "$R_MC" $C_LANDED)"
+assert_eq "no-track merge-commit: method is ancestor" "ancestor" "$(col "$R_MC" $C_METHOD)"
+assert_eq "no-track merge-commit: risk is landed" "landed" "$(col "$R_MC" $C_RISK)"
+
+STATS_OFFLINE="$TEST_TMPDIR/stats-offline.txt"
+bash "$ENGINE" --repo-dir "$W" --no-peers --stats-file "$STATS_OFFLINE" >/dev/null
+assert_contains "stats-file offline: gh_calls=0" "$(cat "$STATS_OFFLINE")" "gh_calls=0"
+assert_contains "stats-file offline: rate_limited=no" "$(cat "$STATS_OFFLINE")" "rate_limited=no"
+
+W_RL="$(mkfixture)"
+WT_RL="$TEST_TMPDIR/wt-rl"
+git -C "$W_RL" worktree add -q -b feat-rl "$WT_RL" main >/dev/null 2>&1
+commit_in "$WT_RL" rl.txt "rl" "rl commit"
+RL_BIN="$TEST_TMPDIR/rl-bin"
+mkdir -p "$RL_BIN"
+cat >"$RL_BIN/gh" <<'STUB'
+#!/usr/bin/env bash
+echo "GraphQL: API rate limit already exceeded for user ID 1" >&2
+exit 1
+STUB
+chmod +x "$RL_BIN/gh"
+STATS_RL="$TEST_TMPDIR/stats-rl.txt"
+PATH="$RL_BIN:$PATH" bash "$ENGINE" --repo-dir "$W_RL" --no-peers --merged-pr-proof \
+  --stats-file "$STATS_RL" >/dev/null 2>/dev/null
+assert_contains "stats-file rate-limited: gh_calls=1" "$(cat "$STATS_RL")" "gh_calls=1"
+assert_contains "stats-file rate-limited: rate_limited=yes" "$(cat "$STATS_RL")" "rate_limited=yes"
+
+bash "$ENGINE" --repo-dir "$W" --stats-file >/dev/null 2>&1
+assert_eq "stats-file without value is usage (exit 2)" "2" "$?"
 
 [[ $FAILED -eq 0 ]] || exit 1

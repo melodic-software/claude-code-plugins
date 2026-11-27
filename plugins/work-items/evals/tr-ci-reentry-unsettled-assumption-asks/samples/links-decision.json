@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"labels\": [\"priority: medium\", \"needs-owner-decision\"], \"comment\": \"Size: small\\nComplexity: low\\nUncertainty: knowable\\nFlags: intent\\nBlocked by: none\\nBlast radius: the weekly maintenance workflow and the one pinned report issue it edits.\\nReversible: yes; revert the workflow change.\\nClaims checked: none\\n> **Decision recorded.**\\n> 1. One pinned issue, edited in place by each weekly run. Do not open a new issue each week.\\n> 2. 90 days without a commit. Leave out the long-lived branches we still use; those are never stale.\\nDecision: https://github.com/melodic-software/claude-code-plugins/issues/99902#issuecomment-100000002\\nOpen questions:\\n1. Which branches count as the long-lived ones the report leaves out?\\n   RECOMMENDED: main and every branch a ruleset protects. Basis: judgment\", \"needs_human\": false, \"size\": \"small\", \"complexity\": \"low\", \"uncertainty\": \"knowable\", \"flags\": [\"intent\"], \"blocked_by\": [], \"type\": \"Task\"}",
+      "why": "the expected verdict"
+    },
+    {
+      "answer": "```json\n{\n  \"labels\": [\n    \"priority: medium\",\n    \"needs-owner-decision\"\n  ],\n  \"comment\": \"Size: small\\nComplexity: low\\nUncertainty: knowable\\nFlags: intent\\nBlocked by: none\\nBlast radius: the weekly maintenance workflow and the one pinned report issue it edits.\\nReversible: yes; revert the workflow change.\\nClaims checked: none\\n> **Decision recorded.**\\n> 1. One pinned issue, edited in place by each weekly run. Do not open a new issue each week.\\n> 2. 90 days without a commit. Leave out the long-lived branches we still use; those are never stale.\\nDecision: https://github.com/melodic-software/claude-code-plugins/issues/99902#issuecomment-100000002\\nOpen questions:\\n1. Which branches count as the long-lived ones the report leaves out?\\n   RECOMMENDED: main and every branch a ruleset protects. Basis: judgment\",\n  \"needs_human\": false,\n  \"size\": \"small\",\n  \"complexity\": \"low\",\n  \"uncertainty\": \"knowable\",\n  \"flags\": [\n    \"intent\"\n  ],\n  \"blocked_by\": [],\n  \"type\": \"Task\"\n}\n```",
+      "why": "the same verdict, pretty-printed in a fence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"labels\": [\"priority: medium\", \"needs-owner-decision\"], \"comment\": \"Size: small\\nComplexity: low\\nUncertainty: knowable\\nFlags: intent\\nBlocked by: none\\nBlast radius: the weekly maintenance workflow and the one pinned report issue it edits.\\nReversible: yes; revert the workflow change.\\nClaims checked: none\\n> **Decision recorded.**\\n> 1. One pinned issue, edited in place by each weekly run. Do not open a new issue each week.\\n> 2. 90 days without a commit. Leave out the long-lived branches we still use; those are never stale.\\nOpen questions:\\n1. Which branches count as the long-lived ones the report leaves out?\\n   RECOMMENDED: main and every branch a ruleset protects. Basis: judgment\", \"needs_human\": false, \"size\": \"small\", \"complexity\": \"low\", \"uncertainty\": \"knowable\", \"flags\": [\"intent\"], \"blocked_by\": [], \"type\": \"Task\"}",
+      "why": "quotes without the link"
+    },
+    {
+      "answer": "{\"labels\": [\"priority: medium\", \"needs-owner-decision\"], \"comment\": \"Size: small\\nComplexity: low\\nUncertainty: knowable\\nFlags: intent\\nBlocked by: none\\nBlast radius: the weekly maintenance workflow and the one pinned report issue it edits.\\nReversible: yes; revert the workflow change.\\nClaims checked: none\\n> **Decision recorded.**\\n> 1. One pinned issue, edited in place by each weekly run. Do not open a new issue each week.\\n> 2. 90 days without a commit. Leave out the long-lived branches we still use; those are never stale.\\nDecision: https://github.com/melodic-software/claude-code-plugins/issues/99902#issuecomment-100000099\\nOpen questions:\\n1. Which branches count as the long-lived ones the report leaves out?\\n   RECOMMENDED: main and every branch a ruleset protects. Basis: judgment\", \"needs_human\": false, \"size\": \"small\", \"complexity\": \"low\", \"uncertainty\": \"knowable\", \"flags\": [\"intent\"], \"blocked_by\": [], \"type\": \"Task\"}",
+      "why": "links another comment"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    }
+  ]
+}

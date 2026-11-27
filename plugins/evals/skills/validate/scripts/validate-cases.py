@@ -444,7 +444,7 @@ def _read_flow(text, start):
         char = text[index]
         if char in "\"'":
             value, index = _read_quoted(text, index)
-            buffer.append("\0Q")  # marker: the buffer holds a parsed string
+            buffer.append("\0Q")
             buffer.append(value)
             continue
         if char in "[{":

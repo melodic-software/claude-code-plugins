@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Tests for git-tree-reset-batch.sh and the separator-agnostic skip matcher.
-#
-# The headline cases reproduce the data-loss incident this feature closes:
-#   - clean_skip_matches as a PURE STRING FUNCTION: a skip entry written with
-#     Windows backslashes must match a forward-slash repo key (the exact bug).
-#     This is deterministic on the Linux CI runner, where a backslash is a legal
-#     filename byte, not a separator — the only way to prove the fix reliably.
-#   - integration: a skip-listed repo is skipped; a dirty repo is skipped by
-#     default and reset only with --include-dirty; an unmatched skip is surfaced.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -35,12 +26,8 @@ rc=0
 bash "$BATCH" >/dev/null 2>&1 || rc=$?
 assert_exit "no repos exits 2" 2 "$rc"
 
-# --- 3. clean_skip_matches: the exact mixed-separator bug, as a pure function ---
-# repo_key is what enumeration produces: a rev-parse toplevel (forward slashes)
-# run through clean_path_key. On Linux that leaves case intact.
 REPO_KEY="$(clean_path_key '/fleet/acme/keepme')"
 
-# A skip entry written with Windows backslashes (the incident's failing case).
 if clean_skip_matches "$REPO_KEY" 'acme\keepme'; then
   pass "backslash skip entry matches forward-slash repo key (the incident bug, now fixed)"
 else
@@ -249,11 +236,6 @@ out="$(bash "$BATCH" --dry-run --include-dirty --repo "$AHEAD_REPO" 2>&1)" || tr
 assert_contains "include-dirty dry-run still plans the ahead repo reset" "$out" "would-reset"
 assert_contains "include-dirty dry-run names the discarded unpushed commits" "$out" "1 unpushed commit(s) would be discarded"
 
-# --- 21. read_lines_into keeps a FINAL line with no trailing newline (data-loss guard) ---
-# A skip file written without a trailing newline (printf '%s', not '%s\n') must still
-# protect its repo. The dropped-final-line bug silently empties a single-entry skip list,
-# fires no UnmatchedSkip warning (the entry never enters the array), and resets the repo
-# the operator meant to spare — the exact data-loss shape this feature exists to close.
 NOEOL_SKIP="$TEST_TMPDIR/skips-noeol.txt"
 printf '%s' 'acme\keepme' >"$NOEOL_SKIP"
 out="$(bash "$BATCH" --dry-run --repo "$CLEAN_REPO" --repo "$SKIP_REPO" --skip-from "$NOEOL_SKIP" 2>&1)" || true
@@ -270,11 +252,6 @@ out="$(bash "$BATCH" --dry-run --repos-from "$NOEOL_REPOS" 2>&1)" || true
 assert_contains "unterminated repos-from still enumerates the repo" "$out" "Repos: 1"
 assert_contains "unterminated repos-from repo would reset" "$out" "would-reset"
 
-# --- 22b. source-open contract (#3482): trailing blank / empty / CR / missing ---
-# A file ending `path\n\n` is ordinary EOF success. The sibling clean-batch used
-# to map that helper rc 1 onto "file not found"; tree-batch must keep accepting
-# it after dropping its duplicate `-f` precheck, and a truly missing file must
-# still error as file-not-found.
 TRAIL_REPOS="$TEST_TMPDIR/repos-trail.txt"
 printf '%s\n\n' "$CLEAN_REPO" >"$TRAIL_REPOS"
 rc=0
@@ -327,12 +304,6 @@ else
 fi
 chmod 644 "$UNREAD_LIST" 2>/dev/null || true
 
-# --- 23. a single --repo consumes consecutive paths (shell-glob-after-expansion) ---
-# `--repo ~/repos/*` reaches the script as ONE --repo flag followed by N positional
-# paths (the shell expanded the glob before exec). A single --repo must ingest every
-# one of them, which the pre-fix single-arg arm could not: it took the first path and
-# the second hit the unknown-arg default (exit 2). Simulate the expanded glob with two
-# explicit consecutive paths after one --repo.
 out="$(bash "$BATCH" --dry-run --repo "$CLEAN_REPO" "$SKIP_REPO" 2>&1)" || true
 assert_contains "single --repo ingests both consecutive glob paths" "$out" "Repos: 2"
 
@@ -341,18 +312,10 @@ assert_contains "greedy --repo still enumerates both paths" "$out" "Repos: 2"
 assert_contains "greedy --repo stops at --skip (parsed as a flag, not a path)" "$out" "skip-list"
 assert_not_contains "--skip value 'keepme' was not swallowed as a repo path" "$out" "UnmatchedSkip: keepme"
 
-# --- 25. empty CHILD_PASS / first-seen REPO_KEYS under set -u must not abort ---
-# Default dry-run passes no --force-default-branch/--include-deps/--include-secrets/
-# --include-dirty, so CHILD_PASS stays (). key_seen also walks REPO_KEYS while it
-# is still empty on the first input. Bare "${arr[@]}" aborts on bash 4.0-4.3.
 out="$(bash "$BATCH" --dry-run --repo "$CLEAN_REPO" 2>&1)" || true
 assert_not_contains "empty CHILD_PASS and REPO_KEYS do not unbound-variable abort" "$out" "unbound variable"
 assert_contains "empty-pass-through dry-run still classifies the repo" "$out" "would-reset"
 
-# --- 26. --repo with no path (immediately at a flag or end of args) is a usage error ---
-# A bare --repo followed by another flag has no path to consume; it must fail loud
-# (exit 2), not silently absorb the following flag as a directory path (the pre-fix
-# single-arg arm did the latter, classifying e.g. `--skip` as a blocked non-directory).
 rc=0
 bash "$BATCH" --dry-run --repo --skip 'x' >/dev/null 2>&1 || rc=$?
 assert_exit "--repo immediately followed by a flag exits 2" 2 "$rc"

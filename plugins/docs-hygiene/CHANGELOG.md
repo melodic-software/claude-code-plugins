@@ -1,5 +1,23 @@
 # Changelog: docs-hygiene plugin
 
+## [4.4.9] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [4.4.8] - 2026-11-26
+
+### Changed
+
+- `write-for-agents`: the "After writing" section becomes `## Next`, one target per result (`/docs-hygiene:extract-ssot`, `/domain-driven-design:ubiquitous-language curate`, `/docs-hygiene:audit-noise`); `/docs-hygiene:audit-derivability` moves to `## Related`.
+
+## [4.4.7] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [4.4.6] - 2026-11-26
 
 ### Changed

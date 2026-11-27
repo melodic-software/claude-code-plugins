@@ -155,15 +155,15 @@ task, your output destination, or the main session's sink and confirm gate.
    a forced fetch that fails is `unread`, never stale.
    Verify against the page file itself (or `docs-cache.sh read --raw` or `slice`), never a cached
    summary or note, and write no summary or note into the cache.
-   `WebFetch` is rung 2, which that convention calls degraded because it
-   truncates long pages silently. Fall back to it in exactly these cases: the manifest records the
+   `WebFetch` is rung 2, which that convention calls degraded (how WebFetch reads a page:
+   [WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)). Fall back to it in exactly these cases: the manifest records the
    page `unread` for any reason other than `not-in-index` (name the reason in the citation), the
    reason is `curl-missing` because this host has no `curl` (a host without `curl` is a supported
    host, not a reason to stop verifying), or the script wrote no manifest (exit 2, for example no
    `jq`). **Record the read as rung 2**
    either way. A rung-2 read grounds a claim on the same terms as rung 1: the full emitted span must
    match, and the response must show it arrived whole. What rung 2 can never ground is an
-   **absence** claim. Its truncation is silent, so "not in the response" is not "not on the page",
+   **absence** claim: we treat its response as possibly partial, so "not in the response" is not "not on the page",
    and an absence needs the rung-1 whole-file read.
    The script has already checked the slug against the index. Before quoting a body, still check
    the body's own first heading: a `200` is not proof you got the page you asked

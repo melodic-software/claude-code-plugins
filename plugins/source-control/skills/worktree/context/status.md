@@ -63,7 +63,7 @@ Two independent axes. **Work** answers whether removal would destroy a commit an
 | `superseded` | `superseded` | Not landed, but a merged PR carried this branch's name, probably a draft the base moved past. **Treat exactly as `stranded`**: the match is on the name, so a name reused after that merge carries new commits that are still the only copy |
 | `unknown` | `UNKNOWN` | No base resolved, or a probe failed. **Treat exactly as `stranded`**: the engine reports `?` rather than `no` precisely so an ambiguity is never read as safe |
 | `in-progress` | `in-progress` | A merge, rebase, cherry-pick, or revert is paused here. Nothing is unpushed, but the conflict resolutions in the working tree are not recorded anywhere and the sequencer state dies with the directory |
-| `dirty` | `dirty` | Uncommitted edits with nothing unpushed, **or** a working tree whose status could not be read at all, which the count columns show as `-`. The two are not distinguished, and neither is removable unattended |
+| `dirty` | `dirty` | Uncommitted edits or untracked files (outranks `landed`). An unreadable working-tree status (`?` in the count columns) emits `UNKNOWN` above |
 | `notgit` | `notgit` | Path is not a work-tree root. Probing it with `git -C` reports the *containing* repository's clean state |
 
 **Any risk value not in this table maps to `unknown`.** The mapping is closed on the safe side only: an unrecognized value is one this file cannot vouch for, and the engine's fail-closed rule governs its consumers too.
@@ -83,7 +83,7 @@ A `stranded` row whose `peers` column names another worktree is recoverable from
 | `merged` | PR was merged, **or** every unpushed commit landed on the base (`landed=yes`). The branch's content is on the base either way |
 | `prunable` | Git flagged as prunable (directory missing or corrupted) |
 | `locked` | Locked, by a helper's claim (every helper-created worktree is locked at creation) or by hand |
-| `unclaimed` | Linked worktree whose row has `locked=yes` with `lock_reason=-`. A plain `git worktree add` that bypassed the helper. `scripts/worktree-claim.sh report` is the check; `claim <path>` arms a session-distinct reason. Not the same as `locked`: there is no claim text for another session to read |
+| `unclaimed` | Linked worktree whose row has `locked=no`. A plain `git worktree add` that bypassed the helper. `scripts/worktree-claim.sh report` is the check (and reports a manual reasonless lock, `locked=yes` with `lock_reason=-`, as `LOCKED_NO_REASON` treated as foreign); `claim <path>` arms a session-distinct reason |
 
 ## Presentation
 

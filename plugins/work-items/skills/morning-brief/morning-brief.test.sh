@@ -2,9 +2,6 @@
 
 set -uo pipefail
 
-# The git-remote fallback case builds a throwaway repository. An inherited
-# absolute GIT_DIR would redirect that fixture's writes into the caller's
-# clone, so the inherited git environment is cleared before anything runs.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -16,10 +13,6 @@ if ! have jq; then
   echo "SKIP: jq not installed" >&2
   exit 0
 fi
-# morning-brief.sh parses timestamps on either the GNU (`date -d`) or the
-# BSD/macOS (`date -j -f`) dialect, so the staleness path runs on both. Run the
-# suite whenever either dialect is present; skip only when the host has neither
-# (the age fixtures genuinely cannot be evaluated then).
 have_gnu_date() { date -u -d "2026-01-01T00:00Z" +%s >/dev/null 2>&1; } # portability-ok: dialect probe, BSD probe below (#1510)
 have_bsd_date() { date -u -j -f "%Y-%m-%dT%H:%MZ" "2026-01-01T00:00Z" +%s >/dev/null 2>&1; }
 if ! have_gnu_date && ! have_bsd_date; then
@@ -55,6 +48,8 @@ NOW="2026-07-20T08:00Z"
 FIXTURE_REPO="example/test-repo"
 
 printf '{}\n' >"$TMP/lanes-empty.json"
+printf '{"laneIdentity": "lanes-app[bot]", "pages": [{"data": {"search": {"issueCount": 0, "pageInfo": {"hasNextPage": false}, "nodes": []}}}]}\n' \
+  >"$TMP/agent-decided-empty.json"
 
 cat >"$TMP/counts.json" <<'EOF'
 {"needs-triage": 28, "status: ready": 44, "needs-owner-decision": 3, "needs-human": 7}
@@ -142,13 +137,6 @@ cat >"$TMP/stuck.json" <<'EOF'
 }
 EOF
 
-# Merged-PR fixture for the stranded-findings section, shaped like the real case
-# (#1720): a P1 review comment posted 46 SECONDS AFTER the merge landed. The
-# fixture mirrors `gh api graphql --paginate` output — a list of page documents.
-#   #1720 — P1 thread created after merge      -> stranded, must report
-#   #1707 — thread created BEFORE the merge     -> gate saw it, must NOT report
-#   #1712 — post-merge thread already resolved  -> handled, must NOT report
-#   #1690 — merged outside the window           -> too old, must NOT report
 cat >"$TMP/merged.json" <<'EOF'
 [
   {"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": [
@@ -224,9 +212,6 @@ cat >"$TMP/merged-truncated.json" <<'EOF'
 ]
 EOF
 
-# A GraphQL error document: well-formed JSON with no `data`. Must never render
-# as an all-clear — observed live, where a rate-limit error read as a clean
-# window, which is the fail-open shape this whole section exists to catch.
 cat >"$TMP/merged-apierror.json" <<'EOF'
 [
   {"errors": [{"type": "RATE_LIMIT", "code": "graphql_rate_limit",
@@ -260,17 +245,6 @@ EOF
 
 printf '[]\n' >"$TMP/repo-labels-empty.json"
 
-# Cost fixtures with nothing charging, all values synthetic. The billing usage
-# (a June item beside July's) and budgets fixtures follow the response schemas
-# at https://docs.github.com/en/rest/billing/usage and
-# https://docs.github.com/en/rest/billing/budgets. The Azure fixtures follow no
-# published schema: they carry only the fields the script reads, except the
-# cost query's UsageDate column, a YYYYMMDD number per the Cost Management
-# Query - Usage reference's Daily example; its latest date here is 2026-07-19.
-# Every fixture run feeds these, so a run reads the cost section in full.
-# July 2026 has 744 hours, so 2 GB included is 1488 GB-hours. app-private uses
-# 300 + 100 minutes of 3000 (13%) and 100 GB-hours of 1488 (7%); lib-public's
-# 9000 minutes are free and never counted.
 cat >"$TMP/billing-usage-clear.json" <<'EOF'
 {"usageItems": [
   {"date": "2026-06-01T00:00:00Z", "product": "actions", "sku": "Actions Linux", "unitType": "Minutes", "quantity": 2000, "repositoryName": "app-private", "grossAmount": 15, "discountAmount": 2.66, "netAmount": 12.34},
@@ -428,7 +402,7 @@ OUT2="$(bash "$BRIEF" --now "$NOW" \
 assert_contains "missing telemetry degrades gracefully" "$OUT2" "no telemetry issue found"
 
 OUT_NO_QL="$(bash "$BRIEF" --now "$NOW" \
-  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
+  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" --agent-decided-json "$TMP/agent-decided-empty.json" \
   --repo-labels-json "$TMP/repo-labels-alternate.json" \
   --counts-json "$TMP/empty.json" \
   --pr-json "$TMP/empty.json" \
@@ -453,7 +427,7 @@ assert_contains "partial taxonomy keeps another existing label" "$OUT_PARTIAL_QL
 assert_not_contains "partial taxonomy drops absent default labels" "$OUT_PARTIAL_QL" "needs-triage"
 
 OUT_CUSTOM_QL="$(bash "$BRIEF" --now "$NOW" \
-  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
+  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" --agent-decided-json "$TMP/agent-decided-empty.json" \
   --queue-labels "bug, enhancement" \
   --repo-labels-json "$TMP/repo-labels-alternate.json" \
   --counts-json "$TMP/empty.json" \
@@ -465,7 +439,7 @@ assert_contains "pinned queue labels are honored" "$OUT_CUSTOM_QL" "bug"
 assert_contains "pinned queue labels include the second entry" "$OUT_CUSTOM_QL" "enhancement"
 
 OUT_NO_DEC="$(bash "$BRIEF" --now "$NOW" \
-  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
+  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" --agent-decided-json "$TMP/agent-decided-empty.json" \
   --repo-labels-json "$TMP/repo-labels-alternate.json" \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/empty.json" \
@@ -474,7 +448,7 @@ OUT_NO_DEC="$(bash "$BRIEF" --now "$NOW" \
 assert_contains "missing decision label degrades gracefully" "$OUT_NO_DEC" "decision label not found in this repo"
 
 OUT_EMPTY_LABELS="$(bash "$BRIEF" --now "$NOW" \
-  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
+  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" --agent-decided-json "$TMP/agent-decided-empty.json" \
   --repo-labels-json "$TMP/repo-labels-empty.json" \
   --counts-json "$TMP/empty.json" \
   --pr-json "$TMP/empty.json" \
@@ -484,7 +458,7 @@ OUT_EMPTY_LABELS="$(bash "$BRIEF" --now "$NOW" \
 assert_contains "empty label inventory degrades queue section" "$OUT_EMPTY_LABELS" "no queue labels found in this repo"
 
 OUT_EMPTY_LABELS_DEC="$(bash "$BRIEF" --now "$NOW" \
-  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
+  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" --agent-decided-json "$TMP/agent-decided-empty.json" \
   --repo-labels-json "$TMP/repo-labels-empty.json" \
   --counts-json "$TMP/empty.json" \
   --pr-json "$TMP/empty.json" \
@@ -507,8 +481,6 @@ assert_exit "unknown flag exits 3" 3 "$?"
 bash "$BRIEF" --counts-json "$TMP/does-not-exist.json" >/dev/null 2>&1
 assert_exit "missing fixture file exits 3" 3 "$?"
 
-# Numeric-flag validation: a non-numeric value must fail with a clear message,
-# not crash cryptically under `set -u` in the later arithmetic.
 ERR_STALE="$(bash "$BRIEF" --stale-hours abc 2>&1)"
 assert_exit "non-numeric --stale-hours exits 3" 3 "$?"
 assert_contains "non-numeric --stale-hours clear message" "$ERR_STALE" "--stale-hours requires a non-negative integer"
@@ -516,10 +488,6 @@ ERR_MAXLEN="$(bash "$BRIEF" --rec-maxlen 12x 2>&1)"
 assert_exit "non-numeric --rec-maxlen exits 3" 3 "$?"
 assert_contains "non-numeric --rec-maxlen clear message" "$ERR_MAXLEN" "--rec-maxlen requires a non-negative integer"
 
-# Leading-zero values are normalized to base-10, not misread as octal. A raw
-# `08` errors in the `(( ))` staleness arithmetic and silently suppresses the
-# STALE verdict; a raw `010` truncates to 8 chars instead of 10. Both must
-# behave as the decimal the user wrote (normal-value paths above use 6 / 30).
 OUT_LZ_STALE="$(bash "$BRIEF" --now "$NOW" --stale-hours 08 \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/empty.json" \
@@ -535,18 +503,6 @@ OUT_LZ_MAXLEN="$(bash "$BRIEF" --now "$NOW" --rec-maxlen 010 \
   --telemetry-json "$TMP/empty.json" 2>&1)"
 assert_contains "--rec-maxlen 010 normalizes to 10 (truncates at 10 chars)" "$OUT_LZ_MAXLEN" "alpha beta…"
 
-# --- BSD/macOS date fallback --------------------------------------------------
-# On macOS the relaxed guard above already drives the real BSD `date -j -f`
-# branch (GNU `-d` fails, so to_epoch/from_epoch fall through to it). On a GNU
-# host that branch is otherwise never taken, so a regression in it would ship
-# undetected. Force it here with a `date` test double that rejects GNU `-d`
-# (as real BSD date does) and services `-j -f` / `-r` by delegating the epoch
-# math to the host's real date. This proves the BSD branch is reached and wired
-# — return handling, TZ, from_epoch's `-r` render, and the parseable-vs-
-# unparsable decision on the `07:XX` fixture. It does not re-implement strptime,
-# so it does not assert format-string matching (only a real BSD date or a Python
-# strptime could, and neither is in the bash+jq runner contract). The double
-# relies on the host's `date -d`, so run it only when GNU date is present.
 if have_gnu_date; then
   REAL_DATE="$(command -v date)"
   STUB_DIR="$TMP/bsd-date-stub"
@@ -592,9 +548,6 @@ STUB
   assert_contains "BSD fallback: unparsable stamp still unparsable" "$OUT_BSD" "unparsable timestamp"
 fi
 
-# --- Stranded findings on merged PRs (#1777) ----------------------------------
-# The discriminator is the comment's timestamp vs the merge's: a thread the merge
-# gate could never have seen, because it did not exist yet.
 assert_contains "stranded: reports the post-merge P1" "$OUT" "#1720"
 assert_contains "stranded: severity survives to the operator" "$OUT" "[P1]"
 assert_contains "stranded: several findings on one PR collapse to one line" "$OUT" "(2 findings)"
@@ -643,7 +596,7 @@ OUT_ERR="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
 assert_not_contains "stranded: an API error is NEVER reported as clear" "$OUT_ERR" "every merged PR in the window is clear"
 assert_contains "stranded: an API error renders the section UNREADABLE" "$OUT_ERR" "UNREADABLE: API rate limit"
 assert_contains "stranded: the API error message is surfaced" "$OUT_ERR" "rate limit already exceeded"
-assert_contains "stranded: the header counts the unreadable section" "$OUT_ERR" "2 of 10 sections unreadable: stranded landed"
+assert_contains "stranded: the header counts the unreadable section" "$OUT_ERR" "2 of 11 sections unreadable: stranded landed"
 
 OUT_SEV="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
   --counts-json "$TMP/counts.json" \
@@ -730,7 +683,7 @@ OUT_STUCK_ERR="$(run_stuck --stuck-json "$TMP/stuck-error.json")"
 RC_STUCK_ERR=$?
 assert_exit "stuck: an error document exits 6" 6 "$RC_STUCK_ERR"
 assert_contains "stuck: an error document is UNREADABLE" "$(section "$OUT_STUCK_ERR" "== Stuck")" "UNREADABLE: boom stuck"
-assert_contains "stuck: the header counts the unreadable section" "$OUT_STUCK_ERR" "1 of 10 sections unreadable: stuck"
+assert_contains "stuck: the header counts the unreadable section" "$OUT_STUCK_ERR" "1 of 11 sections unreadable: stuck"
 printf '[]\n' >"$TMP/stuck-array.json"
 assert_contains "stuck: a fixture that is not a label map is UNREADABLE" "$(section "$(run_stuck --stuck-json "$TMP/stuck-array.json")" "== Stuck")" \
   "UNREADABLE: --stuck-json is not an object"
@@ -848,7 +801,7 @@ assert_contains "touches: no operator login is UNREADABLE" \
 printf '{"errors": [{"message": "boom touches"}]}\n' >"$TMP/touch-error.json"
 OUT_TOUCH_ERR="$(run_touch --touch-json "$TMP/touch-error.json")"
 assert_exit "touches: an error document exits 6" 6 "$?"
-assert_contains "touches: the header counts the unreadable section" "$OUT_TOUCH_ERR" "1 of 10 sections unreadable: touches"
+assert_contains "touches: the header counts the unreadable section" "$OUT_TOUCH_ERR" "1 of 11 sections unreadable: touches"
 assert_contains "touches: no repo and no fixture is an empty state" "$(section "$OUT3" "== Owner touches")" \
   "(no repo resolved — pass --repo or --touch-json)"
 bash "$BRIEF" --touch-days 0 >/dev/null 2>&1
@@ -899,29 +852,6 @@ assert_contains "touches: --touch-days narrows the merges counted" \
 assert_contains "touches: no merge in the window says so" "$TOUCH_SEC" \
   "  merged with no human touch: no pull request merged in the window"
 
-# --- Degraded-mode contract: an unreadable source is never an all-clear -------
-# A `gh` test double on PATH stands in for the network. MB_GH_MODE selects the
-# host's behavior:
-#   blocked  every call is refused with the proxy's GraphQL 403 shape (body on
-#            stdout, message on stderr, exit 1) — the cloud-session shape
-#   fail     every call fails with an unrelated error
-#   forbidden
-#            every call is refused with GitHub's REST 403 for a caller who is
-#            not an org admin
-#   rest     GraphQL-backed subcommands are refused as in `blocked`; `gh api
-#            repos/...` and `gh api orgs/...` are served from
-#            MB_GH_FIXTURES/<sanitized path>.json, a missing fixture answering 404
-#   gql      the gh subcommands are served from MB_GH_FIXTURES/<key>.json, as gh
-#            would: a list read keeps its first --limit items (gh's default
-#            limit of 30 when none is given) and -q applies as a jq filter.
-#            Keys: label-list, pr-list, issue-list-label-<sanitized label>,
-#            issue-list-search, issue-view-<n>, and api-graphql-<cursor> (first
-#            page: api-graphql-first), and api-graphql-stuck-<sanitized label>-
-#            <cursor> for a label search, api-graphql-touch-<YYYY-MM-DD>-<cursor>
-#            for an owner-touch day search; any other `api` call is served by its
-#            repos/ path, sanitized as in rest. `api graphql --paginate` follows the
-#            cursors to the last page, as gh does. Every key served is logged
-#            to MB_GH_LOG when set; a missing fixture fails the call.
 GH_STUB_DIR="$TMP/gh-stub"
 mkdir -p "$GH_STUB_DIR"
 cat >"$GH_STUB_DIR/gh" <<'STUB'
@@ -1108,6 +1038,7 @@ run_stub() {
   [[ -n "${MB_NO_DATA_DIR:-}" ]] && data=()
   [[ "$mode" == gql && -z "${MB_STUCK_LIVE:-}" ]] && stuck=(--stuck-json "$TMP/stuck-empty.json")
   [[ "$mode" == gql && -z "${MB_TOUCH_LIVE:-}" ]] && stuck+=(--touch-json "$TMP/touch-empty.json")
+  [[ "$mode" == gql && -z "${MB_AGENT_DECIDED_LIVE:-}" ]] && stuck+=(--agent-decided-json "$TMP/agent-decided-empty.json")
   PATH="$GH_STUB_DIR:$PATH" MB_GH_MODE="$mode" MB_GH_FIXTURES="${MB_GH_FIXTURES:-$TMP/rest}" \
     bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" ${data[@]+"${data[@]}"} \
     "${COST_ARGS[@]}" ${stuck[@]+"${stuck[@]}"} "$@" 2>&1
@@ -1120,7 +1051,7 @@ OUT_FAIL="$(run_stub fail)"
 RC_FAIL=$?
 COST_ARGS=("${CLEAR_COST_ARGS[@]}")
 assert_exit "blocked: every live section unreadable exits 5" 5 "$RC_BLOCKED"
-assert_contains "blocked: header counts every section" "$OUT_BLOCKED" "10 of 10 sections unreadable"
+assert_contains "blocked: header counts every section" "$OUT_BLOCKED" "11 of 11 sections unreadable"
 assert_contains "blocked: stuck is UNREADABLE" "$(section "$OUT_BLOCKED" "== Stuck")" "UNREADABLE:"
 assert_not_contains "blocked: stuck never renders an all-clear" "$OUT_BLOCKED" "no open item has held a queue label"
 COST_BLOCKED="$(section "$OUT_BLOCKED" "== Cost")"
@@ -1151,15 +1082,13 @@ OUT_ONE="$(run_stub blocked \
   --pr-json "$TMP/pr.json" \
   --decisions-json "$TMP/decisions.json" \
   --telemetry-json "$TMP/telemetry.json" \
-  --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
+  --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" --agent-decided-json "$TMP/agent-decided-empty.json" \
   --lane-runs-json "$TMP/lanes-empty.json")"
 RC_ONE=$?
 assert_exit "partial: one unreadable section among fixtures exits 6" 6 "$RC_ONE"
-assert_contains "partial: header names the lost section" "$OUT_ONE" "2 of 10 sections unreadable: stranded landed"
+assert_contains "partial: header names the lost section" "$OUT_ONE" "2 of 11 sections unreadable: stranded landed"
 assert_contains "partial: the fixture sections still render" "$OUT_ONE" "#10 clean pr"
 
-# A `message`-shaped error body (the REST/403 shape, no `errors` key) fed as a
-# fixture is an unreadable source, exactly like the GraphQL `errors` shape.
 cat >"$TMP/merged-message-error.json" <<'EOF'
 {"message":"GitHub GraphQL is not available from Claude Code sessions.","documentation_url":"https://example.invalid/docs"}
 EOF
@@ -1187,7 +1116,7 @@ if have git; then
   assert_exit "git remote fallback: renders (exit 6, five of nine unreadable)" 6 "$RC_REMOTE"
   assert_contains "git remote fallback: owner/repo taken from origin" "$OUT_REMOTE" "Morning brief — $FIXTURE_REPO —"
   assert_contains "git remote fallback: the header names the source" "$OUT_REMOTE" "repo resolved from the git origin remote"
-  assert_contains "git remote fallback: live sections still degrade honestly" "$OUT_REMOTE" "6 of 10 sections unreadable: telemetry stranded landed lanes touches cost"
+  assert_contains "git remote fallback: live sections still degrade honestly" "$OUT_REMOTE" "7 of 11 sections unreadable: telemetry stranded landed agent-decided lanes touches cost"
 fi
 
 REST="$TMP/rest"
@@ -1216,7 +1145,6 @@ cat >"$REST/$(rest_key "$R/pulls/7").json" <<'EOF'
 {"number": 7, "title": "clean one", "html_url": "http://x/7", "draft": false, "mergeable": true, "mergeable_state": "clean",
  "base": {"ref": "release/1.x"}, "head": {"sha": "7777777777777777777777777777777777777777"}}
 EOF
-# The base name carries a slash, which the compare path must percent-encode.
 cat >"$REST/$(rest_key "$R/compare/release%2F1.x...7777777777777777777777777777777777777777?per_page=1").json" <<'EOF'
 {"status": "diverged", "ahead_by": 1, "behind_by": 2}
 EOF
@@ -1313,7 +1241,7 @@ assert_contains "rest: telemetry issue found by title" "$OUT_REST" "source: issu
 assert_contains "rest: telemetry lane age computed" "$OUT_REST" "babysit    last-cycle=2026-07-20T06:30Z UTC  age=1h 30m"
 assert_contains "rest: stranded is UNREADABLE, never clear" "$(section "$OUT_REST" "== Findings stranded")" "UNREADABLE: review threads need GraphQL"
 assert_contains "rest: stuck is UNREADABLE, never empty" "$(section "$OUT_REST" "== Stuck")" "UNREADABLE: label events need GraphQL"
-assert_contains "rest: header counts the four lost sections" "$OUT_REST" "4 of 10 sections unreadable: stuck stranded landed touches"
+assert_contains "rest: header counts the five lost sections" "$OUT_REST" "5 of 11 sections unreadable: stuck stranded landed agent-decided touches"
 
 mkdir -p "$TMP/cfg-lanes" "$TMP/cfg-no-lanes"
 cat >"$TMP/cfg-lanes/work-items.yaml" <<'EOF'
@@ -1375,7 +1303,7 @@ cat >"$TMP/same-telemetry.json" <<'EOF'
 [{"body": "<!-- harness-ops:lane-telemetry marker=lane:babysit -->\n- lane: babysit\n- last-cycle: 2026-07-20T06:30Z\n- flags: none"}]
 EOF
 OUT_SAME="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" \
-  --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
+  --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" --agent-decided-json "$TMP/agent-decided-empty.json" \
   --repo-labels-json "$TMP/same-labels.json" \
   --counts-json "$TMP/same-counts.json" \
   --pr-json "$TMP/same-pr.json" \
@@ -1398,9 +1326,6 @@ else
   fail "rest and gh paths render telemetry identically past the source line" "$TEL_SAME" "$TEL_REST"
 fi
 
-# A pull whose mergeability GitHub has not finished computing (`mergeable: null`,
-# `mergeable_state: "unknown"`) is retried once, then reported as inconclusive,
-# never rendered as "not clean".
 UNCOMPUTED="$TMP/rest-uncomputed"
 mkdir -p "$UNCOMPUTED"
 cp "$REST/"*.json "$UNCOMPUTED/"
@@ -1435,7 +1360,7 @@ OUT_BAD="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" \
   --telemetry-json "$TMP/garbage.json" --merged-json "$TMP/garbage.json" "${CLEAR_COST_ARGS[@]}" 2>&1)"
 RC_BAD=$?
 assert_exit "unparsable: a brief with unreadable sections exits 6" 6 "$RC_BAD"
-assert_contains "unparsable: the header counts the five lost sections" "$OUT_BAD" "5 of 10 sections unreadable: merge-ready decisions telemetry stranded landed"
+assert_contains "unparsable: the header counts the five lost sections" "$OUT_BAD" "5 of 11 sections unreadable: merge-ready decisions telemetry stranded landed"
 assert_contains "unparsable: merge-ready is UNREADABLE" "$(section "$OUT_BAD" "== Merge-ready")" "UNREADABLE: could not parse the PR list"
 assert_not_contains "unparsable: merge-ready never renders as none clean" "$OUT_BAD" "(none clean right now)"
 assert_contains "unparsable: decisions are UNREADABLE" "$(section "$OUT_BAD" "== Parked")" "UNREADABLE: could not parse the decision issues"
@@ -1482,8 +1407,6 @@ assert_contains "caps: a telemetry search at its cap is PARTIAL" "$TEL_CAPS" "PA
 assert_contains "caps: the telemetry search still picks the oldest match it read" "$TEL_CAPS" "source: issue #1000"
 assert_not_contains "caps: a search 0 the REST listing confirms is not flagged" "$QUEUES_CAPS" "count unavailable"
 
-# --- A search 0 the REST listing contradicts is count unavailable -------------
-# The search index can answer an empty result with nothing in the reply to say so.
 FALSE0="$TMP/gql-false-zero"
 cp -r "$CAPS" "$FALSE0"
 printf '[{"number": 9}]\n' >"$FALSE0/$(rest_key "$R/issues?state=open&per_page=100&labels=needs-human").json"
@@ -1572,10 +1495,6 @@ assert_contains "paging: a merge inside the floor is reported" "$STR_PAGE" "[P1]
 assert_not_contains "paging: a merge before the floor is not reported" "$STR_PAGE" "#501"
 assert_eq "bookmark: a full read saves this run's floor" "2026-07-17T08:00Z" "$(bookmark_of "$TMP/data-page")"
 
-# With no --data-dir, the bookmark goes to a work-items CLAUDE_PLUGIN_DATA, else
-# to ~/.claude/plugins/data/work-items; never to a harness-ops data dir. The
-# brief gets a fake HOME; its jq and python3 keep the real one, since a version
-# manager's shim resolves the tool from HOME.
 REALHOME_BIN="$TMP/realhome-bin"
 mkdir -p "$REALHOME_BIN"
 for tool in jq python3; do
@@ -1631,6 +1550,104 @@ OUT_LANDED_FAIL="$(MB_GH_FIXTURES="$TMP/gql-none" MB_DATA_DIR="$TMP/data-fail" r
 assert_contains "landed live: a failed read renders UNREADABLE" "$(section "$OUT_LANDED_FAIL" "== Landed")" "UNREADABLE:"
 assert_eq "landed live: a failed read leaves landed_at where it was" "2026-07-10T08:00Z" "$(landed_of "$TMP/data-fail")"
 
+cat >"$TMP/agent-decided.json" <<'EOF'
+{"laneIdentity": "lanes-app[bot]", "pages": [{"data": {"search": {"issueCount": 4, "pageInfo": {"hasNextPage": false}, "nodes": [
+  {"number": 602, "title": "no opener", "url": "https://github.com/o/r/issues/602",
+   "timelineItems": {"nodes": [{"createdAt": "2026-07-20T01:00:00Z", "label": {"name": "agent-decided"}}]},
+   "comments": {"nodes": [{"url": "https://github.com/o/r/issues/602#issuecomment-1", "createdAt": "2026-07-20T00:00:00Z", "author": {"login": "someone"}, "body": "a note"}]}},
+  {"number": 601, "title": "picked a store", "url": "https://github.com/o/r/issues/601",
+   "timelineItems": {"nodes": [{"createdAt": "2026-07-19T20:00:00Z", "label": {"name": "agent-decided"}}, {"createdAt": "2026-07-19T20:00:00Z", "label": {"name": "agent-ready"}}]},
+   "comments": {"nodes": [
+     {"url": "https://github.com/o/r/issues/601#issuecomment-1", "createdAt": "2026-07-19T19:00:00Z", "author": {"login": "lanes-app"}, "body": "**Agent decision recorded.**\n1. Older."},
+     {"url": "https://github.com/o/r/issues/601#issuecomment-2", "createdAt": "2026-07-19T21:00:00Z", "author": {"login": "lanes-app"}, "body": "**Agent decision recorded.**\r\n1. Newest."},
+     {"url": "https://github.com/o/r/issues/601#issuecomment-3", "createdAt": "2026-07-19T22:00:00Z", "author": {"login": "mallory"}, "body": "**Agent decision recorded.**\n1. Spoof."},
+     {"url": "https://github.com/o/r/issues/601#issuecomment-4", "createdAt": "2026-07-19T23:00:00Z", "author": {"login": "lanes-app"}, "body": "Quoting **Agent decision recorded.**"},
+     {"url": "https://github.com/o/r/issues/601#issuecomment-5", "createdAt": "2026-07-19T23:10:00Z", "author": {"login": "lanes-app"}, "body": "**Agent decision recorded.** (draft)"},
+     {"url": "https://github.com/o/r/issues/601#issuecomment-6", "createdAt": "2026-07-19T23:20:00Z", "author": {"login": "lanes-app"}, "body": ""}]}},
+  {"number": 603, "title": "old decision", "url": "https://github.com/o/r/issues/603",
+   "timelineItems": {"nodes": [{"createdAt": "2026-07-15T10:00:00Z", "label": {"name": "agent-decided"}}]}, "comments": {"nodes": []}},
+  {"number": 604, "title": "label event unread", "url": "https://github.com/o/r/issues/604",
+   "timelineItems": {"nodes": []}, "comments": {"nodes": []}}
+]}}}]}
+EOF
+run_agent_decided() {
+  bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/empty.json" \
+    --decisions-json "$TMP/empty.json" --telemetry-json "$TMP/empty.json" "${CLEAR_COST_ARGS[@]}" \
+    --agent-decided-json "$TMP/agent-decided.json" "$@" 2>&1
+}
+AGD_SEC="$(section "$(run_agent_decided)" "== Agent-decided")"
+assert_contains "agent-decided: a first read covers the last day" "$AGD_SEC" \
+  "== Agent-decided (labeled agent-decided since 2026-07-19T08:00Z UTC: first read on this machine: last 1d) =="
+assert_contains "agent-decided: a listed issue links the lanes App's newest opener" "$AGD_SEC" \
+  "  #601 picked a store  labeled 2026-07-19T20:00:00Z
+    https://github.com/o/r/issues/601#issuecomment-2"
+assert_not_contains "agent-decided: another author's opener is not linked" "$AGD_SEC" "issuecomment-3"
+assert_not_contains "agent-decided: a comment that only quotes the opener is not linked" "$AGD_SEC" "issuecomment-4"
+assert_not_contains "agent-decided: a first line with more than the opener is not linked" "$AGD_SEC" "issuecomment-5"
+jq '.pages[0].data.search.issueCount = 9' "$TMP/agent-decided.json" >"$TMP/agent-decided-capped.json"
+assert_contains "agent-decided: a search that read fewer issues than it counted is PARTIAL" \
+  "$(section "$(run_agent_decided --agent-decided-json "$TMP/agent-decided-capped.json")" "== Agent-decided")" \
+  "PARTIAL: a search read fewer issues than it counted"
+assert_contains "agent-decided: an issue with no opener is listed without a link" "$AGD_SEC" \
+  "  #602 no opener  labeled 2026-07-20T01:00:00Z
+    no lanes App **Agent decision recorded.** comment found; listed without a link"
+assert_eq "agent-decided: issues are listed by the labeled event, oldest first" "#601#602" \
+  "$(printf '%s\n' "$AGD_SEC" | grep -oE '^  #[0-9]+' | tr -d ' \n')"
+assert_not_contains "agent-decided: a label applied before the window is not listed" "$AGD_SEC" "#603"
+assert_contains "agent-decided: an issue with no labeled event read is PARTIAL, not dropped" "$AGD_SEC" \
+  "PARTIAL: no agent-decided labeled event among the last 100 label events of #604"
+assert_contains "agent-decided: the section says how the owner overrides" "$AGD_SEC" \
+  "to override one: a **Decision recorded.** comment from the owner sends the issue back to triage"
+assert_contains "agent-decided: --lane-identity decides whose opener is linked" \
+  "$(section "$(run_agent_decided --lane-identity mallory)" "== Agent-decided")" "issuecomment-3"
+AGD_NONE="$(section "$(run_agent_decided --agent-decided-json "$TMP/agent-decided-empty.json")" "== Agent-decided")"
+assert_contains "agent-decided: an empty window says so" "$AGD_NONE" "(none — no issue was labeled agent-decided in the window)"
+assert_not_contains "agent-decided: an empty window prints no override line" "$AGD_NONE" "to override one"
+printf '{"errors": [{"message": "boom agent"}]}\n' >"$TMP/agent-decided-error.json"
+OUT_AGD_ERR="$(run_agent_decided --agent-decided-json "$TMP/agent-decided-error.json")"
+assert_contains "agent-decided: an error document is UNREADABLE" "$(section "$OUT_AGD_ERR" "== Agent-decided")" "UNREADABLE: boom agent"
+assert_contains "agent-decided: the header counts the unreadable section" "$OUT_AGD_ERR" "1 of 11 sections unreadable: agent-decided"
+assert_contains "agent-decided: no repo and no fixture is an empty state, not UNREADABLE" "$(section "$OUT3" "== Agent-decided")" \
+  "(no repo resolved — pass --repo or --agent-decided-json)"
+
+AGD_LIVE="$TMP/gql-agent-decided"
+mkdir -p "$AGD_LIVE" "$TMP/data-agd-mark/morning-brief/$FIXTURE_REPO" "$TMP/data-agd-partial/morning-brief/$FIXTURE_REPO" \
+  "$TMP/data-agd-fail/morning-brief/$FIXTURE_REPO"
+jq '.pages[0] | .data.search.nodes |= map(select(.number != 604)) | .data.search.issueCount = 3' "$TMP/agent-decided.json" \
+  >"$AGD_LIVE/api-graphql-stuck-agent-decided-first.json"
+agd_of() { cat "$1/morning-brief/$FIXTURE_REPO/agent-decided-at" 2>/dev/null; }
+run_agd_live() {
+  MB_AGENT_DECIDED_LIVE=1 MB_GH_FIXTURES="${AGD_FIXTURES:-$AGD_LIVE}" MB_GH_LOG="$TMP/log-agd" run_stub gql "${FIX_ARGS[@]}" \
+    --merged-json "$TMP/merged-clean.json" --lane-identity "lanes-app[bot]"
+}
+AGD_FIRST="$(section "$(MB_DATA_DIR="$TMP/data-agd" run_agd_live)" "== Agent-decided")"
+assert_eq "agent-decided live: one search for open issues and one for issues closed in the window" "2" \
+  "$(grep -c 'api-graphql-stuck-agent-decided-first' "$TMP/log-agd")"
+: >"$TMP/log-agd-base"
+MB_DATA_DIR="$TMP/data-agd-base" MB_GH_FIXTURES="$AGD_LIVE" MB_GH_LOG="$TMP/log-agd-base" run_stub gql "${FIX_ARGS[@]}" \
+  --merged-json "$TMP/merged-clean.json" --lane-identity "lanes-app[bot]" >/dev/null
+assert_eq "agent-decided live: the section makes no call beyond its read searches, so it writes nothing to the tracker" "" \
+  "$(grep -vxF -f "$TMP/log-agd-base" "$TMP/log-agd" | grep -vx 'api-graphql-stuck-agent-decided-first')"
+assert_contains "agent-decided live: a first read lists the issues labeled in the last day" "$AGD_FIRST" "#601 picked a store"
+assert_eq "agent-decided live: a full read saves agent_decided_at as this run's clock" "2026-07-20T08:00Z" "$(agd_of "$TMP/data-agd")"
+printf '2026-07-10T08:00Z\n' >"$TMP/data-agd-mark/morning-brief/$FIXTURE_REPO/agent-decided-at"
+AGD_MARK="$(section "$(MB_DATA_DIR="$TMP/data-agd-mark" run_agd_live)" "== Agent-decided")"
+assert_contains "agent-decided live: the window starts at agent_decided_at" "$AGD_MARK" \
+  "labeled agent-decided since 2026-07-10T08:00Z UTC: since agent_decided_at"
+assert_contains "agent-decided live: a label applied after agent_decided_at is listed" "$AGD_MARK" "#603 old decision"
+assert_eq "agent-decided live: a full read advances agent_decided_at" "2026-07-20T08:00Z" "$(agd_of "$TMP/data-agd-mark")"
+mkdir -p "$TMP/gql-agd-partial"
+jq '.pages[0]' "$TMP/agent-decided.json" >"$TMP/gql-agd-partial/api-graphql-stuck-agent-decided-first.json"
+printf '2026-07-10T08:00Z\n' >"$TMP/data-agd-partial/morning-brief/$FIXTURE_REPO/agent-decided-at"
+AGD_PARTIAL="$(section "$(AGD_FIXTURES="$TMP/gql-agd-partial" MB_DATA_DIR="$TMP/data-agd-partial" run_agd_live)" "== Agent-decided")"
+assert_contains "agent-decided live: a partial read says agent_decided_at was not advanced" "$AGD_PARTIAL" \
+  "agent_decided_at not advanced: this read is PARTIAL"
+assert_eq "agent-decided live: a partial read leaves agent_decided_at where it was" "2026-07-10T08:00Z" "$(agd_of "$TMP/data-agd-partial")"
+printf '2026-07-10T08:00Z\n' >"$TMP/data-agd-fail/morning-brief/$FIXTURE_REPO/agent-decided-at"
+AGD_FAIL="$(section "$(AGD_FIXTURES="$TMP/gql-none" MB_DATA_DIR="$TMP/data-agd-fail" run_agd_live)" "== Agent-decided")"
+assert_contains "agent-decided live: a failed read renders UNREADABLE" "$AGD_FAIL" "UNREADABLE:"
+assert_eq "agent-decided live: a failed read leaves agent_decided_at where it was" "2026-07-10T08:00Z" "$(agd_of "$TMP/data-agd-fail")"
+
 mkdir -p "$TMP/gql-trunc" "$TMP/data-trunc/morning-brief/$FIXTURE_REPO"
 jq '.[0] | .data.repository.pullRequests.nodes[0].updatedAt = "2026-07-19T17:00:00Z"' "$TMP/merged-truncated.json" >"$TMP/gql-trunc/api-graphql-first.json"
 printf '2026-07-10T08:00Z\n' >"$TMP/data-trunc/morning-brief/$FIXTURE_REPO/stranded-cutoff"
@@ -1648,9 +1665,6 @@ printf 'a file, not a dir\n' >"$TMP/data-is-file"
 OUT_NOSAVE="$(MB_GH_FIXTURES="$STR" MB_DATA_DIR="$TMP/data-is-file" run_stub gql "${FIX_ARGS[@]}")"
 assert_contains "bookmark: a data dir it cannot write says so" "$(section "$OUT_NOSAVE" "== Findings stranded")" "bookmark not saved under the data dir"
 
-# --data-dir is the one write destination a pre-approved run takes from its
-# arguments: only an absolute, literal path is accepted, and nothing is written
-# when it is refused.
 mkdir -p "$TMP/rel-cwd"
 OUT_REL="$(cd "$TMP/rel-cwd" && MB_GH_FIXTURES="$STR" MB_DATA_DIR="rel-data" run_stub gql "${FIX_ARGS[@]}")"
 RC_REL=$?
@@ -1841,8 +1855,6 @@ assert_contains "lanes: a handoff record neither classes the run nor counts a li
 assert_contains "lanes: turns come from the leg that ended the run" "$LANES_HANDOFF" "turns: max=5"
 assert_contains "lanes: a handed-off key leg's credit stop still names its key" "$LANES_HANDOFF" "KEY: REVIEWS credit-stop (1 of 1)"
 assert_contains "lanes: a handed-off key leg still counts in SPEND" "$LANES_HANDOFF" "SPEND: REVIEWS cost not recorded (n=1)"
-# The legacy key=value tokens alone (ADR 0087 slice 3 retires them) carry no
-# class, turns, cap or models: the run is read, with no record.
 cat >"$TMP/lane-runs-legacy.json" <<'EOF'
 {
   "pr-verify.yml": [
@@ -2245,8 +2257,6 @@ assert_contains "cost: a policy assignment write is an ALERT" "$COST_ALERT" \
   "ALERT      Azure activity, last 24h: Microsoft.Authorization/policyAssignments/write: 1 event(s)"
 assert_not_contains "cost: an unrelated write stays out of the alerts" "$COST_ALERT" "storageAccounts/write"
 
-# GitHub billing needs an org admin. A refusal for want of one prints each
-# billing line UNREADABLE with the fix, and counts the section as lost.
 cat >"$TMP/billing-403.json" <<'EOF'
 {"message": "Must have admin rights to the organization.", "documentation_url": "https://example.invalid/docs", "status": "403"}
 EOF
@@ -2255,7 +2265,7 @@ OUT_COST_403="$(cost_brief --billing-usage-json "$TMP/billing-403.json" --billin
 RC_COST_403=$?
 COST_403="$(section "$OUT_COST_403" "== Cost")"
 assert_exit "cost 403: a billing read refused for want of an org admin counts the section as lost" 6 "$RC_COST_403"
-assert_contains "cost 403: the header counts the cost section" "$OUT_COST_403" "1 of 10 sections unreadable: cost"
+assert_contains "cost 403: the header counts the cost section" "$OUT_COST_403" "1 of 11 sections unreadable: cost"
 assert_contains "cost 403: the usage line is UNREADABLE with the fix" "$COST_403" \
   "UNREADABLE GitHub usage 2026-07: org admin needed: run gh auth login with an org admin account"
 assert_contains "cost 403: the minutes line is UNREADABLE too" "$COST_403" \
@@ -2293,7 +2303,7 @@ OUT_COST_ONE="$(cost_brief --billing-usage-json "$TMP/billing-usage-clear.json" 
 RC_COST_ONE=$?
 COST_ONE="$(section "$OUT_COST_ONE" "== Cost")"
 assert_exit "cost one unreadable: the brief exits 6" 6 "$RC_COST_ONE"
-assert_contains "cost one unreadable: the header names the cost section" "$OUT_COST_ONE" "1 of 10 sections unreadable: cost"
+assert_contains "cost one unreadable: the header names the cost section" "$OUT_COST_ONE" "1 of 11 sections unreadable: cost"
 assert_contains "cost one unreadable: the failed read is its own UNREADABLE line" "$COST_ONE" "UNREADABLE Azure Defender plans: no pricings in --azure-json"
 assert_contains "cost one unreadable: the reads beside it still print" "$COST_ONE" "OK         Azure budget budget-example: spent 1.5, forecast 3.25"
 printf '{"usageItems": "not a list"}\n' >"$TMP/billing-usage-bad.json"
@@ -2305,8 +2315,8 @@ assert_contains "cost unparsable: a usage response of the wrong shape is UNREADA
 OUT_COST_ONLY="$(run_stub blocked)"
 RC_COST_ONLY=$?
 assert_exit "cost only: a brief whose cost lines read is never exit 5" 6 "$RC_COST_ONLY"
-assert_contains "cost only: the header counts the nine lost sections" "$OUT_COST_ONLY" \
-  "9 of 10 sections unreadable: queues stuck merge-ready decisions telemetry stranded landed lanes touches"
+assert_contains "cost only: the header counts the ten lost sections" "$OUT_COST_ONLY" \
+  "10 of 11 sections unreadable: queues stuck merge-ready decisions telemetry stranded landed agent-decided lanes touches"
 
 OUT_FIXTURE_RUN="$(cost_brief)"
 RC_FIXTURE_RUN=$?
@@ -2319,9 +2329,6 @@ assert_eq "cost fixture run: every Azure line is UNREADABLE" "10" \
   "$(grep -c "^  UNREADABLE Azure .*: not read live in a fixture run; pass --subscription or --azure-json$" <<<"$COST_FIXTURE_RUN")"
 assert_eq "cost fixture run: no line is SKIPPED" "0" "$(grep -c SKIPPED <<<"$COST_FIXTURE_RUN")"
 
-# Live reads: gh billing endpoints for the repo owner's org and this month, and
-# az reads that render as the --azure-json fixture does. Every az call is a read
-# that names the subscription account show resolved, and none refreshes.
 COST_LIVE="$TMP/rest-cost"
 mkdir -p "$COST_LIVE"
 cp "$REST/"*.json "$COST_LIVE/"
@@ -2390,7 +2397,7 @@ OUT_429="$(MB_GH_FIXTURES="$COST_LIVE" MB_AZ_MODE=serve MB_AZ_FIXTURE="$TMP/azur
 COST_ARGS=("${CLEAR_COST_ARGS[@]}")
 assert_contains "defender: a throttled cost query is UNREADABLE with the error" "$(section "$OUT_429" "== Cost")" \
   "UNREADABLE Azure Defender charges, month to date: Too Many Requests(Too many requests. Please retry.)"
-assert_contains "defender: a throttled query counts the cost section as lost" "$OUT_429" "5 of 10 sections unreadable: stuck stranded landed touches cost"
+assert_contains "defender: a throttled query counts the cost section as lost" "$OUT_429" "6 of 11 sections unreadable: stuck stranded landed agent-decided touches cost"
 jq '.defenderCost = {"properties": {"columns": [{"name": "ServiceName"}], "rows": []}}' "$TMP/azure-clear.json" >"$TMP/azure-cost-bad.json"
 assert_contains "defender: a cost response without its columns is UNREADABLE" "$(section "$(cost_brief --billing-usage-json "$TMP/billing-usage-clear.json" \
   --billing-budgets-json "$TMP/billing-budgets-clear.json" --azure-json "$TMP/azure-cost-bad.json")" "== Cost")" \
@@ -2405,8 +2412,6 @@ assert_contains "fail closed: a usage item with no netAmount is UNREADABLE" "$CO
 assert_contains "fail closed: an Azure budget with no currentSpend is UNREADABLE" "$COST_MISSING" \
   "UNREADABLE Azure budgets: could not parse the budgets response"
 
-# A 403 is a missing org admin only when its message says so; a rate limit or
-# SAML enforcement is a failed read.
 printf '{"message": "Resource protected by organization SAML enforcement. You must grant your Personal Access token access to this organization.", "documentation_url": "https://example.invalid/docs", "status": "403"}\n' >"$TMP/billing-403-sso.json"
 printf '{"message": "API rate limit exceeded for user ID 1.", "documentation_url": "https://example.invalid/docs", "status": "403"}\n' >"$TMP/billing-403-rate.json"
 COST_403_OTHER="$(section "$(cost_brief --billing-usage-json "$TMP/billing-403-sso.json" --billing-budgets-json "$TMP/billing-403-rate.json" \
@@ -2454,10 +2459,6 @@ assert_not_contains "fail closed: such a row never reads as no Defender cost row
 assert_contains "fail closed: an activity event with an empty operation is UNREADABLE" "$COST_WRONG_TYPES" \
   "UNREADABLE Azure activity, last 24h: could not parse the activity response"
 
-# az truly absent from PATH: every Azure line is UNREADABLE and names the fix,
-# with or without --subscription. az can share a directory with bash and jq
-# (/usr/bin on a CI runner), so the PATH is one directory linking every
-# executable on PATH except az, the first of each name winning as PATH would.
 NO_AZ_PATH="$TMP/no-az-bin"
 mkdir -p "$NO_AZ_PATH"
 IFS=: read -ra _path_dirs <<<"$PATH"
@@ -2481,8 +2482,6 @@ else
   assert_eq "no az: with --subscription every Azure line is UNREADABLE" "10" "$(grep -c "^  UNREADABLE Azure " <<<"$COST_NO_AZ_SUB")"
 fi
 
-# Control characters in an error message or a subscription name never reach
-# the terminal.
 jq '.account.name = "sub\u001b]0;title\u0007-example\u001b[31m" | .pricings = {"__error": "boom\u001b[2Jcleared"}' \
   "$TMP/azure-clear.json" >"$TMP/azure-escapes.json"
 COST_ARGS=(--billing-usage-json "$TMP/billing-usage-clear.json" --billing-budgets-json "$TMP/billing-budgets-clear.json")
@@ -2531,12 +2530,6 @@ assert_contains "unreadable: a failed collaborator read names the repo" "$COST_S
 assert_contains "unreadable: the live usage lines still print beside it" "$COST_SCAN_FAIL" \
   "ALERT      GitHub usage 2026-07 actions: net 3.46"
 
-# --- Cost: fork-triggered forms, scan counts, and the cost query's pages ------
-# Each workflow below is fork-triggered in a form the YAML spec allows (a quoted
-# event in a flow sequence, a flow mapping, a quoted block key) and reads a
-# _CLAUDE_ secret, or passes every secret to a reusable workflow or a step.
-# Two near misses stay clear: secrets: inherit on pull_request, and a literal
-# index whose name has no _CLAUDE_.
 jq -n '{admins: ["owner-example"], partial: 0, repos: [{name: "app-forms", visibility: "private", archived: false, collaborators: [],
   workflows: [
     {path: ".github/workflows/flow-seq.yml", text: "on: [\"pull_request_target\"]\njobs:\n  t:\n    steps:\n      - run: echo ${{ secrets.SEQ_CLAUDE_KEY }}\n"},
@@ -2589,10 +2582,6 @@ assert_contains "scan counts: a capped workflow read is UNREADABLE with its coun
   "UNREADABLE GitHub fork-triggered workflows: read 2 workflow files on 2 repos; 4 more not read (raise --workflow-read-limit)"
 assert_not_contains "scan counts: a capped workflow read is never OK" "$COST_SCAN_CAPPED" "OK         GitHub fork-triggered workflows"
 
-# The cost query's next page is read and merged: page 2 holds a Defender charge
-# and the month's latest usage date, 2026-07-20. The nextLink spells the path
-# `Query`, as the Query - Usage reference's examples do
-# (https://learn.microsoft.com/en-us/rest/api/cost-management/query/usage).
 jq '.defenderCost.properties.nextLink = "https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000001/providers/Microsoft.CostManagement/Query?api-version=2023-11-01&$skiptoken=2"
   | .defenderCost_2 = {properties: {nextLink: null, columns: .defenderCost.properties.columns,
       rows: [[3, "Microsoft Defender for Cloud", "Microsoft Defender for Servers", "USD", 20260720]]}}' \
@@ -2607,9 +2596,6 @@ COST_PAGED_LIVE="$(section "$(MB_GH_FIXTURES="$COST_LIVE" MB_AZ_MODE=serve MB_AZ
 COST_ARGS=("${CLEAR_COST_ARGS[@]}")
 assert_contains "pages live: the next page is read with az" "$COST_PAGED_LIVE" "ALERT      Azure Defender charges, month to date: 3 USD"
 assert_eq "pages live: one POST per page" "2" "$(grep -c -- "rest --method post" "$TMP/az-log-paged")"
-# A next page that is not the query endpoint is never POSTed: another ARM
-# action; a traversal, a doubled slash, or an encoded dot or slash in the path;
-# a backslash; an embedded newline; or another host. Page 2 would read as a charge.
 Q_URL="https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000001/providers/Microsoft.CostManagement/query?api-version=2023-11-01"
 BAD_NEXT=(
   "vm-start=https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000001/providers/Microsoft.Compute/virtualMachines/vm/start?api-version=2024-07-01&\$skiptoken=2"
@@ -2628,8 +2614,6 @@ for _bad in "${BAD_NEXT[@]}"; do
 done
 assert_contains "pages: the budget line still prints, its data date unread" "$COST_BAD_NEXT" \
   "of 100 USD; usage data date unread; read 2026-07-20T08:00Z UTC"
-# A $skiptoken is opaque and may hold an encoded `/`, `+` or `=`: after the `?`
-# that next page is still the query endpoint, and it is POSTed.
 jq --arg n "$Q_URL&\$skiptoken=AB%2FC%2BD%3D" \
   '.defenderCost.properties.nextLink = $n | .["defenderCost_AB%2FC%2BD%3D"] = .defenderCost_2' \
   "$TMP/azure-paged.json" >"$TMP/azure-paged-token.json"
@@ -2639,8 +2623,6 @@ COST_TOKEN_LIVE="$(section "$(MB_GH_FIXTURES="$COST_LIVE" MB_AZ_MODE=serve MB_AZ
 COST_ARGS=("${CLEAR_COST_ARGS[@]}")
 assert_contains "pages live: a skiptoken with encoded / + = is followed" "$COST_TOKEN_LIVE" "ALERT      Azure Defender charges, month to date: 3 USD"
 assert_eq "pages live: a skiptoken with encoded / + = gets one POST per page" "2" "$(grep -c -- "rest --method post" "$TMP/az-log-token")"
-# A non-ASCII byte is rejected in every locale: U+0130 folds to `i` under a
-# UTF-8 locale, which would make subscr<U+0130>ptions match the prefix.
 jq --arg n "${Q_URL/subscriptions/subscr$'\xc4\xb0'ptions}&\$skiptoken=2" '.defenderCost.properties.nextLink = $n' \
   "$TMP/azure-paged.json" >"$TMP/azure-paged-nonascii.json"
 COST_NONASCII="$(section "$(LC_ALL=C.UTF-8 cost_brief --azure-json "$TMP/azure-paged-nonascii.json")" "== Cost")"
@@ -2656,10 +2638,6 @@ assert_exit "validation: a --log-cap-alert-percent above 100 exits 3" 3 "$?"
 cost_brief --usage-alert-percent 100 "${CLEAR_COST_ARGS[@]}" >/dev/null
 assert_exit "validation: a percent of 100 is accepted" 0 "$?"
 
-# --- Cost settings: flag, personal file, team file, default ----------------------
-# A checkout whose team file sets every key beside the plugin's other settings,
-# a personal file that overrides two and holds one invalid value, and a flag
-# that overrides one.
 if have git; then
   CFG="$TMP/cfg-repo"
   mkdir -p "$CFG/docs/conventions"
@@ -2720,6 +2698,12 @@ EOF
   assert_contains "settings: the team file still applies beside it" "$(section "$OUT_BROKEN" "== Cost")" \
     "of 3000 minutes included"
   rm "$CFG/docs/conventions/work-items.local.yaml"
+  printf 'morning_brief:\n  actions_included_minutes: 9999\n' >"$TMP/cfg-outside.yaml"
+  ln -s "$TMP/cfg-outside.yaml" "$CFG/docs/conventions/work-items.local.yaml"
+  OUT_LINK="$(cd "$CFG" && bash "$BRIEF" "${CFG_BRIEF[@]}" 2>&1)"
+  assert_contains "settings: a symlinked layer is named and skipped" "$OUT_LINK" "work-items.local.yaml is a symlink; that layer is skipped"
+  assert_not_contains "settings: a symlinked layer's target is never read" "$(section "$OUT_LINK" "== Cost")" "of 9999 minutes included"
+  rm "$CFG/docs/conventions/work-items.local.yaml"
   printf 'morning_brief:\n  required_budgets: budget-example\n' >"$TMP/cfg-scalar.yaml"
   mkdir -p "$TMP/cfg-home"
   cp "$TMP/cfg-scalar.yaml" "$TMP/cfg-home/work-items.yaml"
@@ -2756,7 +2740,6 @@ EOF
     "morning_brief.org has an invalid value"
   assert_contains "settings: a percent above 100 is invalid" "$OUT_BAD_VALUES" \
     "morning_brief.log_cap_alert_percent has an invalid value"
-  # A parse error quoting a key with control characters prints them escaped.
   printf 'morning_brief:\n  "org\033[2J":1\n' >"$TMP/cfg-net/work-items.yaml"
   OUT_ESC_KEY="$(bash "$BRIEF" "${CFG_BRIEF[@]}" --config-home "$TMP/cfg-net" 2>&1)"
   assert_contains "settings: a parse error quoting a key is reported" "$OUT_ESC_KEY" "work-items.yaml could not be parsed"
@@ -2771,17 +2754,6 @@ EOF
     "== Parked decisions (decide) with RECOMMENDED lines =="
 fi
 
-# --- Work status: the field value places an issue, else its labels ------------
-# The model is models.issue-status in this repository's pr-pipeline.yaml, cut to
-# the states used here. NOW is 2026-07-20T08:00Z.
-#  #401 needs-triage label, field ready (set 07-01): lists under status: ready,
-#       19d in stage; an event of another field with an unknown value is ignored.
-#  #402 no label, field needs-human (set 07-10T08:00): lists under needs-human, 10d.
-#  #403 needs-human label (07-05T08:00), field confirmed: the hold label holds, 15d.
-#  #404 agent-ready and status: ready labels, field agent-ready: no queue row.
-#  #405 needs-triage label, no field value: lists by its label, days unknown.
-#  #406 no label, field needs-owner-decision (07-18T08:00): parked, 2d.
-#  #407 needs-owner-decision label (07-12T08:00), field confirmed: still parked, 8d.
 MODEL_JSON='{"field-id": "48484079",
   "options": {"1": "needs-triage", "2": "needs-owner-decision", "3": "ready", "4": "agent-ready", "5": "needs-human", "6": "confirmed"},
   "labels": {"needs-triage": ["needs-triage"], "needs-owner-decision": ["needs-owner-decision"],
@@ -2857,9 +2829,6 @@ jq '{model, pages: [.pages[0] | .data.repository.issues.nodes |= [.[] | select(.
 assert_contains "status: an issue held only on the field is a needs-human row of 1" \
   "$(section "$(run_status --status-json "$TMP/status-held.json")" "== Queues")" "  needs-human              1"
 
-# A parent with open sub-issues is listed beside its children, not counted with them.
-# #405 (needs-triage label, no field value) becomes the parent of #408 and #409.
-# https://github.com/melodic-software/claude-code-plugins/issues/17859
 jq '{model, pages: [.pages[0] | .data.repository.issues.nodes |= ([.[] | select(.number == 405)][0] as $n
      | [$n + {subIssuesSummary: {total: 2, completed: 0}}, $n + {number: 408}, $n + {number: 409}])]}' \
   "$TMP/status.json" >"$TMP/status-parents.json"
@@ -2901,10 +2870,6 @@ assert_contains "status: a read that stops at its cap is PARTIAL" "$(section "$(
 assert_contains "status: a capped read makes Stuck PARTIAL too" "$(section "$(run_status --status-json "$TMP/status-capped.json")" "== Stuck")" \
   "PARTIAL: the open-issue read reached its 1000-issue cap; a stuck issue past it is not shown"
 
-# Owner touches count the field's hold changes as label events. #309: someone
-# sets needs-human on the field 07-19T09:00, the operator changes it to ready
-# 07-19T11:00 (a 2h wait). A bot's field event before field-events-since
-# mirrored a label and is dropped.
 cat >"$TMP/touch-field.json" <<'EOF'
 {"owner": "op-user", "pages": [{"data": {"search": {"issueCount": 1, "pageInfo": {"hasNextPage": false}, "nodes": [
   {"__typename": "Issue", "number": 309, "acts": {"pageInfo": {"hasNextPage": false}, "nodes": []},
@@ -2927,7 +2892,6 @@ assert_contains "status touches: a bot field event before field-events-since is 
   "$(printf '  2026-07-19  %9s%9s%9s%9s%9s%9s%22s' 0 0 0 0 1 0 1)"
 assert_contains "status touches: a lift whose bot apply was dropped has no wait" "$TOUCH_SINCE_SEC" "n=0, 1 with no apply event read"
 
-# Over REST the field is unread: Queues and Parked print by label with PARTIAL.
 cp -R "$REST" "$TMP/rest-model"
 printf 'models:\n  issue-status:\n    field-id: 48484079\n    options:\n      "1": ready\n    labels:\n      ready:\n        - "status: ready"\n' \
   >"$TMP/rest-model/$(rest_key "$R/contents/docs/conventions/pr-pipeline.yaml").json"
@@ -2939,7 +2903,6 @@ assert_contains "status rest: Parked says a field-only decision is not shown" "$
   "PARTIAL: the Work status field needs GraphQL, which this session does not serve; an issue parked only on the field is not shown"
 assert_not_contains "status rest: with no model there is no Work status line" "$(section "$OUT_REST" "== Queues")" "Work status"
 
-# --- Summary ------------------------------------------------------------------
 echo
 if ((FAILED > 0)); then
   printf 'morning-brief.test.sh: %d case(s) FAILED\n' "$FAILED" >&2

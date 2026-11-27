@@ -128,12 +128,14 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import textwrap
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
+from typing import NamedTuple
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(_SCRIPTS_DIR) not in sys.path:
@@ -243,9 +245,7 @@ FRONTMATTER_KEYS_3 = (
 )
 PRIOR_ROWS_KEPT = 3
 ARCHIVE_TYPE = "handoff-archive"
-# ADR 0084
 HOT_FILE_MAX_BYTES = S3.cap_bytes
-# ADR 0084
 READ_CAP_BYTES = 58_500
 _GH_REF = r"(?:\bPR\s*#?\d+|#\d+|/(?:pull|issues)/\d+)"
 _GH_STATE = (
@@ -390,10 +390,13 @@ GOAL_COPY_LINE = (
     "is missing, redo it:"
 )
 MD_COPY_LINE = "Run `/clear`, then paste this:"
-MD_GOAL_COPY_LINE = (
-    "Type `/goal ` (with a trailing space), then paste this. Confirm the `◎ /goal active` "
-    "indicator appears after you send it; if it is missing, redo it:"
+MD_GOAL_LEAD = "Type `/goal ` (with a trailing space), then paste this."
+MD_GOAL_CONFIRM = (
+    "Confirm the `◎ /goal active` indicator appears after you send it; if it is missing, "
+    "redo it"
 )
+MD_GOAL_COPY_LINE = f"{MD_GOAL_LEAD} {MD_GOAL_CONFIRM}:"
+MOBILE_WIDTH = 38
 GOAL_CONDITION_MAX = 4000
 DIRECTIVE_CLAUSE = "invoke /session-flow:handoff via the Skill tool"
 DIRECTIVE_TAIL = (
@@ -3053,7 +3056,8 @@ def cmd_emit(args: argparse.Namespace) -> int:
                 )
                 line = line.replace("@" + stored, "@" + real, 1)
         out.append(line)
-    markdown = getattr(args, "format", "rails") == "markdown"
+    mode = getattr(args, "format", "rails")
+    markdown = mode in ("markdown", "mobile")
     launch_error = None
     try:
         _emit_launch(out, doc, getattr(args, "shell", None), markdown)
@@ -3062,7 +3066,9 @@ def cmd_emit(args: argparse.Namespace) -> int:
         out[:0] = [f"No launch command: {exc}. Start the new session by hand with the copy region below."]
     for notice in notices:
         print(notice, file=sys.stderr)
-    if markdown:
+    if mode == "mobile":
+        out = _mobile_prompt(out)
+    elif mode == "markdown":
         out = _markdown_prompt(out)
     sys.stdout.write("\n".join(out) + "\n")
     return _die(1, launch_error) if launch_error else 0
@@ -3088,6 +3094,65 @@ def _markdown_prompt(lines: list[str]) -> list[str]:
         out.append(swap.get(line, line))
         i += 1
     return out
+
+
+def _mobile_prompt(lines: list[str]) -> list[str]:
+    kept = [line for line in lines if not line.startswith(REOPEN_PREFIX)]
+    wrapped: list[str] = []
+    region: list[str] | None = None
+    for line in kept:
+        if not RAIL_RE.match(line):
+            (wrapped if region is None else region).append(line)
+            continue
+        if region is None:
+            region = []
+        else:
+            wrapped += _mobile_region(region)
+            region = None
+        wrapped.append(line)
+    wrapped += region or []
+    out: list[str] = []
+    confirm_pending = False
+    fence: str | None = None
+    for line in _markdown_prompt(wrapped):
+        if line == MD_GOAL_COPY_LINE:
+            out.append(MD_GOAL_LEAD)
+            confirm_pending = True
+            continue
+        out.append(line)
+        if confirm_pending and fence is None and re.fullmatch(r"`{3,}text", line):
+            fence = line[: -len("text")]
+        elif fence is not None and line == fence:
+            out += ["", f"{MD_GOAL_CONFIRM}."]
+            confirm_pending, fence = False, None
+    return out
+
+
+def _mobile_region(lines: list[str]) -> list[str]:
+    body = [line for line in lines if line.strip()]
+    closing = body[-1] if body and body[-1].startswith("Read @") else None
+    out: list[str] = []
+    headlines = False
+    for line in lines:
+        headlines = headlines or line == "Next:"
+        whole = headlines or line is closing
+        out += [line] if whole else _mobile_wrap(line)
+    return out
+
+
+def _mobile_wrap(line: str) -> list[str]:
+    if "://" in line or line.startswith(("Prior session:", "Handoff origin:")):
+        return [line]
+    head: list[str] = []
+    if line.startswith("Read @") and "," in line:
+        cut = line.index(",") + 1
+        head, line = [line[:cut]], line[cut:].strip()
+    if not line:
+        return head
+    parts = textwrap.wrap(
+        line, MOBILE_WIDTH, break_long_words=False, break_on_hyphens=False
+    )
+    return head + (parts or [line])
 
 
 def _locate_ref(
@@ -3687,6 +3752,27 @@ def _next_span(doc: Doc) -> tuple[int, int] | None:
     return start + 1 + at, start + 1 + end
 
 
+class HandoffChainMeta(NamedTuple):
+    chain_root: str
+    closed: bool
+    names: frozenset[str]
+    shape: int | None
+
+
+def handoff_chain_meta(path: Path) -> HandoffChainMeta:
+    """Public chain-membership and closure summary for one handoff document."""
+    try:
+        doc = parse_doc(path)
+    except (OSError, UnicodeDecodeError):
+        return HandoffChainMeta("", False, frozenset(), None)
+    root = doc.frontmatter.get("chain_root") or (doc.chain[0] if doc.chain else "")
+    span = _next_span(doc)
+    closed = span is not None and doc.lines[span[0]] == NEXT_CLOSED
+    names = {root, doc.frontmatter.get("previous_handoff", ""), *doc.chain}
+    shape = doc.shape if isinstance(doc.shape, int) else None
+    return HandoffChainMeta(root, closed, frozenset(n for n in names if n), shape)
+
+
 def _held_heading(doc: Doc) -> str | None:
     hop = _fm_int(doc, "hop")
     moved = (
@@ -4158,18 +4244,11 @@ def _git_stdout(directory: Path, *args: str) -> str | None:
 
 
 def _git_toplevel(start: Path) -> Path | None:
-    probe = start
-    while not probe.exists() and probe.parent != probe:
-        probe = probe.parent
-    top = _git_stdout(probe, "rev-parse", "--show-toplevel")
-    return Path(top).resolve() if top else None
+    return plugin_paths.git_toplevel(start)
 
 
 def _default_memory_dir() -> Path | None:
-    if _git_toplevel(Path.cwd()) is not None:
-        return Path(".work")
-    data_root = plugin_paths.data_root(os.environ, _SCRIPTS_DIR.parent)
-    return data_root / "artifacts" if data_root is not None else None
+    return plugin_paths.default_memory_dir(Path.cwd(), os.environ, _SCRIPTS_DIR.parent)
 
 
 def _git_origin(repo_root: Path) -> str | None:
@@ -4961,13 +5040,7 @@ def cmd_new(args: argparse.Namespace) -> int:
             f"Invalid memory_dir: {memory_dir.as_posix()} must resolve to a dedicated directory below the repository root {repo_root.as_posix()}",
         )
     guard = memory_dir / ".gitignore"
-    try:
-        guarded = guard.is_file() and any(
-            line.strip() == "*" for line in _read_lines(guard)
-        )
-    except (OSError, UnicodeDecodeError):
-        guarded = False
-    if not guarded:
+    if not plugin_paths.is_self_ignored(memory_dir):
         return _die(
             1,
             f"memory root {memory_dir.as_posix()} lacks the self-ignore guard: create {guard.as_posix()} containing the single line '*' (the skill's guard step: the Write tool, or the Edit tool when the file exists, never a shell redirect), then re-run; this script never writes it",
@@ -5285,7 +5358,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_amend.add_argument("--now", help="ISO-8601 UTC timestamp override (tests)")
     p_amend.add_argument(
         "--format",
-        choices=("rails", "markdown"),
+        choices=("rails", "markdown", "mobile"),
         default="rails",
         help="the format of the prompt printed after the verdict, as emit takes it",
     )
@@ -5311,9 +5384,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_emit.add_argument("--shell", choices=("posix", "powershell"), help="override the platform's launch shell")
     p_emit.add_argument(
         "--format",
-        choices=("rails", "markdown"),
+        choices=("rails", "markdown", "mobile"),
         default="rails",
-        help="markdown: fenced blocks for a surface that renders markdown (Desktop, web); the file is untouched",
+        help="markdown: fenced blocks for a surface that renders markdown (Desktop, web); mobile: markdown with region lines wrapped for a phone and no terminal-only note; the file is untouched",
     )
     p_emit.set_defaults(func=cmd_emit)
 

@@ -1,15 +1,8 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-plan-citations.sh.
-#
-# Self-contained and cwd-independent; builds a fixture repository in its own
-# mktemp dir and mutates nothing else.
-#
-# SC2016 is disabled file-wide on purpose: the single-quoted `$HOME`, `${ROOT}`
-# and backtick spans are literal fixture text, not expansions.
+# The single-quoted `$HOME`, `${ROOT}` and backtick spans are literal fixture text, not expansions.
 # shellcheck disable=SC2016
 set -uo pipefail
 
-# A git hook chain can export these; a fixture `git init` would then touch the real repo.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -170,8 +163,6 @@ run "a directory shape anchor needs no symbol" 0 shapedir.md '^shapes=1 failed=0
 plan shapedirline.md '```shape src/lib/ L1' 'src/lib/' '```'
 run "a shape anchor with L<n> on a directory fails" 1 shapedirline.md '^shape=[0-9]+:src/lib/ L1 status=fail reason=shape-not-a-file$'
 
-# A raw US byte (\037) in the info string must not shift the fields bash reads
-# back into the line number, where arithmetic would run a command substitution.
 plan shapeus.md $'```shape src/shape.ts\037main\037x[$(touch${IFS}'"$TMP"$'/pwned)]' 'main' '```'
 run "a shape anchor with a control byte is malformed" 1 shapeus.md 'status=fail reason=shape-malformed$'
 if [[ -e "$TMP/pwned" ]]; then

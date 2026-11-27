@@ -113,7 +113,7 @@ node_absent_cases() {
   chmod +x "$TOOLS/powershell"
 
   row_of() { jq -r '.hooks.SessionStart[].hooks[] | select((.command // "") | contains("prerequisites.sh")) | .command' "$ROOT/plugins/$1/hooks/hooks.json"; }
-  expand() { # <plugin> -> the row with the plugin root substituted, as Claude Code does
+  expand() {
     local row
     row="$(row_of "$1")"
     printf '%s' "${row//\$\{CLAUDE_PLUGIN_ROOT\}/$ROOT/plugins/$1}"

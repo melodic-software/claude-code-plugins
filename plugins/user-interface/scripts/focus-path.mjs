@@ -57,7 +57,7 @@ function main() {
   try {
     input = JSON.parse(text);
   } catch {
-    throw new Error("the input is not valid JSON"); // never echo the file's contents
+    throw new Error("the input is not valid JSON");
   }
   const { direction = "ltr", stops } = input ?? {};
   const result = focusPath(stops, { direction });

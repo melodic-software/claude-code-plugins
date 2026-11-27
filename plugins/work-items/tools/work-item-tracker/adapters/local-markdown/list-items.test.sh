@@ -45,9 +45,6 @@ assert_eq "past the ceiling: only the ceiling's worth of items" "2" "$(jq '.item
 LISTED="$(WIT_STORAGE_DIR="$STORE" bash "$FS" --state closed)"
 assert_eq "one closed item, under the ceiling: the closed listing is complete" "false" "$(jq -c '.truncated' <<<"$LISTED")"
 
-# --- --label filters before the ceiling counts (#7173) ---
-# Three open items already fill past the ceiling of 2; one more carries the label. The
-# labeled listing holds that one item and is complete.
 WIT_STORAGE_DIR="$STORE" bash "$(dirname "$S")/create-item.sh" --title "labeled" --labels "area: ci" >/dev/null
 LISTED="$(WIT_STORAGE_DIR="$STORE" bash "$FS" --label "area: ci")"
 assert_eq "--label past an unlabeled ceiling → exit 0" "0" "$?"

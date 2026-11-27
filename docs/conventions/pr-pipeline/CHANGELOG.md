@@ -1,5 +1,24 @@
 # Changelog for the PR pipeline convention
 
+## [13.2.5] - 2026-11-26
+
+### Changed
+
+- The hold floor's `.github/scripts/intake-triage/triage-rubric.txt` row becomes a `gate` row for `docs/conventions/work-items.md`: the rubric file is deleted, and `/work-items:triage --ci` reads that file's `## Triage rules`, so a person still approves any change to the intake lane's triage rules.
+
+## [13.2.4] - 2026-11-26
+
+### Fixed
+
+- `pr-merge.yml`'s `wake-eval-released` job reads each released pull request before it dispatches, as `pr-verify.yml`'s `wake-pr-merge` does: one not opened by the lanes App, already armed, or held by `do-not-merge` is not woken and spends none of the five wakes, so a person's held pull request no longer starts a pr-merge run the token broker refuses as `untrusted-author`. A failed read, or no lanes App id, dispatches as before. The job gains `pull-requests: read`.
+- A pr-verify `pass` or `pass-notes` on a person's pull request at its head now edits the `<!-- pr-verify:fail-note -->` PR comment an earlier fail left to say it is superseded, naming the passing head (`verify-notes.mjs` `supersededComment`). The marker stays its first line, so a later fail updates the same comment in place; a pull request with no PR comment is not read.
+
+## [13.2.3] - 2026-11-26
+
+### Fixed
+
+- A canary record now names the pull request whose commit the silent-revert canary fired on, not the push head's. `scripts/check-silent-revert.sh` writes each commit whose scan fired to a new opt-in `REMOVED_BY_SINK`, which the lift-block scan fills. When no scan names a commit and the push holds more than one, the record says the remover is unknown.
+
 ## [13.2.2] - 2026-11-26
 
 ### Fixed

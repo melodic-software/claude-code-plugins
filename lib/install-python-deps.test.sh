@@ -417,7 +417,7 @@ py_at="$(PATH="$logged:$PATH" command -v py 2>/dev/null || true)"
 starts_under=""
 for ostype in msys linux-gnu; do
   restore_stamp
-  touch "$stamp" # newer than a real py this PATH may hold
+  touch "$stamp"
   rm -f "$WORK/starts.log"
   run_hook "$root" "$WHEELS" OSTYPE="$ostype" CLAUDE_PLUGIN_DATA="$data" PATH="$logged:$PATH"
   STARTS=0

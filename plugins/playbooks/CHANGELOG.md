@@ -4,6 +4,30 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.36.22] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [0.36.21] - 2026-11-26
+
+### Changed
+
+- `/playbooks:boris` points the fork-session, auto-compact-window and agent-view tips at the CLI reference and model configuration sections that own those flags and values, and `/playbooks:skill-authoring` states its one-call-per-skill rule as our own rule rather than as Skill tool behavior ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [0.36.20] - 2026-11-26
+
+### Changed
+
+- The repo-sweep hygiene catalog names coupling's route-step findings by that word.
+
+## [0.36.19] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [0.36.18] - 2026-11-26
 
 ### Changed
@@ -2740,7 +2764,7 @@ This release changed no plugin content. Its entries repeat 0.13.19 and 0.13.21, 
   public. The shape is precedented in-repo by `plugins/autonomy/reference/` and
   `plugins/architecture/reference/`, and mints no new skill, so the shared skill-listing budget is
   unaffected. Recorded as
-  [ADR-0007](../../docs/adr/0007-host-per-model-doctrine-outside-skill-private-surfaces.md),
+  ADR-0007,
   superseding ADR-0006 **on the per-version doctrine's address and nothing else**. ADR-0006's decision (model-scoped
   by default, fleet-wide only through the promotion gate, routing by version and never by family) is
   preserved verbatim. ADR-0007 cures **one of ADR-0006's three** live private-surface cites; the two

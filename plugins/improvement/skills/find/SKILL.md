@@ -81,6 +81,14 @@ dimension, gather whatever evidence its tier sources yield, then propose candida
 | Config / automation outside the codebase | GitHub labels, Actions workflows, synchronizations, branch protections, bot config |
 | Claude Code operational setup | Cloud environments, MCP servers, hooks, permission rules, plugin/skill configuration |
 
+**The consumer's standards set the bar.** Before ranking, resolve the consumer's standards through
+the "Resolution ladder" section of the plugin's contract binding
+[`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](../../reference/standards-contract.md)
+and read the files whose `Applies when` matches a scanned dimension; a candidate that brings the
+target in line with one cites that file, and none proposes what one rules out. A loaded file that
+cites shipped concept ids follows the binding's "Adopted shipped concepts" paragraph, with
+`/engineering-concepts:lookup` (if enabled); otherwise apply each entry as written.
+
 **Docs/markdown improvement is out of scope**. Owned lanes (`docs-hygiene`, `codebase-health`) cover it;
 finding a docs candidate means naming the owning lane, not adding it to this list.
 
@@ -136,8 +144,9 @@ file's merge semantics, root rule and dual-read window. While an old file
 read it as that file says and print its one warning line in the run's output, naming each old
 file, its new location and `/improvement:setup apply`.
 
-The `userConfig` layer, as substituted into this skill (empty, or a literal `${user_config.…}`
-placeholder, means unset):
+The `userConfig` layer, read from this text, where Claude Code substitutes it
+([reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value));
+empty, or a literal `${user_config.…}` placeholder, means unset:
 
 | Option | Value |
 |---|---|

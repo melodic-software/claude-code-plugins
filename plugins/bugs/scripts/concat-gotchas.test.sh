@@ -122,7 +122,7 @@ old_read() { printf 'Warning: bugs read `%s`, an old config path. Run `/bugs:set
 # shellcheck disable=SC2016  # backticks are the literal markdown code spans in the expected warning, not substitution
 superseded() { printf 'Warning: bugs no longer reads the gotchas in `%s`, because `%s` supplies the %s layer. Run `/bugs:setup apply` to %s, then delete the old file.' "$1" "$2" "$3" "$4"; }
 # shellcheck disable=SC2016  # backticks are the literal markdown code spans in the expected warning, not substitution
-user_move() { printf 'move its `## Gotchas` to %s and any `areas` or `filing_posture` to the homes `/bugs:setup check` names' "$1"; }
+user_move() { printf 'move its `## Gotchas` to %s and any `areas` (or a retired `lanes` key, moved as `areas`) or `filing_posture` to the homes `/bugs:setup check` names' "$1"; }
 # shellcheck disable=SC2016  # backticks are the literal markdown code spans in the expected warning, not substitution
 personal_move() { printf 'move what it holds into `%s`' "$1"; }
 # shellcheck disable=SC2016  # backticks are the literal markdown code spans in the expected warning, not substitution

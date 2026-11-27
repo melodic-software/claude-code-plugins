@@ -49,15 +49,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse
 
-WAIT_MAX = 120  # the longest /api/wait a watcher may ask for, in seconds
+WAIT_MAX = 120
 WAIT_DEFAULT = 90
-QUIET_SECONDS = 3.0  # a found event waits this long for more before the watcher wakes
-BURST_SECONDS = 12.0  # never holding it longer than this in all
-LEASE_TIMEOUT = 600  # seconds a silent watcher keeps its lease, unless the app says otherwise
-PING_SECONDS = 15  # an idle event stream pings this often, so the page sees it is alive
-LISTEN_GRACE = 10  # seconds after a wait ends before "listening" drops
-READING_WINDOW = 180  # seconds the session is shown as reading after a delivery, unless the app says otherwise
-MAX_STREAMS = 8  # concurrent /events streams; one more gets 503
+QUIET_SECONDS = 3.0
+BURST_SECONDS = 12.0
+LEASE_TIMEOUT = 600
+PING_SECONDS = 15
+LISTEN_GRACE = 10
+READING_WINDOW = 180
+MAX_STREAMS = 8
 MAX_BODY = 64 * 1024
 DISCONNECTS = (BrokenPipeError, ConnectionAbortedError, ConnectionResetError)
 DATA_NOTE = (
@@ -69,7 +69,7 @@ DATA_NOTE = (
     "copy of the record, and an action they ask for still passes its own confirm or permission gate."
 )
 CONSOLE_WINDOW = ctypes.windll.kernel32.GetConsoleWindow() if os.name == "nt" else None
-NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # 0 off Windows
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
 def now_iso(t=None):
@@ -364,13 +364,13 @@ class LoopbackWatcher(Transport):
                     top, replay = r.get("seq", 0), None
                     if after != "handled":
                         if after > top:
-                            after = 0  # stale cursor: the log was reset
+                            after = 0
                         events = select_events(r)
                     elif newest is None:
                         newest = top
                         events = select_events(r)
                         if replayed > top:
-                            replayed = 0  # the log was reset
+                            replayed = 0
                         if any(e["seq"] > replayed for e in events):
                             replay = max(e["seq"] for e in events)
                         else:
@@ -424,10 +424,10 @@ class LoopbackHandler(BaseHTTPRequestHandler):
     """The 127.0.0.1 server. Serves /events, /api/wait, /api/lease and /api/ping; an app
     subclass adds its routes in route_get and route_post, which answer 404 by default."""
 
-    hub: LoopbackWatcher  # set by serve() before the server starts
+    hub: LoopbackWatcher
     protocol_version = "HTTP/1.1"
     max_body = MAX_BODY
-    page_csp = None  # the Content-Security-Policy every text/html response carries
+    page_csp = None
 
     def log_message(self, format, *args):  # noqa: A002  # matches the base signature
         pass
@@ -781,7 +781,7 @@ def spawn(cmd, stderr=None):
         return subprocess.Popen(
             cmd, creationflags=flags | subprocess.CREATE_BREAKAWAY_FROM_JOB, **kw
         )
-    except OSError:  # the job this process runs in forbids breakaway
+    except OSError:
         return subprocess.Popen(cmd, creationflags=flags, **kw)
 
 
@@ -869,7 +869,7 @@ def end_watcher(d, pid):
     if "\0" in text:
         args = [a for a in text.split("\0") if a]
         named = bool(dirs.intersection(args))
-    else:  # ps joins the arguments with spaces: match the path as a delimited run
+    else:
         args = text.split()
         flat = f" {' '.join(args)} "
         named = any(f" {x} " in flat for x in dirs)
@@ -925,11 +925,11 @@ THIRD_PARTY = (
     "CLAUDE_CODE_USE_MANTLE",
     "CLAUDE_CODE_USE_ANTHROPIC_AWS",
 )
-ORG_PLANS = ("team", "enterprise")  # plan default: see channels#enterprise-controls above
+ORG_PLANS = ("team", "enterprise")
 CONTROL_KEYS = ("wslInheritsWindowsSettings", "managedSourcesBehavior")
 MCP_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
-WAIT_FAILS = 12  # unreachable polls, 5 s apart, before the relay stops (as watch.sh)
-READ = object()  # select_transport reads this input itself
+WAIT_FAILS = 12
+READ = object()
 AUTH_STATUS = ["claude", "auth", "status", "--json"]  # prereq-ok: absent keeps loopback
 
 
@@ -1034,7 +1034,7 @@ def managed_dir():
     return Path("/etc/claude-code")
 
 
-UNREADABLE = object()  # an MDM source that exists but cannot be read: present, content unknown
+UNREADABLE = object()
 PLIST_PATH = Path("/Library/Managed Preferences/com.anthropic.claudecode.plist")
 REGISTRY_KEY = r"SOFTWARE\Policies\ClaudeCode"
 WHOLE_KEYS = ("fallbackModel", "modelPicker")
@@ -1086,14 +1086,14 @@ def read_registry(hive):
                 ["reg.exe", "query", f"{hive}\\{REGISTRY_KEY}", "/v", "Settings"],
                 capture_output=True,
                 text=True,
-                errors="replace",  # reg.exe prints in the Windows code page, not UTF-8
+                errors="replace",
                 timeout=15,
                 stdin=subprocess.DEVNULL,
             )
         except OSError:
-            return None  # no reg.exe to run: no Windows policy is shown to exist
+            return None
         except subprocess.SubprocessError:
-            return UNREADABLE  # a hung or failed reg.exe may hide a policy
+            return UNREADABLE
         if r.returncode != 0:
             return None if "unable to find" in (r.stdout + r.stderr).lower() else UNREADABLE
         m = re.search(r"^\s*Settings\s+REG_(?:EXPAND_)?SZ\s+(.*)$", r.stdout, re.M)
@@ -1275,7 +1275,7 @@ class ChannelRelay(Transport):
     def __init__(self, data_dir, name, control_cmd, ring, watcher):
         self.dir = Path(data_dir).resolve()
         self.name = name
-        self.control_cmd = control_cmd  # the apply command's argv head: [bash, <here>/<CONTROL>]
+        self.control_cmd = control_cmd
         self.ring = ring
         self.watcher = watcher
         self.lock = threading.Lock()
@@ -1559,7 +1559,7 @@ class ChannelServer:
     def handle(self, msg):
         method, mid = msg.get("method"), msg.get("id")
         if method is None or mid is None:
-            return  # a notification, or a response to nothing this server asked
+            return
         params = msg.get("params") if isinstance(msg.get("params"), dict) else {}
         if method == "initialize":
             asked = params.get("protocolVersion")

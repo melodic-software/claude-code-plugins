@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "I can't draft this as written: the hold label makes your required check fail, so the label and every required check green cannot both hold. Which one gives way?", "why": "names the conflict and asks"},
+    {"answer": "These two elements conflict: the required check fails on any pull request with the hold label on it. I can add a waiting-on-the-user exit for the pair instead.", "why": "conflict first, then the hold label"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Here is your condition: the release pull request for release/2.4 is open with the hold label and every required check is green.", "why": "drafts both without naming the conflict"},
+    {"answer": "The hold label is on the pull request.", "why": "mentions the label, names no conflict"}
+  ]
+}

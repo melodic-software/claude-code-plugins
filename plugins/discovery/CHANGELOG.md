@@ -1,5 +1,39 @@
 # Changelog: discovery plugin
 
+## [3.1.1] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [3.1.0] - 2026-11-26
+
+### Changed
+
+- Shared `view-builder.mjs` and `html-escape.mjs` synced: an interactive page's policy adds `img-src data:` and `font-src data:`, and both validator profiles admit a base64 `data:` URL in two places only, a PNG or JPEG as the `.rv-logo` rule's one `background-image`, and a WOFF2, WOFF, TTF or OTF font inside `@font-face`. Every other `url(`, scheme and URL-bearing attribute is still refused. Pages built today look the same; no other change to this plugin.
+
+## [3.0.0] - 2026-11-26
+
+### Changed
+
+- **The shared view resolver takes `--producer`, not `--lane`.** "Lane" now means only a worker
+  that serves one pipeline stage, so a skill or plugin registered with the resolver is a producer:
+  run `view-settings.mjs resolve --producer <id>` (`--lane` is gone, with no alias). The registry
+  exports `PRODUCERS` and `producerOf`, `resolveMedium` takes `producer`, and the view builder's
+  `render` takes a producer id.
+
+## [2.3.0] - 2026-11-26
+
+### Added
+
+- The plugin carries the standards contract binding (`reference/standards-contract.md`, contract 1.3.1) and the standards reader (`scripts/org-standards.sh`). `/discovery:research` judges Project fit against the consuming project's standards, resolved through the contract's Resolution ladder, personal subscriptions included; a loaded file that cites shipped concept ids follows the contract's "Adopted shipped concepts" rule, with `/engineering-concepts:lookup` (if enabled).
+
+## [2.2.24] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [2.2.23] - 2026-11-26
 
 ### Changed
@@ -2306,7 +2340,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   resolved against nothing.** The return-payload sentence named `agents/explorer.md`,
   `agents/researcher.md` and `agents/intent-tracer.md`, whose implied base is the
   plugin root while their real base is `reference/`, the defect class
-  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  retired ADR 0018 (treat the plugin as the encapsulation boundary for skill citation)'s
   correction 1 names. All three now carry `${CLAUDE_PLUGIN_ROOT}/`, the form the
   next sentence of the same paragraph already uses for the three dispatch docs.
   This file is not fetched from outside the plugin, so the anchored form resolves

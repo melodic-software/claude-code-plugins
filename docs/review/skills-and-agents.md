@@ -10,8 +10,15 @@
   held for that evidence is released by its record:
   [Cross-lane PR hold](../contracts/loop-lane/README.md#cross-lane-pr-hold).
 - A generic skill names no `gh` command or GitHub grammar unless it sits behind the operation's
-  owner or in a declared-provider surface:
-  [ADR 0060](../adr/0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md).
+  owner or in a declared-provider surface (any plugin or skill whose purpose is one provider, such
+  as the github plugin, repo-fleet-hygiene, the CI review lanes a GitHub workflow invokes, and
+  adapter files):
+  provider commands, API fields and link grammar are implementation details that the consumer's
+  conventions and adapter binding select, and a skill that hardcodes them sets the precedent every
+  new skill copies. Forge work goes to `/source-control:pull-request`, tracker work to the
+  work-item-tracker seam, and the bound tracker adapter owns the change-to-item link text and the
+  branch item-ID pattern; a full forge seam waits for a named consumer on a second forge, since a
+  contract shaped by GitHub alone would freeze while the PR surface still changes.
 - A generic skill or agent ships no model-read language, framework, tool or library choice outside
   the named exceptions; it resolves the choice from the consumer repository:
   [ADR 0101](../adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md). Nor does it

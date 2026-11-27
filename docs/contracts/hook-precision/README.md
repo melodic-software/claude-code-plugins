@@ -90,6 +90,32 @@ both are non-negotiable:
   (reproducing the over-fire) and pass after the fix. A stay-quiet assertion that is already green before the
   fix guards nothing. It only looks tested.
 
+## Break-glass exceptions
+
+A check that misses its precision bar stays on only as a break-glass exception, written inline
+beside the check, carrying a reason, an expiry and a person's approval. An exception missing any of
+the three does not count as one. Exceptions expire 90 days after the pull request that adds them
+merges, unless the team sets another value. Each exception filed against a blocking check counts as
+an effective false positive, so a blocking check that needs one does not meet the zero bar.
+
+The one exception in force:
+
+- **`skill-reference-verify`'s in-session `PostToolUse` hook** stays default-on below the advisory
+  bar (under 10% false positives) at its measured 57% precision.
+  - Reason: its remaining noise has one identified cause, the shape of argument it accepts, and the
+    hook only advises: it exits 0 with `additionalContext`
+    (`plugins/guardrails/hooks/skill-reference-verify.sh`, its closing `hook::ctx_flush PostToolUse`
+    and `exit 0`).
+  - Expiry: 2027-01-28, 90 days after #11243 recorded it (2026-10-30), unless the guard is
+    re-measured on a corpus sweep first.
+  - Approval: the owner's
+    [2026-10-25 decision record](https://github.com/melodic-software/claude-code-plugins/issues/7642#issuecomment-6402548080);
+    the break-glass rule is the
+    [2026-10-26 decision record](https://github.com/melodic-software/claude-code-plugins/issues/7642#issuecomment-6420924529).
+  - Scope: the advisory hook only. The same check also runs in guardrails' pre-PR
+    `reference-verify` script, which fails the check (`plugins/guardrails/README.md`, the
+    `skill-reference-verify` row); the exception does not cover that placement.
+
 ## Platform gap: `if` file rules on Windows
 
 On Windows (Claude Code 2.1.285), an `Edit(...)` rule in a hook `if` does not match a Write tool

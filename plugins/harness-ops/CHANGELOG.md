@@ -3,6 +3,64 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.2.1] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [11.2.0] - 2026-11-26
+
+### Changed
+
+- Shared `html-escape.mjs` synced: the report validator admits a base64 `data:` URL in two places only, a PNG or JPEG as the `.rv-logo` rule's one `background-image`, and a WOFF2, WOFF, TTF or OTF font inside `@font-face`. Every other `url(`, scheme and URL-bearing attribute is still refused. Pages built today look the same; no other change to this plugin.
+
+## [11.1.0] - 2026-11-26
+
+### Added
+
+- behavior-probes: a case's `turns` (user messages such as `/clear`) run before its prompt over stream-json input, and outcome `reply` judges the run's last reply against `reply_match`, where `<session8>` stands for the answering session's id prefix.
+- behavior-probes: `session-start` cases check that a SessionStart hook's context reaches the model on startup, after `/clear` and after `/compact`.
+
+- `remote/` top-level surface classification in the shared `lib/plugin_cache_versions.py` `SURFACE_TABLE` and stat-only `projects_audit` orphan summary via `lib/claude_projects.py` (`NullTranscriptCwdAdapter`).
+
+- `audit-install-state` reads `managed-settings.d/*.json` drop-in files alongside the base `managed-settings.json` through a dedicated `managed_settings.py` module matching `lib/managed-scope.sh` platform paths.
+
+### Changed
+
+- behavior-probes: a run whose stream reports a rejected rate limit (the usage limit) is inconclusive and skips every case after it; an `allowed` rate-limit event is ignored.
+
+- `install_state.py` consumes shared `lib/plugin_cache_versions.py` (`resolve_claude_dir`, `SURFACE_TABLE`, `NEVER_READ_GLOBS`, strict UTF-8 `AllowlistGuardedReader` preserving all four read guards, and `classify_cache_relpath`).
+
+### Fixed
+
+- `unreferenced_versions` and `node_modules_bucket` exclude depth-1 `plugins/cache/temp_git_*` staging clones instead of misclassifying nested `.git/objects` directories as plugin versions.
+- Invalid UTF-8 bytes in `settings.json` or `installed_plugins.json` now fail closed instead of substituting replacement characters.
+
+- `read_retention` merges `cleanupPeriodDays` across base and alphabetical drop-in files (later file wins), withdraws `settings-unparsable-pauses-sweep` when a valid drop-in supplies `cleanupPeriodDays`, and emits `managed-settings-unparsable-refuses-start` on any unparsable base or drop-in file.
+
+## [11.0.0] - 2026-11-26
+
+### Changed
+
+- **The shared view resolver takes `--producer`, not `--lane`.** "Lane" now means only a worker
+  that serves one pipeline stage, so a skill or plugin registered with the resolver is a producer:
+  run `view-settings.mjs resolve --producer <id>` (`--lane` is gone, with no alias). The registry
+  exports `PRODUCERS` and `producerOf`, `resolveMedium` takes `producer`, and the view builder's
+  `render` takes a producer id.
+
+## [10.8.4] - 2026-11-26
+
+### Changed
+
+- `/harness-ops:inventory`, `/harness-ops:audit-skill-visibility`, `/harness-ops:audit-native-overlap`, `/harness-ops:audit-performance`, `/harness-ops:behavior-probes` and `/harness-ops:control-claude-code` point at section-anchored Claude Code docs for WebFetch, `/doctor`, compaction hooks, bundled skills, the skill listing budget, in-place plugins and sign-in storage, instead of restating that behavior. The inventory's docs pointers drop their as-of dates and recheck triggers and gain section anchors ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [10.8.3] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [10.8.2] - 2026-11-25
 
 ### Changed

@@ -188,8 +188,7 @@ filesystem probing, and the skip is printed rather than silent.
 **Advisory, not a required live gate.** CI runs the detector's self-test and asserts the non-Windows
 no-op, both of which are deterministic and fixture-scoped, but does not point the live scan at a runner's
 drive roots.
-[ADR 0003](../../adr/0003-verification-guards-earn-default-on-by-measured-precision.md) is the
-doctrine: a verification guard earns default-on by *measured* precision, and this detector has no
+The [plugin philosophy](../../plugin-philosophy.md#classifying-a-hook) is the doctrine: a verification guard earns default-on by *measured* precision, and this detector has no
 measurements yet. A false positive on a required aggregate blocks every merge in the repo; a missed
 one costs a follow-up. Promote it when there is precision to point at.
 

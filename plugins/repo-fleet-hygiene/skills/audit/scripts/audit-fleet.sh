@@ -81,7 +81,7 @@ lower() {
   printf '%s' "$text"
 }
 
-capture_text() { # <out-var> <command> [args]...
+capture_text() {
   local __capture_out __capture_status
   __capture_out="$("${@:2}" 2>/dev/null)"
   __capture_status=$?
@@ -134,7 +134,7 @@ to_native_path() {
   printf '%s' "$text"
 }
 
-to_native_file_path() { # <out-var> <path>
+to_native_file_path() {
   local path="$2" native
   if [[ "$WINDOWS_PATH_DISPLAY" == "true" ]] && command -v cygpath >/dev/null 2>&1 &&
     native="$(cygpath -m -- "$path" 2>/dev/null)" && [[ -n "$native" ]]; then
@@ -1246,35 +1246,11 @@ PY
   exit $?
 fi
 
-PROJECT_DIR="${PROJECT_DIR_ARG:-${CLAUDE_PROJECT_DIR:-}}"
-case "$PROJECT_DIR" in
-"\${"*) PROJECT_DIR="" ;;
-*) ;;
-esac
-
-CONFIG_SOURCE="none"
-if [[ -n "$CONFIG_FILE" ]]; then
-  [[ -f "$CONFIG_FILE" ]] || fail "config file not found: $CONFIG_FILE"
-  CONFIG_SOURCE="explicit --config"
-else
-  if [[ -n "$PROJECT_DIR" && -f "$PROJECT_DIR/.claude/repo-fleet-hygiene.conf" ]]; then
-    CONFIG_FILE="$PROJECT_DIR/.claude/repo-fleet-hygiene.conf"
-    CONFIG_SOURCE="project"
-  else
-    home_dir="${HOME:-${USERPROFILE:-}}"
-    if [[ -n "$home_dir" && -f "$home_dir/.claude/repo-fleet-hygiene.conf" ]]; then
-      CONFIG_FILE="$home_dir/.claude/repo-fleet-hygiene.conf"
-      CONFIG_SOURCE="user-global"
-    fi
-  fi
-fi
-if [[ -n "$CONFIG_FILE" ]]; then
-  CONFIG_FILE="$(cd "$(dirname "$CONFIG_FILE")" 2>/dev/null && pwd -P)/$(basename "$CONFIG_FILE")"
-  run_git_probe config --file "$CONFIG_FILE" --list >/dev/null 2>&1 || fail "invalid Git config: $CONFIG_FILE"
-  CONFIG_DIR="$(dirname "$CONFIG_FILE")"
-else
-  CONFIG_DIR=""
-fi
+PROJECT_DIR="$(fleet_clean_project_dir "${PROJECT_DIR_ARG:-${CLAUDE_PROJECT_DIR:-}}")"
+fleet_resolve_config "$CONFIG_FILE" "$PROJECT_DIR"
+CONFIG_FILE="$FLEET_CONFIG_FILE"
+CONFIG_DIR="$FLEET_CONFIG_DIR"
+CONFIG_SOURCE="$FLEET_CONFIG_SOURCE"
 
 fleet_resolve_max_depth "$MAX_DEPTH" "$CONFIG_FILE"
 

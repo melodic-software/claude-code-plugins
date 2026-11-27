@@ -55,16 +55,13 @@ import detached  # noqa: E402  (beside this file; sys.path is set just above)
 RECORD = ".shared-tunnel.json"
 LOG = "cloudflared.log"
 LOCK = ".shared-tunnel.lock"
-URL = re.compile(r"https://(?!api\.)[a-z0-9-]+\.trycloudflare\.com")  # api. is cloudflared's own endpoint, never a tunnel
-BANNER = re.compile(r"\|\s+(" + URL.pattern + r")/?\s+\|")  # the address line inside the "quick Tunnel has been created" box
-READY = re.compile(r"Registered tunnel connection")  # a named tunnel's first connection to Cloudflare
-# The id Cloudflare's connections list names this cloudflared by, logged before its first connection
-# (prepareTunnelConfig in cmd/cloudflared/tunnel/configuration.go, as of 2026-10-29; recheck when a release changes it).
+URL = re.compile(r"https://(?!api\.)[a-z0-9-]+\.trycloudflare\.com")
+BANNER = re.compile(r"\|\s+(" + URL.pattern + r")/?\s+\|")
+READY = re.compile(r"Registered tunnel connection")
 CONNECTOR = re.compile(r"Generated Connector ID: ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})")
 HOSTNAME = re.compile(r"(?=.{4,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]")
 START_SECONDS = 30.0
 RETIRE_SECONDS = 600.0
-# cloudflared reads the first two; the last two are Cloudflare API tokens. No child of this plugin inherits any of them.
 TOKEN_ENV = ("TUNNEL_TOKEN", "TUNNEL_TOKEN_FILE", "CLOUDFLARE_API_TOKEN", "CF_API_TOKEN")
 EXE = "cloudflared.exe" if detached.WINDOWS else "cloudflared"
 MISSING = "missing prerequisite: cloudflared (not on PATH; see the planning plugin's prerequisites.json)"
@@ -123,7 +120,7 @@ def token_file_problem(path, what="tunnel token file", option="tunnel_token_file
     return None
 
 
-WINDOWS_ALLOWED = ("S-1-5-18", "S-1-5-32-544", "S-1-3-4")  # SYSTEM, Administrators and OWNER RIGHTS, beside the user
+WINDOWS_ALLOWED = ("S-1-5-18", "S-1-5-32-544", "S-1-3-4")
 
 
 def _acl_problem(path, what="tunnel token file"):
@@ -171,19 +168,19 @@ def _windows_acl(path):
             kernel.LocalFree(out)
 
     token = wintypes.HANDLE()
-    if not advapi.OpenProcessToken(kernel.GetCurrentProcess(), 0x0008, ctypes.byref(token)):  # TOKEN_QUERY
+    if not advapi.OpenProcessToken(kernel.GetCurrentProcess(), 0x0008, ctypes.byref(token)):
         return None
     try:
         need = wintypes.DWORD()
-        advapi.GetTokenInformation(token, 1, None, 0, ctypes.byref(need))  # TokenUser
+        advapi.GetTokenInformation(token, 1, None, 0, ctypes.byref(need))
         buf = ctypes.create_string_buffer(need.value or 1)
         if not advapi.GetTokenInformation(token, 1, buf, need, ctypes.byref(need)):
             return None
-        me = sid_text(ctypes.c_void_p.from_buffer(buf).value)  # TOKEN_USER starts with the user's PSID
+        me = sid_text(ctypes.c_void_p.from_buffer(buf).value)
     finally:
         kernel.CloseHandle(token)
     need = wintypes.DWORD()
-    advapi.GetFileSecurityW(path, 4, None, 0, ctypes.byref(need))  # DACL_SECURITY_INFORMATION
+    advapi.GetFileSecurityW(path, 4, None, 0, ctypes.byref(need))
     if not me or not need.value:
         return None
     sd = ctypes.create_string_buffer(need.value)
@@ -193,14 +190,14 @@ def _windows_acl(path):
     if not present.value or not acl.value:
         return me, ["S-1-1-0"]
     sids = []
-    for i in range(ctypes.c_uint16.from_address(acl.value + 4).value):  # ACL.AceCount
+    for i in range(ctypes.c_uint16.from_address(acl.value + 4).value):
         ace = ctypes.c_void_p()
         if not advapi.GetAce(acl, i, ctypes.byref(ace)):
             return None
         kind, flags = ctypes.c_uint8.from_address(ace.value).value, ctypes.c_uint8.from_address(ace.value + 1).value
-        if kind == 1 or flags & 0x08:  # ACCESS_DENIED_ACE_TYPE, INHERIT_ONLY_ACE
+        if kind == 1 or flags & 0x08:
             continue
-        sids.append((sid_text(ace.value + 8) or "?") if kind == 0 else "?")  # ACCESS_ALLOWED_ACE: header, mask, then the SID
+        sids.append((sid_text(ace.value + 8) or "?") if kind == 0 else "?")
     return me, sids
 
 
@@ -327,8 +324,6 @@ def _start(data_dir, port, hostname="", token_file="", retired_entry=None, verif
             what = f"no connection for {hostname}" if hostname else "no trycloudflare.com address"
             raise TunnelDown(f"cloudflared printed {what} in time (log: {log})")
         raise TunnelDown(f"when cloudflared pid {proc.pid} started cannot be read, so it could not be told from a later program with its pid")
-    # The word alive() looks for: the program's name in its command line, or on Windows the stem of
-    # the executable the OS reports (python for the test fake).
     marker = Path((detached.describe(proc.pid) or exe) if detached.WINDOWS else exe).stem.lower()
     rec = {**(fields or {}), "pid": proc.pid, "url": url, "port": port, "startedAt": time.time(), "marker": marker, "processStart": start, "adopted": False}
     if hostname:
@@ -490,15 +485,6 @@ def stop(data_dir):
         (d / RECORD).unlink(missing_ok=True)
         return stopped
 
-
-# -- live prototypes ----------------------------------------------------------------------------------------------
-# A live prototype the owner approved runs behind its own quick tunnel, never the session's: its trycloudflare.com host
-# is a site of its own (trycloudflare.com is on the Public Suffix List), apart from the interview page's origin and
-# the owner token in its storage. One record per entry, `<data_dir>/.shared-live/<id>.json` (0600, the folder 0700),
-# keyed by its path: the tunnel's fields as the session record holds them (pid, url, port, startedAt, marker,
-# processStart, adopted), the entry's `id`, and `server` {pid, marker, processStart, port} when the plugin started a
-# static server (liveserve.py) for it. Ending one stops both and keeps the record with `endedAt` and `reason`, so it
-# still says what ran. The session tunnel's own record and functions above are unchanged.
 
 LIVE_DIR = ".shared-live"
 

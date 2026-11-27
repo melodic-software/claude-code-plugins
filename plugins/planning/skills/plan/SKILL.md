@@ -148,7 +148,7 @@ Prefer the simplest plan that works and keep each step's changes surgical. Befor
 
 | Tier | Signals | Requirement |
 |------|---------|-------------|
-| **A. Design-significant** | New types/contracts, new module or library, package topology change, cross-module integration, data model change, multi-tenant posture | **Blocking:** full or light `/planning:design` + its handoff gate (`design-threads.md` all RESOLVED / directional / TAGGED-DEFERRED) |
+| **A. Design-significant** | New types/contracts, a public setting or a file format another skill reads, new module or library, package topology change, cross-module integration, data model change, multi-tenant posture | **Blocking:** full or light `/planning:design` + its handoff gate (`design-threads.md` all RESOLVED / directional / TAGGED-DEFERRED) |
 | **B. Light design** | 2–5 files, one new type, localized contract tweak | **Blocking:** `design/design-resolution.md` with `outcome: early-exit`, `tier: B`, and its type sketch (a `type-inventory.md` alone is not the gate artifact) |
 | **C. No design** | Single-file bugfix, config/doc/markdown, rename, hook text, pure test addition | **Blocking:** `design/design-resolution.md` with `outcome: early-exit` + reason (gate always evaluated) |
 
@@ -172,6 +172,7 @@ Before formulating, resolve the consumer's standards and load what this task tou
 - **Pull selectively**: only matched files, and within them only the sections this task needs. Never re-pull ambient content (auto-loaded `CLAUDE.md`, fired `.claude/rules` directives). Post-compaction context and a new task both count as not ambient. Re-resolve per task.
 - **Depth rides the plan-scale table below**. A trivial plan takes no standards fetch beyond ambient context; larger scales ground the surfaces they touch. There is no grounding flag.
 - **Name provenance** when a personal-layer rule (a `*.local.md` personal override or the user-global layer) materially shapes the plan.
+- **Adopted shipped concepts**: a loaded file that cites shipped concept ids follows the binding's "Adopted shipped concepts" paragraph, with `/engineering-concepts:lookup` (if enabled); otherwise apply each entry as written.
 - **Broken index row** → surface it and offer the fix. Never silent. **Always compare** the index's `standards-contract` frontmatter to the binding's own version; on any mismatch, degrade per the binding's tolerant-reader rule and report the skew in the plan (older: best-effort + "index at vX, contract at vY. Re-run setup"; newer: best-effort + "update the plugin", no migration offer).
 - The plan **cites the standards sections loaded** for the surfaces it touches (the template's "Standards grounding" element), or states why grounding was skipped (scale tier).
 
@@ -313,7 +314,7 @@ Then apply the Step 4.7 outcome-gate criteria (under Planning Process, above) an
 
 ## Plan Mode Integration
 
-Built-in plan mode enforces read-only work during planning:
+We use built-in plan mode to keep planning from editing (what it permits: [Analyze before you edit with plan mode](https://code.claude.com/docs/en/permission-modes#analyze-before-you-edit-with-plan-mode)):
 
 - **During formulation (Steps 1-2):** if already in plan mode when this skill triggers, stay in it
 - **During stress-test (Step 4):** plan mode is appropriate

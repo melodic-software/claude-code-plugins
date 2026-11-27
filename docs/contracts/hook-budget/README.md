@@ -431,6 +431,29 @@ check's findings off the turn they belong to.
   gated Stop row starts a process before its gate, or a per-Stop breakdown shows gated rows
   setting the wall.
 
+## The hook-enablement helper
+
+A hook that adopts [`lib/hook-enabled.sh`](../../../lib/hook-enabled.sh)
+([hook-enablement, The shared helper](../hook-enablement/README.md#the-shared-helper)) calls
+`hook_enabled::resolve` on every fire, before its own work. The call runs inside the hook's own
+shell, so it adds to the hook's k only the processes it starts:
+
+| Call | Processes started | Which |
+| --- | --- | --- |
+| No flag (a Claude Code hook) | 0 | None: the user layer is an environment variable and the repository file is read with shell builtins |
+| `--git-hook` | 1, or 2 when the user's `settings.json` exists | `git rev-parse --show-toplevel` (none with `--root`), then `jq` on `settings.json` |
+| `--security`, copy under `plugins/cache` | 1, or 2 when the install's `settings.json` exists, plus 1 per managed settings file (on Linux 5 forks and 3 execs) | `uname -s`, then `jq` on `settings.json`; each managed file adds one `jq`, and on Linux two `stat`, each of which forks twice, since its `2>/dev/null` sits inside the `$(...)` |
+| `--security`, copy outside `plugins/cache` | 0 | None: with no install path it reads no settings layer |
+| `--git-hook --security` | 2, or 3 when the user's `settings.json` exists, plus each managed settings file as above | `git`, `uname -s` and `jq`, as in the rows above |
+
+- **Measurement.** `lib/hook-enabled.test.sh` runs the first three rows and the last one under
+  strace, each with a settings file present and no managed settings file. It fails when a call
+  makes more forks, or more execs, than the table's count. A host without strace skips those
+  cases. No wall-clock figure in S has been taken for the helper.
+- **Choosing a mode.** The no-flag call costs nothing over the hook it gates. A Claude Code hook
+  that passes `--security` pays one `uname` and up to one `jq` per fire, so a guard on an always-on
+  matcher states those processes in its k under Rule 1.
+
 ## Rules
 
 1. **A plugin adding or widening an always-on hook states its k and its measured cost in S** in its

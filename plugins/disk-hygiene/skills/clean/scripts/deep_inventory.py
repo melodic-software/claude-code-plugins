@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Deep-inventory categories and KEEP-reason validator for ``/disk-hygiene:clean``.
+"""Deep-inventory categories, adapters, KEEP-reason validator, and standalone CLI.
 
-Read-only. Every function takes its paths, clock and process table as arguments
-and only reads; nothing here deletes, moves or writes. A candidate row is a
-finding, not a deletion plan: removal stays behind the engine's own gates.
+Read-only. Every function takes its paths, clock, and liveness/classifier ports
+as arguments and only reads; nothing here deletes, moves, or modifies target
+files. A candidate row is a finding, not a deletion plan: removal stays behind
+the engine's own gates.
 
 Row schema (one dict per inventoried entry, shared by every producer of a
 machine listing):
@@ -27,32 +28,70 @@ that is only a category phrase without such evidence.
 
 from __future__ import annotations
 
+import argparse
 import datetime as dt
 import functools
+import json
 import os
 import re
 import stat
 import sys
 import tempfile
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
+
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
 
 _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from plugin_cache_versions import (  # noqa: E402  (path set above; plugin-bundled module)
+from claude_projects import (  # noqa: E402, F401  (re-exported for callers/tests)
+    PROJECT_NAME_CAP,
+    ProjectSlugResolver,
+    TranscriptReaderCwdAdapter,
+)
+from inventory_classifiers import (  # noqa: E402, F401  (sibling classifier module)
+    DAY,
+    TMP_MIN_AGE_DAYS,
+    VERSION_RE,
+    ClaudeHarnessClassifier,
+    Classification,
+    DanglingSymlinkClassifier,
+    DictClassifierAdapter,
+    EntryClassifierPort,
+    InMemoryLivenessAdapter,
+    ProcLivenessAdapter,
+    SupersededVersionClassifier,
+    TmpProducerClassifier,
+    UnavailableLivenessAdapter,
+    VersionLivenessPort,
+    VersionUse,
+    WalkContext,
+    _in_use,
+    _liveness_from_running,
+    _overlaps,
+    _within,
+    default_classifiers,
+    running_paths,
+)
+from plugin_cache_versions import (  # noqa: E402, F401  (re-exported for callers/tests)
     INSTALLED_PLUGINS,
     ORPHAN_SWEEP_DAYS,
+    FsGuardedTextReader,
+    inspect_plugin_cache,
     load_registry,
     orphan_marker,
     resolve,
+    resolve_claude_dir,
 )
 
 try:
     import pwd
-except ImportError:  # Windows
+except ImportError:
     pwd = None
 
 ROW_COLUMNS = (
@@ -68,8 +107,6 @@ ROW_COLUMNS = (
     "evidence",
 )
 DISPOSITIONS = ("KEEP", "CANDIDATE", "UNKNOWN")
-DAY = 86400.0
-TMP_MIN_AGE_DAYS = 7.0
 TMP_PRODUCERS = (
     ("pytest-of-", "pytest", None),
     ("claude-", "claude-code", None),
@@ -96,7 +133,6 @@ LINK_PRODUCERS = (
     ("/.npm/", "npm"),
     ("/uv/", "uv"),
 )
-VERSION_RE = re.compile(r"^v?(\d+(?:\.\d+)*)(?:([-+])[\w.+-]+)?$")
 _TOKEN = r"[\w.@/+-]+"
 _NAMED_TOOL = re.compile(
     rf"(?:managed|owned) by (?:the )?({_TOKEN}(?: {_TOKEN}){{0,2}})"
@@ -104,6 +140,14 @@ _NAMED_TOOL = re.compile(
 _CATEGORY_PHRASE = re.compile(
     rf"(?:(?:tool|os|system|app|vendor)[- ]?(?:managed|owned)|{_NAMED_TOOL.pattern})"
 )
+FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
+UNCLASSIFIED = {
+    "producer": "unknown",
+    "category": "unclassified",
+    "disposition": "UNKNOWN",
+    "reason": "no category rule attributes this entry",
+}
+_UNSET: Any = object()
 
 
 def _iso(epoch: float) -> str:
@@ -122,21 +166,40 @@ def _owner(uid: int) -> str:
     return str(uid)
 
 
-def _tree_size(path: Path, mounts: frozenset[str] = frozenset()) -> int:
+def _descends(st: os.stat_result) -> bool:
+    return stat.S_ISDIR(st.st_mode) and not (
+        getattr(st, "st_file_attributes", 0) & FILE_ATTRIBUTE_REPARSE_POINT
+    )
+
+
+def _tree_size(
+    path: Path,
+    mounts: frozenset[str] = frozenset(),
+    root_dev: int | None = None,
+) -> int:
+    if root_dev is None:
+        try:
+            root_dev = os.lstat(path).st_dev
+        except OSError:
+            return 0
     total, stack = 0, [path]
     while stack:
         current = stack.pop()
         try:
             with os.scandir(current) as entries:
                 for entry in entries:
-                    if entry.is_dir(follow_symlinks=False):
-                        if entry.path not in mounts:
-                            stack.append(Path(entry.path))
+                    try:
+                        st = entry.stat(follow_symlinks=False)
+                    except OSError:
+                        continue
+                    if _descends(st):
+                        if entry.path in mounts or (
+                            root_dev and st.st_dev and st.st_dev != root_dev
+                        ):
+                            continue
+                        stack.append(Path(entry.path))
                     else:
-                        try:
-                            total += entry.stat(follow_symlinks=False).st_size
-                        except OSError:
-                            pass
+                        total += st.st_size
         except OSError:
             pass
     return total
@@ -150,13 +213,16 @@ def make_row(
     disposition: str,
     reason: str,
     evidence: dict[str, Any] | None = None,
+    mounts: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     """One schema row for ``path``, measured with lstat so a link is never followed."""
     st = os.lstat(path)
     return _stat_row(
         path,
         st,
-        _tree_size(path) if stat.S_ISDIR(st.st_mode) else st.st_size,
+        _tree_size(path, mounts=mounts, root_dev=st.st_dev)
+        if _descends(st)
+        else st.st_size,
         producer=producer,
         category=category,
         disposition=disposition,
@@ -192,227 +258,65 @@ def _stat_row(
     return row
 
 
-def _child_dirs(parent: Path) -> list[Path]:
-    try:
-        with os.scandir(parent) as entries:
-            return sorted(
-                Path(e.path) for e in entries if e.is_dir(follow_symlinks=False)
-            )
-    except OSError:
-        return []
-
-
-def running_paths(proc_root: Path = Path("/proc")) -> set[str] | None:
-    """Resolved executable, working-directory and open-descriptor targets of every process under ``proc_root``.
-
-    A deleted target reads ``<path> (deleted)``; the suffix is dropped so the
-    superseded directory it came from still matches. Descriptors that are not
-    paths (``socket:[1]``, ``pipe:[1]``) never match an entry. A process another
-    user owns is unreadable here and contributes nothing. None means the process
-    table could not be read (no ``/proc``, as on macOS and Windows), which is not
-    the same as an empty set: nothing was checked.
-    """
-    found: set[str] = set()
-    try:
-        pids = [p for p in proc_root.iterdir() if p.name.isdigit()]
-    except OSError:
-        return None
-    for pid in pids:
-        links = [pid / "exe", pid / "cwd"]
-        try:
-            links += [Path(e.path) for e in os.scandir(pid / "fd")]
-        except OSError:
-            pass
-        for link in links:
-            try:
-                found.add(os.readlink(link).removesuffix(" (deleted)"))
-            except OSError:
-                pass
-    return found
-
-
-def _in_use(entry: Path, running: Iterable[str]) -> str | None:
-    prefix = str(entry)
-    return next(
-        (r for r in running if r == prefix or r.startswith(prefix + os.sep)), None
+def _row_from_classification(path: Path, cls: Classification) -> dict[str, Any]:
+    return make_row(
+        path,
+        producer=cls.producer,
+        category=cls.category,
+        disposition=cls.disposition,
+        reason=cls.reason,
+        evidence=cls.evidence,
     )
-
-
-def _link_targets(directories: Iterable[Path]) -> dict[str, str]:
-    found: dict[str, str] = {}
-    for directory in directories:
-        try:
-            with os.scandir(directory) as entries:
-                for entry in entries:
-                    if entry.is_symlink():
-                        found.setdefault(os.path.realpath(entry.path), entry.path)
-        except OSError:
-            pass
-    return found
 
 
 def superseded_versions(
     parents: Iterable[Path],
     running: Iterable[str] | None = (),
     launcher_dirs: Iterable[Path] = (),
+    *,
+    liveness: VersionLivenessPort | None = None,
 ) -> list[dict[str, Any]]:
-    """Sibling entries under each parent whose names parse as versions.
-
-    Keeps the newest (a release outranks its own prerelease), any version a
-    running process executes, and any version a symlink points at, read from the
-    parent, its parent and ``launcher_dirs``. The rest are candidates, or UNKNOWN
-    when ``running`` is None (process table not read). A version chosen through a
-    file rather than a symlink (an nvm alias, ``.tool-versions``) is not seen. A
-    parent with fewer than two version entries yields no rows.
-    """
-    rows: list[dict[str, Any]] = []
-    running = None if running is None else set(running)
-    launcher_dirs = tuple(launcher_dirs)
-    for parent in parents:
-        versions: list[tuple[tuple[tuple[int, ...], int], str, Path]] = []
-        try:
-            with os.scandir(parent) as entries:
-                for entry in entries:
-                    match = VERSION_RE.match(entry.name)
-                    if match and not entry.is_symlink():
-                        numbers = tuple(int(n) for n in match.group(1).split("."))
-                        key = (numbers, 0 if match.group(2) == "-" else 1)
-                        versions.append((key, entry.name, Path(entry.path)))
-        except OSError:
-            continue
-        if len(versions) < 2:
-            continue
-        versions.sort()
-        newest = versions[-1][1]
-        holder = (
-            parent.parent.name
-            if parent.name in {"versions", "releases", "bin"}
-            else parent.name
-        )
-        links = _link_targets((parent, parent.parent, *launcher_dirs))
-        for _, name, path in versions:
-            used = _in_use(path, running or ())
-            target = _in_use(Path(os.path.realpath(path)), links)
-            disposition, evidence = "KEEP", None
-            if name == newest:
-                reason = f"newest of {len(versions)} versions beside it in {parent}"
-            elif used:
-                reason = f"a running process executes {used}"
-                evidence = {"running": used}
-            elif target:
-                reason = f"the symlink {links[target]} points at it"
-                evidence = {"symlink": links[target]}
-            elif running is None:
-                disposition = "UNKNOWN"
-                reason = (
-                    f"superseded by {newest}; the process table was not read, "
-                    "so whether a process executes it is not known"
-                )
-            else:
-                disposition = "CANDIDATE"
-                reason = (
-                    f"superseded by {newest}; no running process executes it and "
-                    "no symlink beside it or in a launcher directory points at it"
-                )
-            rows.append(
-                make_row(
-                    path,
-                    producer=holder,
-                    category="superseded-version",
-                    disposition=disposition,
-                    reason=reason,
-                    evidence=evidence,
-                )
-            )
-    return rows
-
-
-def _read_guarded(root: Path, relpath: str, limit: int = 2_000_000) -> str:
-    """Read a bounded amount of text from a regular file under ``root``.
-
-    A cached plugin controls the paths below the cache, so a link is never
-    followed out of ``root``. The registry itself may be a link, and it is decoded
-    strictly: replacement characters in an ``installPath`` would name a path the
-    registry never held.
-    """
-    path = root / relpath
-    registry = relpath == INSTALLED_PLUGINS
-    if not registry and (path.is_symlink() or not path.is_file()):
-        raise OSError(f"{relpath} is not a regular file")
-    with path.open(encoding="utf-8", errors="strict" if registry else "replace") as fh:
-        return fh.read(limit)
-
-
-def _orphan_reason(registry: str, marker: dict[str, Any] | None, sweeping: bool) -> str:
-    base = f"no installPath in {registry} references this version"
-    if not sweeping:
-        return (
-            f"{base}, and {registry} records no install, so Claude Code's "
-            "removal of orphaned versions does not run"
-        )
-    if marker is None:
-        return f"{base}, and it has no readable .orphaned_at marker"
-    age = marker["marker_age_days"]
-    if marker["past_sweep_window"]:
-        return (
-            f"{base}; its .orphaned_at marker is {age} days old, past the "
-            f"{ORPHAN_SWEEP_DAYS}-day window after which Claude Code removes an "
-            "orphaned version, so it has not been swept"
-        )
-    return (
-        f"{base}; its .orphaned_at marker is {age} days old, inside the "
-        f"{ORPHAN_SWEEP_DAYS}-day window, so Claude Code removes it itself"
+    """Sibling entries under each parent whose names parse as versions."""
+    live = _liveness_from_running(running, liveness)
+    classifier = SupersededVersionClassifier(launcher_dirs=tuple(launcher_dirs))
+    ctx = WalkContext(
+        target=Path("/"),
+        home=Path.home(),
+        tmp_dir=tmp_root(),
+        claude_dir=None,
+        now=0.0,
+        liveness=live,
     )
+    classifier.prepare(ctx)
+    rows: list[dict[str, Any]] = []
+    for parent in parents:
+        classified = classifier.classify_parent(parent, require_dotted=False)
+        for path_str, cls in classified.items():
+            rows.append(_row_from_classification(Path(path_str), cls))
+    return rows
 
 
 def plugin_cache_versions(claude_dir: Path, now: float) -> list[dict[str, Any]]:
     """Rows for ``plugins/cache/<marketplace>/<plugin>/<version>`` under ``claude_dir``.
 
-    A version some ``installPath`` in ``plugins/installed_plugins.json`` names is
-    KEEP with that registry as evidence; one no path names is a candidate, whose
-    reason and evidence carry its ``.orphaned_at`` marker age and whether that is
-    past the sweep window. When the registry cannot vouch for this cache
-    (unreadable, no ``plugins`` object, or no path in it under this cache) every
-    row is UNKNOWN: a missing registry is not evidence that a version is
-    unreferenced.
+    Excludes depth-1 ``plugins/cache/temp_git_*`` staging clones from plugin
+    version rows via ``ClaudeHarnessClassifier``.
     """
-    cache = claude_dir / "plugins" / "cache"
-    paths = [
-        version
-        for marketplace in _child_dirs(cache)
-        for plugin in _child_dirs(marketplace)
-        for version in _child_dirs(plugin)
+    classifier = ClaudeHarnessClassifier()
+    ctx = WalkContext(
+        target=claude_dir / "plugins" / "cache",
+        home=Path.home(),
+        tmp_dir=tmp_root(),
+        claude_dir=claude_dir,
+        now=now,
+        liveness=UnavailableLivenessAdapter(),
+    )
+    classified = classifier.classify_plugin_cache(claude_dir, ctx)
+    return [
+        _row_from_classification(Path(path_str), cls)
+        for path_str, cls in classified.items()
+        if cls.category == "plugin-cache-version"
     ]
-    if not paths:
-        return []
-    registry = claude_dir / INSTALLED_PLUGINS
-    read = functools.partial(_read_guarded, claude_dir)
-    known = load_registry(read, claude_dir, registry.name)
-    rows = []
-    for path in paths:
-        evidence = None
-        if known.doubt:
-            disposition = "UNKNOWN"
-            reason = f"{known.doubt}; the registry cannot show whether this version is installed"
-        elif resolve(path) in known.referenced:
-            disposition = "KEEP"
-            reason = f"an installPath in {registry.name} points at this installed version"
-            evidence = {"tool": "claude-code", "references": str(registry)}
-        else:
-            evidence = orphan_marker(read, path.relative_to(claude_dir).as_posix(), now)
-            disposition = "CANDIDATE"
-            reason = _orphan_reason(registry.name, evidence, known.installs)
-        rows.append(
-            make_row(
-                path,
-                producer=path.parent.name,
-                category="plugin-cache-version",
-                disposition=disposition,
-                reason=reason,
-                evidence=evidence,
-            )
-        )
-    return rows
 
 
 def tmp_entries(
@@ -422,122 +326,54 @@ def tmp_entries(
     min_age_days: float = TMP_MIN_AGE_DAYS,
     producers: tuple[tuple[str, str, str | None], ...] = TMP_PRODUCERS,
 ) -> list[dict[str, Any]]:
-    """One row per top-level entry of ``tmp_dir``, attributed by producer name prefix.
-
-    An unattributed entry is UNKNOWN. An attributed one stays when its producer
-    rule names a reason, when a running process uses it, or when it changed
-    inside ``min_age_days``; otherwise it is a candidate, or UNKNOWN when
-    ``running`` is None (process table not read).
-    """
+    """One row per top-level entry of ``tmp_dir``, attributed by producer name prefix."""
+    live = _liveness_from_running(running)
+    classifier = TmpProducerClassifier(min_age_days=min_age_days, producers=producers)
+    ctx = WalkContext(
+        target=tmp_dir,
+        home=Path.home(),
+        tmp_dir=tmp_dir,
+        claude_dir=None,
+        now=now,
+        liveness=live,
+    )
+    classifier.prepare(ctx)
     rows: list[dict[str, Any]] = []
-    running = None if running is None else set(running)
     try:
-        entries = sorted(tmp_dir.iterdir())
+        entries = sorted(tmp_dir.resolve().iterdir())
     except OSError:
         return rows
     for path in entries:
-        match = next((p for p in producers if path.name.startswith(p[0])), None)
-        try:
-            age = (now - os.lstat(path).st_mtime) / DAY
-            used = _in_use(path, running or ())
-        except OSError:
-            continue
-        _, producer, keep_reason = match or (None, "unknown", None)
-        if match is None:
-            disposition, reason = "UNKNOWN", "no producer prefix rule matches this name"
-        elif keep_reason:
-            disposition, reason = "KEEP", keep_reason
-        elif used:
-            disposition, reason = "KEEP", f"a running process uses {used}"
-        elif age < min_age_days:
-            disposition = "KEEP"
-            reason = (
-                f"changed {age:.1f} days ago, inside the {min_age_days:g}-day window "
-                f"in which a live {producer} run may still use it"
-            )
-        elif running is None:
-            disposition = "UNKNOWN"
-            reason = (
-                f"{producer} leftover unchanged for {age:.0f} days; the process table "
-                "was not read, so whether a process uses it is not known"
-            )
-        else:
-            disposition = "CANDIDATE"
-            reason = f"{producer} leftover unchanged for {age:.0f} days; no running process uses it"
-        rows.append(
-            make_row(
-                path,
-                producer=producer,
-                category="tmp-producer",
-                disposition=disposition,
-                reason=reason,
-            )
-        )
+        cls = classifier._by_path.get(str(path))
+        if cls is not None:
+            rows.append(_row_from_classification(path, cls))
     return rows
 
 
-def _encode_project(path: str) -> str:
-    return re.sub(r"[^A-Za-z0-9]", "-", path)
-
-
 def decode_project(encoded: str, fs_root: Path = Path("/")) -> str | None:
-    """The existing path under ``fs_root`` whose encoding is ``encoded``, or None.
-
-    The encoding replaces every non-alphanumeric character with ``-``, so a name
-    has no unique decoding; the directory tree settles which reading exists.
-    """
-
-    def walk(base: Path, rest: str) -> Path | None:
-        try:
-            names = os.listdir(base)
-        except OSError:
-            return None
-        for name in names:
-            code = _encode_project(name)
-            if rest == code:
-                return base / name
-            if rest.startswith(code + "-") and (base / name).is_dir():
-                found = walk(base / name, rest[len(code) + 1 :])
-                if found:
-                    return found
-        return None
-
-    found = walk(fs_root, encoded[1:])
-    return None if found is None else "/" + found.relative_to(fs_root).as_posix()
-
-
-PROJECT_NAME_CAP = 200
+    """The existing path under ``fs_root`` whose encoding is ``encoded``, or None."""
+    return ProjectSlugResolver(fs_root=fs_root).decode_slug(encoded)
 
 
 def project_transcripts(
     projects_dir: Path, fs_root: Path = Path("/")
 ) -> list[dict[str, Any]]:
-    """Rows for ``~/.claude/projects/<encoded>``; a source path that is gone makes a candidate."""
-    rows = []
-    for path in _child_dirs(projects_dir):
-        name = path.name
-        evidence = None
-        if not name.startswith("-") or len(name) > PROJECT_NAME_CAP:
-            disposition = "UNKNOWN"
-            reason = "the name is not a decodable POSIX path encoding"
-        elif (source := decode_project(name, fs_root)) is None:
-            disposition = "CANDIDATE"
-            reason = "transcripts of a project whose source path no longer exists"
-        else:
-            disposition = "KEEP"
-            reason = f"transcripts of {source}, which still exists"
-            evidence = {"tool": "claude-code", "references": source}
-        rows.append(
-            make_row(
-                path,
-                producer="claude-code",
-                category="transcript-dir",
-                disposition=disposition,
-                reason=reason,
-                evidence=evidence,
-            )
-        )
-    return rows
+    """Rows for ``~/.claude/projects/<encoded>`` via ``ClaudeHarnessClassifier``."""
+    classifier = ClaudeHarnessClassifier()
+    ctx = WalkContext(
+        target=projects_dir,
+        home=Path.home(),
+        tmp_dir=tmp_root(),
+        claude_dir=None,
+        now=0.0,
+        liveness=UnavailableLivenessAdapter(),
+        fs_root=fs_root,
+    )
+    classified = classifier.classify_projects(projects_dir, ctx)
+    return [
+        _row_from_classification(Path(path_str), cls)
+        for path_str, cls in classified.items()
+    ]
 
 
 def dangling_row(path: Path) -> dict[str, Any]:
@@ -552,30 +388,6 @@ def dangling_row(path: Path) -> dict[str, Any]:
         disposition="CANDIDATE",
         reason=f"points to {os.readlink(path)}, which does not exist",
     )
-
-
-FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
-UNCLASSIFIED = {
-    "producer": "unknown",
-    "category": "unclassified",
-    "disposition": "UNKNOWN",
-    "reason": "no category rule attributes this entry",
-}
-
-
-def _descends(st: os.stat_result) -> bool:
-    return stat.S_ISDIR(st.st_mode) and not (
-        getattr(st, "st_file_attributes", 0) & FILE_ATTRIBUTE_REPARSE_POINT
-    )
-
-
-def _within(path: Path, root: Path) -> bool:
-    return path == root or root in path.parents
-
-
-def _dotted_versions(names: Iterable[str]) -> bool:
-    dotted = (VERSION_RE.match(name) for name in names)
-    return sum(1 for m in dotted if m and "." in m.group(1)) >= 2
 
 
 def tmp_root() -> Path:
@@ -595,16 +407,28 @@ def category_rows(
     tmp_dir: Path,
     now: float,
     running: set[str] | None,
+    claude_dir: Path | None | Any = _UNSET,
 ) -> dict[str, dict[str, Any]]:
-    """Rows of each category whose root lies inside ``target``, keyed by name."""
+    """Rows of each category overlapping ``target``, keyed by path string."""
     rows: list[dict[str, Any]] = []
-    claude_dir = home / ".claude"
-    if _within(claude_dir, target):
-        rows += plugin_cache_versions(claude_dir, now)
-        rows += project_transcripts(claude_dir / "projects")
-    if _within(tmp_dir, target):
+    resolved_claude = (
+        resolve_claude_dir(home=home) if claude_dir is _UNSET else claude_dir
+    )
+    if resolved_claude is not None:
+        if _overlaps(resolved_claude / "plugins" / "cache", target):
+            rows += plugin_cache_versions(resolved_claude, now)
+        if _overlaps(resolved_claude / "projects", target):
+            rows += project_transcripts(resolved_claude / "projects")
+    if _overlaps(tmp_dir, target):
         rows += tmp_entries(tmp_dir, now, running)
     return {row["name"]: row for row in rows}
+
+
+def _default_classifiers() -> tuple[EntryClassifierPort, ...]:
+    return default_classifiers(
+        tmp_producers=TMP_PRODUCERS,
+        link_producers=LINK_PRODUCERS,
+    )
 
 
 def inventory_rows(
@@ -617,30 +441,53 @@ def inventory_rows(
     running: Iterable[str] | None = (),
     skip: frozenset[str] = frozenset(),
     mounts: frozenset[str] = frozenset(),
+    claude_dir: Path | None | Any = _UNSET,
+    liveness: VersionLivenessPort | None = None,
+    classifiers: Sequence[EntryClassifierPort] | None = None,
+    fs_root: Path = Path("/"),
 ) -> Iterable[dict[str, Any]]:
     """Yield one row per entry of ``target``, the target itself last.
 
-    ``deep`` lists every level, each directory after its contents with the
-    sum of their sizes; otherwise only the immediate children, each directory
-    sized by its own walk. A category row replaces the unclassified row at its
-    path. A directory that cannot be read, or that is a mount point (another
-    device, or a path in ``mounts``, which also catches a bind mount on the
-    same device), is one UNKNOWN row and is not entered. Paths in ``skip`` (the
-    report being written) are left out. ``running`` is the process table; None
-    means it was not read, so rows that rest on it are UNKNOWN.
+    Single-pass mount-safe and ``st_dev``-safe sizing: classifiers return
+    ``Classification`` metadata only and never pre-walk sizes. A directory that
+    cannot be read, or that is a mount point (another device, or a path in
+    ``mounts``, which also catches a bind mount on the same device), is one
+    UNKNOWN row and is not entered. Paths in ``skip`` (the report being written)
+    are left out.
     """
-    running = None if running is None else set(running)
-    launcher_dirs = (home / ".local" / "bin", home / "bin")
-    overrides = category_rows(
-        target, home=home, tmp_dir=tmp_dir, now=now, running=running
+    live = _liveness_from_running(running, liveness)
+    resolved_claude: Path | None
+    if claude_dir is _UNSET:
+        resolved_claude = resolve_claude_dir(home=home)
+    elif claude_dir is None:
+        resolved_claude = None
+    else:
+        resolved_claude = Path(claude_dir).expanduser()
+
+    ctx = WalkContext(
+        target=target,
+        home=home,
+        tmp_dir=tmp_dir,
+        claude_dir=resolved_claude,
+        now=now,
+        liveness=live,
+        fs_root=fs_root,
     )
+
+    active_classifiers: list[EntryClassifierPort] = (
+        list(classifiers) if classifiers is not None else list(_default_classifiers())
+    )
+    for clf in active_classifiers:
+        clf.prepare(ctx)
+
+    dir_classifications: dict[str, Classification] = {}
 
     def children(directory: Path) -> list[tuple[Path, os.stat_result | None, str]]:
         with os.scandir(directory) as it:
             entries = sorted(it, key=lambda e: e.name, reverse=True)
-        if _dotted_versions(e.name for e in entries):
-            for row in superseded_versions([directory], running, launcher_dirs):
-                overrides.setdefault(row["name"], row)
+        for clf in active_classifiers:
+            for key, cls in clf.classify_directory(directory, entries).items():
+                dir_classifications.setdefault(key, cls)
         found: list[tuple[Path, os.stat_result | None, str]] = []
         for entry in entries:
             if entry.path in skip:
@@ -651,12 +498,26 @@ def inventory_rows(
                 found.append((Path(entry.path), None, f"{type(exc).__name__}: {exc}"))
         return found
 
+    def classify(path: Path, st: os.stat_result) -> Classification | None:
+        for clf in active_classifiers:
+            hit = clf.classify_entry(path, st)
+            if hit is not None:
+                return hit
+        return dir_classifications.get(str(path))
+
     def row(path: Path, st: os.stat_result, size: int) -> dict[str, Any]:
-        found = overrides.get(str(path))
-        if found is not None:
-            return found
-        if stat.S_ISLNK(st.st_mode) and not path.exists():
-            return dangling_row(path)
+        cls = classify(path, st)
+        if cls is not None:
+            return _stat_row(
+                path,
+                st,
+                size,
+                producer=cls.producer,
+                category=cls.category,
+                disposition=cls.disposition,
+                reason=cls.reason,
+                evidence=cls.evidence,
+            )
         return _stat_row(path, st, size, **UNCLASSIFIED)
 
     def not_entered(path: Path, st: os.stat_result, why: str) -> dict[str, Any]:
@@ -670,6 +531,7 @@ def inventory_rows(
             reason=f"{why}; its contents and size are not counted",
         )
 
+    target = Path(target).resolve()
     root_st = os.lstat(target)
     try:
         stack = [(target, root_st, children(target), [0])]
@@ -708,7 +570,11 @@ def inventory_rows(
             except OSError as exc:
                 yield not_entered(path, st, f"unreadable ({type(exc).__name__}: {exc})")
             continue
-        size = _tree_size(path, mounts) if _descends(st) else st.st_size
+        size = (
+            _tree_size(path, mounts=mounts, root_dev=root_st.st_dev)
+            if _descends(st)
+            else st.st_size
+        )
         total[0] += size
         yield row(path, st, size)
 
@@ -734,15 +600,7 @@ def _shows_reference(reason: str, evidence: object) -> bool:
 
 
 def validate_report(rows: Iterable[dict[str, Any]]) -> list[str]:
-    """Failures of a report; an empty list means it passes.
-
-    Every row needs the schema columns except the optional ``evidence`` and a
-    valid disposition. A KEEP row fails when its reason is empty, which names no
-    tool, so no evidence can stand in for it. It also fails when its reason is
-    only a category phrase ("tool-managed", "OS-owned", "managed by <tool>"),
-    unless the phrase names a tool ("managed by <tool>") and the row's evidence
-    shows that tool still references the entry.
-    """
+    """Failures of a report; an empty list means it passes."""
     failures = []
     for index, row in enumerate(rows):
         label = str(row.get("name") or f"row {index}")
@@ -768,3 +626,131 @@ def validate_report(rows: Iterable[dict[str, Any]]) -> list[str]:
                 "and no evidence shows the named tool still references the entry"
             )
     return failures
+
+
+def _linux_mount_points(mountinfo: Path = Path("/proc/self/mountinfo")) -> frozenset[str]:
+    """Read Linux mount points for standalone CLI runs; empty set when unavailable."""
+    try:
+        text = mountinfo.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return frozenset()
+    found: set[str] = set()
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) < 5:
+            continue
+        point = re.sub(
+            r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), parts[4]
+        )
+        found.add(point)
+    return frozenset(found)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Standalone read-only JSONL inventory CLI (zero ``--data-root``, zero writes by default)."""
+    parser = argparse.ArgumentParser(
+        prog="deep_inventory.py",
+        description="Read-only deep disk inventory streaming validated JSONL rows.",
+    )
+    parser.add_argument("target", help="Directory to inventory.")
+    depth = parser.add_mutually_exclusive_group()
+    depth.add_argument(
+        "--deep",
+        action="store_true",
+        help="Walk every nested directory (default when TARGET is $HOME).",
+    )
+    depth.add_argument(
+        "--shallow",
+        action="store_true",
+        help="Emit only immediate children (and TARGET itself).",
+    )
+    parser.add_argument(
+        "--out",
+        default=None,
+        help="Write JSONL rows to PATH instead of stdout.",
+    )
+    parser.add_argument(
+        "--claude-dir",
+        default=None,
+        help="Claude config directory (default: $CLAUDE_CONFIG_DIR or ~/.claude).",
+    )
+    parser.add_argument(
+        "--no-claude",
+        action="store_true",
+        help="Disable Claude harness classifiers.",
+    )
+    parser.add_argument(
+        "--no-validate",
+        action="store_true",
+        help="Skip KEEP-reason validation.",
+    )
+    args = parser.parse_args(list(argv) if argv is not None else None)
+
+    target_input = Path(args.target).expanduser()
+    if not target_input.is_dir():
+        print(f"error: target is not an existing directory: {args.target}", file=sys.stderr)
+        return 2
+    target = target_input.resolve()
+    home = Path.home().resolve()
+    if args.deep:
+        deep = True
+    elif args.shallow:
+        deep = False
+    else:
+        deep = target == home
+
+    claude_dir: Path | None
+    if args.no_claude:
+        claude_dir = None
+    elif args.claude_dir:
+        claude_dir = Path(args.claude_dir).expanduser()
+    else:
+        claude_dir = resolve_claude_dir(home=home)
+
+    out_path = Path(args.out).expanduser().resolve() if args.out else None
+    skip = frozenset({str(out_path)}) if out_path is not None else frozenset()
+    mounts = _linux_mount_points()
+    liveness = ProcLivenessAdapter()
+    now = dt.datetime.now(dt.timezone.utc).timestamp()
+
+    failures: list[str] = []
+    stream_rows = inventory_rows(
+        target,
+        deep=deep,
+        home=home,
+        tmp_dir=tmp_root(),
+        now=now,
+        liveness=liveness,
+        skip=skip,
+        mounts=mounts,
+        claude_dir=claude_dir,
+    )
+
+    if out_path is not None:
+        try:
+            with out_path.open("w", encoding="utf-8") as fh:
+                for item in stream_rows:
+                    fh.write(json.dumps(item, sort_keys=True) + "\n")
+                    if not args.no_validate:
+                        failures.extend(validate_report([item]))
+        except OSError as exc:
+            print(f"error: cannot write --out {out_path}: {exc}", file=sys.stderr)
+            return 2
+    else:
+        try:
+            for item in stream_rows:
+                sys.stdout.write(json.dumps(item, sort_keys=True) + "\n")
+                if not args.no_validate:
+                    failures.extend(validate_report([item]))
+        except BrokenPipeError:
+            return 0
+
+    if failures:
+        for msg in failures:
+            print(f"validation error: {msg}", file=sys.stderr)
+        return 3
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

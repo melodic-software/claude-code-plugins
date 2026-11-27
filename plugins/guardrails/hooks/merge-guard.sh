@@ -12,7 +12,7 @@ _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 source "$_HOOK_SELF/abort-boundary.sh"
 guard::abort_boundary merge-guard PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
-source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
+source "$_HOOK_SELF/hook-utils.sh" || exit 70
 
 _bupm_enabled="${CLAUDE_PLUGIN_OPTION_MERGE_GUARD_ENABLED:-true}"
 start=${EPOCHREALTIME:-}
@@ -28,19 +28,19 @@ COMMAND="${HOOK_JQ_FIELDS[0]}"
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 BUPM_CWD="${HOOK_JQ_FIELDS[2]}"
 
-BUPM_FORM=""  # gh-pr-merge | rest-merge | ccr-auto-merge | graphql | mcp | backtick
-BUPM_AUTO=0   # 1: the request waits for checks (auto-merge or merge queue)
-BUPM_REPO=""  # owner/repo, may hold gh's {owner}/{repo} placeholders
+BUPM_FORM=""
+BUPM_AUTO=0
+BUPM_REPO=""
 BUPM_NUM=""
-BUPM_SEL=""   # gh pr merge selector: number, URL or branch; empty = current branch
-BUPM_NODE=""  # GraphQL PullRequest node id
+BUPM_SEL=""
+BUPM_NODE=""
 BUPM_UNRESOLVED=""
 BUPM_MERGES=0
 BUPM_BT=0
 BUPM_CONT=0
-BUPM_CD=0     # 1: a segment changes directory (cd, pushd, popd, Set-Location)
-BUPM_GHREPO=0 # 1: the command text names GH_REPO or GH_HOST
-BUPM_HOST=""  # a host other than github.com that qualified the repo
+BUPM_CD=0
+BUPM_GHREPO=0
+BUPM_HOST=""
 BUPM_SHELL=0
 BUPM_UNLABEL=0
 BUPM_UNLABEL_VAR=0

@@ -1123,7 +1123,7 @@ fi
 rm -rf "$fx" "$tok"
 
 BAD_TOKENS="$(mktemp "$TMP_ROOT/f.XXXXXX")"
-printf '%s\n' '(unterminated' >"$BAD_TOKENS" # unmatched '(' -- invalid ERE, awk faults
+printf '%s\n' '(unterminated' >"$BAD_TOKENS"
 f="$(tmpsh 'grep -Eq foo bar')"
 SHELL_PORTABILITY_TOKENS="$BAD_TOKENS" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1
 if [[ "$?" -eq 2 ]]; then
@@ -1288,7 +1288,7 @@ fi
 rm -rf "$fx"
 
 fixture_tree::build fx --sut "$SCRIPT"
-quoted_name="$(printf 'quoted-\303\251.sh')" # trailing U+00E9 byte -- non-ASCII, triggers Git quoting
+quoted_name="$(printf 'quoted-\303\251.sh')"
 out="$(
   cd "$fx" &&
     git_init_test_repo "$fx" &&

@@ -1,5 +1,57 @@
 # Changelog: session-flow plugin
 
+## [10.10.1] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [10.10.0] - 2026-11-26
+
+### Added
+
+- **The handoff prints a mobile form on the Claude mobile app.** `save_point.py emit --format mobile` wraps the prompt prose to fit a phone, keeps the path, session and next-step lines whole, and drops the terminal-only `claude --resume` note. Each surface's panel and checklist rules now live in the handoff's own `reference/surface/<surface>.md`, read only on that surface.
+
+## [10.9.0] - 2026-11-26
+
+### Added
+
+- `tidy_work.py` classifies `git-clone` directories (without walking `.git/objects`), `recovery-archive` files and directories (`.bundle`, `.tar`, `.tar.gz`, `.tgz`, `.zip`), all 11 active skill concern directories, and custom `extra_concern_dirs` from `<convention_home>/session-flow.yaml` or repeatable `--extra-concern-dir`.
+- `tidy_work.py` adds `--scope {all,repo,home}` and parses repo-qualified frontmatter, headers, and `owner--repo` slugs in `~/.work/running-retros/`.
+- `plugin_paths.py` owns shared `git_toplevel`, `default_memory_dir`, `is_self_ignored` (accepting `*` or `**` uniformly across `tidy_work.py`, `save_point.py`, and `observer.py`), and `validate_memory_root`; `save_point.py` exposes public `handoff_chain_meta`, removing all private `save_point._*` imports from `tidy_work.py`.
+
+### Changed
+
+- The shared `session-attended.env`, `session-attended.sh` and `session-attended.mjs` copies gain a reader for `CLAUDE_CODE_EXECPATH`, which the fleet peer list uses; the attended predicate and session-flow's behavior do not change.
+
+- `transcript_dirs.sh` delegates project directory resolution to one invocation of the shared Python 3.10-compatible `lib/claude_projects.py` resolver while keeping the pure-Bash exact-match fallback and `gap:` notice when Python 3.10+ is absent.
+
+## [10.8.0] - 2026-11-26
+
+### Added
+
+- Observer `parse_failed` usage rows, check and gate, record why the reply was rejected (`reason`: `no_finding`, `no_rule`, `bad_category` or `field_too_long:<field>`) and, when the reply had a finding, the `lengths` of its finding, rule and evidence; the reply text is never recorded.
+
+### Changed
+
+- Shared `enforcement-ladder.md` copy synced where this plugin carries it: citations of retired ADRs repointed or unlinked; no other change to this plugin.
+
+## [10.7.2] - 2026-11-26
+
+### Changed
+
+- `/session-flow:audit-sessions` and `/session-flow:recall` point at the Bash timeout limits, the `cleanupPeriodDays` setting and the plugin reference's saved-value section for the timeout ceiling, transcript retention and `${user_config.*}` substitution, instead of stating them ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [10.7.1] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+### Fixed
+
+- `reference/observer.md` now documents the harness checks: what each of the five checks reads and when it reports, how a finding names its fix, and the nine `observer_*` options that tune them.
+
 ## [10.7.0] - 2026-11-26
 
 ### Changed

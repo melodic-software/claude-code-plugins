@@ -96,9 +96,9 @@ the parts the evidence decides.
    `style-src` hash covers the overrides (`docs/contracts/rendered-views/README.md:180`).
 7. **Drift is caught by checks, not prose.**
    - **The copies match their canonical.** The token layer joins the existing shared-copies gate:
-     `scripts/sync-shared-copies.sh --check`, run in CI by `pr-require-checks.yml:2909-2911`, fails
+     `scripts/sync-shared-copies.sh --check`, run in CI by `pr-require-checks.yml:2219-2221`, fails
      a copy that differs from what `lib/html-tokens.css` generates, and `--check-bump`
-     (`pr-require-checks.yml:2643`) fails a canonical change that does not bump each carrying
+     (`pr-require-checks.yml:2013`) fails a canonical change that does not bump each carrying
      plugin. Registering the copies is all it takes.
    - **A page takes its palette and stacks from the layer.** A new check fails a page source that
      defines a palette role or a type stack with a literal value outside the token layer. That

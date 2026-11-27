@@ -117,9 +117,9 @@ async function sweep(page, scopeSel) {
 
 async function main() {
   const pw = loadPlaywright();
-  if (!pw) { console.log("SKIP: ui_keyboard.js needs playwright-core (npm ci, or playwright-cli on PATH)"); return 0; } // silent-skip-ok: a browser suite needs a local Playwright
+  if (!pw) { console.log("SKIP: ui_keyboard.js needs playwright-core (npm ci, or playwright-cli on PATH)"); return 0; }
   let browser;
-  try { browser = await pw.chromium.launch(); } catch (e) { console.log(`SKIP: no Chromium to launch (${String(e.message).split("\n")[0]})`); return 0; } // silent-skip-ok: no browser binary
+  try { browser = await pw.chromium.launch(); } catch (e) { console.log(`SKIP: no Chromium to launch (${String(e.message).split("\n")[0]})`); return 0; }
   const s = suite("ui_keyboard"), { ok } = s, rec = recorder(browser), skipped = [];
   try {
     const A = await s.start("keyboard");
@@ -384,8 +384,6 @@ async function main() {
     ok("the host's tour rings Share, the Inbox for Needs you, and the round's Send", ["Share the link@.vf-sharebtn", "Needs you@.vf-bell", "Send the round@.vf-round-cur .vf-send"].every(x => hostSteps.includes(x)), hostSteps.join(" | "));
     ok("  and skips a guest's Discussion and chat steps", !hostSteps.some(x => /^(Discussion|Chat with people)@/.test(x)), hostSteps.join(" | "));
 
-    // animation-audit I4: once the round is sent, the current step's dot breathes a few times and stops (WCAG 2.2.2:
-    // no auto-playing motion past 5 s beside other content).
     await owner.evaluate(() => window.Core.sendRound());
     await until(tia, () => !!document.querySelector('.vf-step[data-state="now"] .vf-step-dot')?.offsetParent);
     const breathe = await tia.evaluate(() => {

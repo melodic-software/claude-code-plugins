@@ -1,19 +1,5 @@
 // test-scope: .github/workflows/*.yml
 // test-scope: .github/scripts/maintenance-reconcile-lost-runs/fixtures/*
-// Expected values come from the reconciler's spec: a CI run on a PR's current
-// head whose newest attempt ended cancelled, timed_out or startup_failure,
-// with no newer run of that workflow on the head, is re-run once; at most 3
-// PR CI sets are in flight; mutating calls are at least 1 s apart; nothing is
-// re-run while githubstatus.com shows Actions as anything but operational.
-// Run and PR shapes follow a recorded REST response (a cancelled
-// pr-require-checks run, an open PR); fixtures/components.json is a recorded
-// githubstatus.com components response, trimmed. A pr-verify run whose first
-// attempt ended cancelled, timed_out, startup_failure or failure is re-run
-// once, only after the plan names its record
-// reconcile-rerun-<run id>-2-<head sha> for the upload steps, only when a
-// job of that attempt started, and never when its verdict write started;
-// pr-verify run shapes follow a recorded workflow_run run (head_branch main,
-// head_sha the main tip, no pull_requests).
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -21,7 +7,8 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../lib/github-client.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CI_WORKFLOWS, DEFER_MAX, DEFER_NOTE, DEFER_STEP, RECORD_SLOTS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_JOB_PREFIXES, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, reviewStopped, reviewStopsAmidGateNotes, SETTLED_VERSION, TOO_OLD_DAYS, TRUNCATED_STEPS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { deferResets, stopRecordLine } from "../../actions/check-kill-switch/stop-record.mjs";
+import { CI_WORKFLOWS, DEFER_MAX, DEFER_STEP, RECORD_SLOTS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_JOB_PREFIXES, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, reviewStopped, reviewStopsAmidGateNotes, SETTLED_VERSION, TOO_OLD_DAYS, TRUNCATED_STEPS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { listCommits } from "../lib/trusted-actors.fixtures.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -94,8 +81,6 @@ function fakeGitHub({ pulls, runs = [], fail = {}, statuses = {} }) {
     }
     const byWorkflow = /^\/repos\/[^/]+\/[^/]+\/actions\/workflows\/([a-z0-9-]+\.yml)\/runs\?created=%3E%3D([0-9-]+T[0-9]{2}%3A[0-9]{2}%3A[0-9]{2}Z)(?:&status=([a-z_]+))?&per_page=100(?:&page=([0-9]+))?$/.exec(path);
     if (method === "GET" && byWorkflow) {
-      // Like GitHub, `status` matches a run's status or its conclusion, and
-      // `created` takes the runs created at or after it.
       const after = Date.parse(decodeURIComponent(byWorkflow[2]));
       const found = runs.filter(
         (r) =>
@@ -211,10 +196,6 @@ async function reconcile({ pulls, runs, status = STATUS, upstream = UPSTREAM_OK,
   }
 }
 
-// A first-attempt job of pr-verify, lost before (null) or after its judge step
-// started; by default it was lost in the trigger check, before the judge step.
-// A finished job lists every step completed, the ones it never reached as
-// skipped, and ends with "Complete job".
 const verifyJob = (judgeConclusion = null) => [
   {
     name: "verify",
@@ -269,9 +250,6 @@ test("a run already re-fired is not re-fired again", async () => {
   assert.equal(calls.filter((c) => c.startsWith("POST ")).length, 0);
 });
 
-// #9828: pr-require-checks run 40118648493 ended cancelled at attempt 2 too
-// (test-bash (3) past its 9-minute limit both times). It is not re-run again,
-// and the summary names the head, the run, the attempt and who takes it.
 test("a CI run lost again at attempt 2 is named in the summary, not re-run", async () => {
   const dir = tempDir("reconcile-summary-");
   try {
@@ -395,8 +373,6 @@ test("the first rate-limit error stops the run", async () => {
   assert.equal(calls.filter((c) => c.startsWith("POST ")).length, 0);
 });
 
-// The rate guard's refusal carries status 429: it stops the run like a 429
-// answer, with no request sent and no wait taken.
 test("a call the rate guard refuses stops the run without a request or a wait", async () => {
   const dir = tempDir("reconcile-stop-");
   try {
@@ -437,7 +413,6 @@ test("a refused re-run is reported and the rest go ahead", async () => {
 });
 
 test("a re-run GitHub accepts with its empty 201 response counts as done", async () => {
-  // The re-run endpoint answers 201 with no body; the real client parses it.
   const { code, reruns } = await reconcile({
     pulls: [pr(1)],
     runs: [run(101, sha(1))],
@@ -596,9 +571,6 @@ test("a verify run lost during its judge step is recorded and re-run once", asyn
   }
 });
 
-// The judge step is continue-on-error, so the jobs API lists it as success
-// even when it broke; only the verdict write, which runs on its true outcome,
-// shows that the judgment finished.
 test("a verify run whose judge step lists success but whose verdict write was skipped is re-run once", async () => {
   const [job] = verifyJob("success");
   const steps = job.steps.flatMap((s) => (s.name === "Upload the verdict" ? [{ name: WRITE_STEP, status: "completed", conclusion: "skipped" }, s] : [s]));
@@ -639,10 +611,6 @@ test("a verify run whose verdict write started is held with its reason, not re-r
   }
 });
 
-// A leg that hands off ends its judge step on a lane class, which fails the
-// launcher, so its verdict write skips (run-claude-cli lane.cjs handoffReason
-// needs a class; a class throws); the judge step lists success, being
-// continue-on-error. Only the fallback leg's own steps tell the runs apart.
 test("a verify run is read across all three legs: a fallback write held, a fallback loss re-run", async () => {
   const handedOff = (name) => ({
     name,
@@ -725,11 +693,6 @@ test("a verify run that failed on its first attempt is recorded and re-run once"
   assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""]);
 });
 
-// A pr-verify check-intent job whose resolver held green on a GitHub fault: it
-// ran pr-verify.yml's "Note the hold" step, and its check run carries the
-// resolver's notice (resolve-pr.mjs closing), as GitHub lists a
-// `::notice title=pr-verify::held: ...` line. `marked` false is a run the
-// resolver skipped, whose marker step skipped too.
 const heldJob = ({ marked = true, notes = [{ annotation_level: "notice", title: "pr-verify", message: "held: pr-verify could not resolve the pull request: GET /repos/x failed with status 502" }] } = {}) => [
   {
     id: 7001,
@@ -957,9 +920,6 @@ test("a verify run with a final job listing and unknown steps is held and carrie
   }
 });
 
-// A runner that dies cuts its job's list at the running step, with no
-// "Complete job"; GitHub's runner-loss annotation on the job's check run tells
-// that cut from one the API made.
 test("a verify run whose job lost its runner is re-run when its cut list stops before the judge step, from the job's annotations", async () => {
   const lostAt = (running) => ({
     id: 88,
@@ -1712,8 +1672,6 @@ test("an infra-only run waits while npm or GitHub reports an incident, or either
   }
 });
 
-// The status page's indicator reaches the log through `say`: a newline in it
-// must not start a line the runner reads as a workflow command.
 test("a status-page indicator holding a newline and a workflow command logs no command line", async (t) => {
   const log = t.mock.method(console, "log", () => {});
   const injected = "minor\n::set-output name=plan::x\r::warning::y";
@@ -1753,8 +1711,6 @@ test("a re-run still going under a newer failed contract-only run takes a place 
 });
 
 const INTAKE = ".github/workflows/intake-triage.yml";
-// An intake-triage run's jobs as the API names them: a job that calls a
-// reusable workflow is listed as `<caller job> / <called job>`.
 const intakeJob = (name, conclusion) => ({ id: name.length * 1000 + 7, name, status: "completed", conclusion, steps: [] });
 const LABEL_FAILED = [
   intakeJob("Kill Switch", "success"),
@@ -1778,9 +1734,6 @@ test("an intake run from before the job rename, its floor label named intake-lab
   assert.deepEqual(failedJobReruns, [301]);
 });
 
-// rerun-failed-jobs re-runs every failed job, so a run where any other job
-// failed (the model triage, a gate) would start that job again as
-// github-actions[bot]: only the floor label is re-run here.
 test("an intake run where any job but the floor label failed, or none did, is left alone", async () => {
   const runs = [
     intakeRun(301, { jobs: [intakeJob("Kill Switch", "success"), intakeJob("Intake Triage / triage", "failure"), intakeJob("Intake Label Needs Triage / label", "success")] }),
@@ -1880,8 +1833,6 @@ test("the marker upload comes after the plan and before the act step, kept longe
   assert.match(step, /if: steps\.plan\.outputs\.deferral == 'true'\n/);
   assert.match(step, /name: pr-feedback-deferral\n/);
   assert.match(step, /retention-days: 2$/);
-  // A failed upload skips the act step (no status function there), so no
-  // record is written without its marker.
   assert.match(text, /- name: Re-run lost runs\n {8}if: \(steps\.reset\.outputs\.due != 'false' && steps\.pace\.outputs\.paced != 'true' && steps\.recent\.outputs\.skip != 'true'\) \|\| steps\.recent\.outputs\.followup == 'true'\n/);
 });
 
@@ -1953,19 +1904,11 @@ test("a CI set with no stopped review carries one record, so the cap of 3 bounds
   assert.deepEqual(reruns.sort(), [101, 102, 103, 201, 202, 203]);
 });
 
-// A head whose pr-verify pass the spec changed under after the pass: resolve-pr
-// (pr-verify's own resolver) answers `spec-changed`, and the head's passed
-// checks run is re-run once, recorded, so pr-verify judges the head again.
-// Shapes follow resolve-pr.test.mjs: GET /commits/{sha}/pulls,
-// /actions/artifacts?name=, and the closingIssuesReferences GraphQL field.
 const LANE = "melodic-automation-lanes[bot]";
 const PASS_RUN = 701;
 const PASS_STARTED = "2026-10-19T19:30:00Z";
 const PASS_EXPIRES = "2026-10-20T19:30:00.000Z";
-// The first 16 hex digits of `printf %s fix/1 | sha256sum`, pr(1)'s head ref.
 const FIX_1_DIGEST = "fe65f143bd3d5845";
-// The pre-filter's batched answer holds the issues' comment pages only when its
-// query asks for them, as GitHub answers only the fields a query names.
 const COMMENT_PAGE = "comments(first: 100)";
 const prefilterIssue = (query, { comments = [], ...issue }) => (query.includes(COMMENT_PAGE) ? { ...issue, comments: { totalCount: comments.length, nodes: comments } } : issue);
 
@@ -2329,7 +2272,6 @@ test("a failed standards list read still re-runs a head whose issue was edited a
 
 test("the pre-filter keeps a candidate whose issue has more comments than the page read", async () => {
   const before = "2026-10-19T19:00:00Z";
-  // GitHub's totalCount counts every comment; the page holds the first 100.
   const page = Array.from({ length: 100 }, () => ({ updatedAt: before }));
   const call = async (_method, _apiPath, body) => {
     const issue = prefilterIssue(body.query, { updatedAt: before, lastEditedAt: null, comments: page, repository: { nameWithOwner: REPO } });
@@ -2525,7 +2467,6 @@ const stopJobs = ({ notes = [STOP_LINE()] } = {}) => [
 ];
 const BOT = { login: "github-actions[bot]" };
 const unblockStatus = (state, { context = "pr-unblock/address-feedback", creator = BOT } = {}) => ({ context, state, creator });
-// Newest first, as GitHub lists them: the clear over the stop.
 const cleared = (head = sha(1)) => ({ [head]: [unblockStatus("success"), unblockStatus("failure")] });
 
 test("a ci-status that failed on a pr-unblock stop note is not re-run, even once the stop cleared", async () => {
@@ -3108,6 +3049,41 @@ test("a deferred verify run waits until RATE_RESET_GRACE_MS past the reset its n
   assert.deepEqual(carried.reruns, [371]);
 });
 
+const recordNote = (stop) => ({ annotation_level: "notice", title: "stop-record", message: stopRecordLine(stop).slice("::notice title=stop-record::".length) });
+const NOTE_FORMS = {
+  record: (reset) => [recordNote({ pool: "core", cause: "defer", reset })],
+  both: (reset) => [recordNote({ pool: "core", cause: "defer", reset }), ...deferNote(reset)],
+};
+const verifyNoted = (id, notes) => {
+  const deferred = deferredVerify(id);
+  deferred.jobs[0].notes = notes;
+  return deferred;
+};
+const reviewsNoted = (n, notes) => [redChecks(100 + n, sha(n)), ...[{}, { path: SECURITY_REVIEW }].map((opts, i) => stoppedRun((2 + i) * 100 + n, sha(n), opts, stoppedJobs().map((job) => (job.id === 312 ? { ...job, notes } : job))))];
+
+test("a stop record decides a deferral as the older notice text does, alone or beside it, with the same reads", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const pass = async (notes, now) => {
+    const { code, reruns, calls, outputs } = await reconcile({ pulls: [pr(1)], runs: [...reviewsNoted(1, notes), verifyNoted(371, notes.map((note) => (note.title === "stop-record" ? note : { ...note, title: "pr-verify" })))], env: SWITCHES_OFF, carry: null, now });
+    return { code, reruns, calls, outputs };
+  };
+  for (const now of [RESET_S * 1000 + 60_000, RESET_S * 1000 + 61_000]) {
+    const text = await pass(deferNote(RESET_S), now);
+    for (const [form, notes] of Object.entries(NOTE_FORMS)) {
+      assert.deepEqual(await pass(notes(RESET_S), now), text, `${form} at ${now - RESET_S * 1000} ms past the reset`);
+    }
+  }
+  assert.deepEqual((await pass(deferNote(RESET_S), RESET_S * 1000 + 60_000)).reruns, [], "the pin holds a wait inside the grace");
+  assert.deepEqual((await pass(deferNote(RESET_S), RESET_S * 1000 + 61_000)).reruns.sort(), [201, 301, 371], "and a re-run past it");
+});
+
+test("a switch stop's record names no deferral, so the stopped review re-runs now as an unnoted stop does", async () => {
+  const unnoted = await reconcile({ pulls: [pr(1)], runs: reviewsNoted(1, [{ annotation_level: "notice", message: "api calls: 12" }]), env: SWITCHES_OFF });
+  const switched = await reconcile({ pulls: [pr(1)], runs: reviewsNoted(1, [recordNote({ cause: "switch" })]), env: SWITCHES_OFF });
+  assert.deepEqual(switched.reruns, unnoted.reruns);
+  assert.deepEqual(switched.reruns, [201, 301]);
+});
+
 test("a deferred verify run whose notice names no reset is read again next pass, not re-run", async () => {
   const unnoted = deferredVerify(372);
   unnoted.jobs[0].notes = [{ annotation_level: "notice", message: "api calls: 12" }];
@@ -3146,7 +3122,7 @@ test("pr-verify's deferral step prints the notice the reconciler reads, and runs
   assert.match(step, /^ {8}if: steps\.defer\.outputs\.cause == 'defer'$/m);
   assert.match(step, /^ {10}RESET: \$\{\{ steps\.defer\.outputs\.reset \}\}$/m);
   const line = /echo "(::notice title=pr-verify::.*)"$/m.exec(step)?.[1];
-  assert.equal(DEFER_NOTE.exec(line.replace("${RESET}", "1800000000"))?.[1], "1800000000");
+  assert.deepEqual(deferResets([{ title: "pr-verify", message: line.replace("${RESET}", "1800000000") }]), [1800000000]);
   assert.doesNotMatch(line, /::held: /, "a deferral is not a GitHub fault's hold");
 });
 
@@ -3171,7 +3147,7 @@ test("the hosted callers print the gate's cause and reset in the stop notice the
     const line = /echo "::notice::a kill switch stops this (?:security )?review \(.*"$/m.exec(text)?.[0];
     assert.ok(line, file);
     const shown = line.replace("${CAUSE:-unreadable}", "defer").replace("${RESET:-none}", "1800000000");
-    assert.equal(DEFER_NOTE.exec(shown)?.[1], "1800000000", file);
+    assert.deepEqual(deferResets([{ title: null, message: shown }]), [1800000000], file);
     assert.match(text, /^ {10}RESET: \$\{\{ steps\.kill\.outputs\.reset \}\}$/m, file);
   }
 });
@@ -3235,7 +3211,6 @@ test("only a stopped review on a head ci-status names is re-run", async () => {
     [redChecks(101, sha(1)), stoppedRun(201, sha(1), {}, [stoppedJobs()[1], { id: 314, name: "PR Review / claude-review-status", status: "completed", conclusion: "success", steps: [] }])],
     [redChecks(101, sha(1)), stoppedRun(201, sha(1), {}, stoppedJobs({ report: "skipped" }))],
     [redChecks(101, sha(1)), stoppedRun(201, sha(1), {}, stoppedJobs({ kill: "failure" }))],
-    // Its one re-run is spent, or GitHub's window is past.
     [redChecks(101, sha(1)), stoppedRun(201, sha(1), { attempt: 2 })],
     [redChecks(101, sha(1)), stoppedRun(201, sha(1), { created: "2026-09-19T19:00:00Z" })],
     [failed(101, sha(1), { jobs: switchJobs({ message: "'x' has not finished" }) }), stoppedRun(201, sha(1))],
@@ -3352,10 +3327,6 @@ test("a hosted review run that is not a failed first attempt has no jobs read", 
   }
 });
 
-// A run's attempt-1 jobs never change once it completed, so a run the last
-// pass settled (a held lane run, a failed verdict or floor-label run that is
-// not one to re-run) is not read again; every run to re-run still is. Only a
-// whole, final listing is settled.
 const notStarted = (id) => ({ ...verifyRun(id), jobs: [{ name: "verify", status: "completed", conclusion: "cancelled", steps: [] }] });
 const settledRuns = () => [
   notStarted(202),
@@ -3552,12 +3523,6 @@ test("a lane run deferred for want of a place is not read again while it stays a
   assert.deepEqual(changed.reruns, [202, 201]);
 });
 
-// An open PR's latest-attempt job reads ride the same carry, keyed on run id
-// and attempt, while the head's listing shows that run completed at the same
-// attempt, head and updated_at. Each pin compares a pass with the carry
-// against the same pass without it (the old path); the call counts are the
-// requirement this carry exists for. Jobs follow the REST job shape: a whole
-// step list opening with "Set up job" and ending with "Complete job".
 const jobStep = (number, name, conclusion) => ({ name, number, status: "completed", conclusion });
 const finalJob = (id, name, conclusion, middle) => ({
   id,
@@ -3742,10 +3707,6 @@ test("the pending backoff is at least rerun-ci-status's time limit", () => {
   assert.ok(PENDING_BACKOFF_MINUTES >= limit);
 });
 
-// Runs that failed only where the GITHUB_TOKEN hit its rate-limit floor on
-// 2026-11-16 (#16642). The annotations are recorded: CI Status of #16615 (check
-// run 133584509558, failed alone), and Mark Lanes and CI Status of #16633
-// (133589388248, 133592162315).
 const FLOOR_RECORDED = fixture("annotations-floor.json");
 const RESET_PASSED = "2026-10-19T19:30:00Z";
 const ISO_TIME = /[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z/g;

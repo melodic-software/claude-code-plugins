@@ -45,7 +45,7 @@ value it uses. The differences below are deliberate, not drift to normalize.
 | `status` | `git status --porcelain` | Read **at most the first 20 entries**. Note this is *not* `-uall` |
 | `recent-commits` | `git log --oneline -<N>` | `N` is the consumer's choice; see the table below |
 | `changed-files` | `git diff --name-only HEAD` | Staged and unstaged together |
-| `surface` | `printenv CLAUDE_CODE_ENTRYPOINT`, then `printenv CLAUDE_CODE_REMOTE`, as two calls | An unset variable fails only its own call, so it never hides the other. `claude-desktop` from the first, or `true` from the second, means the reply renders as markdown (`save-point.md`, "Markdown surfaces"); anything else, the terminal |
+| `surface` | `printenv CLAUDE_CODE_ENTRYPOINT`, then `printenv CLAUDE_CODE_REMOTE`, as two calls | An unset variable fails only its own call, so it never hides the other. `claude-desktop` from the first is `desktop`; otherwise `true` from the second is `mobile` when the first read `remote_mobile`, else `web`; anything else is `terminal` (`save-point.md`, "Markdown surfaces"). A consumer that tells only markdown from terminal reads `desktop`, `web` and `mobile` as markdown |
 
 ### Who takes what
 

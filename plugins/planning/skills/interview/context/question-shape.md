@@ -44,7 +44,7 @@ SKILL.md's "Recommended answers" owns both rules.
 
 | Lane | Where each field goes |
 |---|---|
-| terminal | SKILL.md's per-question template: `Q<N>:` is `text`, the `Context:` block and `Source:` block are `context`, `My recommendation:` (with its reason), `Origin:`, `Basis:`, and `Flips if:` and `Checked against:` when shown, are `recommendation` and `basis`, `Alternatives:` lists `alternatives` |
+| terminal | SKILL.md's per-question template ("The round layout"): the title line's question is `text`, the numbered `Context:` block and `Source:` block are `context`, `My recommendation:` with its `Why:`, `Gains:`, `Costs:` and `Evidence:` lines, `Origin:`, `Basis:`, and `Flips if:` and `Checked against:` when shown, are `recommendation` and `basis`, `Alternatives:` lists `alternatives` |
 | page | the round file fields in [`surface.md`](surface.md): `title` is `text`, `context` is `context` (the card shows it above the recommendation), `facts` carries the `Checked against:` line, then any `Source:` block; `commits` holds the `Commits you to:` parts |
 | shared | the fields above as written, plus `purpose`, `format`, `answerScope` and `references` ([`lane-shared.md`](lane-shared.md)) |
 | document | the template in [`../templates/document.md`](../templates/document.md): `### Q<N>:` is `text`, then `Context:`, `My recommendation:` or `Withheld:`, `Basis:` and `Alternatives:`, with an answer stub under each question ([`lane-document.md`](lane-document.md)) |
@@ -71,16 +71,25 @@ Before the recommendation, `context` carries what drives the decision and nothin
 This holds in every lane and is the one home for which terms a question defines: no lane puts a
 terms table at the top of a round in its place.
 
-Every factual claim carries a link or `file:line` the reader can open in one click (a URL with its
-section anchor, a timestamp for a video, a repo path); a claim the user stated cites
-`user, round <N>`, `<N>` being the round whose reply stated it, and the opening request counts as
-round 1 (`user, round 1`), never a bare "(your request)"; in a message that resumes past
-round <N> (one that reports round <N>'s answers), those answers cite `user, round <N>` and any
-other fact it states cites `user, round <N+1>`, the round it asks for. A
-claim cites its own basis, never another question (`(Q4 recommendation)`): a fact another
+Write one claim per numbered line (`1.`, `2.`), each ending with one parenthesized source label in
+plain words, never nested and never a bare id or round number:
+
+- a file the reader can open: `(retry.ts:12)`, a range `(audit-guide.md:80-100)`, two places in one
+  file `(retry.ts:12, 40-44)`; the saved round file keeps the path (`(src/retry.ts:12)`) and
+  `round.sh show --links` prints it in the `citation_links` form;
+- a page: its title and section as a link, `([Audit log guide, Writes](https://example.com/audit#writes))`,
+  with a timestamp for a video;
+- the user's answer: `(your answer to Q<N>, <its plain name>)`, as in `(your answer to Q4, retry
+  budget)`; the opening request is `(your request)`;
+- a remark the user made that answered no question: quote it in double quotes, at most twelve words,
+  with `…` where it is cut, and label it with the reply it came from, `"we never delete rows" (your
+  reply after round 2)`;
+- a claim with no source: `(judgment)`.
+
+A claim cites its own basis, never another question (`(Q4 recommendation)`): a fact another
 question rests on is cited to that fact's source, and that question's undecided answer is not a
-Context claim (SKILL.md "No undecided name, scope or design shown as settled"). A claim with no
-source is labeled `judgment`. Write one claim per line so each carries its own reference. If removing a line would
+Context claim (SKILL.md "No undecided name, scope or design shown as settled"). The ledger keeps its
+own source cells (`user, round <N>`); only what the user reads takes these labels. If removing a line would
 not change how a reasonable person decides, remove it; long material goes behind a link. Every
 lane carries the whole block, the terminal included; `basis` then names which of its sources the
 recommendation rests on. A question shown again (unanswered from last round, restated after async

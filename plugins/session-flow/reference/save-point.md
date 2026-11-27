@@ -822,33 +822,23 @@ After the rails prompt is emitted, control returns to the citing skill's deliver
 
 ## Markdown surfaces
 
-The Desktop app and Claude Code on the web render a reply as markdown in a proportional font.
-There the rails are plain lines with no copy control, paths inside them turn into links, a `- [x]`
-checklist draws struck through, and the position panel's leading spaces collapse. The terminal
-draws none of that, so the rails stay the terminal's form.
+The Desktop app and Claude Code on the web, the mobile app included, render a reply as markdown in
+a proportional font, where the rails are plain lines with no copy control. The terminal keeps the
+rails.
 
-A citing skill reads the surface from the `surface` probe ([`gather.md`](gather.md)): a
-`CLAUDE_CODE_ENTRYPOINT` of `claude-desktop`, or a `CLAUDE_CODE_REMOTE` of `true`, is a markdown
-surface; anything else, an unset value included, is the terminal. On a markdown surface:
+A citing skill reads the surface from the `surface` probe ([`gather.md`](gather.md)) and prints the
+prompt with the matching `emit` format, pasted verbatim:
 
-- **The prompt is the `emit --format markdown` output**, pasted verbatim. Each rail pair prints as
-  a fenced `text` block (a fence longer than any backtick run inside it), which the app draws with
-  a copy button and without links. The resume copy line reads ``Run `/clear`, then paste this:``,
-  and the goal line reads ``then paste this.`` before its confirm sentence. Every line between the
-  rails is unchanged, and everything outside them, the below-rail notes included, prints as it is.
-  `amend --format markdown` prints its prompt the same way.
-- **The file is untouched.** It still stores the rails, so `emit` with no flag, recovery from the
-  file, and `continue-in-background`'s launch read the same bytes as before.
-- **The position panel is a numbered list**, one unit per item: ✅ for `[x]`, ▶ and bold with
-  `← you are here` for the current unit, ⬜ for pending, ⛔ for blocked. The completeness line and
-  the three blocks follow, and every other panel rule holds.
+| Surface | Format | What changes |
+|---|---|---|
+| terminal | no flag | nothing: the rails |
+| desktop, web | `--format markdown` | each rail pair prints as a fenced `text` block (a fence longer than any backtick run inside it); the resume copy line reads ``Run `/clear`, then paste this:`` and the goal line reads ``then paste this.`` before its confirm sentence; every line between the rails and everything outside them prints unchanged |
+| mobile | `--format mobile` | the markdown form, plus: prose lines above `Next:` inside a block wrap at word boundaries to 38 characters; a `Read @` line keeps everything through its first comma on its first line, the `Read @` line that ends a goal block stays whole (the resume hook reads both), and any line holding a URL, `Prior session:` or `Handoff origin:`, and each `Next:` headline stay whole; the goal's confirm sentence moves below its block, and the below-rail `claude --resume` note is dropped |
 
-- **The handoff's enforcement checklist is one line**, `Checklist: <ticked>/<total> pass`, then
-  each box not ticked and each `validate` WARN or FAIL line as one bullet, never a `- [x]` list,
-  which the app draws struck through. On the prompt-only path each region prints as a fenced
-  `text` block under the same copy lines.
-
-A citing skill's own audit lines follow that skill's rule for this surface.
+`amend` takes the same `--format` values. **The file is untouched**: it still stores the rails, so
+`emit` with no flag, recovery from the file, and `continue-in-background`'s launch read the same
+bytes. Everything else a citing skill prints on these surfaces (its panel, its audit lines) follows
+that skill's own per-surface file, which only a session on that surface reads.
 
 ## Detection contract, consumed by `/session-flow:find-handoff`
 
@@ -860,7 +850,8 @@ handoff, which appears in both regions when a goal region exists and names one p
 `─` (U+2500) rail pair headed by the `` `/clear`, then copy everything between the dashed lines ``
 instruction line (the resume region), the primary key for a prompt-only handoff, which writes no
 file, or, as a markdown surface prints it ("Markdown surfaces"), the fenced `text` block under
-the ``Run `/clear`, then paste this:`` line, whose content is the region's text;
+the ``Run `/clear`, then paste this:`` line, whose content is the region's text (on the mobile
+form, with its prose lines wrapped);
 and (3) the `Prior session: <UUID>` line, which, together with the `type: handoff` frontmatter
 ([`structure.md`](structure.md)), pins the session chain; it is emitted by the file-mode shape
 but is not required of prompt-only output, so consumers treat it as corroboration, never a

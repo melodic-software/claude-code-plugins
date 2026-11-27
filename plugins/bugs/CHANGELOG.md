@@ -3,6 +3,25 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.3] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [1.0.2] - 2026-11-26
+
+### Fixed
+
+- A retired `lanes` key in `~/.claude/bugs.md` is no longer read; `/bugs:setup apply` now moves it
+  as `areas`, and the old-file warning and `check` name it, so the focus areas are not lost.
+
+## [1.0.1] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [1.0.0] - 2026-11-26
 
 ### Changed

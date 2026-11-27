@@ -139,7 +139,8 @@ A role chain is a long-running session for an ongoing role, such as a monitor, w
 decisions outgrow the handoff file. Start one with `new --standing-rules`; every later hop keeps
 it, flag or not, because `new` reads the predecessor's `standing_rules` key. Its handoff file
 holds what the next action needs and one pointer line for each body that lives elsewhere, so it
-fits one Read page.
+fits one Read page. The rules sit in a gitignored file rather than a committed per-role
+instruction file, which would publish role rules in a public repository.
 
 - **Where the rules and decisions live.** `fill` moves Current rules, Standing preferences and
   Decisions in force into `standing-rules/<chain-root-stem>.md`, one file per chain in a folder

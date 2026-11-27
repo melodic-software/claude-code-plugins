@@ -3,6 +3,24 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.7] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [0.13.6] - 2026-11-26
+
+### Changed
+
+- `/plugin-profiles:profile` points at the errors reference's "Unknown command" section instead of quoting the error string ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [0.13.5] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [0.13.4] - 2026-11-26
 
 ### Changed

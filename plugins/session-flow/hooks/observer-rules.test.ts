@@ -76,8 +76,10 @@ test('check-replied with "finding: none" finishes as none', () => {
 })
 
 test('check-replied with an unparsable reply finishes as parse_failed', () => {
-  expect(replied(on({ gen: 1 }), answered('I could not tell.')).effects).toEqual([{ kind: 'finish', req: req(), outcome: 'parse_failed' }])
-  expect(replied(on({ gen: 1 }), answered('finding: x\ncategory: taste\nrule: r')).effects).toEqual([{ kind: 'finish', req: req(), outcome: 'parse_failed' }])
+  expect(replied(on({ gen: 1 }), answered('I could not tell.')).effects).toEqual([{ kind: 'finish', req: req(), outcome: 'parse_failed', detail: { reason: 'no_finding' } }])
+  expect(replied(on({ gen: 1 }), answered('finding: x\ncategory: taste\nrule: r')).effects).toEqual([
+    { kind: 'finish', req: req(), outcome: 'parse_failed', detail: { reason: 'bad_category', lengths: { finding: 1, rule: 1, evidence: 0 } } },
+  ])
 })
 
 test('check-replied with a finding already seen or disputed finishes as deduped', () => {
@@ -446,7 +448,7 @@ test('gate-replied with "finding: none" records none', () => {
 })
 
 test('gate-replied with an unparsable reply records parse_failed', () => {
-  expect(gateReplied(on(), answered('hmm')).effects).toEqual([{ kind: 'record', row: { trigger: 'gate', latencyMs: 700, usage: undefined, outcome: 'parse_failed' } }])
+  expect(gateReplied(on(), answered('hmm')).effects).toEqual([{ kind: 'record', row: { trigger: 'gate', latencyMs: 700, usage: undefined, outcome: 'parse_failed', reason: 'no_finding' } }])
 })
 
 test('gate-replied after a timeout records timeout', () => {

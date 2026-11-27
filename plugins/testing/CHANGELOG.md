@@ -3,6 +3,24 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.0.6] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [6.0.5] - 2026-11-26
+
+### Changed
+
+- `/testing:audit` says applying repairs belongs to the remediation skills, not lanes.
+
+## [6.0.4] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [6.0.3] - 2026-11-25
 
 ### Changed

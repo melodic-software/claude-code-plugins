@@ -2,7 +2,7 @@
 """Adapter for `type-coverage`, the TypeScript type-debt collector.
 
 Adapter contract (design/contracts.md section 3): `probe`, `measures`,
-`collect <lane> <measure> <file>...`, `install_hint`.
+`collect <language> <measure> <file>...`, `install_hint`.
 
 The measure is type-coverage's own ratio, the count of identifiers whose type
 is not `any` over the total identifier count. It is not mypy's Any-expression
@@ -17,7 +17,7 @@ Facts verified against type-coverage 2.30.1 and typescript 5.9.3 on
   location (`filePath`, 0-based `line` and `character`, the identifier
   `text`). So `collect` runs
   `type-coverage --detail --json-output --show-relative-path -- <files>` and
-  the lane row's `any_count` is `null` when the tool listed no locations at
+  the language row's `any_count` is `null` when the tool listed no locations at
   all.
 - `--show-relative-path` makes `filePath` relative to the working directory
   (the tool resolves it against the cwd otherwise), which is how the
@@ -72,7 +72,7 @@ from adapter_paths import (
 
 NAME = "type-coverage"
 MEASURE = "type_coverage"
-LANE = "typescript"
+LANGUAGE = "typescript"
 LOCAL_BIN = os.path.join("node_modules", ".bin", "type-coverage")
 NO_TYPESCRIPT = "type-coverage needs a resolvable typescript (the probe found none)"
 PROGRAM_SCRIPT = """
@@ -141,11 +141,11 @@ def _under_node_modules(path: str) -> bool:
     return "node_modules" in re.split(r"[\\/]", path)
 
 
-def _row(lane: str, file: str | None, values: dict, labels: list[str]) -> dict:
+def _row(language: str, file: str | None, values: dict, labels: list[str]) -> dict:
     return {
         "file": file,
         "function": None,
-        "lane": lane,
+        "language": language,
         "values": values,
         "collector": NAME,
         "labels": labels,
@@ -180,12 +180,12 @@ def program_files() -> tuple[set[str] | None, str]:
 
 def translate(
     raw: str,
-    lane: str,
+    language: str,
     files: list[str],
     program: set[str] | None,
     why_no_program: str,
 ) -> tuple[list[dict], list[str]]:
-    """The rows for one capture, the lane row first, and the notes for
+    """The rows for one capture, the language row first, and the notes for
     stderr: a row per scope file in the tsconfig program when the tool counted
     anything; scope files outside the program are named in a note, never
     given a 0."""
@@ -207,7 +207,7 @@ def translate(
                 continue
             file_rows.append(
                 _row(
-                    lane,
+                    language,
                     path,
                     {
                         "type_coverage_pct": None,
@@ -229,8 +229,8 @@ def translate(
                 f"{len(outside)} scope file(s) are outside the tsconfig program "
                 f"and were not measured: {shown}"
             )
-    lane_row = _row(
-        lane,
+    language_row = _row(
+        language,
         None,
         {
             "type_coverage_pct": float(percent) if percent is not None else None,
@@ -238,12 +238,12 @@ def translate(
             "total_identifiers": payload.get("totalCount"),
             "any_count": len(details) if isinstance(details, list) else None,
         },
-        ["lane-total"],
+        ["language-total"],
     )
-    return [lane_row, *file_rows], notes
+    return [language_row, *file_rows], notes
 
 
-def collect(lane: str, measure: str, files: list[str]) -> int:
+def collect(language: str, measure: str, files: list[str]) -> int:
     if measure != MEASURE:
         print(f"{NAME}.py: cannot collect {measure}", file=sys.stderr)
         return 2
@@ -270,7 +270,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     if isinstance(payload, dict) and payload.get("totalCount"):
         program, why = program_files()
     try:
-        rows, notes = translate(result.stdout, lane, files, program, why)
+        rows, notes = translate(result.stdout, language, files, program, why)
     except (ValueError, TypeError, AttributeError) as exc:
         print(f"{NAME}.py: unparsable {NAME} output ({exc})", file=sys.stderr)
         return 3
@@ -282,7 +282,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
 
 
 def measures() -> None:
-    print(f"{LANE}/{MEASURE}")
+    print(f"{LANGUAGE}/{MEASURE}")
 
 
 INSTALL_HINT = (

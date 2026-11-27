@@ -116,6 +116,11 @@ which `status` reports.
 `/memory`, never that it is present in their host. The four-part records live in
 [reference/native-memory.md](reference/native-memory.md).
 
+## Next
+
+- Status shows auto memory on and the user wants it off: /harness-memory:stateless disable.
+- Auto memory is off and the instruction files still need checking: /harness-memory:audit.
+
 ## Related
 
 - Audit CLAUDE.md, CLAUDE.local.md, or rules instead of auto-memory: /harness-memory:audit.

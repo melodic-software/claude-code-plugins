@@ -107,7 +107,7 @@ second presentation of it, never a place a finding appears first.
 option, so `--option` stays empty; add `--argument` only when the run has a `--medium` value:
 
 ```bash
-node "<plugin-root>/lib/view-settings.mjs" resolve --lane overengineering:audit --option "" [--argument <the --medium value>]
+node "<plugin-root>/lib/view-settings.mjs" resolve --producer overengineering:audit --option "" [--argument <the --medium value>]
 ```
 
 It prints one JSON line, then the report line naming the medium and what decided it, then any

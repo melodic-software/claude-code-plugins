@@ -17,9 +17,9 @@ invoke `/education:quiz-me` to be quizzed on what was done.
 `teach` is the multi-session coach; `explain` and `illustrate` are its one-shot
 siblings; `quiz-me` verifies you absorbed a completed change.
 
-**Two one-shot lanes, split by medium.** `explain` is the adaptive prose lane: it
+**Two one-shot skills, split by medium.** `explain` is the adaptive prose skill: it
 starts plain and climbs to high-school then peer level on request. `illustrate` is
-the visual lane: a markdown record of small diagrams plus an interactive page
+the visual skill: a markdown record of small diagrams plus an interactive page
 view of it. Ask for a simpler wording and you want `explain`; ask for the picture
 version, or say "ELI5", and you want `illustrate`.
 

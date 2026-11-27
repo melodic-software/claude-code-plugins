@@ -144,7 +144,7 @@ def rows_of(result: subprocess.CompletedProcess) -> list[dict]:
 
 
 class MypyReportCollectTests(unittest.TestCase):
-    def test_collect_prints_a_row_per_scope_file_and_the_lane_row(self) -> None:
+    def test_collect_prints_a_row_per_scope_file_and_the_language_row(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             make_stub(Path(tmp))
             result = run(
@@ -157,7 +157,7 @@ class MypyReportCollectTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             rows = rows_of(result)
             self.assertEqual(len(rows), 2)
-            lane_row, file_row = rows
+            language_row, file_row = rows
             values = {
                 "any_expressions": 0,
                 "expressions_total": 13,
@@ -168,11 +168,11 @@ class MypyReportCollectTests(unittest.TestCase):
                 (f"{SOURCES}/cm_sample.py", None, []),
             )
             self.assertEqual(file_row["values"], values)
-            self.assertEqual((lane_row["file"], lane_row["function"]), (None, None))
-            self.assertEqual(lane_row["lane"], "python")
-            self.assertEqual(lane_row["collector"], "mypy-report")
-            self.assertEqual(lane_row["values"], values)
-            self.assertEqual(lane_row["labels"], ["lane-total"])
+            self.assertEqual((language_row["file"], language_row["function"]), (None, None))
+            self.assertEqual(language_row["language"], "python")
+            self.assertEqual(language_row["collector"], "mypy-report")
+            self.assertEqual(language_row["values"], values)
+            self.assertEqual(language_row["labels"], ["language-total"])
             self.assertEqual(result.stderr, "")
 
     def _collect_modules(
@@ -193,7 +193,7 @@ class MypyReportCollectTests(unittest.TestCase):
             cwd=Path(tmp),
         )
 
-    def test_module_rows_map_to_scope_files_and_the_lane_row_sums_them(self) -> None:
+    def test_module_rows_map_to_scope_files_and_the_language_row_sums_them(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             result = self._collect_modules(tmp, "pkg/a.py", "pkg-x/b.py", "c.py")
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -207,7 +207,7 @@ class MypyReportCollectTests(unittest.TestCase):
                     ("c.py", (0, 6, 100.0)),
                 ],
             )
-            self.assertEqual(rows[0]["labels"], ["lane-total", "mypy-reported-errors"])
+            self.assertEqual(rows[0]["labels"], ["language-total", "mypy-reported-errors"])
             self.assertEqual([r["labels"] for r in rows[1:]], [[], [], []])
 
     def test_a_src_layout_matches_the_shorter_names_a_config_base_gives(self) -> None:
@@ -222,7 +222,7 @@ class MypyReportCollectTests(unittest.TestCase):
             )
             self.assertEqual(result.stderr, "")
 
-    def test_the_lane_row_covers_the_scope_and_names_what_it_left_out(self) -> None:
+    def test_the_language_row_covers_the_scope_and_names_what_it_left_out(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             result = self._collect_modules(tmp, "pkg/a.py", "c.py", exit_code=0)
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -236,10 +236,10 @@ class MypyReportCollectTests(unittest.TestCase):
                     "type_coverage_pct": 66.67,
                 },
             )
-            self.assertEqual(rows[0]["labels"], ["lane-total"])
+            self.assertEqual(rows[0]["labels"], ["language-total"])
             self.assertEqual(
                 result.stderr.strip(),
-                "1 listed module(s) matched no scope file and are not counted in the lane row",
+                "1 listed module(s) matched no scope file and are not counted in the language row",
             )
 
     def test_a_scope_file_mypy_did_not_list_is_counted_in_the_note(self) -> None:
@@ -303,9 +303,9 @@ class MypyReportCollectTests(unittest.TestCase):
                 path_prefix=Path(tmp),
             )
             self.assertEqual(result.returncode, 0, result.stderr)
-            lane_row = rows_of(result)[0]
-            self.assertEqual(lane_row["labels"], ["lane-total", "mypy-reported-errors"])
-            self.assertEqual(lane_row["values"]["expressions_total"], 13)
+            language_row = rows_of(result)[0]
+            self.assertEqual(language_row["labels"], ["language-total", "mypy-reported-errors"])
+            self.assertEqual(language_row["values"]["expressions_total"], 13)
             self.assertEqual(
                 result.stderr.strip(), "mypy reported 1 error (0 missing stubs)"
             )
@@ -419,7 +419,7 @@ class MypyReportCollectTests(unittest.TestCase):
             self.assertEqual(
                 [r["file"] for r in rows], [None, "pkg/a.py", "pkg-x/b.py", "c.py"]
             )
-            self.assertEqual(rows[0]["labels"], ["lane-total"])
+            self.assertEqual(rows[0]["labels"], ["language-total"])
             self.assertEqual(
                 result.stderr.strip(),
                 "namespace packages are off in the mypy config, so modules are "
@@ -468,7 +468,7 @@ class MypyReportCollectTests(unittest.TestCase):
                     ("ok/other.py", (1, 5, 80.0)),
                 ],
             )
-            self.assertEqual(rows[0]["labels"], ["lane-total", "partial"])
+            self.assertEqual(rows[0]["labels"], ["language-total", "partial"])
             self.assertEqual(
                 note.read_text(encoding="utf-8"),
                 "1 of 3 scope file(s) not measured: mypy derives the same module "
@@ -509,7 +509,7 @@ class MypyReportCollectTests(unittest.TestCase):
             self.assertEqual(
                 [r["file"] for r in rows], [None, "pkg/mod.py", "ok/other.py"]
             )
-            self.assertEqual(rows[0]["labels"], ["lane-total", "partial"])
+            self.assertEqual(rows[0]["labels"], ["language-total", "partial"])
             self.assertIn(
                 "not measured: mypy derives the same module name as an earlier "
                 'scope file for other/mod.py (as "mod")',
@@ -555,7 +555,7 @@ class MypyReportCollectTests(unittest.TestCase):
                 [r["file"] for r in rows], [None, "a-dir/mod.py", "ok/other.py"]
             )
             self.assertGreater(rows[0]["values"]["expressions_total"], 0)
-            self.assertEqual(rows[0]["labels"], ["lane-total", "partial"])
+            self.assertEqual(rows[0]["labels"], ["language-total", "partial"])
             self.assertIn("b-dir/mod.py", note.read_text(encoding="utf-8"))
 
     def test_a_usage_error_that_is_not_the_pairing_rule_is_still_exit_4(self) -> None:
@@ -635,7 +635,7 @@ class MypyReportTableTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             module.parse_total("      Name   Anys   Exprs   Coverage\n")
 
-    def test_the_lane_row_percentage_is_formatted_as_mypy_formats_it(self) -> None:
+    def test_the_language_row_percentage_is_formatted_as_mypy_formats_it(self) -> None:
         module = load_module()
         self.assertEqual(
             module._summed([(14961, 149042, 89.96)]), (14961, 149042, 89.96)

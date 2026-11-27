@@ -26,12 +26,11 @@ if str(SHARED) not in sys.path:
 import detached  # noqa: E402  (sys.path is set just above)
 
 WINDOWS = os.name == "nt"
-# The bash fake on POSIX; on Windows a spawned .sh needs bash, so the Python fake stands in.
 FAKE = str(FIXTURES / ("fake_cloudflared.py" if WINDOWS else "fake-cloudflared.sh"))
 SHARE = SHARED / "share.py"
 
 
-FIXTURE_TOKEN_HASH = "0" * 63 + "1"  # every fixture's owner tokenHash: low entropy, so secret scanners pass it
+FIXTURE_TOKEN_HASH = "0" * 63 + "1"
 
 
 def write_state_fixture(state, name, folder=FIXTURES):
@@ -104,7 +103,6 @@ def outside_cloudflared(case, url_arg, log, *extra, named=True, environ=None):
         cmd = [str(shutil.copy2(base, where / "cloudflared.exe")), FAKE]
         environ["PYTHONHOME"] = sys.base_prefix
     else:
-        # copy, not copy2: macOS marks /bin/bash with a flag only root may set, so copying flags fails
         cmd = [str(shutil.copy(os.path.realpath(shutil.which("bash")), tmpdir(case) / "cloudflared")), FAKE]
     proc =detached.spawn([*cmd, *args], log=log, env=environ)
     case.addCleanup(lambda: (proc.kill(), proc.wait()))
@@ -115,10 +113,6 @@ def outside_cloudflared(case, url_arg, log, *extra, named=True, environ=None):
     return proc, url
 
 
-# Cloudflare's answer at a tunnel hostname with no connector: HTTP 530 and this page, cut down from the one a stopped
-# quick tunnel's hostname returned on 2026-10-29 (its title and heading; the hostname changed). Error 530 and error 1033:
-# https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-530/,
-# https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/error-1033/
 NO_CONNECTOR_PAGE = (
     b"<!DOCTYPE html><html><head><title>Cloudflare Tunnel error | interview.example.com | Cloudflare</title></head><body>\n"
     b'<h1 class="inline-block md:block mr-2 md:mb-2 font-light text-60 md:text-3xl text-black-dark leading-tight"\n'
@@ -138,7 +132,7 @@ class FakeCloudflare:
     def __init__(self, case=None, edge=(530, NO_CONNECTOR_PAGE), api_status=200, connections=(), config=None):
         self.edge, self.api_status, self.puts, self.probes, self.api_gets = edge, api_status, [], [], []
         self.connections, self.config = list(connections), config
-        self.raced = None  # set: what GET configurations answers once a PUT landed, as if another machine wrote after it
+        self.raced = None
         fake = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -200,7 +194,7 @@ def free_edge():
     return _FREE[0].url
 
 
-CLOSED_ORIGIN = "http://127.0.0.1:1"  # a loopback port nothing listens on: an API call there fails, off the network
+CLOSED_ORIGIN = "http://127.0.0.1:1"
 
 
 def env(**extra):

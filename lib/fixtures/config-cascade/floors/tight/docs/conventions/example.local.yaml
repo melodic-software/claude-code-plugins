@@ -1,4 +1,3 @@
-# Personal layer that tightens (or repeats) every floor key.
 policy:
   locked: fixed
   ceiling: 5

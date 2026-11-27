@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.22.11] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [0.22.10] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [0.22.9] - 2026-11-25
 
 ### Changed

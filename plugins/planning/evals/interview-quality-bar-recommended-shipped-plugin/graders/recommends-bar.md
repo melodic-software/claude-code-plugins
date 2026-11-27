@@ -14,8 +14,8 @@ PASS only if all of these hold:
 3. That question lists at least one other bar (a throwaway prototype or an internal tool) as an
    alternative.
 4. That question carries a `Flips if:` line naming a fact the user can confirm.
-5. The quality bar is not reported as already decided: it is not on a `Settled by evidence:` line
-   and the reply does not state the bar as an assumption without asking it.
+5. The quality bar is not reported as already decided: it is not stated as settled by evidence
+   and left unasked, and the reply does not state the bar as an assumption without asking it.
 
 Other round-1 questions (the problem, scope, where the user starts) may be open discovery
 questions; they neither pass nor fail this grader.

@@ -67,9 +67,9 @@ Seven skills, one capability:
   optional turn budget. It stages and commits nothing. The issue lane runs it
   on a small single-area change before its one push.
 - **`/code-tidying:audit-dead-code`**, a read-only, whole-repo hunt for code
-  nothing reaches any more, across four labeled lanes of deliberately unequal
+  nothing reaches any more, across four labeled analyzers of deliberately unequal
   confidence (knip for TS/JS, vulture for Python, gopls for Go's unexported
-  symbols, and a portable grep lane for shell and PowerShell symbols, JS/TS
+  symbols, and a portable grep analyzer for shell and PowerShell symbols, JS/TS
   symbols outside a `package.json` root, C# declarations read as text, plus
   unreferenced source files with a recognized extension). Every
   candidate is adjudicated against the dynamic-usage evidence static analyzers

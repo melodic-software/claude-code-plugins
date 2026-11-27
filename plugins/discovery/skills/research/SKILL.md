@@ -288,6 +288,8 @@ Present research findings as, and if invoked standalone present them directly, w
 7. **Project fit**. How findings align with the consuming project's conventions and stated direction
 8. **Outcome gate result**. Pass, or which criterion failed and what was re-run, plus effort and any skipped phases
 
+**Project fit reads the consumer's standards.** For Project fit and gate row 8, the parent resolves the consuming project's standards through the "Resolution ladder" section of the plugin's contract binding [`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](../../reference/standards-contract.md) and reads the files whose `Applies when` matches the research question; a finding that departs from one is named under Project fit with that file. A loaded file that cites shipped concept ids follows the binding's "Adopted shipped concepts" paragraph, with `/engineering-concepts:lookup` (if enabled); otherwise apply each entry as written.
+
 **Cite by link wherever you present findings.** This binds the parent after the verifier write-back, in the Summary, the Evidence table and any shorter recap in conversation. Each accepted claim carries its primary source and its counted corroborators as inline Markdown links, `[label](url)`, with the URL taken from the claim's `sources[].url` in the findings sidecar. A Tier 0 local probe has no URL, so it cites the artifact sidecar file that holds its command. A source name without its URL is not a citation.
 
 When dispatched work returns after you presented open questions and before the user answers, the next message that presents anything ends with every open item in full: `docs/contracts/async-round-presentation/README.md` in the marketplace.

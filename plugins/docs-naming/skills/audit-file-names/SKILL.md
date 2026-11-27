@@ -111,20 +111,25 @@ literal `${user_config.…}` placeholder means unset.
    *Done when:* a `SITES` row is present and every offender pair appears in at
    least one `REF` row or is reported as having no site at all.
 
-3. **Compose** the plan into the resolved home:
+3. **Compose** the plan into its home:
 
    ```bash
    ${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh --root <repo> \
-     --inventory <inv.tsv> --sweep <sweep.tsv> --out <resolved>/file-names.md
+     --inventory <inv.tsv> --sweep <sweep.tsv>
    ```
 
+   Pass no `--out`: the emitter composes the home "Where the artifact goes"
+   names from the memory root and the branch, and prints it on a `home` line.
+   Add `--memory-root <dir>` only when the project's instructions declare a
+   memory root other than `.work/`.
    A zero-offender run over a non-empty root still runs the sweep with an empty
    pairs file and the emit, and leaves a `findings: 0` plan.
-   After the `wrote` line it prints one `finding` line per record, most-cited
+   After the `home` and `wrote` lines it prints one `finding` line per record, most-cited
    first, with the site count, file count, tier breakdown, review count and
    generated files, then one `total` line with the sweep's `SITES` count, the
-   sites by action and the report-site total. All of them are counted from the
-   sweep's `REF` rows.
+   sites by action and the report-site total, then one `report` line per
+   report site (`file:line`, finding id, old path). All of them are counted from
+   the sweep's `REF` rows.
    *Done when:* the script reports the path it wrote and a finding count equal
    to the inventory's offender count.
 
@@ -136,7 +141,8 @@ inventing one.
 ## Where the artifact goes
 
 Write under the home `../../context/file-name-findings.md` "Where it lives"
-defines. A plan written anywhere else is one the realign never finds, and that
+defines, which the emitter composes when no `--out` is given. A plan written
+anywhere else is one the realign never finds, and that
 failure reads exactly like "no audit has been run".
 
 If a plan already exists at the resolved home, the emitter merges into it by
@@ -152,12 +158,14 @@ made being asked again.
    the emitter's `finding` line for that record.
 3. Every `review` site, individually, with its line and excerpt. These are the
    ambiguous bare stems, and no script can settle them.
-4. The artifact's path, and the next step: `/docs-naming:realign-file-names`
+4. The artifact's path as the emitter's `home` line gives it, and the next step: `/docs-naming:realign-file-names`
    with the ids to accept.
 
 Say the count of `report` sites plainly, as the `total` line's `report sites`
-figure. A maintainer who expected a frozen tier to change needs to see that it
-did not.
+figure, then list each report site from the emitter's `report` lines. A
+maintainer who expected a frozen tier to change needs to see that it did not.
+The report-site total spans every file those lines name: credit each file only
+with the sites its own lines show.
 
 Quote every count from the emitter's `finding` and `total` lines as printed:
 each site count, tier breakdown and the report-site total. A count you tally

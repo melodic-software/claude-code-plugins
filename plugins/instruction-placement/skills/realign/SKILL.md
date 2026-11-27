@@ -244,10 +244,10 @@ accepted proposal.
   finding looks wrong, say so and stop. The fix is a re-audit, not an improvised alternative.
 - **Never rewrite content while moving it.** The move is a relocation. Tightening prose during a
   relocation makes the diff unreviewable and smuggles an unapproved edit past the gate.
-- **The shim is what carries a blocked `AGENTS.md`.** A `CLAUDE.md` on the file's own path, the
-  repository root's included, is read *instead* of the `AGENTS.md` beside it, so in a repository
-  that has one, a nested `AGENTS.md` written without its `CLAUDE.md` shim silently reaches nothing.
-  That is measured, not inferred. Write the shim wherever `render-index.sh wiring` would report the
+- **The shim is what carries a blocked `AGENTS.md`.** We treat a nested `AGENTS.md` as blocked
+  where a `CLAUDE.md` on its own path, the root's included, is read *instead* of it
+  ([which files count](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md)).
+  Without its shim a blocked file reaches nothing. Write the shim wherever `render-index.sh wiring` would report the
   file `UNWIRED`; where it reports `NATIVE`, nothing blocks the file and the shim is not what makes
   it load there, though it stays the cover for sessions that cannot read `AGENTS.md` at all.
 - **Never leave the index stale.** Regenerating it is part of the move, not a follow-up. An

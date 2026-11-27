@@ -47,14 +47,13 @@ async page => {
       const io = window.__io = {pending: 0, done: 0, applied: null, fetch: window.fetch.bind(window),
         sig: s => JSON.stringify([s.questions, s.responses, s.theme, s.settings, s.watchSeq, s.instance, s.listener && [s.listener.state, s.listener.waiters > 0, !!s.listener.lease, s.listener.lastDeliverAt]])};
       window.fetch = function () { io.pending++; const end = () => setTimeout(() => { io.pending--; io.done = performance.now(); }, 0); const p = io.fetch.apply(null, arguments); p.then(r => r.clone().text()).then(end, end); return p; };
-      const ES = window.EventSource; // this listener runs before the page's own, so the timeout records the frame after the page renders it
+      const ES = window.EventSource;
       if (ES) window.EventSource = class extends ES { constructor(...a) { super(...a); this.addEventListener("state", e => setTimeout(() => { try { io.applied = io.sig(JSON.parse(e.data)); } catch { io.applied = null; } }, 0)); } };
     });
     await page.goto(base);
     await page.waitForSelector(".qbtn", {state: "attached"});
     await page.evaluate(() => localStorage.clear());
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await settle(400);
-    // #7970: with no stored choice a wide screen opens the side panels pinned; this journey was written for the overlay, so it stores Unpin first
     await page.click('.strip [data-panel="terms"]'); await settle(200);
     if ((await page.getAttribute("#pinBtn", "aria-pressed")) === "true") await page.click("#pinBtn");
     await page.click("#flyClose"); await settle(150);
@@ -241,7 +240,6 @@ async page => {
     await tap("#notice [data-go]", 300);
     ok("Open shows Claude's reply in Notes", await page.evaluate(() => document.getElementById("fly").classList.contains("open") && /Yes, on track/.test(document.getElementById("fbody").innerText) && /retry count stay at three/.test(document.getElementById("fbody").innerText)));
     ok("the notice moves on to Round 2 added, whose restate waits on you, and Go names the round's first question", /Round 2 added/.test(await text("#notice")) && (await text("#notice [data-go]")) === "Go to Q6", await text("#notice"));
-    // #7755: the timestamp and separator dot on Claude's blue note reach 4.5:1 in the light theme
     await page.emulateMedia({colorScheme: "light"}); await settle(100);
     const noteRatios = await page.$$eval(".nmsg.claude .hl time, .nmsg.claude .hl .dot", els => els.map(el => {
       const rgb = s => s.match(/[\d.]+/g).map(Number), lum = c => { const v = c.slice(0, 3).map(x => { x /= 255; return x <= .03928 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4; }); return .2126 * v[0] + .7152 * v[1] + .0722 * v[2]; };
@@ -402,8 +400,6 @@ async page => {
     const cu = await last();
     ok("Confirm posts confirm-understanding and the summary reads Confirmed with its time", cu.kind === "confirm-understanding" && cu.alt === "confirm" && cu.contentRev === 2 && /^Confirmed \S/.test(await text("#uDone")) && !(await page.$("#unconfWarn")), JSON.stringify(cu) + " " + await text("#uDone"));
     ok("a Confirm clears the banner", await page.$eval("#reBanner", el => el.hidden));
-    // #11585: Finish warns only for a Claude note that asked for an answer and has none. Both real asks
-    // are answered by now; a second tab's routed state appends Notes lines after them and reads the confirm list.
     {
       const kept5 = await page.evaluate(() => JSON.stringify(localStorage)), tab = await page.context().newPage(), tabErrors5 = [];
       tab.on("pageerror", e => tabErrors5.push(String(e)));
@@ -481,7 +477,6 @@ async page => {
       }
       ok("at " + w + " px the long Claude line and hold keep the page, Wrap up and the counts in the viewport", fit.every(f => f.scroll <= f.W && f.wrap && f.counts && f.line > 400), JSON.stringify(fit));
     }
-    // #8085: at 390x844, after load, the question title is fully on the first screen with the long Claude line in the header
     await page.setViewportSize({width: 390, height: 844});
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await settle(600);
     const first = await page.evaluate(() => { const t = document.querySelector("main.detail h3"), r = t && t.getBoundingClientRect(), c = document.getElementById("claudeLine"); return {bottom: r ? Math.round(r.bottom) : null, scroll: scrollY, head: Math.round(document.querySelector("header.top").getBoundingClientRect().height), line: c.hidden ? 0 : Math.round(c.getBoundingClientRect().height), text: c.hidden ? 0 : document.getElementById("clText").textContent.length}; });
@@ -621,7 +616,6 @@ async page => {
     });
     const sum = await sumProbe();
     ok("at 1024 px no Decisions cell breaks inside a word and each id chip stays on one line", sum.n > 5 && sum.broken.length === 0 && sum.chip < 24, JSON.stringify(sum));
-    // #8085: at 390 px the cells still wrap only at word boundaries, a long token scrolls the table's own container, and the page stays put
     await page.setViewportSize({width: 390, height: 844}); await settle(300);
     const sum390 = await sumProbe(), cells390 = await page.evaluate(() => {
       const bad = [...document.querySelectorAll("table.sum th, table.sum td, table.sum td *")].filter(c => { const s = getComputedStyle(c); return s.wordBreak === "break-all" || s.overflowWrap === "anywhere"; }).length;
@@ -669,7 +663,7 @@ async page => {
     ok("with the panel open a plain Notes reply adds no count", await page.title() === "(1) " + base && await plainBeside(/with the panel open/), await page.title());
     await setHidden(false); await settle(200);
   }
-  if (PHASE === 12) { // reload so the page loads already hidden: no visibilitychange fires
+  if (PHASE === 12) {
     await page.addInitScript(() => { for (const [k, v] of [["hidden", true], ["visibilityState", "hidden"]]) Object.defineProperty(document, k, {configurable: true, get: () => v}); });
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await settle(900);
     ok("a page loaded hidden shows no badge for activity already waiting", await page.title() === await text("#title"), await page.title());

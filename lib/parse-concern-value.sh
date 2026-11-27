@@ -94,7 +94,7 @@ else
   pattern='$1 == ENVIRON["PCV_KEY"] && !seen++'
 fi
 while IFS= read -r v; do
-  v="${v%/}" # normalize a single trailing slash
+  v="${v%/}"
   [[ -z "$v" ]] || values+=("$v")
 done < <(PCV_KEY="$key" LC_ALL=C awk -F '\t' "$pattern"' { print substr($0, length($1) + 2) }' <<<"$records")
 

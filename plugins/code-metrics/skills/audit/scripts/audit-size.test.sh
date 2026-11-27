@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/* plugins/code-metrics/skills/audit/SKILL.md plugins/code-metrics/skills/audit/actions/size.md
 # test-scope: plugins/code-metrics/scripts/yaml_subset.py
-# test-scope: docs/conventions/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its lanes
+# test-scope: docs/conventions/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its languages
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -28,8 +28,8 @@ export CODE_METRICS_REPORT_DIR="$REPORTS"
 out="$(bash "$SCRIPT" --json --all "$SOURCES")"
 rc=$?
 assert_eq "--json exits 0" 0 "$rc"
-assert_doc "--json prints a code-metrics/v2 document for audit-size" "$out" \
-  'd["schema"]=="code-metrics/v2" and d["skill"]=="audit-size" and d["run"]'
+assert_doc "--json prints a code-metrics/v3 document for audit-size" "$out" \
+  'd["schema"]=="code-metrics/v3" and d["skill"]=="audit-size" and d["run"]'
 
 out="$(bash "$SCRIPT" --all "$SOURCES")"
 rc=$?

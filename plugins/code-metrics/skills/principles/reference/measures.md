@@ -87,7 +87,7 @@ and its verification record is in [thresholds.md](thresholds.md). So the standar
 is a percentage on a function, and the line count is informative only. The plugin implements both:
 `size.mode: file-lines` compares files against `size.file_lines`, and `size.mode: iso-8.2.115` adds
 a per-function percentage against `size.function_lines_pct`. The second needs a collector that
-reports function end lines, which no Bash collector does; that lane says so and the run continues.
+reports function end lines, which no Bash collector does; that language says so and the run continues.
 
 ## Duplication
 
@@ -140,7 +140,7 @@ executable lines".
 
 ## Type debt
 
-Two lanes produce a number, and the two numbers are different measures over different populations.
+Two languages produce a number, and the two numbers are different measures over different populations.
 
 - **TypeScript**, through `type-coverage`: the count of identifiers whose type is not `any` divided
   by the total identifier count. It inspects resolved types, so it catches implicit and explicit
@@ -175,10 +175,10 @@ comparable to a ratio. No standard and no CWE anchors any of this; see [threshol
   wires ESLint.
 - **Start-line-only collectors cost the CRAP join.** `shellmetrics`, `gocyclo`, `gocognit`, and the
   ESLint rules report where a function starts and not where it ends. Without an end line there is no
-  range to join coverage against, so that lane's CRAP row is `not-applicable` with the reason stated
+  range to join coverage against, so that language's CRAP row is `not-applicable` with the reason stated
   rather than a silent null. `lizard` and `radon` report both lines, and coverage.py and Go cover
   profiles carry their own regions.
 
-Which tool is tried in which order per lane is data, not prose:
+Which tool is tried in which order per language is data, not prose:
 `<plugin-root>/scripts/collector-ladder.tsv`, with the per-tool stamps in
 [`reference/collectors.md`](../../../reference/collectors.md).

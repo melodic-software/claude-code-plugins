@@ -1,22 +1,4 @@
 #!/usr/bin/env bash
-# Set an item's issue dimensions from the keys triage chose, through the tracker seam.
-#
-# The dimension map is the repository's models.issue-dimensions.fields block in
-# docs/conventions/pr-pipeline.yaml, the same block the issue lane reads: each dimension has a
-# field-id and an options map from option id to key. This script turns each <dimension>=<key>
-# into the one option id mapped to that key and calls `work-item-tracker.sh set-fields`, so no
-# model writes an id and no name lives in the skill.
-#
-# Usage: set-dimensions.sh [--ref <ref>] [--dry-run] <item-id> <dimension>=<key> ...
-#
-#   Every dimension the block names must be given, and only those.
-#   --ref <ref>  read the block as committed at <ref> (a 40-hex commit id or origin/<name>)
-#   --dry-run    print the resolved ids and write nothing
-#
-# Run from the repository root. Prints {id, fields: [...]}. Exit 0 written (or resolved under
-# --dry-run); 2 a usage error, a key no option maps to or two options map to, a missing or
-# unknown dimension, or a bad --ref; 3 no dimension map; 1 an unparsable config; otherwise the
-# seam's exit code.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -39,7 +21,17 @@ while (($#)); do
     ;;
   --dry-run) dry_run=1 ;;
   -h | --help)
-    awk 'NR > 1 && /^set -uo/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
+    cat <<'TXT'
+Set an item's issue dimensions from the keys triage chose, through the tracker seam.
+
+Usage: set-dimensions.sh [--ref <ref>] [--dry-run] <item-id> <dimension>=<key> ...
+  <dimension>=<key>  one per dimension the models.issue-dimensions.fields block names
+  --ref <ref>        read the block as committed at <ref> (a 40-hex commit id or origin/<name>)
+  --dry-run          print the resolved ids and write nothing
+  --help             print this help
+
+Exit 0 written (or resolved under --dry-run); 1 an unparsable config; 2 usage error, unmapped key or bad --ref; 3 no dimension map; otherwise the seam's exit code.
+TXT
     exit 0
     ;;
   *=*) pairs+=("$1") ;;

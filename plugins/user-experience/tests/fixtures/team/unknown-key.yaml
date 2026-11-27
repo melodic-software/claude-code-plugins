@@ -1,5 +1,3 @@
-# user-experience team file fixture: a row with an unknown key (only the key drops) and a row whose
-# remaining keys fail the row schema (the row drops).
 version: 1
 routing:
   version: 1

@@ -335,7 +335,7 @@ else
 fi
 chmod 644 "$(yaml_of "$R16")"
 
-preload() { # preload <name> <body lines...>
+preload() {
   local p="$TEST_TMPDIR/$1.cjs"
   shift
   printf '%s\n' 'const fs = require("node:fs");' "$@" 'require("node:module").syncBuiltinESMExports();' >"$p"

@@ -70,6 +70,63 @@ inside the same `ci-status` job on the same hosted runner and carry no status
 contexts of their own. Fork pull requests receive no secrets and
 no automated review, by design.
 
+On a ready pull request `ci-status` also requires both AI review lanes
+(`pr-review-hosted.yml` and `pr-review-security-hosted.yml`) to have reviewed
+the head, in its `Require both review lanes on this head` step, with one
+exception: the formatter-only proof (owner decision, row L438 of
+docs/owner-decisions.md in the org's architecture repository,
+[the row](https://github.com/melodic-software/architecture/blob/733e2a74cbc650f9a5d21c0d8aefdfc5f0275ed0/docs/owner-decisions.md?plain=1#L438)).
+The `prove-formatting` job checks out the pull request's test merge commit,
+moves to its base, and runs
+`.github/scripts/pr-require-checks/formatter-proof.sh` from there: the base's
+pinned shfmt (through bash-format's `shfmt_rewrite`) and Ruff (the
+python-format hook's two commands, through `scripts/run-ruff.sh`) over the
+base's copy of each changed shell and Python file, then the base's
+`scripts/sync-shared-copies.sh` and `scripts/sync-hold-floor.py`. When that
+reproduces every changed file of the head byte for byte, with only added
+`.changes/<plugin>/*.md` fragments beside them, the step accepts the head
+without the lanes. A fragment counts only when its bytes are exactly the
+fixed one the script's usage text shows (`bump: patch` and "Reformatted with
+the pinned shfmt and Ruff; no behavior change."), so no author-written
+changelog text merges unreviewed; the base's `changelog_fragments::validate`
+accepts it; it is its plugin's only added fragment; and its plugin holds a
+reproduced file. A trust-gate path among the changed files (the step's
+`hold_patterns`, whoever the author) still needs a person on the trusted-actor
+list to approve the head. Any other file, an added, deleted or renamed file, a
+mode change, a byte the formatters do not write, a tool off its pin or a run
+that fails is no proof, and the lanes decide as before. The proof waives
+nothing else: the lane jobs, the holds, pr-verify and the merge-risk rating
+still apply. A fork's head and a head an agent App wrote on a trust-gate path
+fail as before.
+
+No pull request code runs in `prove-formatting`: after its checkout it moves
+the working tree to the merge commit's first parent, the base branch commit
+GitHub merged into, so the local shfmt action, the Ruff pin and the script are
+the base's, and the head is read only as blob ids. The regenerators and the
+fragment validator run in the formatted tree, so a change to any file the
+proof runs (`scripts/run-ruff.sh`, `scripts/sync-shared-copies.sh`,
+`scripts/sync-hold-floor.py`, the `lib/parse-concern-value.sh` it runs,
+`scripts/lib/` but its `*.test.sh` files, the
+bash-format hooks, and the babysit-prs scripts `sync-hold-floor.py` imports but
+their `tests/`) is no proof. shfmt is
+downloaded fresh and checked against the base action's SHA-256, never restored
+from a cache a pull request's earlier run could write, and the job checks that
+the test merge commit merges the event's head. The job and `ci-status`
+themselves come from the pull request's own workflow file, though, so a head
+that rewrites `pr-require-checks.yml` can set the proof itself, as it can
+rewrite the review-lane check; that file is a trust-gate path. The job holds a
+read-only token and keeps no credential. It is not a lane: `ci-status` leaves its result
+out of the aggregate, so its failure only means no proof. It runs on every
+non-draft `pull_request` event, contract-only ones included, and `ci-status`
+reads only its output in the same run: a recorded proof, such as a commit
+status, could be written by any workflow run in the repository. A change with
+any path no formatter or regenerator covers stops after the classifying step,
+before the tools install. Its budget is unmeasured as a job: the script took 173 s on one
+lane (36 s on eight) for the 1,403-file shfmt cleanup of
+[#17778](https://github.com/melodic-software/claude-code-plugins/issues/17778)
+and 5 s for its 439-file Ruff cleanup, so with about 60 s of checkout and setup,
+ceil(1.5 x 233 / 60) = 6 minutes, and a 12-minute timeout.
+
 Workflow, job and step names follow the org naming lint
 ([github-actions-conventions](https://github.com/melodic-software/standards/blob/main/components/github-actions-conventions/README.md)),
 which `lint-repo` runs. The gate job `ci-status` shows as

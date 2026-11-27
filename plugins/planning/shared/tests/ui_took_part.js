@@ -11,9 +11,9 @@ const statOf = (page, t) => page.evaluate(t2 => [...document.querySelectorAll(".
 
 async function main() {
   const pw = loadPlaywright();
-  if (!pw) { console.log("SKIP: ui_took_part.js needs playwright-core (npm ci, or playwright-cli on PATH)"); return 0; } // silent-skip-ok: a browser suite needs a local Playwright
+  if (!pw) { console.log("SKIP: ui_took_part.js needs playwright-core (npm ci, or playwright-cli on PATH)"); return 0; }
   let browser;
-  try { browser = await pw.chromium.launch(); } catch (e) { console.log(`SKIP: no Chromium to launch (${String(e.message).split("\n")[0]})`); return 0; } // silent-skip-ok: no browser binary
+  try { browser = await pw.chromium.launch(); } catch (e) { console.log(`SKIP: no Chromium to launch (${String(e.message).split("\n")[0]})`); return 0; }
   const s = suite("ui_took_part"), { ok } = s, rec = recorder(browser);
   try {
     const A = await s.start("took-part");
@@ -119,9 +119,6 @@ async function main() {
 
     await owner.locator(".vf-q", { hasText: T.d }).first().click();
     await owner.locator(".vf-forbtn").click();
-    // Each poll re-renders the list with the server's `for`, so a box a click ticks goes back to unticked until the
-    // server records it: wait for Bo's row to show, then click, not check(), which throws when a poll lands between
-    // its click and its read.
     await until(owner, () => [...document.querySelectorAll(".vf-forbox:not([hidden]) .vf-forlist label")].some(l => l.textContent === "Bo" && !l.querySelector("input").checked), null, 10000);
     await owner.locator(".vf-forlist label", { hasText: "Bo" }).locator("input").click();
     ok("the owner asks Bo for Q2: the server records it", await until(owner, pid => (window.Core.snapshot()?.questions || []).find(q => q.id === "Q2")?.for?.join() === pid, boPid, 10000));

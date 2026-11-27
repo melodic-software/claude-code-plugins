@@ -381,7 +381,7 @@ read_path_file() {
   value=$(
     cat "$file"
     printf x
-  ) # printf x defends the value's own trailing bytes from $( ) stripping
+  )
   value=${value%x}
   if [[ "$value" == *$'\n'* ]]; then
     printf '%s: %s %s contains a newline byte; the file holds the path verbatim and a path with a newline in it is malformed configuration, not a value to trim\n' \
@@ -631,10 +631,10 @@ parse_owner_repo() {
   repo=""
   path="$url"
   if [[ "$path" == *"://"* ]]; then
-    path="${path#*://}" # strip scheme://
-    path="${path#*/}"   # strip host[:port] up to the first '/'
+    path="${path#*://}"
+    path="${path#*/}"
   elif [[ "$path" == *:* ]]; then
-    path="${path#*:}" # scp-like git@host:owner/repo -> owner/repo
+    path="${path#*:}"
   fi
   path="${path%.git}"
   path="${path%/}"
@@ -924,26 +924,15 @@ if ! git -C "$toplevel" worktree lock --reason "$lock_reason" "$worktree_path" >
 fi
 
 include_file="$toplevel/.worktreeinclude"
-copied=0
-copy_failed=0
 if [[ -f "$include_file" ]]; then
-  while IFS= read -r -d '' rel; do
-    [[ -z "$rel" ]] && continue
-    git -C "$toplevel" check-ignore -q -- "$rel" || continue
-    src="$toplevel/$rel"
-    [[ -f "$src" ]] || continue
-    dest="$worktree_path/$rel"
-    if mkdir -p "$(dirname "$dest")" && cp -p "$src" "$dest"; then
-      copied=$((copied + 1))
-    else
-      copy_failed=$((copy_failed + 1))
-      printf '%s: warning: failed to copy .worktreeinclude file: %s\n' "$PROG" "$rel" >&2
-    fi
-  done < <(git -C "$toplevel" ls-files -o -i -z --exclude-from="$include_file")
+  copied=0
+  copy_rc=0
+  copied="$(bash "$HELPER_DIR/worktree-include.sh" copy --from "$toplevel" --to "$worktree_path")" || copy_rc=$?
+  copied="${copied:-0}"
   printf '%s: copied %d .worktreeinclude file(s) into the worktree\n' "$PROG" "$copied" >&2
-  if ((copy_failed > 0)); then
-    printf '%s: %d .worktreeinclude file(s) failed to copy — the worktree at %s exists but is missing expected local files\n' \
-      "$PROG" "$copy_failed" "$worktree_path" >&2
+  if ((copy_rc != 0)); then
+    printf '%s: .worktreeinclude copy failed (exit %d) — the worktree at %s exists but is missing expected local files\n' \
+      "$PROG" "$copy_rc" "$worktree_path" >&2
     exit 4
   fi
 fi

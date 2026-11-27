@@ -693,6 +693,118 @@ def test_emit_markdown_fences_a_goal_region_and_outruns_backticks_inside(tmp_pat
     assert rail_lines("\n".join(md)) == 0
 
 
+def test_emit_mobile_wraps_region_prose_and_keeps_keyed_lines_whole(tmp_path):
+    handoffs = materialize(tmp_path, "good-chain")
+    rails = out(run("emit", str(handoffs / HOP2))).split("\n")
+    result = run("emit", "--format", "mobile", str(handoffs / HOP2))
+    assert result.returncode == 0, err(result)
+    md = out(result).split("\n")
+    assert md[0] == "Run `/clear`, then paste this:"
+    top = md.index("```text")
+    bottom = md.index("```", top + 1)
+    region = md[top + 1 : bottom]
+    read = [line for line in region if line.startswith("Read @")]
+    assert len(read) == 1 and read[0].endswith(".md,")
+    headlines = region[region.index("Next:") + 1 :]
+    rail_next = rails[
+        rails.index("Next:") + 1 : rails.index("Next:") + 1 + len(headlines)
+    ]
+    assert headlines == rail_next
+    for line in region[: region.index("Next:")]:
+        keyed = line.startswith(("Read @", "Prior session:", "Handoff origin:"))
+        assert keyed or len(line) <= 38, line
+    first, last = [i for i, line in enumerate(rails) if line.startswith("──")]
+    assert " ".join(region).split() == " ".join(rails[first + 1 : last]).split()
+    assert not any(line.startswith("Or reopen the producing session") for line in md)
+
+
+def test_emit_mobile_moves_the_goal_confirm_below_its_block(tmp_path):
+    handoffs = materialize(tmp_path, "good-chain")
+    target = handoffs / HOP2
+    text = target.read_text(encoding="utf-8")
+    rail = "─" * 58
+    goal = (
+        "Type `/goal ` (with a trailing space), then paste everything between the dashed lines. "
+        "Confirm the `◎ /goal active` indicator appears after you send it; if it is missing, redo it:\n\n"
+        f"{rail}\nEvery call site of OrderReader uses the retry policy and the test command exits 0.\n{rail}\n\n"
+    )
+    marker = "`/clear`, then copy everything between the dashed lines:"
+    target.write_text(text.replace(marker, goal + marker, 1), encoding="utf-8")
+    md = out(run("emit", "--format", "mobile", str(target))).split("\n")
+    assert md[0] == "Type `/goal ` (with a trailing space), then paste this."
+    close = md.index("```", md.index("```text") + 1)
+    assert md[close + 2].startswith("Confirm the `◎ /goal active` indicator appears")
+    assert md[close + 2].endswith("redo it.")
+    assert "Run `/clear`, then paste this:" in md
+    assert rail_lines("\n".join(md)) == 0
+
+
+def _resume_hook_module():
+    spec = importlib.util.spec_from_file_location(
+        "resume_hook_under_test", SCRIPT.parent / "resume_hook.py"
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _fenced(md: list[str], after: str) -> list[str]:
+    top = md.index("```text", md.index(after))
+    return md[top + 1 : md.index("```", top + 1)]
+
+
+@pytest.mark.parametrize("standing", [False, True])
+def test_emit_mobile_keeps_the_resume_hook_directive_matchable(tmp_path, standing):
+    sp, hook = _save_point_module(), _resume_hook_module()
+    handoff = tmp_path / "20260902T100000Z-handoff-widget.md"
+    handoff.write_text("x", encoding="utf-8")
+    head = "Read @"
+    if standing:
+        head += (
+            f"{tmp_path.as_posix()}/standing.md{sp.STANDING_PAGED}{sp.STANDING_THEN}"
+        )
+    directive = f"{head}{handoff.as_posix()}, {sp.DIRECTIVE_TAIL}"
+    rail = "─" * 58
+    lines = [
+        sp.GOAL_COPY_LINE,
+        "",
+        rail,
+        "Every call site of OrderReader uses the retry policy and the test command exits 0.",
+        directive,
+        rail,
+        "",
+        sp.COPY_LINE,
+        "",
+        rail,
+        directive,
+        "Next:",
+        "Ship it",
+        rail,
+    ]
+    md = sp._mobile_prompt(lines)
+    goal = _fenced(md, sp.MD_GOAL_LEAD)
+    resume = _fenced(md, sp.MD_COPY_LINE)
+    assert goal[-1] == directive
+    assert all(len(line) <= 38 for line in goal[:-1])
+    assert hook.handoff_path("/goal " + "\n".join(goal)) == handoff
+    assert hook.handoff_path("\n".join(resume)) == handoff
+
+
+def test_emit_mobile_wraps_prose_around_an_at_sign_and_matches_its_own_fence():
+    sp = _save_point_module()
+    rail = "─" * 58
+    text = "Port the retry policy that @scope/pkg's OrderReader uses into every caller today."
+    md = sp._mobile_prompt([sp.GOAL_COPY_LINE, "", rail, "```", text, rail, ""])
+    opening = next(line for line in md if line.endswith("text"))
+    fence = opening[: -len("text")]
+    start = md.index(opening)
+    close = md.index(fence, start + 1)
+    assert md[start + 1] == "```"
+    assert all(len(line) <= 38 for line in md[start + 1 : close])
+    assert md[close + 2].startswith("Confirm the")
+
+
 def test_emit_shape1_legacy_says_so_and_exits_one(tmp_path):
     handoffs = materialize(tmp_path, "legacy-14")
     result = run("emit", str(handoffs / LEGACY))
@@ -912,14 +1024,21 @@ def test_new_refuses_a_settings_file_that_breaks_the_line(tmp_path, bad):
 @pytest.mark.parametrize("shape", ["2", "3"])
 def test_new_start_command_launches_above_the_unchanged_copy_line(tmp_path, shape):
     repo = make_repo(tmp_path)
-    command = 'env -u PLUGIN_PROFILES_SESSION claude --settings "/h/sessions/abc-review.json"'
+    command = (
+        'env -u PLUGIN_PROFILES_SESSION claude --settings "/h/sessions/abc-review.json"'
+    )
     result = run(
-        *new_args(repo, tmp_path, "--no-previous", "--start-command", command, shape=shape)
+        *new_args(
+            repo, tmp_path, "--no-previous", "--start-command", command, shape=shape
+        )
     )
     assert result.returncode == 0, err(result)
     target = repo / ".work" / "handoffs" / HOP1
     text = target.read_text(encoding="utf-8")
-    assert f"New session checkout: {real_posix(repo)}\nNew session command: {command}\n" in text
+    assert (
+        f"New session checkout: {real_posix(repo)}\nNew session command: {command}\n"
+        in text
+    )
     assert COPY_LINE in text
     fill = shape3_fill if shape == "3" else model_fill
     target.write_text(fill(text), encoding="utf-8", newline="\n")
@@ -929,7 +1048,10 @@ def test_new_start_command_launches_above_the_unchanged_copy_line(tmp_path, shap
     assert emitted.returncode == 0, err(emitted)
     launch = out(emitted).split(COPY_LINE)[0].splitlines()[-1]
     assert launch.startswith("cd ") and real_posix(repo) in launch
-    assert f'{command} "$(cat ' in launch and real_posix(target.with_suffix(".prompt.txt")) in launch
+    assert (
+        f'{command} "$(cat ' in launch
+        and real_posix(target.with_suffix(".prompt.txt")) in launch
+    )
     assert launch + "\n" + COPY_LINE in out(emitted)
 
 
@@ -940,7 +1062,13 @@ def test_phase_change_reopens_in_own_profile_and_starts_next_in_its_own(tmp_path
     command = f'env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE claude --settings "{nxt}"'
     result = run(
         *new_args(
-            repo, tmp_path, "--no-previous", "--settings-file", own, "--start-command", command
+            repo,
+            tmp_path,
+            "--no-previous",
+            "--settings-file",
+            own,
+            "--start-command",
+            command,
         )
     )
     assert result.returncode == 0, err(result)
@@ -960,7 +1088,9 @@ def test_phase_change_reopens_in_own_profile_and_starts_next_in_its_own(tmp_path
 
 def test_new_refuses_a_start_command_with_a_backtick(tmp_path):
     repo = make_repo(tmp_path)
-    result = run(*new_args(repo, tmp_path, "--no-previous", "--start-command", "claude `x`"))
+    result = run(
+        *new_args(repo, tmp_path, "--no-previous", "--start-command", "claude `x`")
+    )
     assert result.returncode == 2
     assert "--start-command" in err(result)
 
@@ -3448,7 +3578,10 @@ def test_ids_an_id_less_question_or_decision_fails_on_a_first_hop(tmp_path):
     assert "Open questions: entry without a [Q<n>] id" in out(result), out(result)
     assert "Decisions in force: entry without a [D<n>] id" in out(result), out(result)
     ok = tmp_path / "ok"
-    with_ids = {"open-questions": "- [Q1] Which color?", "decisions": "- [D1] Paint first."}
+    with_ids = {
+        "open-questions": "- [Q1] Which color?",
+        "decisions": "- [D1] Paint first.",
+    }
     passed = strict(s3_hop(make_repo(ok), ok, values=with_ids))
     assert passed.returncode == 0 and "WARN" not in out(passed), out(passed)
     duplicate = {"open-questions": "- [Q1] Which color?\n- [Q1] Which size?"}
@@ -3843,7 +3976,11 @@ def test_carry_a_shortened_entry_fails_until_marked_as_this_hops_rewrite(
     edit(hop2, short + "\n", f"{short} Rewritten h1: an earlier hop's mark.\n")
     stale = strict(hop2)
     assert stale.returncode == 1 and needle in out(stale), out(stale)
-    edit(hop2, "Rewritten h1: an earlier hop's mark.", "Rewritten h2: the owner narrowed it.")
+    edit(
+        hop2,
+        "Rewritten h1: an earlier hop's mark.",
+        "Rewritten h2: the owner narrowed it.",
+    )
     marked = strict(hop2)
     assert marked.returncode == 0, out(marked)
 
@@ -3912,7 +4049,9 @@ def test_fold_moves_trail_lines_older_than_three_hops_behind_one_pointer(tmp_pat
     assert pointer.startswith(module.FOLD_PREFIX), trail
     assert f"h5-{'5' * 8}.md" in pointer, pointer
     tagged = [line for line in trail if line.startswith("- [h")]
-    assert tagged == [f"- [h{k}] moved to step {k} (agent-initiated)." for k in (3, 4, 5)]
+    assert tagged == [
+        f"- [h{k}] moved to step {k} (agent-initiated)." for k in (3, 4, 5)
+    ]
     archive = repo / ".work" / "handoffs" / "archive" / HOP1.removesuffix(".md")
     folded_at_4 = (archive / f"h4-{'4' * 8}.md").read_text(encoding="utf-8")
     assert SHAPE3_VALUES["trail"] in folded_at_4
@@ -3921,7 +4060,9 @@ def test_fold_moves_trail_lines_older_than_three_hops_behind_one_pointer(tmp_pat
     edit(paths[-1], pointer + "\n", "")
     dropped = run("validate", str(paths[-1]))
     assert dropped.returncode == 1, out(dropped)
-    assert "folded out without the '- Folded:' pointer line" in out(dropped), out(dropped)
+    assert "folded out without the '- Folded:' pointer line" in out(dropped), out(
+        dropped
+    )
 
 
 def test_fold_pointer_carries_forward_when_nothing_new_folds(tmp_path):
@@ -3956,7 +4097,9 @@ def test_fold_a_hop8_chain_within_a_hop4_budget_validates_on_the_first_fill(tmp_
     probe, _ = fill_chain(make_repo(tmp_path / "a"), tmp_path / "a", 4)
     pad = HOT_CAP - len(probe[3].read_bytes()) - 40
     observations = SHAPE3_VALUES["observations"] + "\n- " + "x" * (pad - 3)
-    paths, results = fill_chain(make_repo(tmp_path / "b"), tmp_path / "b", 8, observations)
+    paths, results = fill_chain(
+        make_repo(tmp_path / "b"), tmp_path / "b", 8, observations
+    )
     for path, result in zip(paths, results):
         assert result.returncode == 0, out(result)
         assert "FAIL" not in out(result), out(result)
@@ -4353,7 +4496,12 @@ def test_shape2_carry_is_tagged_unverified_yet_a_drop_fails_after_a_non_content_
     assert "transcript: stated path does not exist" in out(gone), out(gone)
     made = run(
         *new_args(
-            repo, tmp_path, "--previous", str(hop1), sid=SID_B, now="2026-09-02T10:00:00Z"
+            repo,
+            tmp_path,
+            "--previous",
+            str(hop1),
+            sid=SID_B,
+            now="2026-09-02T10:00:00Z",
         )
     )
     assert made.returncode == 0, err(made)

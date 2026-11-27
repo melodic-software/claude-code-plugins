@@ -3,6 +3,75 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.0.2] - 2026-11-27
+
+### Changed
+
+- The pull-request skill's merge readiness check reads the reviews, check runs, commit statuses, review threads and pr-verify settings in parallel once the pull request itself is read, about 2 s faster on a ready PR. What it checks is unchanged.
+
+## [15.0.1] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [15.0.0] - 2026-11-26
+
+### Added
+
+- `scripts/worktree-include.sh` owns `.worktreeinclude` copy, diff (`--worktree-only`, `--unified`), and validated `sync-back` over one NUL-safe `git ls-files -o -i -z --exclude-from` + `git check-ignore --stdin -z` intersection, shared by `worktree-create.sh`, `pull-request/reference/create.md`, `worktree/context/cleanup.md`, and `worktree-reap.sh`.
+- `scripts/worktree-reap.sh` owns unattended multi-root worktree reaping inside `source-control`, composing `worktree-root-resolve.sh --all`, `landed-work.sh --stats-file`, `worktree-include.sh diff --worktree-only`, and batched `worktree-claim.sh stale --batch`, honoring `userConfig.worktree_reap_after_hours`, counting both `project` and `local` scope plugin records, and preserving lock rollback and `/proc` double-scan guards.
+- `scripts/worktree-root-resolve.sh --all` (`worktree_root_collect_includes` and `worktree_root_list_all`) enumerates global, unconditional `[include]`, and readable `[includeIf]` worktree roots for `worktree-discover.sh`, `worktree-root-doctor.sh`, and `worktree-reap.sh`.
+- `scripts/landed-work.sh --stats-file <path>` writes `gh_calls` and `rate_limited` counters.
+- `scripts/worktree-claim.sh claim --all-unclaimed --include-gone` opts into claiming `[gone]` upstream branches.
+
+### Changed
+
+- Synced shared `scripts/fleet-discovery.sh` from `lib/fleet-discovery.sh` with the shared `fleet_resolve_config` helper.
+
+### Removed
+
+- **The three Loosened checks keys are gone** from the schema and from
+  `reference/config-resolution.md`: the heading, record pattern and verbatim marker keys that
+  the guardrails PR-body hook read. A team file that still sets one fails schema validation;
+  delete those lines. pr-verify alone judges a `## Loosened checks` section, by the review
+  plugin's loosened-check rule ([#19312](https://github.com/melodic-software/claude-code-plugins/issues/19312)).
+
+### Fixed
+
+- `scripts/landed-work.sh` enforces strict 9-level risk precedence (`notgit > bare > superseded > STRANDED > UNKNOWN > in-progress > dirty > landed > ok`), includes untracked files in `dirty`, maps unreadable status (`?`) to `UNKNOWN`, and proves base ancestry (`landed=yes`, `method=ancestor`) when `unpushed == 0` so `--no-track` merged branches qualify as landed.
+- `scripts/worktree-claim.sh` uses one 4-state lock classifier (`unlocked`, `ours`, `foreign`, `reasonless`) mapping reasonless manual locks to exit `4` across `claim`, `check-enter`, `release`, and `handover`, reporting `LOCKED_NO_REASON` in `report`, and skipping `[gone]` branches and reasonless locks in `claim --all-unclaimed`; `skills/worktree/context/status.md` now defines `unclaimed` as `locked=no`.
+
+## [14.0.0] - 2026-11-26
+
+### Changed
+
+- **The shared view resolver takes `--producer`, not `--lane`.** "Lane" now means only a worker
+  that serves one pipeline stage, so a skill or plugin registered with the resolver is a producer:
+  run `view-settings.mjs resolve --producer <id>` (`--lane` is gone, with no alias). The registry
+  exports `PRODUCERS` and `producerOf`, `resolveMedium` takes `producer`, and the view builder's
+  `render` takes a producer id.
+
+## [13.21.10] - 2026-11-26
+
+### Changed
+
+- `/source-control:worktree`, `/source-control:setup`, `/source-control:pull-request` and `/source-control:babysit-prs` point at the Claude Code worktree docs, Microsoft's long-path page and GitHub's `pull_request` event and `PullRequestReviewThread` references for the `EnterWorktree`/`ExitWorktree` behavior, the Windows path limit, CI on a conflicted PR and the thread-resolution field with no REST equivalent, instead of restating them ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [13.21.9] - 2026-11-26
+
+### Changed
+
+- `/source-control:babysit-loop` points at the scheduled-tasks docs for the delay range a self-paced loop allows, instead of stating the `ScheduleWakeup` clamp in seconds ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [13.21.8] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+- The babysit-prs scripts are reformatted by the pinned Ruff (import sort and format); no behavior change.
+
 ## [13.21.7] - 2026-11-26
 
 ### Fixed
@@ -99,7 +168,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
-- New keys `pr_body_loosened_checks_heading`, `pr_body_loosened_checks_record_pattern` and `pr_body_loosened_checks_verbatim_marker` in `docs/conventions/source-control.yaml` and its personal override, read by the guardrails plugin to refuse a Loosened checks section that no linked issue authorizes.
+- New keys for the Loosened checks heading, record pattern and verbatim marker in `docs/conventions/source-control.yaml` and its personal override, read by the guardrails plugin to refuse a Loosened checks section that no linked issue authorizes.
 
 ## [13.18.0] - 2026-11-24
 
@@ -7507,7 +7576,7 @@ Internal simplification, no behavior change.
   against nothing.** The autonomy-table pointer read
   `skills/babysit-prs/SKILL.md`, whose implied base is the plugin root while its
   real base is `reference/`, the defect class
-  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  retired ADR 0018 (treat the plugin as the encapsulation boundary for skill citation)'s
   correction 1 names. It now names the public invocation,
   `/source-control:babysit-prs`, keeping the section name.
 
@@ -7517,7 +7586,7 @@ Internal simplification, no behavior change.
   the `work-items` installation, so the anchor resolved to a `babysit-prs` skill
   that does not exist there. This sentence is the doc's address for the autonomy
   obligation, which is the case
-  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  retired ADR 0018 (treat the plugin as the encapsulation boundary for skill citation)'s
   2026-08-28 amendment routes to the invocation rather than to a path whose
   meaning depends on which plugin fetched the document. Found by a third
   derivation over the plugin-level `reference/`, `context/` and `agents/` trees

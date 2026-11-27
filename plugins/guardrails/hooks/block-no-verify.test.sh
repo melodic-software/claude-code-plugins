@@ -130,8 +130,8 @@ run "wsl git commit -m x (allowed)" 'wsl git commit -m x' 0
 run "wsl --list --verbose (management verb, allowed)" 'wsl --list --verbose' 0
 
 case "${OSTYPE:-}" in
-msys* | cygwin* | win32) exp_win=2 ;; # Windows/MSYS folds case + strips .exe
-*) exp_win=0 ;;                       # POSIX stays case-sensitive
+msys* | cygwin* | win32) exp_win=2 ;;
+*) exp_win=0 ;;
 esac
 run "GIT commit --no-verify (uppercase exec, OS-gated)" \
   'GIT commit --no-verify -m test' "$exp_win"

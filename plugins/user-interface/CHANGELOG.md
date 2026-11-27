@@ -3,6 +3,24 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.10] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [0.28.9] - 2026-11-26
+
+### Changed
+
+- `/user-interface:design` points at the skills docs' invocation-control section for which skills only their user can start, instead of describing the Skill tool's refusal ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [0.28.8] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [0.28.7] - 2026-11-26
 
 ### Changed

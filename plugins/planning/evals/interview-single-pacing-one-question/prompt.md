@@ -8,7 +8,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Agent]
 expected_outcome: "The reply asks exactly one of the five frontier decisions in the standard question layout (no Origin: or Basis: line) with the closing probe, with no topic header, no index table and no other question listed, then stops"
 ---
 
-/planning:interview me Add retries and failure alerting to our outbound webhook sender.
+/planning:interview Add retries and failure alerting to our outbound webhook sender.
 
 Round 1 is answered and the terms are agreed: Q1, the quality bar is production; Q2, webhooks are delivered at least once; Q3, receivers deduplicate on the `event_id` header the sender already sends.
 

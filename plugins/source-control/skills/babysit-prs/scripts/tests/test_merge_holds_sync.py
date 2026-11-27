@@ -374,7 +374,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             "REVIEW.md",
             "docs/standards/**",
             "docs/review/**",
-            ".github/scripts/intake-triage/triage-rubric.txt",
+            "docs/conventions/work-items.md",
             ".github/scripts/intake-triage/refine-schema.json",
             ".github/scripts/plugin-eval/policy-probe-prompt.txt",
             ".github/scripts/pr-unblock/test-scope.mjs",

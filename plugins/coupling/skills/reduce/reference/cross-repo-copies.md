@@ -23,6 +23,6 @@ repositories.
    knowledge (a stock license header, a `.gitignore`): a row is a finding only when the copies
    must change together. A managed copy that differs from its source is a finding for the
    mechanism that owns it, not a new copy.
-4. **Route.** A confirmed copy is a route-lane entry whose remediation is "Point, don't copy" in
+4. **Route.** A confirmed copy is a route-step entry whose remediation is "Point, don't copy" in
    [remediations.md](remediations.md), ledgered and filed in the repository that holds the
    source. The copies change to point at it in their own repositories' pull requests.

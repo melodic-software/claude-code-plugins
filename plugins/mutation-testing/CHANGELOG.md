@@ -3,6 +3,20 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.8] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [0.23.7] - 2026-11-26
+
+### Changed
+
+- Tidied dotnet-test-selection.sh and estimate-run.sh: extracted the project lookup into a helper and made the argument checks plain guard clauses.
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [0.23.6] - 2026-11-25
 
 ### Changed

@@ -40,6 +40,22 @@ def _prefix(path: str) -> str:
     return "" if path == "." else f"{path}/"
 
 
+def _build_descendant_index(
+    entries: list[dict[str, Any]],
+) -> dict[str, list[str]]:
+    """Map every ancestor path (and ``"."``) to its sorted inventoried descendants."""
+    paths = sorted(
+        entry["path"] for entry in entries if isinstance(entry.get("path"), str)
+    )
+    index: dict[str, list[str]] = {".": paths}
+    for path in paths:
+        parent = path
+        while "/" in parent:
+            parent = parent.rsplit("/", 1)[0]
+            index.setdefault(parent, []).append(path)
+    return index
+
+
 def descendant_set(path: str, entries: list[dict[str, Any]]) -> list[str]:
     """Inventoried paths strictly below ``path``, in stable order."""
     prefix = _prefix(path)
@@ -51,11 +67,16 @@ def descendant_set(path: str, entries: list[dict[str, Any]]) -> list[str]:
 
 
 def descendants_of(
-    entry: dict[str, Any], entries: list[dict[str, Any]]
+    entry: dict[str, Any],
+    entries: list[dict[str, Any]],
+    *,
+    descendant_index: dict[str, list[str]] | None = None,
 ) -> list[str] | None:
     """The entry's descendant set, or ``None`` when its subtree was not walked."""
     if "not-walked" in (entry.get("size_qualifiers") or []):
         return None
+    if descendant_index is not None:
+        return list(descendant_index.get(entry["path"], ()))
     return descendant_set(entry["path"], entries)
 
 
@@ -68,7 +89,11 @@ def identity_of(entry: dict[str, Any]) -> dict[str, Any]:
 
 
 def identity_holds(
-    record: dict[str, Any], entry: dict[str, Any], entries: list[dict[str, Any]]
+    record: dict[str, Any],
+    entry: dict[str, Any],
+    entries: list[dict[str, Any]],
+    *,
+    descendant_index: dict[str, list[str]] | None = None,
 ) -> bool:
     """False when the device, inode, kind, or descendant set changed.
 
@@ -81,7 +106,7 @@ def identity_holds(
     if record.get("identity") != identity_of(entry):
         return False
     stored = record.get("descendant_set")
-    current = descendants_of(entry, entries)
+    current = descendants_of(entry, entries, descendant_index=descendant_index)
     if stored is None or current is None:
         return True
     return _below(record["path"], stored) == _below(entry["path"], current)
@@ -130,11 +155,15 @@ def _other_target_answer(
     entry: dict[str, Any],
     entries: list[dict[str, Any]],
     local: dict[str, Any] | None = None,
+    *,
+    descendant_index: dict[str, list[str]] | None = None,
 ) -> dict[str, Any] | None:
     if local is not None and not local["question"]:
         return None
     for record in index.get(_identity_key(identity_of(entry)), []):
-        if record["target"] != target and identity_holds(record, entry, entries):
+        if record["target"] != target and identity_holds(
+            record, entry, entries, descendant_index=descendant_index
+        ):
             return record
     return None
 
@@ -144,11 +173,19 @@ def _scan_target_answer(
     index: dict[tuple[Any, Any, Any], list[dict[str, Any]]],
     target: str,
     entries: list[dict[str, Any]],
+    *,
+    descendant_index: dict[str, list[str]] | None = None,
 ) -> dict[str, Any] | None:
     identity = snapshot.get("target_identity")
     if not isinstance(identity, dict):
         return None
-    return _other_target_answer(index, target, {**identity, "path": "."}, entries)
+    return _other_target_answer(
+        index,
+        target,
+        {**identity, "path": "."},
+        entries,
+        descendant_index=descendant_index,
+    )
 
 
 def catalog_scope(snapshot: dict[str, Any], positional: bool) -> dict[str, list[str]]:
@@ -218,13 +255,17 @@ def _unresolved_record(
     entries: list[dict[str, Any]],
     run_id: str,
     previous: dict[str, Any] | None,
+    *,
+    descendant_index: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     path = entry["path"]
     return {
         "target": target,
         "path": path,
         "identity": identity_of(entry),
-        "descendant_set": descendants_of(entry, entries),
+        "descendant_set": descendants_of(
+            entry, entries, descendant_index=descendant_index
+        ),
         "owner": None,
         "provenance": _unresolved_provenance(path),
         "evidence": [],
@@ -351,6 +392,7 @@ def sync_catalog(
     """
     target = str(snapshot["target"])
     entries = snapshot.get("entries") or []
+    descendant_index = _build_descendant_index(entries)
     by_path = {entry["path"]: entry for entry in entries}
     records = _records_by_key(existing)
     answers_elsewhere = _human_by_identity(records)
@@ -358,9 +400,16 @@ def sync_catalog(
     reused: dict[str, dict[str, Any]] = {}
     for path, entry in by_path.items():
         previous = records.get((target, path))
-        holds = previous is not None and identity_holds(previous, entry, entries)
+        holds = previous is not None and identity_holds(
+            previous, entry, entries, descendant_index=descendant_index
+        )
         if answer := _other_target_answer(
-            answers_elsewhere, target, entry, entries, previous if holds else None
+            answers_elsewhere,
+            target,
+            entry,
+            entries,
+            previous if holds else None,
+            descendant_index=descendant_index,
         ):
             records.pop((target, path), None)
             reused[path] = answer
@@ -369,7 +418,9 @@ def sync_catalog(
             records[(target, path)] = {
                 **previous,
                 "descendant_set": (
-                    descendants_of(entry, entries) if stored is None else stored
+                    descendants_of(entry, entries, descendant_index=descendant_index)
+                    if stored is None
+                    else stored
                 ),
                 "size": _size(entry),
                 "last_seen_run": run_id,
@@ -378,7 +429,12 @@ def sync_catalog(
             state[path] = "unchanged"
         elif previous is not None:
             records[(target, path)] = _unresolved_record(
-                target, entry, entries, run_id, previous
+                target,
+                entry,
+                entries,
+                run_id,
+                previous,
+                descendant_index=descendant_index,
             )
             state[path] = "changed"
     unmatched: list[str] = []
@@ -392,7 +448,12 @@ def sync_catalog(
                 continue
             if (target, path) not in records:
                 records[(target, path)] = _unresolved_record(
-                    target, by_path[path], entries, run_id, None
+                    target,
+                    by_path[path],
+                    entries,
+                    run_id,
+                    None,
+                    descendant_index=descendant_index,
                 )
                 state[path] = "new"
             record = records[(target, path)]
@@ -412,7 +473,9 @@ def sync_catalog(
         "version": CATALOG_VERSION,
         "records": [records[key] for key in sorted(records)],
     }
-    target_answer = _scan_target_answer(snapshot, answers_elsewhere, target, entries)
+    target_answer = _scan_target_answer(
+        snapshot, answers_elsewhere, target, entries, descendant_index=descendant_index
+    )
     uncataloged = _uncataloged(
         target,
         catalog_scope(snapshot, positional),
@@ -482,16 +545,26 @@ def annotate_entries(snapshot: dict[str, Any], catalog: dict[str, Any]) -> None:
     """
     target = str(snapshot.get("target"))
     entries = snapshot.get("entries") or []
+    descendant_index = _build_descendant_index(entries)
     records = _records_by_key(catalog)
     answers_elsewhere = _human_by_identity(records)
     for entry in entries:
         entry.pop("prior_disposition", None)
         entry.pop("prior_unresolved", None)
         record = records.get((target, entry["path"]))
-        if record is not None and not identity_holds(record, entry, entries):
+        if record is not None and not identity_holds(
+            record, entry, entries, descendant_index=descendant_index
+        ):
             record = None
         record = (
-            _other_target_answer(answers_elsewhere, target, entry, entries, record)
+            _other_target_answer(
+                answers_elsewhere,
+                target,
+                entry,
+                entries,
+                record,
+                descendant_index=descendant_index,
+            )
             or record
         )
         if record is None:
@@ -500,7 +573,9 @@ def annotate_entries(snapshot: dict[str, Any], catalog: dict[str, Any]) -> None:
         if record.get("question"):
             entry["prior_unresolved"] = True
     snapshot.pop("target_prior_disposition", None)
-    answer = _scan_target_answer(snapshot, answers_elsewhere, target, entries)
+    answer = _scan_target_answer(
+        snapshot, answers_elsewhere, target, entries, descendant_index=descendant_index
+    )
     if answer is not None:
         snapshot["target_prior_disposition"] = answer["disposition"]
 

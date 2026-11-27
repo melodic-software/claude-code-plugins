@@ -60,7 +60,7 @@ guard::alias_depth_max() {
     HOOK_ALIAS_DEPTH_MAX=$((10#$GUARDRAILS_ALIAS_DEPTH_MAX))
   fi
 }
-guard::refuse_config_env_alias() { # <alias>
+guard::refuse_config_env_alias() {
   guard::say_once "config-env-$1" "BLOCKED: git alias '$1' is defined via --config-env, so its expansion cannot be checked. Define it in git config or run the subcommand directly."
 }
 

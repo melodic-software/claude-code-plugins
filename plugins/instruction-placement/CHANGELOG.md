@@ -3,6 +3,34 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.2] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [2.0.1] - 2026-11-26
+
+### Changed
+
+- `/instruction-placement:migrate` and `/instruction-placement:realign` point at the memory page's "When Claude Code reads AGENTS.md" section for which `CLAUDE.md` files block an `AGENTS.md`, instead of stating it ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [2.0.0] - 2026-11-26
+
+### Changed
+
+- **Placement findings have a direction, not a lane.** "Lane" now means only a worker that
+  serves one pipeline stage, so demote and promote are directions: `scripts/detect.sh identity`
+  takes `--direction demote|promote` (`--lane` is gone, with no alias), the findings artifact
+  writes `**Direction:**`, and the `check` field reads `instruction-placement/audit/<direction>`
+  with the same values. The delta skill's prose names it a skill.
+
+## [1.10.10] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [1.10.9] - 2026-11-24
 
 ### Changed

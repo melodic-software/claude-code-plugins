@@ -67,14 +67,14 @@ import share as share_cli  # noqa: E402  (state() has a local named share)
 import tunnel  # noqa: E402
 from session import DomainError  # noqa: E402
 
-NAME = "shared"  # names the session files and the token header; matches session-bridge.conf
+NAME = "shared"
 SECRETS = ".shared-secrets.json"
 PORTS = ".shared-ports.json"
 OWNER_LINK = ".owner-link"
 STATE = "state.json"
 DEFAULTS = "defaults.json"
 IMPORT_DEFAULTS = ("guestPort", "adoptTunnel")
-MIN_OWNER_TOKEN = 16  # an owner token as short as the prototype's (token_urlsafe(12)) is kept: its owner link survives a restart
+MIN_OWNER_TOKEN = 16
 WEB = HERE / "web"
 STATIC = {
     "/": ("index.html", "text/html"),
@@ -86,19 +86,15 @@ STATIC = {
     "/app.css": ("app.css", "text/css"),
     "/question-shape.css": ("question-shape.css", "text/css"),
     "/proto.js": ("proto.js", "text/javascript"),
-    "/web-vitals.attribution.iife.js": ("web-vitals.attribution.iife.js", "text/javascript"),  # vendored, unedited (web/web-vitals.LICENSE)
+    "/web-vitals.attribution.iife.js": ("web-vitals.attribution.iife.js", "text/javascript"),
 }
 PAGE_CSP = "default-src 'self'; img-src 'self' data:; frame-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 ASSET_CSP = "sandbox"
-# An html variant runs scripts in a sandbox with no same origin (no cookies, storage or session access), and only
-# the session's own pages may frame it: the prototype page does (Q98).
 HTML_ASSET_CSP = (
     "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src data:; "
     "connect-src 'none'; frame-ancestors 'self'"
 )
 PROTO = re.compile(r"/proto/(Q[1-9][0-9]{0,5})")
-# The pin helper (web/proto-pin.js) the prototype page asks for with /assets/<id>.html?pin=1: appended to the
-# variant as an inline script, the only kind its CSP runs. It talks to the page by postMessage alone.
 def pin_helper(text):
     """The pin helper's text, refused when it holds `</script`, `<script` or `<!--`: inside a script element any of
     them could end it early or hide its end from the parser."""
@@ -113,7 +109,6 @@ SECURITY_HEADERS = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosn
 ERROR_CODES = {400: "bad-request", 408: "body-timeout", 414: "uri-too-long", 431: "headers-too-large", 501: "not-implemented", 505: "bad-version"}
 ASSET = re.compile(r"/assets/([0-9a-f]{16}\.(png|jpg|webp|svg|html))")
 ASSET_TYPES = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp", "svg": "image/svg+xml", "html": "text/html"}
-# Control characters, a backslash, and U+2028 and U+2029, which str.splitlines() also ends a line on.
 CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f-\x9f\\\u2028\u2029]")
 
 
@@ -135,7 +130,7 @@ def entry(what, /, **fields):
     for k, v in fields.items():
         if v is None:
             continue
-        v = loggable(v, FIELD_LIMITS.get(k, 80)).replace('"', "\\x22").encode("utf-8", "backslashreplace").decode("utf-8")  # a lone surrogate too
+        v = loggable(v, FIELD_LIMITS.get(k, 80)).replace('"', "\\x22").encode("utf-8", "backslashreplace").decode("utf-8")
         out.append(f'{k}="{v}"' if " " in v else f"{k}={v}")
     return " ".join(out)
 
@@ -145,10 +140,6 @@ CLIENT_MESSAGE_MAX = 500
 FIELD_LIMITS = {"method": 16, "message": CLIENT_MESSAGE_MAX, "trace": TRACE_LIMIT, "route": 200, "source": 200}
 LOG_BYTES = 1024 * 1024
 LOG_KEEP = 3
-# POST /api/client-log: what a joined person's page reports (web/core.js telemetry): faults under the person's pid,
-# and a usage summary, which names no one, when the page hides. Summaries reach server.log only in a summary-batch
-# entry every SUMMARY_BATCH_SECONDS and at shutdown, never with a time or a request entry of their own: the page
-# sends its summary as it sends a heartbeat, whose request entry names the person.
 CLIENT_LOG = "/api/client-log"
 CLIENT_LOG_MAX = 4096
 CLIENT_FIELDS = {"kind": 20, "message": CLIENT_MESSAGE_MAX, "source": 200, "route": 200, "code": 60, "ua": 60, "fp": 16}
@@ -159,35 +150,21 @@ CLIENT_PER_MINUTE = 20
 SUMMARY_PER_MINUTE = 6
 SUMMARY_BATCH_SECONDS = 600
 SUMMARY_BATCH_BYTES = 100_000
-SUMMARY_MIN_SENDERS = 2  # judgment: a batch is written only once this many guests sent to it (or only the owner did),
-# so its counts and pairs are never one guest's; below it a batch waits for the next, and at shutdown is only counted,
-# except in a session only one guest ever joined (one on one), whose held counts, and no pair, are written at shutdown
-# A summary's count tokens, added up per batch and never left in its pair: a component's taps (use, rage, dead) are no
-# one's. Any other token with one of these prefixes is dropped, so no text rides along; that includes an older page's
-# `rep:<fp>` repeat, whose fingerprint is also on its fault entry, which names the person.
+SUMMARY_MIN_SENDERS = 2
 COUNT_PREFIXES = ("rep:", "use:", "rage:", "dead:")
-# A fault spike (README "Logs"): SPIKE_THRESHOLD faults of one kind within SPIKE_WINDOW seconds write one `fault-spike`
-# event for Claude, then none until SPIKE_COOLDOWN seconds pass. A kind is a SPIKE_KINDS client entry or `request`, an
-# answer with a 5xx status; `layout` also carries the phone keyboard readout, which is no fault. Kept logs of three real
-# sessions held at most 2 faults of a kind in any 300 s window, so 3 fires on none of them.
 SPIKE_KINDS = ("error", "rejection", "api")
-SPIKE_REFUSALS = (501, 505)  # http.server's refusals of a malformed request, sent before any Host check: no fault
+SPIKE_REFUSALS = (501, 505)
 SPIKE_THRESHOLD = 3
 SPIKE_WINDOW = 300
 SPIKE_COOLDOWN = 600
 SPIKE_KEPT = 1000
 COUNT_TOKEN = re.compile(r"((?:use|rage|dead):(?:vf|core)-[a-z-]{1,60})=(\d{1,6})", re.ASCII)
-DEVICES = ("phone", "tablet", "computer")  # web/core.js deviceKind(); a summary keeps only this word of its ua
+DEVICES = ("phone", "tablet", "computer")
 TUNNEL_POLL = 1.0
 TUNNEL_BACKOFF_MAX = 60.0
 PRESENCE_TICK = 5
 ASSET_COOKIE_SECONDS = 900
 
-# The guest routes: path -> (auth class, session method). Classes (Contracts, "Auth classes"):
-# public needs no identity; person needs a secret or the owner token; moderator is a person whose
-# role session.py checks; owner needs the X-Owner-Token header itself, the owner link's token or a signed-in device's
-# credential; host needs the owner link's token, never a device's. The upload chunk route takes raw bytes,
-# not JSON, so GuestHandler.upload_chunk serves it (UPLOAD_CHUNK).
 ROUTES = {
     "/api/join": ("public", "join"),
     "/api/heartbeat": ("person", "heartbeat"),
@@ -229,7 +206,7 @@ ROUTES = {
     "/api/session/intro": ("owner", "set_intro"),
     "/api/annotate": ("person", "annotate"),
     "/api/request": ("person", "request"),
-    "/api/request/act": ("person", "act_on_request"),  # session.py: move is the asker's or the owner's, the rest the owner's
+    "/api/request/act": ("person", "act_on_request"),
     "/api/result/share": ("person", "share_result"),
     "/api/round/ready": ("moderator", "ready_round"),
     "/api/round/send": ("owner", "send_round"),
@@ -250,7 +227,7 @@ ROUTES = {
     "/api/session/goal": ("owner", "set_goal"),
     "/api/session/end": ("owner", "end_session"),
     "/api/link/guest": ("owner", "rotate_guest_link"),
-    "/api/link/owner": ("host", "rotate_owner_link"),  # it answers the new owner token, which no other device holds
+    "/api/link/owner": ("host", "rotate_owner_link"),
     "/api/owner/pair": ("host", "pair_device"),
     "/api/owner/pair/redeem": ("public", "redeem_pairing"),
     "/api/owner/devices/revoke": ("owner", "revoke_device"),
@@ -260,7 +237,7 @@ ROUTES = {
     "/api/watcher": ("person", "issue_watcher"),
     "/api/watcher/revoke": ("person", "revoke_watcher"),
     "/api/upload/offer": ("person", "offer_upload"),
-    "/api/upload/act": ("person", "act_on_upload"),  # session.py: accept and decline the owner's, withdraw the uploader's
+    "/api/upload/act": ("person", "act_on_upload"),
     "/api/report": ("person", "report"),
     "/api/report/act": ("owner", "act_on_report"),
     "/api/report/add": ("person", "add_to_report"),
@@ -274,8 +251,6 @@ CHUNK_HEADERS = {"id": "X-Upload-Id", "index": "X-Chunk-Index", "total": "X-Chun
 HEALTH = "/api/owner/health"
 GET_ROUTES = {"/api/chat": ("person", "chat_page"), "/api/mine/requests": ("person", "my_requests"), "/api/card/history": ("owner", "card_history"), "/api/report/image": ("owner", "report_image"),
               "/api/upload/image": ("person", "upload_image")}
-# The only routes a watcher key (X-Watcher-Key) works on: a guest's own Claude reads and answers their own self
-# requests. Anywhere else the header answers 401, so the key never acts as the person's session secret.
 WATCHER_ROUTES = {"/api/mine/requests", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail"}
 BODY_CAPS = {"/api/upload/offer": session.OFFER_MAX, "/api/report": session.REPORT_SEND_MAX, "/api/report/add": session.REPORT_MAX, CLIENT_LOG: CLIENT_LOG_MAX}
 SERVER_ERROR = ("state-invalid", "The server could not do that; nothing was written.")
@@ -449,8 +424,6 @@ class QuickTunnelStarter:
                 self.forget(lid, entry, "stopped")
                 continue
             if entry["target"]["kind"] == "port" and not self.listening(entry["target"]["port"]):
-                # The owner's server is gone: whatever binds the port next is not what they attested, so it never
-                # inherits the public address. A new server needs a new add-live and Approve.
                 self.forget(lid, entry, "failed", record=False)
                 app.log.info("live %s: nothing listens on port %d any more, so it ended", lid, entry["target"]["port"])
                 if app.session.live_ended(lid, "failed"):
@@ -687,7 +660,7 @@ class ControlHub(session_bridge.LoopbackWatcher):
     def __init__(self, port, data_dir, app):
         super().__init__(port, data_dir)
         self.app = app
-        self.token = app.secrets["control"]  # from the 0600 file, so a restart keeps armed watchers
+        self.token = app.secrets["control"]
 
     def read_log(self):
         return self.app.session.log_copy()
@@ -763,7 +736,7 @@ class ControlHandler(session_bridge.LoopbackHandler):
             return self.send(200, {"ok": problem is None, **({"error": problem} if problem else {})})
         if path == "/api/live/stop":
             return self.stop_lives(msg)
-        if path == "/api/shutdown":  # share.py stop: the exit SIGTERM starts, which Windows' TerminateProcess skips
+        if path == "/api/shutdown":
             self.send(200, {"ok": True})
             return app.quit.set()
         if path != "/api/ops":
@@ -809,7 +782,7 @@ class GuestServer(ThreadingHTTPServer):
 
     daemon_threads = True
     request_queue_size = 128
-    allow_reuse_address = not detached.WINDOWS  # on Windows the option lets another bind steal the port
+    allow_reuse_address = not detached.WINDOWS
     BUSY_MESSAGE = "The session is busy; try again in a moment."
     BUSY = raw_answer(503, "Service Unavailable", {"error": "busy", "message": BUSY_MESSAGE})
     DRAIN_SECONDS = 2.0
@@ -908,7 +881,7 @@ class GuestHandler(BaseHTTPRequestHandler):
         """The session-bridge headers on every answer, the page CSP on HTML, plus `extra`."""
         raw = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False).encode("utf-8")
         if code >= 400:
-            self.close_connection = True  # an unread body must not become the next request
+            self.close_connection = True
         self.send_response(code)
         text = ctype.startswith("text/") or ctype == "application/json"
         self.send_header("Content-Type", ctype + "; charset=utf-8" if text else ctype)
@@ -930,9 +903,6 @@ class GuestHandler(BaseHTTPRequestHandler):
             with contextlib.suppress(*session_bridge.DISCONNECTS):
                 self.wfile.write(raw)
 
-    # The acting pid, the refusal and the traceback of the request being answered, and whether the answer goes
-    # unlogged (a usage summary taken); send() logs and clears them, since one handler serves every request on a
-    # kept-alive connection.
     pid = refusal = failure = None
     unlogged = False
 
@@ -1044,7 +1014,7 @@ class GuestHandler(BaseHTTPRequestHandler):
         if auth in ("owner", "host") and not self.headers.get("X-Owner-Token"):
             raise DomainError(403, "owner-only", "Only the owner can do that.")
         if auth == "host" and not self.app.session.is_owner_token(self.headers["X-Owner-Token"]):
-            self.identity()  # a stale credential answers 401 as anywhere else
+            self.identity()
             raise DomainError(403, "host-device-only", "Do that on the device that opened your owner link.")
         pid = self.identity()
         if pid is None:
@@ -1053,7 +1023,7 @@ class GuestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         probe = PROBE_PATH.fullmatch(urlparse(self.path).path)
-        if probe:  # before the Host check: the probe arrives on an address not yet allowed; it answers a pending nonce only
+        if probe:
             answer = self.app.answer_probe(probe.group(1))
             return self.send(200, {"probe": answer}) if answer else self.send(404, {"error": "not-found"})
         if self.refused():
@@ -1121,7 +1091,7 @@ class GuestHandler(BaseHTTPRequestHandler):
     def asset(self, aid, ext, *, pin=False):
         pid = self.asset_reader()
         f = self.app.dir / "assets" / aid
-        if not f.is_file() or self.app.session.asset_hidden(pid, aid):  # a view switched off reads as no such asset
+        if not f.is_file() or self.app.session.asset_hidden(pid, aid):
             return self.fail(DomainError(404, "not-found", "No such asset."))
         if ext != "html":
             return self.send(200, f.read_bytes(), ASSET_TYPES[ext], {"Content-Security-Policy": ASSET_CSP, "Content-Disposition": "inline"})
@@ -1137,7 +1107,7 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.send(200, app.session.anonymous_view())
         tag, sent = app.etag(pid), self.headers.get("If-None-Match") or ""
         extra = {"ETag": tag, "Set-Cookie": self.asset_cookie(pid)}
-        if sent == tag:  # identity() already refused a removed or waiting person
+        if sent == tag:
             return self.send(304, b"", extra=extra)
         if sent.rsplit(".", 2)[0] == tag.rsplit(".", 2)[0]:
             return self.send(200, {"rev": app.session.state["rev"], "presenceOnly": True, **app.session.presence_view(pid)}, extra=extra)
@@ -1159,7 +1129,7 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.upload_chunk()
         if path not in ROUTES and path != CLIENT_LOG:
             return self.fail(DomainError(404, "not-found", "Nothing here."))
-        if path != CLIENT_LOG:  # who sends it is settled from headers before any of the body is read
+        if path != CLIENT_LOG:
             auth, method = ROUTES[path]
             try:
                 pid = self.authorize(auth)
@@ -1199,7 +1169,7 @@ class GuestHandler(BaseHTTPRequestHandler):
         if method == "rotate_owner_link":
             app.write_owner_link()
         if method in ("rotate_owner_link", "revoke_device", "end_session"):
-            app._asset_key = secrets.token_bytes(32)  # an asset cookie names the host, not the device: every one ends
+            app._asset_key = secrets.token_bytes(32)
         if method == "approve_live":
             app.changed()
             try:
@@ -1232,7 +1202,7 @@ class GuestHandler(BaseHTTPRequestHandler):
             meta = {k: self.headers.get(h) for k, h in CHUNK_HEADERS.items()}
             plan = app.session.chunk_plan(pid, meta)
             if "received" in plan:
-                self.close_connection = True  # its body stays unread
+                self.close_connection = True
                 return self.send(200, {"ok": True, "received": plan["received"], "repeat": True})
             if length != plan["length"]:
                 code = 413 if length > plan["length"] else 400
@@ -1263,7 +1233,7 @@ class GuestHandler(BaseHTTPRequestHandler):
             pid = self.authorize("person")
             usage = body.get("kind") in USAGE_KINDS
             if usage:
-                self.pid = None  # before any refusal, so a refused summary's request entry names no one either
+                self.pid = None
             fields = client_fields(body)
             if not (self.app.summary_bucket if usage else self.app.client_bucket).take(pid):
                 n, what = (SUMMARY_PER_MINUTE, "summaries") if usage else (CLIENT_PER_MINUTE, "error reports")
@@ -1283,7 +1253,7 @@ class GuestHandler(BaseHTTPRequestHandler):
         if not self.refused():
             self.fail(DomainError(404, "not-found", "Nothing here."))
 
-    do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_HEAD = refuse_method  # no CORS preflight is ever answered
+    do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_HEAD = refuse_method
 
 
 class App:
@@ -1304,7 +1274,7 @@ class App:
         if swept:
             self.log.info("uploads: deleted %d partial or unclaimed files", swept)
         self.build = build_hash()
-        self._asset_key = secrets.token_bytes(32)  # signs asset cookies; a restart ends them, and the next poll renews them
+        self._asset_key = secrets.token_bytes(32)
         self.bucket = Bucket(session.RATE_PER_SECOND, session.RATE_BURST)
         self.client_bucket = Bucket(CLIENT_PER_MINUTE / 60, CLIENT_PER_MINUTE)
         self.image_bucket = Bucket(IMAGE_PER_MINUTE / 60, IMAGE_PER_MINUTE)
@@ -1322,7 +1292,7 @@ class App:
         self._last_sync = 0.0
         self._sync_lock = threading.Lock()
         self._stop = threading.Event()
-        self.quit = threading.Event()  # main() runs shutdown() once it is set: SIGTERM or POST /api/shutdown
+        self.quit = threading.Event()
         self._chunk_lock, self._chunk_readers = threading.Lock(), set()
         self._probe_lock, self._probes = threading.Lock(), {}
         self.live_starter = LIVE_STARTER
@@ -1331,7 +1301,7 @@ class App:
         self.guest.app = self
         self.guest_port = self.guest.server_address[1]
         self.local_hosts = {f"127.0.0.1:{self.guest_port}", f"localhost:{self.guest_port}"}
-        self.asset_cookie = f"shared-assets-{self.guest_port}"  # cookies ignore the port: two local sessions keep their own
+        self.asset_cookie = f"shared-assets-{self.guest_port}"
         handler = type("SharedControlHandler", (ControlHandler,), {})
         self.control, self.hub = session_bridge.start(handler, lambda port: ControlHub(port, self.dir, self), control_port, nonce)
         self.control_port = self.hub.port
@@ -1676,7 +1646,7 @@ class App:
 
     def shutdown(self):
         self._stop.set()
-        serving = getattr(self, "threads", None)  # shutdown() waits for serve_forever, so only once serving
+        serving = getattr(self, "threads", None)
         if serving:
             self.guest.shutdown()
         self.flush_summaries(stopping=True)
@@ -1715,7 +1685,7 @@ def main(argv=None):
         print(f"cannot start: {exc}", file=sys.stderr)
         return 2
     app.serve()
-    with contextlib.suppress(ValueError):  # signals only reach the main thread
+    with contextlib.suppress(ValueError):
         signal.signal(signal.SIGTERM, lambda *_: app.quit.set())
     try:
         while not app.quit.wait(1.0):

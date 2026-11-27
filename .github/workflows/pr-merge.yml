@@ -43,9 +43,9 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-      actions: write # read full runs and their records; start pr-require-checks.yml on main, re-run a red lane-dispatched run, and send a red one to post-merge-file-demotion-issues.yml
+      actions: write
       checks: read
-      issues: read # read the demotion records the merge floor depends on
+      issues: read
     outputs:
       rate-limited: ${{ steps.post-merge.outputs.rate-limited || steps.cover.outputs.stop || steps.dispatch.outputs.stop || steps.rerun.outputs.stop || steps.close.outputs.stop || steps.alert.outputs.stop }}
       paced: ${{ steps.pace.outputs.paced }}
@@ -786,13 +786,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 48
     permissions:
-      contents: read # check out main
-      pull-requests: read # list the open PRs
+      contents: read
+      pull-requests: read
       actions: read
       checks: read
       issues: read
-      statuses: read # a lane stop's pr-unblock status (the lanes App holds no statuses permission)
-      id-token: write # prove to the token broker which workflow this is
+      statuses: read
+      id-token: write
     outputs:
       gate-rows: ${{ steps.rows.outcome == 'success' }}
       dispatch: ${{ steps.mode.outputs.live == 'true' && steps.gate.outputs.dispatch == 'true' }}
@@ -1868,13 +1868,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
-      contents: read # check out main
-      actions: read # the verifier verdicts, their runs and the head-ref map
-      pull-requests: read # the lane's merges and the merge queue, for the lane's room
-      checks: read # the review lanes' annotations, as the gate binds their evidence
-      issues: read # the demotion records the lane's room re-checks
-      statuses: read # the head's pr-unblock statuses (the lanes App holds no statuses permission)
-      id-token: write # prove to the token broker which workflow this is
+      contents: read
+      actions: read
+      pull-requests: read
+      checks: read
+      issues: read
+      statuses: read
+      id-token: write
     outputs:
       unarmed-statuses: ${{ steps.arm.outputs.unarmed-statuses }}
     steps:
@@ -2431,7 +2431,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      statuses: write # post pr-merge/unarmed on lanes App pull request heads
+      statuses: write
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -2496,8 +2496,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: write # read main's full runs and start pr-require-checks.yml on main
-      contents: read # check out the api-budget library
+      actions: write
+      contents: read
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -2689,6 +2689,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       actions: write
+      pull-requests: read
       contents: read
     env:
       API_BUDGET_TOKEN: github-token
@@ -2716,6 +2717,7 @@ jobs:
         timeout-minutes: 3
         env:
           GH_TOKEN: ${{ github.token }}
+          LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           RELEASED: ${{ needs.merge.outputs.eval-released }}
           MAX_WAKES: 5
         run: |
@@ -2730,6 +2732,26 @@ jobs:
             if ((woken >= MAX_WAKES)); then
               echo "::notice title=eval-release wake::pr=$pr not woken: $MAX_WAKES woken this run; the next scheduled run arms it"
               continue
+            fi
+            # Kept in step with pr-verify.yml's wake-pr-merge: the broker
+            # mints for this wake only on a lanes App pull request. A failed
+            # read, or no lanes App id, dispatches anyway.
+            if [[ ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]] &&
+              answer=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" \
+                --jq '"\(.user.id) \(.user.type) \(.auto_merge != null) \([.labels[].name] | index("do-not-merge") != null)"') &&
+              read -r id type armed held <<<"$answer"; then
+              if [ "$id $type" != "$LANES_APP_ID Bot" ]; then
+                echo "::notice title=eval-release wake::pr=$pr not a lanes App pull request; nothing woken"
+                continue
+              fi
+              if [ "$armed" = true ]; then
+                echo "::notice title=eval-release wake::pr=$pr already armed; nothing woken"
+                continue
+              fi
+              if [ "$held" = true ]; then
+                echo "::notice title=eval-release wake::pr=$pr held (do-not-merge); nothing woken"
+                continue
+              fi
             fi
             woken=$((woken + 1))
             if gh workflow run pr-merge.yml -R "$GITHUB_REPOSITORY" --ref main -f pr="$pr"; then

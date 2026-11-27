@@ -1,5 +1,13 @@
 # Changelog for the standards convention
 
+## 1.3.1 - 2026-11-26
+
+Clarification. The Resolution ladder gains "Adopted shipped concepts": a consuming stage that loads
+a standards file citing shipped concept ids runs `/engineering-concepts:lookup` (if enabled) with
+`--counterweights-of` on those ids and keeps each printed counterweight or conflict line beside its
+entry. The planning, review, improvement and discovery plugins carry the binding, the discovery
+plugin newly, with its own `scripts/org-standards.sh`.
+
 ## 1.3.0 - 2026-11-25
 
 Additive. A fifth layer, personal subscriptions: the user-global index's frontmatter may list

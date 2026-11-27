@@ -17,7 +17,6 @@ import redact
 RULES_FILE = (
     Path(__file__).resolve().parents[4] / "vendor" / "gitleaks" / "gitleaks-rules.json"
 )
-# AWS's documented example access key id.
 AWS_EXAMPLE_KEY = "".join(("AKIA", "IOSFODNN7", "EXAMPLE"))
 
 
@@ -42,7 +41,6 @@ def test_documented_example_token_is_replaced_with_its_rule_id() -> None:
 
 
 def test_mid_pattern_case_flag_survives_vendoring() -> None:
-    # linear-api-key is `lin_api_(?i)[a-z0-9]{40}` upstream; mixed case must still match.
     token = "".join(("lin_", "api_", "Ab3" * 13, "Z"))
     assert (
         redact.load_redactor().redact(f"key {token} here")
@@ -50,8 +48,6 @@ def test_mid_pattern_case_flag_survives_vendoring() -> None:
     )
 
 
-# The word after each token is 10+ characters, which generic-api-key takes after a placeholder
-# whose label holds one of its keywords.
 @pytest.mark.parametrize("prefix", ["oat01-", "oat02-"])
 def test_bare_anthropic_oauth_token_is_redacted(prefix: str) -> None:
     token = "".join(("sk-ant-", prefix, "Qx7_-" * 19, "AA"))
@@ -61,7 +57,6 @@ def test_bare_anthropic_oauth_token_is_redacted(prefix: str) -> None:
 
 
 def test_stateless_github_app_token_with_a_dot_is_redacted_whole() -> None:
-    # The dot comes after 36+ alphanumerics, so the vendored 36-character rule leaves a tail.
     token = "".join(("ghs_", "Ab3" * 14, ".", "eyJ", "x9_-Qz"))
     assert redact.load_redactor().redact(f"use {token} successfully") == (
         "use <redacted:github-app-token> successfully"
@@ -72,7 +67,6 @@ USER = "al" + "ice"
 BS = "\\"
 
 
-# The home-path spellings docs/contracts/windows-path-emit names, plus WSL and JSON-escaped forms.
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
@@ -104,7 +98,6 @@ def test_bare_home_dir_ending_a_phrase_keeps_the_prose() -> None:
 def test_short_assigned_value_is_caught_by_the_generic_assignment_pass(
     name: str,
 ) -> None:
-    # Shorter than the 10 characters gitleaks' generic-api-key needs, so only this pass catches it.
     value = "hun" + "ter2"
     assert redact.load_redactor().redact(f"set {name}: {value} now") == (
         f"set {name}: <redacted:generic-assignment> now"
@@ -205,7 +198,6 @@ def test_url_credential_pass_stays_fast_on_a_long_hyphenated_token() -> None:
 
 @pytest.mark.parametrize("breaks", ["\r", "\r\n", "\n"], ids=["cr", "crlf", "lf"])
 def test_curl_rules_stay_fast_on_a_run_of_line_breaks(breaks: str) -> None:
-    # The curl rules were written for RE2; under re, `.` matching a bare \r made 50 of them take seconds.
     started = time.monotonic()
     assert redact.load_redactor().redact("curl " + breaks * 200) == "curl " + "\n" * 200
     assert time.monotonic() - started < 1.0
@@ -234,7 +226,6 @@ def test_private_key_block_is_redacted_with_or_without_its_end(raw: str, expecte
         ("mysql -uroot -p" + SHORT + " app", "mysql -uroot -p<redacted:cli-password> app"),
         ("mysqldump -h db -u admin -p" + SHORT + " app", "mysqldump -h db -u admin -p<redacted:cli-password> app"),
         ("mariadb -u admin -p'" + SHORT + " x' app", "mariadb -u admin -p<redacted:cli-password> app"),
-        # A bare -p prompts for the password; -P is the port; other tools' -p is not a password.
         ("mysql -u root -p app", "mysql -u root -p app"),
         ("mysql -P3306 -h db", "mysql -P3306 -h db"),
         ("find . -name x -print", "find . -name x -print"),
@@ -296,7 +287,6 @@ def test_rule_that_does_not_compile_is_skipped_counted_and_fails_closed(
 
 
 def test_excerpt_truncates_after_redacting() -> None:
-    # Cut first, a token straddling the limit would leave its head ("AKIA...") in the excerpt.
     text = "a" * 10 + " " + AWS_EXAMPLE_KEY
     assert redact.load_redactor().excerpt(text, 16) == "aaaaaaaaaa <reda"
 

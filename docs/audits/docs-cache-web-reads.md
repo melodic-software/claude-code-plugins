@@ -100,9 +100,9 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | performance | `skills/go-faster/reference/areas.md:53` | WebFetch when the manifest records a page unread | kept | Fallback; the primary read is already on the cache |
 | planning | `skills/devils-advocate/SKILL.md:146` | WebSearch and WebFetch | kept | Open research on search results, not docs pages |
 | planning | `skills/draft-goal-condition/SKILL.md:118` | WebFetch when the manifest records the page unread | kept | Fallback; the primary read is already on the cache |
-| planning | `offers/offer-source.mjs:28` | fetch of the GitHub REST API | kept | Forge API, not a page |
+| planning | `offers/offer-source.mjs:19` | fetch of the GitHub REST API | kept | Forge API, not a page |
 | planning | `shared/cfdns.py:95` | Cloudflare DNS API | kept | Authenticated API call, not a page |
-| planning | `shared/server.py:549` | HTTPS probe through the user's tunnel address | kept | Probes the user's own tunnel, not a page |
+| planning | `shared/server.py:522` | HTTPS probe through the user's tunnel address | kept | Probes the user's own tunnel, not a page |
 | planning | `shared/share.py:289` | HTTPS lease probe to the user's tunnel host | kept | Probes the user's own tunnel, not a page |
 | playbooks | `skills/fable-5/SKILL.md:142` | WebFetch when the manifest records the page unread | kept | Fallback; the primary read is already on the cache |
 | playbooks | `skills/boris/scripts/update.sh:75` | curl of the upstream version JSON | kept | API, not a page |
@@ -126,11 +126,11 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | user-interface | `skills/write-animation/SKILL.md:65` | WebFetch on official docs as the fourth route | kept | Used when `/context7:lookup` and `/discovery:research` give no answer; the plugin carries no cache copy |
 | wizard | `skills/generate/template.sh:761` | curl in an example stage | kept | Example text the author deletes; an API call, not a page |
 | work-items | `skills/onboard-adapter/scripts/templates/common.sh.tmpl:286` | Tracker REST call in the generated adapter template | kept | Authenticated tracker API, not a page |
-| work-items | `tools/work-item-tracker/seeds/gitea/common.sh:313` | Gitea REST API | kept | Authenticated tracker API, not a page |
-| work-items | `tools/work-item-tracker/seeds/jira/common.sh:290` | Jira REST API | kept | Authenticated tracker API, not a page |
-| work-items | `tools/work-item-tracker/seeds/linear/common.sh:360` | Linear GraphQL API | kept | Authenticated tracker API, not a page |
-| work-items | `tools/work-item-tracker/conformance/bindings/linear.sh:49` | Linear GraphQL API | kept | Authenticated tracker API, not a page |
-| work-items | `tools/work-item-tracker/seeds/linear/schema-check/fetch-schema.sh:16` | curl of Linear's `schema.graphql` | kept | Schema file compared against the adapter, not a page |
+| work-items | `tools/work-item-tracker/seeds/gitea/common.sh:180` | Gitea REST API | kept | Authenticated tracker API, not a page |
+| work-items | `tools/work-item-tracker/seeds/jira/common.sh:170` | Jira REST API | kept | Authenticated tracker API, not a page |
+| work-items | `tools/work-item-tracker/seeds/linear/common.sh:210` | Linear GraphQL API | kept | Authenticated tracker API, not a page |
+| work-items | `tools/work-item-tracker/conformance/bindings/linear.sh:15` | Linear GraphQL API | kept | Authenticated tracker API, not a page |
+| work-items | `tools/work-item-tracker/seeds/linear/schema-check/fetch-schema.sh:8` | curl of Linear's `schema.graphql` | kept | Schema file compared against the adapter, not a page |
 | x | `skills/read/SKILL.md:6` | WebFetch grant for threadreaderapp.com, used at line 252 | kept | Fallback rendering of an X thread, presented as a summary; not a docs page |
 | x | `skills/read/SKILL.md:154` | curl POST to the xtomd converter, also in `context/sources.md:61` to 75 | kept | POST-only converter endpoint; the cache fetches with GET |
 

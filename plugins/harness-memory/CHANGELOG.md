@@ -3,6 +3,24 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.5.8] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [2.5.7] - 2026-11-26
+
+### Changed
+
+- `stateless` names its successors in `## Next`: its `disable` action when status shows auto memory on, `/harness-memory:audit` once memory is off.
+
+## [2.5.6] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [2.5.5] - 2026-11-26
 
 ### Changed

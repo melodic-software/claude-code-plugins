@@ -221,7 +221,7 @@ check_yaml_key() {
     [ -n "$YAML_VAL" ] && return 0
   else
     case "$nl$YAML_RECORDS" in
-    *"$nl$1."*) ;; # carried as a list or a mapping
+    *"$nl$1."*) ;;
     *) yaml_bare_key "$1" || return 0 ;;
     esac
   fi

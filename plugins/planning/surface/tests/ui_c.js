@@ -51,11 +51,9 @@ async page => {
     await page.waitForSelector(".qbtn", {state: "attached"});
     await page.evaluate(() => localStorage.clear());
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"});
-    // #7970: with no stored choice a wide screen opens the side panels pinned; these phases were written for the overlay, so they store Unpin first
     await page.click('.strip [data-panel="terms"]'); await page.waitForTimeout(200);
     if ((await page.getAttribute("#pinBtn", "aria-pressed")) === "true") await page.click("#pinBtn");
     await page.click("#flyClose"); await page.waitForTimeout(150);
-    // The pill's history is recorded on a second tab, closed after: an init script runs in every frame, and Chrome logs each run it blocks in this page's sandboxed visual frames as a console error (AC37).
     const fresh = await page.context().newPage();
     await fresh.addInitScript(() => document.addEventListener("DOMContentLoaded", () => { const p = document.getElementById("pill"); if (window !== window.top || !p) return; window.__pills = [p.textContent]; new MutationObserver(() => window.__pills.push(p.textContent)).observe(p, {childList: true, characterData: true, subtree: true}); }));
     await fresh.goto(base); await fresh.waitForSelector(".qbtn", {state: "attached"});
@@ -134,7 +132,6 @@ async page => {
     ok("Ctrl+Enter saves nothing behind the open ? sheet", armedBehind && (await events()).length === n1 && await page.evaluate(() => document.getElementById("keysDlg").open), "armed " + armedBehind);
     await page.keyboard.press("Escape"); await page.waitForTimeout(150);
     ok("AC16: Esc closes the sheet", await page.evaluate(() => !document.getElementById("keysDlg").open));
-    // #5915: the Show filter key, search and jump, the URL hash, and the rail button's accessible name
     await page.click("main.detail h3"); await page.keyboard.press("s");
     ok("#5915: s focuses the Show filter", (await focused()) === "filter");
     await page.keyboard.press("Escape");
@@ -229,7 +226,6 @@ async page => {
     await page.click('.rail-list .tree .qbtn[data-q="D0"]'); await page.waitForTimeout(200);
     const dBan = await banners();
     ok("#8087: an archived question with supersededBy shows one banner that names and links the replacement", await sel() === "D0" && dBan.length === 1 && /superseded by D1/i.test(dBan[0].text) && !/The old path left the plan/.test(dBan[0].text) && dBan[0].link.some(l => l.includes("D1")), JSON.stringify(dBan));
-    // #9715: archived D0 takes no decision: its choices, Save and Reopen are off, Ask still works, and a primary Go to names the end of its supersededBy chain
     const archOff = await page.evaluate(() => ({radios: [...document.querySelectorAll('#choices input[type="radio"]')].map(r => r.disabled), save: document.querySelector("[data-save]").disabled, reopen: !!document.querySelector('#decideRow [data-act="reopen"]'), go: [...document.querySelectorAll("#decideRow button[data-go]")].map(b => b.textContent + "|" + b.dataset.go + "|" + b.classList.contains("primary"))}));
     await page.click("#note"); await page.keyboard.type("Why was this replaced?"); await page.waitForTimeout(150);
     const askOn = await page.$eval('#talkRow [data-act="ask"]', el => !el.disabled);
@@ -640,7 +636,7 @@ async page => {
     ok("lease held, no waiter, a delivery unhandled for 10 minutes: the header reads Not listening for D1: type next beside Claude has not handled D1 yet", sh.cls === "pill idle" && sh.text === "Not listening for D1: type next" && sh.line === "Claude has not handled D1 yet", JSON.stringify(sh));
     await tab.close();
   }
-  if (PHASE === 7) { // #9715, its own server holding only D1: the page answers D1; the shell then supersedes it and reads export-ledger for phase 8
+  if (PHASE === 7) {
     await page.setViewportSize({width: 1400, height: 860});
     await page.goto(base);
     await page.waitForSelector('.qbtn[data-q="D1"]', {state: "attached"});
@@ -658,7 +654,7 @@ async page => {
     const s = await state(), d1 = s.questions.questions.find(q => q.id === "D1"), meter = await page.textContent("#meterText");
     ok("#9715: an answered question superseded after it: the meter's answered and live counts match export-ledger, which withdraws it", d1.supersededBy === "D2" && s.responses.responses.D1?.decision === "accept" && ledger.D1 === "withdrawn" && meter === ledger.answered + " of " + ledger.live + " answered", meter + " | ledger " + JSON.stringify(ledger));
   }
-  if (PHASE === 9) { // #9692, its own restated server: A1 to A3, all accepted as recommended
+  if (PHASE === 9) {
     await page.setViewportSize({width: 1400, height: 860});
     await page.goto(base);
     await page.waitForSelector('.qbtn[data-q="A3"]', {state: "attached"});
@@ -671,7 +667,7 @@ async page => {
     const ev = await events(), aud = ev.filter(e => e.kind === "accept-audit");
     ok("#9692: Have agents check these answers posts one accept-audit event listing A1, A2 and A3, and no Confirm", aud.length === 1 && aud[0].items.map(i => i.id).sort().join() === "A1,A2,A3" && !ev.some(e => e.kind === "confirm-understanding"), JSON.stringify(aud));
   }
-  if (PHASE === 10) { // #9692, its own restated server: T1 accepted with its two commitments unticked
+  if (PHASE === 10) {
     await page.setViewportSize({width: 1400, height: 860});
     await page.goto(base);
     await page.waitForSelector('.qbtn[data-q="T1"]', {state: "attached"});

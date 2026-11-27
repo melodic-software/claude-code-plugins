@@ -44,11 +44,39 @@ port, account and shell. The skill reads it before composing anything, and treat
 absent from it as not a fleet host. Machines are addressed by hostname over the tailnet, never by
 session name.
 
+## Peer list at session start
+
+A SessionStart hook adds the live Claude Code sessions on every fleet lane to the session's
+context on startup, resume, `/clear`, compaction and fork, at no model-turn cost. It reads
+`~/.config/fleet/fleet.json` (contract: [fleet-manifest](../../docs/contracts/fleet-manifest/README.md))
+and runs each lane's `claude agents --json`: on this lane directly, through WSL interop or
+`wsl.exe -d <distro> --exec`, or over ssh in batch mode with strict host keys and no forwarding. The ssh client is the one
+`ssh_client` names, else the platform's own; on WSL that is the Windows OpenSSH client.
+It starts no local shell and runs no other program itself; ssh still follows your ssh config.
+
+- The list opens with a line saying it is data, that same-lane peers take SendMessage by name and
+  other lanes take `/fleet:reach`; it is at most 25 lines.
+- With no live peer and no broken lane it prints nothing.
+- A session that is not attended (`claude -p`, `--bg`, the SDK) lists only its own lane, as does
+  a timeout of 0. With no `fleet.json` it lists only its own lane, through the binary that started
+  the session.
+- A lane that cannot be reached prints `not reached: <host> <OS> (<reason>)`: always for a broken
+  lane (name lookup failed, sign-in expired, claude not found, unsafe manifest entry), and only
+  inside a printed list for one that is away (timed out, no route, refused, distro stopped).
+
+To see what the hook would print, run it yourself; `--manifest <file>` reads another manifest:
+
+```shell
+node <plugin root>/hooks/peer-list.mjs --preview [--manifest <file>]
+```
+
 ## Posture
 
 Starting an agent on another host or platform is a state change nobody is watching, so it is outside the
-auto-mode classifier and prompts by design. This plugin ships no scripts, requests no tool grants,
-and never proposes an ssh allow rule to quiet the prompt.
+auto-mode classifier and prompts by design. The reach skill requests no tool grants and never
+proposes an ssh allow rule to quiet the prompt. The peer-list hook runs without a prompt because it
+only reads: each lane's `claude agents --json`, with names and paths from `fleet.json` that pass a
+safe-character check.
 
 ## Boundaries
 
@@ -68,6 +96,8 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `converge_docs_url` | string | *(none)* | URL of your own documentation for the fleet-converge command, which reach names when converging dotfiles comes up. Unset: reach names the command with no link. |
+| `peer_query_timeout_seconds` | number<br>*min 0, max 10* | `3` | Seconds the session-start peer list waits for each fleet lane's claude agents --json, from 0 to 10. 0 lists only the lane the session runs on. Empty or out of range: 3. |
+| `ssh_client` | string | *(none)* | Absolute path of the ssh client the peer list runs to reach other machines; the file must be named ssh or ssh.exe (a drive-letter path on Windows). Empty or invalid: the platform's own client, on WSL the Windows OpenSSH client. Set /usr/bin/ssh on WSL when the distro holds the fleet key. |
 
 ### How to set these
 

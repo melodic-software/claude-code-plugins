@@ -3,6 +3,25 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.43] - 2026-11-26
+
+### Changed
+
+- `audit-fleet.sh`, `sync-fleet.sh`, and `setup-config.sh` share one config-resolution ladder in `scripts/fleet-discovery.sh` (`fleet_resolve_config`, `fleet_clean_project_dir`, `fleet_default_config_path`).
+
+- Synced `scripts/worktree-root-resolve.sh` from canonical `lib/worktree-root-resolve.sh` with `--all`, `worktree_root_collect_includes`, and `worktree_root_list_all` for conditional `includeIf` root enumeration.
+
+### Fixed
+
+- `sync-fleet.sh` now honors `USERPROFILE` when `HOME` is unset, strips literal `${...}` project-dir placeholders, and fails closed on malformed Git config syntax.
+- `setup-config.sh` strips literal `${...}` placeholders from `CLAUDE_PROJECT_DIR` before computing the default config path.
+
+## [0.28.42] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [0.28.41] - 2026-11-24
 
 ### Changed
