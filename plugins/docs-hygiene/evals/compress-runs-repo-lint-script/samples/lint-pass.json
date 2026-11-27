@@ -9,6 +9,8 @@
     {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=unresolved)", "why": "the resolvable script reported as unresolved"},
     {"answer": "onboarding.md: compressed (compression_pct=21.4%, markdownlint=PASS)", "why": "the old field name"},
     {"answer": "onboarding.md: reverted (lint=FAIL)", "why": "a failing lint result"},
-    {"answer": "The lint script passed.", "why": "prose without the lint field"}
+    {"answer": "The lint script passed.", "why": "prose without the lint field"},
+    {"answer": "onboarding.md: reverted (compression_pct=1.2%, lint=PASS)", "why": "a below-threshold revert that ships no compression"},
+    {"answer": "onboarding.md: compressed\n\nlint=PASS", "why": "the action and the lint result on separate lines"}
   ]
 }

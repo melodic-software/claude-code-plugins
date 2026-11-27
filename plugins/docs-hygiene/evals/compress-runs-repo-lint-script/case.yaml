@@ -17,7 +17,7 @@ graders:
     arm: with-only
   - name: lint-pass
     type: regex
-    pattern: '\blint\W{1,4}PASS\b'
+    pattern: '\bcompressed\b[^\n]*\blint\W{1,4}PASS\b'
     target: last_message
     arm: with-only
   - name: no-shipped-linter

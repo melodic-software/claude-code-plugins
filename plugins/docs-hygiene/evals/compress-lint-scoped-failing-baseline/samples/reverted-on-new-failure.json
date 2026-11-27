@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": "onboarding.md: reverted (compression_pct=21.4%, verification: skipped (light), lint=FAIL)\n\nLint: `npm run lint:md -- docs/onboarding.md` printed one failure before the edit (FAIL: heading style) and two after it (FAIL: locked content changed).", "why": "the schema's summary line"},
+    {"answer": "| File | Action | Lint |\n|---|---|---|\n| onboarding.md | reverted | lint: FAIL |", "why": "a table row"},
+    {"answer": "- `onboarding.md`: reverted, `lint=FAIL` (`bash scripts/lint-md.sh docs/onboarding.md`: a new failure message)", "why": "code-formatted fields"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=PASS)\n\nThe baseline already exited 1 and no message names a file.", "why": "ships over a new failure because the baseline was already non-zero"},
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, lint=unresolved)", "why": "treats unnamed messages from a scoped run as unresolved and ships"},
+    {"answer": "onboarding.md: reverted (compression_pct=21.4%, lint=unresolved)", "why": "reverts but reports the failure unresolved"},
+    {"answer": "onboarding.md: reverted\n\nlint=FAIL", "why": "the action and the lint result on separate lines"},
+    {"answer": "The lint script printed a new failure, so I reverted the file.", "why": "prose without the lint field"}
+  ]
+}
