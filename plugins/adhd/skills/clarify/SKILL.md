@@ -82,11 +82,12 @@ recommendation the source re-stated as old → new → why keeps all three parts
 
 Before choosing a form, run the shared medium resolver. Add `--argument` only when the reader
 passed `--medium`, with the value they gave. `<option>` is this plugin's `medium` option,
-`${user_config.medium}`; pass `""` when that reads empty or as an unsubstituted placeholder. Read
-each option value from this text; never put a `${user_config.*}` string in a shell command.
+`${user_config.medium}`, and `<branding option>` is `${user_config.branding}`; pass `""` when
+either reads empty or as an unsubstituted placeholder. Read each option value from this text; never
+put a `${user_config.*}` string in a shell command.
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --producer adhd:clarify --option "<option>" [--argument <medium>]
+node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --producer adhd:clarify --option "<option>" [--argument <medium>] [--branding-option "<branding option>"]
 ```
 
 It prints one JSON line, then the report line naming the medium and what decided it, then one line
@@ -129,11 +130,15 @@ plugin-data substitution variable for it.
 With neither a writable temp location nor the Artifact surface, use terminal markdown. The
 fidelity rules hold in every medium.
 
-**Page chrome.** For the artifact or local HTML file, take the palette, type stacks, radii and
+**Page chrome and branding.** For the artifact or local HTML file, take the palette and type stacks
+from `${CLAUDE_PLUGIN_ROOT}/reference/html-tokens.css` and the toggle, comment box, radii and
 accessibility floor (link and focus contrast tokens, color-scheme and reduced-motion behavior) from
-this plugin's bundled chrome reference, `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`, rather
-than inventing a look per page. The chrome does not settle layout: the decision table stays the
-page's main content.
+`${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`, rather than inventing a look per page. Run
+`node "${CLAUDE_PLUGIN_ROOT}/lib/html-branding.mjs" --in "<page>" --out "<page>" --option "<branding option>"`
+to inline the token layer and any resolved `branding` overrides into the page's one `<style>`
+element and show any resolved logo in `.rv-bar`'s fixed slot while keeping the toggle, comment box
+and floor unchanged (print any notices it reports; with no `branding` set, the page stays
+unchanged). The chrome does not settle layout: the decision table stays the page's main content.
 
 ### The decision table
 
