@@ -133,6 +133,48 @@
         "as_of": "2026-09-30",
         "recheck": "a Pulumi CLI release note that changes the plugin cache location or the plugin ls, plugin rm or about commands"
       }
+    },
+    {
+      "id": "claude-code-plugin-eval-run-roots",
+      "owner": "plugin-eval skill of the evals plugin (claude-code-plugins marketplace)",
+      "path_patterns": {
+        "linux": [".ev", ".ev*"]
+      },
+      "tool": "prune-run-roots.py",
+      "read_only_command": null,
+      "destructive_native_command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/prune-run-roots.py\" (CLAUDE_PLUGIN_ROOT of the evals plugin)",
+      "manual_step": null,
+      "platforms": ["linux"],
+      "verification": {
+        "claim": "~/.ev is the eval temp root and every other home child named .ev* is a legacy run root; prune-run-roots.py removes a run root only when it holds a claude-eval-* sandbox, nothing in it changed for 3 days, and no process has a file or working directory under it, and it leaves ~/.ev and the docker link swap state in place",
+        "basis": [
+          "plugins/evals/skills/plugin-eval/scripts/prune-run-roots.py module docstring (claude-code-plugins repository)",
+          "plugins/evals/skills/plugin-eval/reference/sandboxes.md, Pruning stale run roots"
+        ],
+        "as_of": "2026-11-27",
+        "recheck": "a change to prune-run-roots.py that moves the run root, renames the legacy .ev* prefix, or changes its removal conditions"
+      }
+    },
+    {
+      "id": "claude-code-plugin-eval-docker-link-swap",
+      "owner": "plugin-eval skill of the evals plugin (claude-code-plugins marketplace)",
+      "path_patterns": {
+        "linux": [".docker-link-swap.json", ".ev/.docker-link-swap.json"]
+      },
+      "tool": "docker-links.py",
+      "read_only_command": null,
+      "destructive_native_command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/docker-links.py\" restore (CLAUDE_PLUGIN_ROOT of the evals plugin)",
+      "manual_step": null,
+      "platforms": ["linux"],
+      "verification": {
+        "claim": "the docker link swap manifest lists the ~/.docker links a run replaced and the live runs holding the copies; docker-links.py restore moves a legacy home-root manifest under ~/.ev, puts back the links of a run that was killed, removes the manifest and the legacy home-root lock, and refuses while a live run holds the copies, so deleting a manifest by hand loses the links to restore",
+        "basis": [
+          "plugins/evals/skills/plugin-eval/scripts/docker-links.py module docstring (claude-code-plugins repository)",
+          "plugins/evals/skills/plugin-eval/reference/sandboxes.md, Docker link swap"
+        ],
+        "as_of": "2026-11-27",
+        "recheck": "a change to docker-links.py that moves the manifest or lock, or changes what restore removes"
+      }
     }
   ]
 }

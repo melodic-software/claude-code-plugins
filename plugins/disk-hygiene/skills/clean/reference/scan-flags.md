@@ -183,6 +183,13 @@ A hint may set `entry_types` (`file`, `directory`, `link`, `other`) to match onl
 hinted. The scan does not probe processes, so a `common-lock-file` hint stays at confidence `low`
 and whether the lock is stale is proven during investigation (step 2 of the skill).
 
+A hint may also set `requires`: facts the matched entry must show (`zero_bytes`, `absent_siblings`,
+`absent_children`, `unreferenced`; the [overlay schema](policy-overlay.schema.json) defines each).
+A requirement that fails, or cannot be read, drops the hint, and the entry records why in
+`unmet_hint_conditions`. Report that list beside a name that looks like a leftover and is not one,
+such as a non-empty `.npmrc`. Checking a requirement lists no directory. What each baseline
+home-root hint claims, and its source: [home-leftover-hints.md](home-leftover-hints.md).
+
 Every entry also carries `review_rank`, and `scan-complete` carries `ranked_entries`,
 `unranked_entries` and `entries_by_signal`, unchanged by `--quiet`. What each signal reads and why
 an unranked entry has no position: [review ranking](safety-model.md#review-ranking).
