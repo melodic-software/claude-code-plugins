@@ -179,6 +179,24 @@ class EachSense(unittest.TestCase):
         code, out, _ = run_gate({"docs/guide.md": "\n".join(lines)})
         self.assertEqual((code, out), (0, ""))
 
+    def test_a_sense_ending_its_line_ignores_the_next_line(self):
+        lines = ["Edit the settings.json surface", "the next line starts with an article"]
+        code, out, err = run_gate({"docs/guide.md": "\n".join(lines)})
+        self.assertEqual(code, 1, out + err)
+        self.assertEqual(out, f"docs/guide.md:1: surface-config: {lines[0]}\n")
+
+    def test_a_tree_scanned_in_parallel_reports_in_path_order(self):
+        files = {f"docs/clean-{n:04}.md": "Nothing retired here." for n in range(1100)}
+        files["docs/clean-0007.md"] = HITS["rung"]
+        files["docs/clean-1099.md"] = HITS["overlay"]
+        code, out, err = run_gate(files)
+        self.assertEqual(code, 1, out + err)
+        self.assertEqual(
+            out,
+            f"docs/clean-0007.md:1: rung: {HITS['rung']}\n"
+            f"docs/clean-1099.md:1: overlay: {HITS['overlay']}\n",
+        )
+
 
 class EachAllowlistEntry(unittest.TestCase):
     def test_the_table_names_every_allowlist_entry(self):

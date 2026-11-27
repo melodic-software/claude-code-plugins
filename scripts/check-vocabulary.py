@@ -125,7 +125,6 @@ def load_senses(path: Path) -> list:
             )
         if not rules:
             raise Unusable(f"{sid}: no rules")
-        prefilter = [re.compile(m.pattern, m.flags | re.MULTILINE) for m, _ in rules]
         paths, phrases = [], []
         for k, entry in enumerate(objects(raw, "allow", sid)):
             where = f"{sid} allow {k}"
@@ -140,9 +139,7 @@ def load_senses(path: Path) -> list:
                 paths.append(glob_regex(entry["path"]))
             else:
                 phrases.append(compile_regex(entry["phrase"], where))
-        senses.append(
-            {"id": sid, "rules": rules, "prefilter": prefilter, "paths": paths, "phrases": phrases}
-        )
+        senses.append({"id": sid, "rules": rules, "paths": paths, "phrases": phrases})
     if not senses:
         raise Unusable(f"{path.name} defines no senses")
     return senses
@@ -194,12 +191,8 @@ def scan(rel: str, senses: list) -> list:
     data = (REPO_ROOT / rel).read_bytes()
     if b"\0" in data[:8192]:
         return []
-    body = data.decode("utf-8", "replace")
-    active = [s for s in active if any(p.search(body) for p in s["prefilter"])]
-    if not active:
-        return []
     findings = []
-    lines = body.split("\n")
+    lines = data.decode("utf-8", "replace").split("\n")
     for lineno, line in enumerate(lines, 1):
         for sense in active:
             hit = any(
