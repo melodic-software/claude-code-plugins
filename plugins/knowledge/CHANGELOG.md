@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.6.3] - 2026-11-27
+
+### Fixed
+
+- Exclude validated `<style>` bodies without raw `<` from the HTML text escaping scan in shared `html-escape.mjs` and `view-builder.mjs` so quoted CSS font stacks, attribute selectors and child combinators pass validation.
+
 ## [3.6.2] - 2026-11-27
 
 ### Changed

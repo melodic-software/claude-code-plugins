@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [3.2.1] - 2026-11-27
+
+### Fixed
+
+- Exclude validated `<style>` bodies without raw `<` from the HTML text escaping scan in shared `html-escape.mjs` and `view-builder.mjs` so quoted CSS font stacks, attribute selectors and child combinators pass validation.
+
 ## [3.2.0] - 2026-11-27
 
 ### Added
