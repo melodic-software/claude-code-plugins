@@ -245,7 +245,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 ## Next
 
-- Repository wants a tool the plugin ships no adapter for (drafted commands ready): /toolchain:setup apply go.
+- Repository lints Go (drafted `lint-cmd` ready): /toolchain:setup apply go.
 - A hook stage over its time budget in `setup check inspect`: /performance:target.
 
 ## What this skill does not do
