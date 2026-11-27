@@ -1,3 +1,4 @@
+# test-scope: plugins/session-flow/scripts/*.py
 from __future__ import annotations
 
 import json
@@ -7,11 +8,19 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 SCAN = HERE / "recall_scan.py"
 PLUGIN_ROOT = HERE.parents[2]
+sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
+
+import transcript_run  # noqa: E402  (scripts/transcript_run.py)
+import transcript_sources  # noqa: E402  (scripts/transcript_sources.py)
+
+LOCK_NAME = f"claude-transcript-run.t-{uuid.uuid4().hex[:16]}"
 
 SEEDED_TOKEN = "ghp_" + "Q7" * 18
 
@@ -58,7 +67,7 @@ class RecallScanTest(unittest.TestCase):
         self, *args: str, script: Path = SCAN
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            [sys.executable, str(script), *args],
+            [sys.executable, str(script), *args, "--lock-name", LOCK_NAME],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -265,15 +274,15 @@ class RecallScanTest(unittest.TestCase):
 
         self.assertEqual([line["session"] for line in self.lines(result)], ["s-then"])
 
-    def test_redactor_failing_closed_prints_no_snippet_and_exits_1(self) -> None:
+    def test_redactor_failing_closed_prints_no_snippet_and_exits_2(self) -> None:
         copy = self.tmp / "plugin"
         (copy / "skills" / "recall" / "scripts").mkdir(parents=True)
         (copy / "scripts").mkdir()
         rules = copy / "vendor" / "gitleaks"
         rules.mkdir(parents=True)
         shutil.copy(SCAN, copy / "skills" / "recall" / "scripts" / "recall_scan.py")
-        shutil.copy(PLUGIN_ROOT / "scripts" / "transcript_reader.py", copy / "scripts")
-        shutil.copy(PLUGIN_ROOT / "scripts" / "redact.py", copy / "scripts")
+        for module in (PLUGIN_ROOT / "scripts").glob("*.py"):
+            shutil.copy(module, copy / "scripts")
         (rules / "gitleaks-rules.json").write_text(
             '{"rules": [{"id": "broken", "regex": "("}]}', encoding="utf-8"
         )
@@ -291,9 +300,89 @@ class RecallScanTest(unittest.TestCase):
             script=copy / "skills" / "recall" / "scripts" / "recall_scan.py",
         )
 
-        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("nothing published: the secret redaction rules did not load", result.stderr)
         self.assertEqual(result.stdout, "")
         self.assertNotIn("retry budget notes", result.stderr)
+
+    def sources_file(self, **defaults: object) -> Path:
+        path = self.tmp / "sources.json"
+        path.write_text(json.dumps({"schema": "transcript-sources/v1", "defaults": defaults, "sources": [
+            {"name": "host-a-wsl", "host": "host-a", "platform": "wsl", "config_dir": str(self.tmp)},
+            {"name": "host-b-wsl", "host": "host-b", "platform": "wsl", "config_dir": "/srv/user-b/.claude", "via": ["ssh", "host-b"]},
+        ]}), encoding="utf-8")
+        return path
+
+    def make_store(self) -> Path:
+        store = self.tmp / "data" / "audit-sessions" / "store" / "v2"
+        (store / transcript_sources.DIAGNOSTICS_DIR).mkdir(parents=True)
+        return store
+
+    def test_header_gaps_and_stale(self) -> None:
+        store = self.make_store()
+        finished = (datetime.now(timezone.utc) - timedelta(days=20)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        retry = ["python3", "/srv/plugin/scripts/collect.py", "collect", "--data-dir", "/srv/data", "--source", "host-b-wsl"]
+        record = store / transcript_sources.DIAGNOSTICS_DIR / "run-1.json"
+        record.write_text(json.dumps({
+            "schema": "transcript-run.diagnostics/v1", "kind": "ingest", "started_at": finished, "finished_at": finished,
+            "sources": [{"name": "host-a-wsl", "gaps": 0, "cleanup_period_days": 30}, {"name": "host-b-wsl", "gaps": 1, "cleanup_period_days": 30}],
+            "gaps": [{"source": "host-b-wsl", "kind": "unreachable", "detail": "ssh exited 255", "holder_pid": None, "retry_argv": retry}],
+        }), encoding="utf-8")
+        write_transcript(self.alpha, "s-alpha", [user("s-alpha", "2026-09-01T10:00:00Z", "retry budget")])
+
+        result = self.run_scan(
+            "--dir", str(self.alpha), "--term", "retry budget", "--data-dir", str(self.tmp / "data"),
+            "--sources-file", str(self.sources_file()),
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        header = [line for line in result.stderr.splitlines() if line.split(":")[0] in ("Gap", "Stale", "Diagnostics")]
+        self.assertEqual(len(header), 4, result.stderr)
+        self.assertEqual(header, [
+            "Gap: host-b-wsl unreachable: ssh exited 255. Retry: " + " ".join(retry),
+            f"Stale: host-a-wsl was last collected without a gap at {finished}, past half its cleanupPeriodDays of 30.",
+            "Stale: host-b-wsl has no collection without a gap in the retained diagnostics.",
+            f"Diagnostics: {record}",
+        ])
+
+    def test_history_only_prompts_match_from_the_store(self) -> None:
+        store = self.make_store()
+        prompt = store / "host-a-wsl" / "history" / "aaaabbbbaaaabbbb.json"
+        prompt.parent.mkdir(parents=True)
+        prompt.write_text(json.dumps({
+            "schema": "history-prompt/v1", "key": "aaaabbbbaaaabbbb", "session_id": "s-gone", "project": "/work/orders",
+            "time": {"start": "2026-08-01T09:00:00Z", "end": "2026-08-01T09:00:00Z"},
+            "excerpt": "what retry budget did we settle on", "pastes": {"restored": 0, "missing": 0},
+        }), encoding="utf-8")
+        self.alpha.mkdir(parents=True)
+
+        result = self.run_scan("--dir", str(self.alpha), "--term", "retry budget", "--data-dir", str(self.tmp / "data"))
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.lines(result), [{
+            "session": "s-gone", "file": "history.jsonl", "time": "2026-08-01T09:00:00Z", "role": "user",
+            "term": "retry budget", "snippet": "what retry budget did we settle on", "history": True,
+        }])
+
+    def test_a_held_host_lock_is_a_gap_and_reads_nothing(self) -> None:
+        self.make_store()
+        write_transcript(self.alpha, "s-alpha", [user("s-alpha", "2026-09-01T10:00:00Z", "retry budget")])
+        holder = transcript_run.local_lock(LOCK_NAME)
+        self.addCleanup(holder.release)
+        if holder.mechanism == "missing":
+            self.skipTest("no per-host lock on this platform")
+
+        result = self.run_scan(
+            "--dir", str(self.alpha), "--term", "retry budget", "--data-dir", str(self.tmp / "data"),
+            "--sources-file", str(self.sources_file(lock_timeout_s=0)),
+        )
+
+        self.assertEqual((result.returncode, result.stdout), (1, ""), result.stderr)
+        self.assertRegex(result.stderr, r"(?m)^Gap: host-a-wsl busy: another reader holds the host lock")
+        retry = next(line for line in result.stderr.splitlines() if line.startswith("Gap: ")).split(". Retry: ", 1)[1]
+        self.assertTrue(retry.endswith(f"--lock-name {LOCK_NAME}"), retry)
+        records = list((self.tmp / "data" / "audit-sessions" / "store" / "v2" / transcript_sources.DIAGNOSTICS_DIR).glob("*.json"))
+        self.assertEqual([json.loads(r.read_text(encoding="utf-8"))["kind"] for r in records], ["lookup"])
 
     def test_missing_directory_exits_2(self) -> None:
         write_transcript(
@@ -313,6 +402,41 @@ class RecallScanTest(unittest.TestCase):
 
         self.assertEqual(result.returncode, 2)
         self.assertEqual(result.stdout, "")
+
+    def test_snippet_and_file_carry_no_host_home_path_or_email(self) -> None:
+        home_b = "/" + "home/user-b"
+        sources = self.tmp / "sources.json"
+        sources.write_text(
+            json.dumps(
+                {
+                    "schema": "transcript-sources/v1",
+                    "sources": [
+                        {"name": "host-a-wsl", "host": "host-a", "platform": "wsl", "config_dir": str(self.tmp)},
+                        {
+                            "name": "host-b-wsl",
+                            "host": "host-b",
+                            "platform": "wsl",
+                            "config_dir": "/srv/user-b/.claude",
+                            "via": ["ssh", "host-b"],
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        text = f"retry budget on host-b in {home_b}/notes, ask ops-b" + "@" + "example.org"
+        write_transcript(self.alpha, "s-fleet", [user("s-fleet", "2026-09-02T08:00:00Z", text)])
+
+        result = self.run_scan(
+            "--dir", str(self.alpha), "--term", "retry budget", "--sources-file", str(sources)
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        (line,) = self.lines(result)
+        self.assertEqual(line["snippet"], "retry budget on <host-2> in ~/notes, ask <email>")
+        self.assertEqual(line["file"], "<host-1:config>/projects/-work-orders-api/s-fleet.jsonl")
+        for value in ("host-b", home_b, "example.org", str(self.tmp)):
+            self.assertNotIn(value, result.stdout)
 
     def test_empty_term_exits_2(self) -> None:
         self.alpha.mkdir(parents=True)

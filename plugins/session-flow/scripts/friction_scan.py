@@ -1,7 +1,9 @@
+# GENERATED from lib/friction_scan.py by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # -*- coding: utf-8 -*-
-"""Per-event friction records for one session, built while collect.py scans it.
+"""Per-event friction records for one session, built while session_record.py scans it.
 
-`FrictionScan` sees every record collect.py reads, main transcript first, then each subagent, and
+`FrictionScan` sees every record session_record.py reads, main transcript first, then each subagent, and
 keeps one event per friction moment:
 
 - `denied`: a tool call refused by the classifier, a hook, a permission rule, or the person
@@ -31,8 +33,8 @@ import re
 from collections import Counter
 from datetime import datetime, timezone
 
-import census
 import transcript_reader
+from transcript_values import AUTOMATED_ENTRYPOINTS, epoch
 
 EVENT_CAP = 200
 TOOL_WAIT_S = 300
@@ -67,6 +69,7 @@ CONFLICT_COMMAND_RE = re.compile(
     r"(?:merge|rebase|pull|cherry-pick|revert|am|stash\s+(?:pop|apply))(?![\w-])"
 )
 PERF_COUNTS = ("tool_waits_gt5m", "polling_calls", "ci_wait_calls", "merge_conflicts")
+# Older transcripts carry the legacy MultiEdit tool: https://code.claude.com/docs/en/permissions#read-and-edit
 FILE_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit", "Read"})
 SHELL_TOOLS = frozenset({"Bash", "PowerShell"})
 SUBCOMMAND = re.compile(r"[a-z][a-z0-9-]{0,30}")
@@ -208,9 +211,9 @@ class FrictionScan:
     def add(self, record: dict) -> None:
         if self.cwd is None and isinstance(record.get("cwd"), str):
             self.cwd = record["cwd"]
-        if record.get("entrypoint") in census.AUTOMATED_ENTRYPOINTS:
+        if record.get("entrypoint") in AUTOMATED_ENTRYPOINTS:
             self.headless = True
-        ts = census.epoch(record.get("timestamp"))
+        ts = epoch(record.get("timestamp"))
         kind = record.get("type")
         if kind == "assistant":
             self._assistant(record, ts)
@@ -274,7 +277,7 @@ class FrictionScan:
             self._event("user-command", ts, shape=shape, flags=flags, target=command.splitlines()[0] if command else None)
 
     def typed_turn(self, text: str, ts: float | None, correction: bool) -> None:
-        """Called by collect.py for each typed turn of the main transcript, with its correction flag."""
+        """Called by session_record.py for each typed turn of the main transcript, with its correction flag."""
         reply = "correction" if correction else "approve" if len(text.split()) <= 60 and APPROVE_RE.search(text) else "other"
         asked = self.last_text
         self.last_text = None
@@ -333,7 +336,7 @@ class FrictionScan:
             )
 
     def block(self, scrub, excerpt_chars: int) -> dict:
-        """The record's `friction` block; every transcript string goes through `scrub` (collect.Scrubber)."""
+        """The record's `friction` block; every transcript string goes through `scrub` (session_record.Scrubber)."""
         events = []
         for event in self.events:
             stored = {k: v for k, v in event.items() if k != "target"}
@@ -343,7 +346,7 @@ class FrictionScan:
             target = event.get("target")
             stored["excerpt"] = scrub.excerpt(target, excerpt_chars) if excerpt_chars and target else None
             if "next_tool" in event:
-                stored["key"] = scrub.key(event_key(event))  # the `counts` key, so mine can join the two
+                stored["key"] = scrub.key(event_key(event))
             events.append(stored)
         return {
             "events": events,

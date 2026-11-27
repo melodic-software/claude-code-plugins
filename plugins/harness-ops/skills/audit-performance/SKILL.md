@@ -9,7 +9,7 @@ metadata:
   cadence: continuous
 ---
 
-**Arguments.** `[--unattended] [--root <path>] [--session-id <id>] [--note <fact>]`. `--root` defaults to `$CLAUDE_CONFIG_DIR`, else `~/.claude`; pass the current session id via `--session-id` when known, and each operator fact via a repeated `--note`. `--unattended`, anywhere in the arguments, is the caller declaring that nobody is present. The skill takes it out before reading the rest: never pass it to the engine, whose parser does not accept it, and never read it as a root or a `--note` value; under it, make no `/doctor` suggestion and do not run it. The bare word `unattended` is not this flag: stop and name `--unattended`.
+**Arguments.** `[--unattended] [--root <path>] [--session-id <id>] [--note <fact>]`. `--root` defaults to the first local transcript source's configuration directory (the `transcript_sources_file` option), else `$CLAUDE_CONFIG_DIR`, else `~/.claude`; pass the current session id via `--session-id` when known, and each operator fact via a repeated `--note`. `--unattended`, anywhere in the arguments, is the caller declaring that nobody is present. The skill takes it out before reading the rest: never pass it to the engine, whose parser does not accept it, and never read it as a root or a `--note` value; under it, make no `/doctor` suggestion and do not run it. The bare word `unattended` is not this flag: stop and name `--unattended`.
 
 ## Purpose
 
@@ -97,8 +97,14 @@ the documented search for an unset variable is reported, not walked.
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-performance/scripts/audit_performance.py" \
   --session-id "<current-session-id-if-known>" \
   --note "<one operator fact; repeat the flag per fact>" \
-  --project-dir "${CLAUDE_PROJECT_DIR:-.}" > ./claude-performance-report.json
+  --project-dir "${CLAUDE_PROJECT_DIR:-.}" --sources-file '${user_config.transcript_sources_file}' --diagnostics-dir "${CLAUDE_PLUGIN_DATA}/diagnostics" > ./claude-performance-report.json
 ```
+
+`--sources-file` is the `transcript_sources_file` option (`''` when it still reads
+`${user_config.…}`): the configuration directory read is its first local source's, else
+`$CLAUDE_CONFIG_DIR`, else `~/.claude`. The report's `header` lists a local source whose projects
+directory cannot be listed as a gap, with its retry command, and `--diagnostics-dir` keeps it as a
+lookup diagnostics record; name each gap at the top of the report.
 
 Pass `--project-dir` whenever a project root is known, so project-scope hooks are counted; without
 it the hook inventory is a floor, not a total.

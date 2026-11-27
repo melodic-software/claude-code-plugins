@@ -66,6 +66,17 @@
       "description": "Where the /discovery:blindspot view goes. auto (default): a local file. terminal: no page; file: a local file; artifact: a private Artifact; hosted = artifact. A terminal or file value in any rendered-views setting wins over this option.",
       "default": "auto",
       "options": ["auto", "terminal", "file", "artifact", "hosted"]
+    },
+    "transcript_sources_file": {
+      "type": "file",
+      "title": "Transcript sources file",
+      "description": "JSON file of the Claude Code configuration directories this plugin's transcript-mining skills read, here and on hosts reached over ssh. Unset: only this host's, CLAUDE_CONFIG_DIR or ~/.claude. A missing file falls back to that with a warning; a malformed one stops the run."
+    },
+    "redact_identifiers": {
+      "type": "string",
+      "title": "Redact identifiers",
+      "description": "Comma-separated names and paths the publish redactor also replaces in reports this plugin's transcript-mining scripts publish. Empty adds none.",
+      "default": ""
     }
   }
 }

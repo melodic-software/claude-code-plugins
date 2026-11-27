@@ -237,6 +237,16 @@ lib/state-key.sh plugins/session-flow/lib/state-key.sh
 lib/state-key.sh plugins/performance/lib/state-key.sh
 lib/transcript_reader.py plugins/session-flow/scripts/transcript_reader.py
 lib/transcript_reader.py plugins/performance/lib/transcript_reader.py
+lib/transcript_reader.py plugins/discovery/lib/transcript_reader.py
+lib/session_record.py plugins/session-flow/scripts/session_record.py
+lib/friction_scan.py plugins/session-flow/scripts/friction_scan.py
+lib/transcript_values.py plugins/session-flow/scripts/transcript_values.py
+lib/transcript_sources.py plugins/session-flow/scripts/transcript_sources.py
+lib/transcript_sources.py plugins/performance/lib/transcript_sources.py
+lib/transcript_sources.py plugins/harness-ops/lib/transcript_sources.py
+lib/transcript_sources.py plugins/discovery/lib/transcript_sources.py
+lib/transcript_limits.py plugins/session-flow/scripts/transcript_limits.py
+lib/transcript_run.py plugins/session-flow/scripts/transcript_run.py
 plugins/performance/scripts/ratchet.py plugins/toolchain/skills/ratchet/scripts/ratchet.py
 lib/rewrite-guard.sh plugins/testing/hooks/rewrite-guard.sh
 lib/exec-bash.mjs plugins/actionlint/hooks/exec-bash.mjs
@@ -704,6 +714,11 @@ lib/resolve-convention-home.sh plugins/corrections/lib/resolve-convention-home.s
 lib/resolve-convention-home.sh plugins/prototype/lib/resolve-convention-home.sh
 lib/redact.py plugins/session-flow/scripts/redact.py
 lib/redact.py plugins/corrections/tools/findings-buffer/lib/redact.py
+lib/redact.py plugins/performance/lib/redact.py
+lib/redact.py plugins/discovery/lib/redact.py
+lib/publish.py plugins/session-flow/scripts/publish.py
+lib/publish.py plugins/performance/lib/publish.py
+lib/publish.py plugins/discovery/lib/publish.py
 lib/plugin-options.mjs plugins/source-control/skills/babysit-loop/scripts/operator-options.mjs
 lib/plugin-options.mjs plugins/corrections/scripts/lib/plugin-options.mjs
 lib/plugin-options.mjs plugins/toolchain/hooks/plugin-options.mjs
@@ -1029,6 +1044,8 @@ lib/redact.py plugins/speech/scripts/redact.py
 plugins/session-flow/vendor/gitleaks/gitleaks-rules.json plugins/speech/vendor/gitleaks/gitleaks-rules.json
 lib/redact.py plugins/evals/scripts/redact.py
 plugins/session-flow/vendor/gitleaks/gitleaks-rules.json plugins/evals/vendor/gitleaks/gitleaks-rules.json
+plugins/session-flow/vendor/gitleaks/gitleaks-rules.json plugins/performance/vendor/gitleaks/gitleaks-rules.json
+plugins/session-flow/vendor/gitleaks/gitleaks-rules.json plugins/discovery/vendor/gitleaks/gitleaks-rules.json
 lib/media-render/media_encode.py plugins/playwright/skills/demo-video/scripts/media_encode.py
 lib/media-render/media_encode.py plugins/pixel-art/scripts/media_encode.py
 lib/media-render/media_encode.py plugins/animation/scripts/media_encode.py

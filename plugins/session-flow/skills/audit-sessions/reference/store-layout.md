@@ -5,7 +5,10 @@ directory (`${CLAUDE_PLUGIN_DATA}`). Nothing is written into a repository.
 
 ```text
 D/audit-sessions/
-  store/v1/sessions/p-<12 hex>/<session-id>.json   one record per main session
+  store/v2/<source>/p-<12 hex>/<session-id>.json   one record per main session of one transcript source
+  store/v2/<source>/history/<16 hex>.json          one history-only prompt of that source
+  store/v2/diagnostics/<run-date>-<run-id>.json    one record per collect run
+  store/v1.quarantine-<date>/                       the old store once carried over, read by nothing
   reports/machine/<stamp>.json, <stamp>.md          --scope machine (the default)
   reports/<state-key>/<stamp>.json, <stamp>.md      --scope project
   correction-verdicts.json                          the correction lens's verdicts, deleted once merged
@@ -13,10 +16,32 @@ D/audit-sessions/
 
 ## Store
 
-- **One store per machine.** `collect.py` reads every project under `~/.claude/projects`, so the
-  store is not keyed by the checkout that ran it. Each record names its own redacted working
-  directory and repository identity; `p-<12 hex>` is a hash of the project directory name, which
-  itself is not stored because it encodes the working directory unredacted.
+- **One store, partitioned by transcript source.** `collect.py` reads every project of each source
+  the sources file lists (with none, the local configuration directory, `CLAUDE_CONFIG_DIR` or
+  `~/.claude`, as the source `local`), so the store is not keyed by the checkout that ran it.
+  `<source>` is the source's configured name. Each record names its own redacted working directory
+  and repository identity; `p-<12 hex>` is a hash of the project directory name, which itself is
+  not stored because it encodes the working directory unredacted.
+- **Provenance and status.** Each record carries `provenance`: the configured `source` and the
+  reading host's own `host`, `platform`, `config_dir` and `cc_version`, except that a source read
+  through another platform's drive mount (a `windows` source under WSL's automount root) carries
+  its declared platform and a null `cc_version`. Its `status` is `present`; `transcript-gone`
+  once the reader's listing of its source no longer finds the transcript; `presumed-gone-unverified`
+  while the reader cannot check it (its source sent no listing, or its project directory could not
+  be listed) and the session ended longer ago than that source's `cleanupPeriodDays`; and
+  `present` again once a listing finds it. A source's `cleanupPeriodDays` is the one its reader
+  reports this run, else the last one its diagnostics recorded, else Claude Code's default of 30;
+  its diagnostics name which (`cleanup_period_days_basis`: `hello`, `prior-diagnostics` or
+  `default`). `carried-over` marks a record carried from the old store, which keeps that status. `--force` re-reads every session and still lists what
+  is gone. A collect run's retention prunes only the sources it read.
+- **History-only prompts.** A `history.jsonl` prompt whose session has no transcript is stored as
+  `history-prompt/v1`: its redacted, `audit_sessions_excerpt_chars`-cut text with each pasted text
+  restored from `paste-cache/` first (`pastes` counts those restored and those missing), its
+  `session_id`, redacted `project`, `time.start` and `provenance`. Only `sweep.py --excerpts`
+  reads them, at machine scope; no report, census, drift or friction figure counts them.
+- **Diagnostics.** Each collect run writes a `transcript-run.diagnostics/v1` record: per source its
+  timing, files, bytes, counts, drift counts, peak memory, the limits applied and declared missing,
+  and every gap with the `retry_argv` that re-collects exactly that source.
 - **One JSON file per session, replaced atomically.** Re-collecting a session rewrites its file, so
   a repeated run never double-counts. Collect skips a session whose transcript fingerprint is
   unchanged, unless its record was written by a collector with another `collector_digest`, under
@@ -45,9 +70,29 @@ D/audit-sessions/
   permission modes).
 - **Redaction is best-effort pattern matching.** It replaces known secret shapes, email addresses
   and home-directory prefixes, and can miss a secret in a shape it does not know.
-- **Retention.** Collect drops a record whose session ended more than
+- **Retention.** Collect drops a record or history prompt whose session ended more than
   `audit_sessions_retention_days` days ago (0 keeps every record), and never ingests one already
-  outside that window.
+  outside that window; diagnostics records share that retention. When `--retention-days` is not
+  given, the option's default (180) rises to the longest source `cleanupPeriodDays`, so no record
+  goes before its transcript. A value given is kept, and one shorter than a source's
+  `cleanupPeriodDays` warns, since records would go before their transcripts.
+- **The old store.** `store/v1/`, whose records carry the previous record schema, is carried over by
+  the readers. The source that reads this host's own configuration directory is sent this data
+  directory's old store; every other source, the same plugin data directory under its own
+  configuration directory. Each reader returns the old records the store does not hold whose
+  transcript is gone or older than the window, stored with status `carried-over` and `carried_from`
+  (`v1_store`, `assumed_root`, and `root_recorded: false`, since a v1 record never named its
+  projects root), once per source and session; retention then prunes the expired ones. The rest
+  are rebuilt from their transcripts. The reader counts every other file it finds: unreadable, of
+  another schema, of another shape, or in a project it could not list. Once the own source's run
+  has no gap, nothing was left uncounted that way, nothing lies beside `sessions/`, and every
+  record named for rebuilding is held, the old store is renamed, under the host locks, to
+  `store/v1.quarantine-<date>/`; that copy is deleted once its date is older than the retention,
+  and one whose date does not parse is left alone with a warning. Another host's old store is only
+  read, and its source's diagnostics carry the info line `old store pending local migration` until
+  that host runs its own collect. `collect.py migrate --dry-run` reports what a run would carry
+  over, rebuild and quarantine by the same rule, assuming each rebuild succeeds, and writes
+  nothing.
 
 - **How a session was launched.** `entrypoints` lists every `entrypoint` value the main transcript
   carries, or `["unknown"]` when it carries none; a record written before the field existed reads
@@ -75,15 +120,12 @@ D/audit-sessions/
 
 ## Schema versioning
 
-- Records carry `"schema": "session-record/v1"`, the plugin version that wrote them
-  (`collector_version`, provenance only) and `collector_digest`: SHA-256 over the files that shape
-  a record, CRLF read as LF. Those files, all under the plugin root, are `scripts/collect.py`,
-  `scripts/census.py`, `scripts/friction_scan.py`, `scripts/redact.py`,
-  `scripts/transcript_reader.py`, `vendor/gitleaks/gitleaks-rules.json` and `lib/state-key.sh`
-  (`COLLECTOR_INPUTS` in `collect.py`). A record without the digest is
+- Records carry `"schema": "session-record/v2"`, the plugin version that wrote them
+  (`collector_version`) and `collector_digest`: SHA-256 over the files that shape a record, CRLF
+  read as LF, listed in `COLLECTOR_INPUTS` in `collect.py`. A record without the digest is
   re-ingested once.
-- New fields are added within v1, and readers treat a missing field as null.
-- A breaking change moves the store to `store/v2/` and ships a v1-to-v2 migrator in `collect.py`.
+- New fields are added within v2, and readers treat a missing field as null.
+- A breaking change moves the store to the next `store/v<n>/` and ships a migrator in `collect.py`.
   The store cannot be rebuilt from transcripts after Claude Code has swept them.
 
 ## Sweep report

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "Gap: host-a-windows unreadable: its projects directory could not be listed (PermissionError). Retry: python3 /opt/eval-plugins/harness-ops/skills/inventory/scripts/inventory.py --sources-file /srv/eval/sources.json --out ./claude-inventory.json\n\nThis build has 7 built-in commands.", "why": "header line as saved"},
+    {"answer": "**Gap:** the source `host-a-windows` is unreadable, so its projects directory was not listed.\n\n7 built-in commands.", "why": "paraphrase with markdown"},
+    {"answer": "One lookup gap: host-a-windows could not be listed. 7 built-in commands.", "why": "gap word before the source"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "This build has 7 built-in commands: clear, compact, config, doctor, help, model, status.", "why": "gap dropped"},
+    {"answer": "The inventory lists host-a-windows as a source.", "why": "source named without the gap"},
+    {"answer": "There are 4 bundled skills.", "why": "different question"}
+  ]
+}

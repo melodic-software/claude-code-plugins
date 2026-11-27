@@ -46,6 +46,7 @@ _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+import transcript_sources  # noqa: E402  (path set above; plugin-bundled module)
 from registrations import registrations_of  # noqa: E402  (path set above; plugin-bundled module)
 
 if str(Path(__file__).resolve().parent) not in sys.path:
@@ -5146,9 +5147,6 @@ def check_integrity(
     }
 
 
-def config_dir() -> Path:
-    env = os.environ.get("CLAUDE_CONFIG_DIR")
-    return Path(env) if env else Path.home() / ".claude"
 
 
 def _load_json(path: Path) -> Any | None:
@@ -5539,6 +5537,13 @@ def global_config_path(root: Path, custom: bool) -> Path:
     """`${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`: inside a custom config dir,
     in the home directory for the default one. Never the custom dir's parent."""
     return (root if custom else Path.home()) / ".claude.json"
+
+
+def custom_config_dir(config_dir: str | None, sources: transcript_sources.Sources, root: Path) -> bool:
+    """A sources-file root equal to `~/.claude` is the default dir, whose `.claude.json` sits in home."""
+    if config_dir or os.environ.get("CLAUDE_CONFIG_DIR"):
+        return True
+    return sources.origin == "file" and bool(sources.local()) and root.expanduser().resolve() != (Path.home() / ".claude").resolve()
 
 
 def builtin_plugin_state(
@@ -5980,7 +5985,11 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         )
 
     if not args.binary_only:
-        root = Path(args.config_dir) if args.config_dir else config_dir()
+        lookup = transcript_sources.lookup_report(
+            args.sources_file, transcript_sources.retry_argv(__file__, args.argv), args.diagnostics_dir,
+        )
+        root = Path(args.config_dir) if args.config_dir else transcript_sources.first_local_config_dir(lookup.sources)
+        report["header"] = lookup.header
         report["sources"]["disk"] = {"available": True}
         report["disk"] = scan_disk(root)
 
@@ -6002,7 +6011,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 root,
                 project_root,
                 report["builtin_plugin_notes"].get("mods_flag_in_bundle"),
-                bool(args.config_dir or os.environ.get("CLAUDE_CONFIG_DIR")),
+                custom_config_dir(args.config_dir, lookup.sources, root),
             )
 
     return report
@@ -6024,7 +6033,17 @@ def main(argv: list[str] | None = None) -> int:
         "--binary", help="path to the claude executable (default: auto-detect)"
     )
     ap.add_argument(
-        "--config-dir", help="config dir (default: $CLAUDE_CONFIG_DIR or ~/.claude)"
+        "--config-dir",
+        help="config dir (default: the first local source's, else $CLAUDE_CONFIG_DIR or ~/.claude)",
+    )
+
+    ap.add_argument(
+        "--sources-file",
+        default="",
+        help="the transcript_sources_file option: the first local source is the config dir",
+    )
+    ap.add_argument(
+        "--diagnostics-dir", help="write a lookup gap here as a diagnostics record"
     )
     ap.add_argument(
         "--project-dir", help="project root whose .claude tree to scan (default: cwd)"
@@ -6080,6 +6099,7 @@ def main(argv: list[str] | None = None) -> int:
         + ", ".join(SKILL_STATES),
     )
     args = ap.parse_args(argv)
+    args.argv = sys.argv[1:] if argv is None else list(argv)
 
     if args.exclude is not None and not args.skills_index:
         print("--exclude requires --skills-index", file=sys.stderr)
@@ -6090,7 +6110,13 @@ def main(argv: list[str] | None = None) -> int:
         if unknown:
             print(f"--exclude: unknown state {', '.join(unknown)}", file=sys.stderr)
             return 2
-        root = Path(args.config_dir) if args.config_dir else config_dir()
+        try:
+            root = Path(args.config_dir) if args.config_dir else transcript_sources.first_local_config_dir(
+                transcript_sources.lookup_report(args.sources_file, ()).sources
+            )
+        except transcript_sources.SourcesError as exc:
+            print(f"--sources-file: {exc}", file=sys.stderr)
+            return 2
         project_root = Path(args.project_dir) if args.project_dir else Path.cwd()
         records = [
             r for r in skills_index(root, project_root) if r["state"] not in excluded
@@ -6109,7 +6135,11 @@ def main(argv: list[str] | None = None) -> int:
         args.binary_only = True
         args.docs = False
 
-    report = build_report(args)
+    try:
+        report = build_report(args)
+    except transcript_sources.SourcesError as exc:
+        print(f"--sources-file: {exc}", file=sys.stderr)
+        return 2
 
     if args.self_check:
         integrity = report.get("integrity")

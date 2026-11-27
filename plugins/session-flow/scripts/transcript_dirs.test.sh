@@ -226,6 +226,37 @@ for case in "José|Jos-" "a😀b|a--b"; do
   assert_true "a root named ${case%%|*} maps to ${base}-${case#*|}" out_is "$want"
 done
 
+CFG2="$T/cfg2"
+mkdir -p "$CFG2/projects/${base}-repo-main"
+SRC="$T/sources.json"
+printf '{"schema":"transcript-sources/v1","sources":[%s,%s,%s]}\n' \
+  "{\"name\":\"host-a-wsl\",\"host\":\"host-a\",\"platform\":\"wsl\",\"config_dir\":\"$CFG\"}" \
+  "{\"name\":\"host-a-windows\",\"host\":\"host-a\",\"platform\":\"windows\",\"config_dir\":\"$CFG2\"}" \
+  '{"name":"host-b-wsl","host":"host-b","platform":"wsl","config_dir":"/srv/user-b/.claude","via":["ssh","host-b"]}' >"$SRC"
+run_in "$R1" --scope worktree --sources-file "$SRC"
+assert_true 'a sources file exits 0' code_is 0
+assert_true 'a sources file lists each local source store' sorted_out_is "$E1" "$E1SUB" "$E1ODD" "$CFG2/projects/${base}-repo-main"
+assert_true 'its first line is the first source store' first_line_is "$E1"
+run_in "$R1" --scope worktree --sources-file "$T/absent.json"
+assert_true 'a missing sources file falls back to the local store' sorted_out_is "$E1" "$E1SUB" "$E1ODD"
+assert_true 'a missing sources file warns' grep -q 'not found' "$T/err"
+printf '{"schema":"transcript-sources/v1"}\n' >"$T/bad.json"
+run_in "$R1" --scope worktree --sources-file "$T/bad.json"
+assert_true 'a malformed sources file exits 2' code_is 2
+assert_true 'a malformed sources file prints nothing' out_is ""
+
+CFG3="$T/cfg3"
+mkdir -p "$CFG3"
+printf 'not a directory\n' >"$CFG3/projects"
+printf '{"schema":"transcript-sources/v1","sources":[%s,%s]}\n' \
+  "{\"name\":\"host-a-wsl\",\"host\":\"host-a\",\"platform\":\"wsl\",\"config_dir\":\"$CFG\"}" \
+  "{\"name\":\"host-a-windows\",\"host\":\"host-a\",\"platform\":\"windows\",\"config_dir\":\"$CFG3\"}" >"$T/gap.json"
+run_in "$R1" --scope worktree --sources-file "$T/gap.json"
+assert_true 'a lookup gap still exits 0' code_is 0
+assert_true 'a lookup gap keeps the readable store' sorted_out_is "$E1" "$E1SUB" "$E1ODD"
+want_gap="Gap: host-a-windows unreadable: its projects directory could not be listed (NotADirectoryError). Retry: bash $SUT --scope worktree --sources-file $T/gap.json"
+assert_true 'the lookup gap line names the source and the verbatim retry' grep -qxF "$want_gap" "$T/err"
+
 run_in "$R1" --scope wide
 assert_true 'an unknown scope exits 2' code_is 2
 run_in "$R1"

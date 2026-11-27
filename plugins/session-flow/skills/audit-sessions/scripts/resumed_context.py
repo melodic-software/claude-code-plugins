@@ -38,7 +38,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import statistics
 import sys
@@ -51,6 +50,7 @@ if _PLUGIN_SCRIPTS not in sys.path:
 
 import census  # noqa: E402  (plugin-level scripts/census.py)
 import transcript_reader  # noqa: E402  (plugin-level scripts/transcript_reader.py)
+import transcript_sources  # noqa: E402  (plugin-level scripts/transcript_sources.py)
 
 SCHEMA = "audit-sessions.resumed-context/v1"
 MESSAGE_INDEX = 10
@@ -70,8 +70,9 @@ def context_tokens(usage: dict) -> int:
 
 
 def default_projects_root() -> Path:
-    config_dir = os.environ.get("CLAUDE_CONFIG_DIR")
-    return (Path(config_dir) if config_dir else Path.home() / ".claude") / "projects"
+    """The local source's projects directory, as the transcript source resolver names it."""
+    (local,) = transcript_sources.load(None).local()
+    return Path(local.config_dir) / "projects"
 
 
 def read_session(path: Path) -> dict:

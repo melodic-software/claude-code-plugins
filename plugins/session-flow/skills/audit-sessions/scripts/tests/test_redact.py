@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 import redact
+import transcript_sources
 
 RULES_FILE = (
     Path(__file__).resolve().parents[4] / "vendor" / "gitleaks" / "gitleaks-rules.json"
@@ -313,3 +314,165 @@ def test_unusable_rules_file_fails_closed(tmp_path: Path, content: str | None) -
 def test_url_path_segment_named_users_is_not_a_home() -> None:
     text = "see example.org/api/users/" + USER
     assert redact.load_redactor().redact(text) == text
+
+
+HOME_A = "/" + "home/user-a"
+FLEET = transcript_sources.resolve(
+    json.dumps(
+        {
+            "schema": "transcript-sources/v1",
+            "sources": [
+                {"name": "host-a-wsl", "host": "host-a", "platform": "wsl", "config_dir": HOME_A + "/.claude"},
+                {"name": "host-a-win", "host": "host-a", "platform": "windows", "config_dir": "/mnt/c/" + "Users" + "/user-a/.claude"},
+                {
+                    "name": "host-b-wsl",
+                    "host": "host-b",
+                    "platform": "wsl",
+                    "config_dir": "/srv/user-b/.claude",
+                    "via": ["ssh", "-p", "2222", "user-b@host-b.tailnet-x.ts.net"],
+                },
+            ],
+        }
+    ),
+    {},
+)
+NO_MACHINE: tuple[tuple[str, ...], tuple[str, ...]] = ((), ())
+
+
+def publisher(**kwargs):
+    kwargs.setdefault("machine", NO_MACHINE)
+    kwargs.setdefault("extra", ())
+    return redact.publish_redactor(FLEET, **kwargs)
+
+
+def test_same_host_maps_to_the_same_placeholder_across_two_strings() -> None:
+    p = publisher()
+    assert p.redact("ran on host-b today") == "ran on <host-2> today"
+    assert p.redact("host-b failed, host-a ok") == "<host-2> failed, <host-1> ok"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("host name HOST-A here", "host name <host-1> here"),
+        ("ssh host-b.tailnet-x.ts.net", "ssh <host-2>"),
+        ("source host-a-win read", "source <host-1:windows> read"),
+        (f"open {HOME_A}/.claude/projects/x", "open <host-1:config>/projects/x"),
+        ("open /srv/user-b/.claude", "open <host-2:config>"),
+        ("logged in as user-b", "logged in as <user>"),
+        ("user-a@host-b", "<user>@<host-2>"),
+        (f"open {HOME_A}/.claude.json", "open ~/.claude.json"),
+    ],
+    ids=["host", "via-alias", "source-name", "config-dir", "remote-config-dir", "username", "ssh-destination", "home-path"],
+)
+def test_each_identifier_kind_is_replaced(raw: str, expected: str) -> None:
+    assert publisher().redact(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "raw",
+    ["ghost-a stays", "host-ab stays", "v1.2.3.4 stays", "at 12:34:56 stays", "std::vector stays", "local stays"],
+)
+def test_text_that_only_resembles_an_identifier_is_kept(raw: str) -> None:
+    assert publisher().redact(raw) == raw
+
+
+def test_this_machines_names_map_to_the_local_hosts_placeholder() -> None:
+    p = publisher(machine=(("desk-77.corp.example",), ("person-q",)))
+    assert p.redact("on desk-77.corp.example and desk-77 as person-q") == "on <host-1> and <host-1> as <user>"
+
+
+def test_extra_identifiers_get_a_typed_placeholder() -> None:
+    p = publisher(extra=("project-zeta", "/opt/zeta"))
+    assert p.redact("project-zeta at /opt/zeta/x") == "<identifier> at <identifier>/x"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("peer 100.64.0.7:22 up", "peer <ip>:22 up"),
+        ("peer fd7a:115c:a1e0::7 up", "peer <ip> up"),
+        ("mail jane.doe" + "@" + "mail.example.org now", "mail <email> now"),
+        (f"key {AWS_EXAMPLE_KEY} here", "key <redacted:aws-access-token> here"),
+    ],
+    ids=["ipv4", "ipv6", "email", "secret"],
+)
+def test_typed_placeholders_for_ip_email_and_secret(raw: str, expected: str) -> None:
+    assert publisher().redact(raw) == expected
+
+
+def test_a_config_dir_two_hosts_share_gets_a_typed_placeholder() -> None:
+    shared = transcript_sources.resolve(
+        json.dumps(
+            {
+                "schema": "transcript-sources/v1",
+                "sources": [
+                    {"name": "a", "host": "host-a", "platform": "linux", "config_dir": "/srv/shared/.claude"},
+                    {"name": "b", "host": "host-b", "platform": "linux", "config_dir": "/srv/shared/.claude", "via": ["ssh", "host-b"]},
+                ],
+            }
+        ),
+        {},
+    )
+    p = redact.publish_redactor(shared, machine=NO_MACHINE, extra=())
+    assert p.redact("open /srv/shared/.claude/x") == "open <config>/x"
+
+
+def test_default_sources_redact_the_local_config_dir_but_not_the_word_local() -> None:
+    default = transcript_sources.resolve(None, {"CLAUDE_CONFIG_DIR": "/srv/user-c/.claude"}, platform="linux")
+    p = redact.publish_redactor(default, machine=NO_MACHINE, extra=())
+    assert p.redact("local copy in /srv/user-c/.claude/x") == "local copy in <host-1:config>/x"
+
+
+def test_missing_rules_mark_the_publish_redactor_failing_closed(tmp_path: Path) -> None:
+    assert publisher(path=tmp_path / "absent" / "rules.json").fail_closed
+    assert not publisher().fail_closed
+
+
+WIN_A = "C:" + BS + "Users" + BS + "user-a" + BS + ".claude"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("%2Fsrv%2Fuser-b%2Fx", "%2Fsrv%2F<user>%2Fx"),
+        ("%5CUsers%5Cuser-a", "%5CUsers%5C<user>"),
+        (BS + "nuser-a and " + BS + "thost-b", BS + "n<user> and " + BS + "t<host-2>"),
+        ("host-a2 and host-aWsl", "<host-1>2 and <host-1>Wsl"),
+        (WIN_A + BS + "x", "<host-1:config>" + BS + "x"),
+        (WIN_A.replace(BS, "/"), "<host-1:config>"),
+        ("/c/" + "Users" + "/user-a/.claude/x", "<host-1:config>/x"),
+        (WIN_A.replace(BS, BS * 2), "<host-1:config>"),
+        ("host-b.tail9.ts.net and host-a.lan", "<host-2> and <host-1>"),
+        ("link fe80::1ff:fe23:4567:890a and 2001::1", "link <ip> and <ip>"),
+    ],
+    ids=["url-slash", "url-backslash", "json-escape", "digit-or-capital", "drive-backslash", "drive-slash", "git-bash",
+         "json-backslash", "dns-suffix", "ipv6-short"],
+)
+def test_escaped_and_alternate_spellings_are_replaced(raw: str, expected: str) -> None:
+    assert publisher().redact(raw) == expected
+
+
+def test_a_config_dir_outside_home_drops_its_trailing_separator_and_names_its_user() -> None:
+    sources = transcript_sources.resolve(
+        json.dumps({"schema": "transcript-sources/v1", "sources": [
+            {"name": "d", "host": "host-d", "platform": "linux", "config_dir": "/srv/user-d/.claude/"}]}),
+        {},
+    )
+    p = redact.publish_redactor(sources, machine=NO_MACHINE)
+    assert p.redact("open /srv/user-d/.claude as user-d") == "open <host-1:config> as <user>"
+
+
+def test_an_extra_home_relative_path_is_caught_after_the_home_pass() -> None:
+    p = publisher(extra=("~/acme-zeta",))
+    assert p.redact(f"{HOME_A}/acme-zeta/file and ~/acme-zeta") == "<identifier>/file and <identifier>"
+
+
+def test_an_absolute_extra_under_a_home_also_claims_its_home_relative_form() -> None:
+    p = publisher(extra=(HOME_A + "/proj-z",))
+    home_c = "/" + "home/user-c"
+    assert p.redact("cd ~/proj-z and " + home_c + "/proj-z/f") == "cd <identifier> and <identifier>/f"
+
+
+def test_a_bare_tailnet_name_is_replaced() -> None:
+    assert publisher().redact("peer tail1234.ts.net and box.tail1234.ts.net up") == "peer <host> and <host> up"

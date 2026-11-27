@@ -246,8 +246,11 @@ One recurring mistake, or the lessons in recent merged PRs' review comments, go 
 
 ### audit-sessions
 
-Cross-session audit: a stdlib collector reads every transcript under `~/.claude/projects` into a
-durable local store (one redacted record per session, incremental, retention-bounded), and a sweep
+Cross-session audit: a stdlib collector reads every transcript of each source the
+`transcript_sources_file` lists (unset, this host's configuration directory; a source on another
+host is read by that host itself over the source's `via`) into one durable local store,
+`store/v2/<source>/` (one redacted record per session, incremental, retention-bounded, with a
+diagnostics record per run), and a sweep
 reports per-session metrics against a shipped reference baseline, shows this store's p90 beside
 each threshold and marks a stale baseline, flags transcript-format drift
 between Claude Code versions, and routes each finding to the skill that would act on it. It never
@@ -588,8 +591,10 @@ unmerged pull requests and searches the tracker when one is installed, naming an
 not reach. With `observer_enabled` on, the observer's live checks are model
 calls on the session's own connection, and its catch-up runs a headless `claude -p` (ordinary model
 API egress) unless `observer_analysis_enabled` is off; the in-session checkpoint is network-free. Every skill not named above is network-free
-(retro, running-retro and audit-sessions read local `~/.claude/projects/` transcripts with stdlib-only
-Python 3.10+ scripts sharing one transcript reader; find-handoff scans those same local transcripts read-only, using
+(retro and running-retro read this host's transcripts, and audit-sessions, audit-friction and recall
+the local sources of the `transcript_sources_file` option, with stdlib-only Python 3.10+ scripts
+sharing one transcript reader; audit-sessions and audit-friction also reach each source the
+sources file gives a `via`, typically ssh, whose host runs the read and returns only records; find-handoff scans those same local transcripts read-only, using
 that reader only to read the launch `cwd` that maps a scope to directories, and `reconcile` reads them read-only and mutates only the in-session task ledger);
 `continue-in-background` spawns a local `claude --bg` process, a new Claude Code session with ordinary
 session network access, or with `--cloud` a `claude --cloud` process that starts a cloud session
@@ -707,6 +712,8 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `recall_report_kinds` | string | `"Bug"` | Comma-separated issue types or labels /session-flow:recall counts as an incident or a user report when it lists what is still reported; default Bug, which also matches a type: bug label. docs/conventions/session-flow.yaml wins. |
 | `recall_doc_paths` | string | `"*.md"` | Comma-separated git pathspecs /session-flow:recall searches for postmortems on the topic; default *.md, every tracked markdown file. docs/conventions/session-flow.yaml wins. |
 | `retro_lenses` | string | `"1"` | How many review passes /session-flow:retro session mode runs: 1 (default) one pass; 3 three parallel subagents (the calls made and why, the tools and steps used, the approaches not tried), merged before scoring. docs/conventions/session-flow.yaml wins. |
+| `transcript_sources_file` | file | *(none)* | JSON file of the Claude Code configuration directories this plugin's transcript-mining skills read, here and on hosts reached over ssh. Unset: only this host's, CLAUDE_CONFIG_DIR or ~/.claude. A missing file falls back to that with a warning; a malformed one stops the run. |
+| `redact_identifiers` | string | *(none)* | Comma-separated names and paths the publish redactor also replaces in reports this plugin's transcript-mining scripts publish. Empty adds none. |
 | `lane_transcript_sink` | directory | *(none)* | The private directory holding pulled CI lane transcripts and their metrics.jsonl, read by /session-flow:retro ci-runs and /session-flow:audit-sessions pr. Unset: ci-runs needs --sink and audit-sessions pr skips CI legs; there is no default location. A --sink given on the command line wins. |
 | `cloud_route` | string | `"offer"` | Whether /session-flow:workflow's end-of-phase continuation advice offers a cloud session when the next chunk of work fits one. offer (default) names it with the reason; off never mentions it. Advice only: nothing launches a cloud session unless you ask. |
 | `retro_offer` | string | `"offer"` | Whether /session-flow:workflow's end-of-session wrap-up offers a retrospective. offer (default) suggests /session-flow:retro for substantive sessions; off never offers one. Offer only: nothing runs a retro unless you ask. |

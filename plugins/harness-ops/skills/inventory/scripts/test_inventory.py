@@ -13,9 +13,12 @@ Run: python3 test_inventory.py
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -3813,10 +3816,91 @@ def inv_args(**over: object) -> argparse.Namespace:
         changelog_file=None,
         tools_docs_file=None,
         reader="regex",
+        sources_file="",
+        diagnostics_dir=None,
+        argv=[],
     )
     for key, value in over.items():
         setattr(ns, key, value)
     return ns
+
+
+class CollectionHeaderTest(unittest.TestCase):
+    """The resolver-backed root and the report header's lookup gap, with invented hosts."""
+
+    def setUp(self) -> None:
+        self.tmp = pathlib.Path(tempfile.mkdtemp(prefix="header-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        (self.tmp / "wsl" / "projects").mkdir(parents=True)
+        (self.tmp / "windows").mkdir()
+        (self.tmp / "windows" / "projects").write_text("not a directory", encoding="utf-8")
+        self.sources = self.tmp / "sources.json"
+        self.sources.write_text(json.dumps({"schema": "transcript-sources/v1", "sources": [
+            {"name": "host-b-wsl", "host": "host-b", "platform": "wsl", "config_dir": "/srv/user-b/.claude", "via": ["ssh", "host-b"]},
+            {"name": "host-a-wsl", "host": "host-a", "platform": "wsl", "config_dir": str(self.tmp / "wsl")},
+            {"name": "host-a-windows", "host": "host-a", "platform": "windows", "config_dir": str(self.tmp / "windows")},
+        ]}), encoding="utf-8")
+        self.argv = ["--sources-file", str(self.sources), "--diagnostics-dir", str(self.tmp / "diag")]
+
+    def expected_header(self) -> list[str]:
+        (record,) = (self.tmp / "diag").glob("*.json")
+        script = pathlib.Path(inv.__file__).resolve()
+        return [
+            "Gap: host-a-windows unreadable: its projects directory could not be listed (NotADirectoryError). "
+            f"Retry: python3 {script} {' '.join(self.argv)}",
+            f"Diagnostics: {record}",
+        ]
+
+    def test_header_lookup_gap(self) -> None:
+        with mock.patch.object(inv, "managed_policy_dir", return_value=None):
+            report = inv.build_report(inv_args(project_dir=str(self.tmp), sources_file=str(self.sources),
+                                               diagnostics_dir=str(self.tmp / "diag"), argv=self.argv))
+        self.assertEqual(report["disk"]["config_dir"], str(self.tmp / "wsl"))
+        self.assertEqual(report["header"], self.expected_header())
+
+    def test_a_missing_sources_file_warns_on_stderr(self) -> None:
+        err = io.StringIO()
+        with mock.patch.object(inv, "managed_policy_dir", return_value=None), contextlib.redirect_stderr(err):
+            report = inv.build_report(inv_args(config_dir=str(self.tmp / "wsl"), project_dir=str(self.tmp),
+                                               sources_file=str(self.tmp / "absent.json")))
+        self.assertEqual((err.getvalue().count("not found"), report["header"]), (1, []))
+
+
+class CustomConfigDirTest(unittest.TestCase):
+    """Which `.claude.json` builtin_plugin_state reads: inside a custom config dir, else in home."""
+
+    def setUp(self) -> None:
+        self.tmp = pathlib.Path(tempfile.mkdtemp(prefix="custom-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.home = self.tmp / "home"
+        (self.home / ".claude").mkdir(parents=True)
+        self.env = mock.patch.dict(os.environ, {"HOME": str(self.home)}, clear=False)
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        os.environ.pop("CLAUDE_CONFIG_DIR", None)
+
+    def sources_for(self, config_dir: pathlib.Path) -> inv.transcript_sources.Sources:
+        path = self.tmp / "sources.json"
+        path.write_text(json.dumps({"schema": "transcript-sources/v1", "sources": [
+            {"name": "host-a-wsl", "host": "host-a", "platform": "wsl", "config_dir": str(config_dir)},
+        ]}), encoding="utf-8")
+        return inv.transcript_sources.load(str(path))
+
+    def test_a_sources_file_root_outside_home_is_custom(self) -> None:
+        root = self.tmp / "alt-config"
+        self.assertTrue(inv.custom_config_dir(None, self.sources_for(root), root))
+
+    def test_a_sources_file_root_at_the_default_dir_is_not_custom(self) -> None:
+        root = self.home / ".claude"
+        self.assertFalse(inv.custom_config_dir(None, self.sources_for(root), root))
+
+    def test_no_sources_file_and_no_override_is_not_custom(self) -> None:
+        sources = inv.transcript_sources.load("")
+        self.assertFalse(inv.custom_config_dir(None, sources, inv.transcript_sources.first_local_config_dir(sources)))
+
+    def test_a_config_dir_flag_is_custom(self) -> None:
+        root = self.home / ".claude"
+        self.assertTrue(inv.custom_config_dir(str(root), inv.transcript_sources.load(""), root))
 
 
 if __name__ == "__main__":

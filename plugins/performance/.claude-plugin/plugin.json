@@ -20,5 +20,18 @@
   ],
   "metadata": {
     "category": "verification"
+  },
+  "userConfig": {
+    "transcript_sources_file": {
+      "type": "file",
+      "title": "Transcript sources file",
+      "description": "JSON file of the Claude Code configuration directories this plugin's transcript-mining skills read, here and on hosts reached over ssh. Unset: only this host's, CLAUDE_CONFIG_DIR or ~/.claude. A missing file falls back to that with a warning; a malformed one stops the run."
+    },
+    "redact_identifiers": {
+      "type": "string",
+      "title": "Redact identifiers",
+      "description": "Comma-separated names and paths the publish redactor also replaces in reports this plugin's transcript-mining scripts publish. Empty adds none.",
+      "default": ""
+    }
   }
 }

@@ -24,11 +24,14 @@ Read `$ARGUMENTS` whole; stop and name this accepted set on any other token.
 - Scope: every project on this machine over the last 7 days by default. `--since`/`--until`
   (`YYYY-MM-DD`, UTC) or `--days` set the window; `--project` keeps sessions whose repository or
   working directory contains the text; `--session` keeps named sessions; `--source <dir>` adds a
-  directory laid out like `~/.claude/projects` (fetching it from another machine is out of scope).
-  The report header lists the projects roots: each `--source`, and for the machine store the
-  collector's default root, labeled as such since the store does not record its root. `mine` warns about a sibling tree the run
-  skipped, with the `--source` argument that adds it: a Windows user's tree under WSL's drive
-  mounts, or on Windows a running WSL distribution's tree (a stopped one is listed as unchecked).
+  directory laid out like `~/.claude/projects`, or the configuration directory holding one, to the
+  one audit-sessions store as its own source, `dir-<hash of its path>`. Another host's, or the
+  other platform's, configuration directory comes from the `transcript_sources_file` sources file,
+  which collect reads; a projects tree the sources file does not list is not detected, so add it
+  there or pass it as `--source`. The report header lists the projects roots (each stored source's, from its
+  records' provenance, then each `--source`), then each collection gap with its retry command and
+  each source the sources file lists that is past half its `cleanupPeriodDays` without a
+  collection free of gaps.
 - `--verify` picks the verification depth (see [Verify](#5-verify)).
 
 ## Default decision policy
@@ -80,19 +83,22 @@ is enabled; when it is not, say so once in the report and take its fallback:
 
 ### 1. Collect and scope (script)
 
-Run `C collect --data-dir "<D>"` with the retention and excerpt options `/session-flow:audit-sessions`
-resolves (the same store; its Options section names them), then pass the same three options
-(`<collector options>`) to `mine`, which forwards them to each `--source` collect:
+Run `C collect --data-dir "<D>" --sources-file '${user_config.transcript_sources_file}'` with the
+retention and excerpt options `/session-flow:audit-sessions` resolves (the same store; its Options
+section names them, and `--retention-days` goes only when its option is set), then pass the same
+options (`<collector options>`) to `mine`, which forwards them to each `--source` collect:
 
 ```bash
-F mine --data-dir "<D>" <scope flags> <collector options> --save-baseline --out "<R>/friction.json"
-F mine --data-dir "<D>" <scope flags> <collector options> --format md
+F mine --data-dir "<D>" <scope flags> <collector options> --sources-file '${user_config.transcript_sources_file}' --redact-identifiers '${user_config.redact_identifiers}' --save-baseline --out "<R>/friction.json"
+F mine --data-dir "<D>" <scope flags> <collector options> --sources-file '${user_config.transcript_sources_file}' --redact-identifiers '${user_config.redact_identifiers}' --format md
 ```
 
-A first collect reads every transcript: give it a long timeout or run it in the background. Exit 1
-from `mine` is a warning (a failed source, an unread sibling projects tree, or records that predate
-friction mining): report it and continue. For a sibling tree, put the warning at the top of the
-report. Exit 2: report and stop.
+An option still reading `${user_config.…}`, and where collect runs (outside the Bash sandbox), go
+as `/session-flow:audit-sessions` Options and Step 1 say. A first collect reads every transcript: give it a long timeout or run it in the
+background. The markdown passes the publish redactor (`${CLAUDE_PLUGIN_ROOT}/scripts/publish.py`), so hosts and paths
+read as placeholders; the JSON keeps `header`'s retry commands verbatim. Put the header's gap and
+stale lines at the top of the report. Exit 1 from `mine` is a warning (a failed `--source`, or
+records that predate friction mining): report it and continue. Exit 2: report and stop.
 
 ### 2. Classify (one agent)
 
@@ -105,7 +111,7 @@ policy above, the person's own words win.
 ### 3. Cause map (scripts and harness audits)
 
 - Run `/harness-config:audit-permission-state` (if enabled) and save its merge section to `R/merge.txt`, then
-  `F cause --friction "<R>/friction.json" --merge "<R>/merge.txt" --out "<R>/cause.json" --format md`.
+  `F cause --friction "<R>/friction.json" --merge "<R>/merge.txt" --out "<R>/cause.json" --format md --sources-file '${user_config.transcript_sources_file}' --redact-identifiers '${user_config.redact_identifiers}'`.
   A rule match is a candidate: the script matches rule text against the stored command line.
 - For grants that do not survive auto mode, `/harness-config:audit-permission-grants` (if enabled); for repeated
   manual work a hook or setting could absorb, `/harness-config:audit-automation-gaps` (if enabled).
@@ -121,7 +127,7 @@ which are consequential: a claim whose being wrong would change a recommended ed
 
 ### 5. Verify
 
-Run `F estimate --inventory "<R>/inventory.json" --probes <n> --format md` for each mode's agent and
+Run `F estimate --inventory "<R>/inventory.json" --probes <n> --format md --sources-file '${user_config.transcript_sources_file}' --redact-identifiers '${user_config.redact_identifiers}'` for each mode's agent and
 wave counts and its estimated token and wall-clock ranges:
 
 - `consequential` (default): behavior probes plus a blind fact-check of the consequential claims.
@@ -161,9 +167,9 @@ every approval verbatim, with its date, in `R/DECISIONS.md`.
 
 ### Re-measure
 
-Once the fixes have seen some normal work, run `C collect`, then `F mine ... <collector options> --out "<R>/friction.json"`
+Once the fixes have seen some normal work, run step 1's `C collect`, then `F mine ... <collector options> --sources-file '${user_config.transcript_sources_file}' --redact-identifiers '${user_config.redact_identifiers}' --out "<R>/friction.json"`
 over a window that starts after them, then `F diff --data-dir "<D>" --current "<R>/friction.json"
---format md`, which compares events per session with the newest saved baseline. Exit 1 means a key
+--format md --sources-file '${user_config.transcript_sources_file}' --redact-identifiers '${user_config.redact_identifiers}'`, which compares events per session with the newest saved baseline. Exit 1 means a key
 is new or more frequent: report those first.
 
 ## Untrusted content

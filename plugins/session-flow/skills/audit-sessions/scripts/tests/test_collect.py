@@ -11,7 +11,15 @@ import time
 from pathlib import Path
 
 import pytest
-from conftest import FIXTURES, PLUGIN_SCRIPTS, SCRIPTS, envelope, run_cli
+from conftest import (
+    FIXTURES, HASHED_INPUTS, LOCK, PLUGIN_ROOT, PLUGIN_SCRIPTS, SCRIPTS, collect_cli, config_env, envelope, run_cli,
+)
+
+for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
+    os.environ.pop(_leaked_git_var, None)
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
+del _leaked_git_var
 
 STATE_KEY = SCRIPTS.parents[2] / "lib" / "state-key.sh"
 
@@ -21,7 +29,7 @@ TRACER_OUTPUT_TOKENS = 40 + 7
 def test_tracer_end_to_end(data_dir, copy_fixture):
     root = copy_fixture("tracer")
 
-    collected = run_cli("collect.py", "collect", "--data-dir", str(data_dir), "--projects-root", str(root))
+    collected = collect_cli(data_dir, root)
     assert collected.returncode == 0, collected.stderr
     collect_env = envelope(collected)
     assert collect_env["schema"] == "audit-sessions.collect/v1"
@@ -35,36 +43,28 @@ def test_tracer_end_to_end(data_dir, copy_fixture):
     assert sweep_env["data"]["metrics"]["tokens.main"]["value"] == TRACER_OUTPUT_TOKENS
 
 
-@pytest.fixture
-def multi(copy_fixture, tmp_path):
-    """The multi fixture with `cwd` placeholders pointing at a real and a removed directory."""
-    root = copy_fixture("multi")
-    cwd_a = tmp_path / "work" / "repo-a"
-    cwd_a.mkdir(parents=True)
-    gone = tmp_path / "work" / "removed"
-    for path in root.rglob("*.jsonl"):
-        text = path.read_text(encoding="utf-8")
-        text = text.replace("__CWD_A__", json.dumps(str(cwd_a))[1:-1])
-        text = text.replace("__CWD_GONE__", json.dumps(str(gone))[1:-1])
-        path.write_text(text, encoding="utf-8", newline="\n")
-    return root, cwd_a
-
-
 def collect(data_dir: Path, root: Path, *extra: str, env: dict | None = None) -> subprocess.CompletedProcess[str]:
-    args = [sys.executable, str(PLUGIN_SCRIPTS / "collect.py"), "collect", "--data-dir", str(data_dir)]
+    args = [sys.executable, str(PLUGIN_SCRIPTS / "collect.py"), "collect", *LOCK, "--data-dir", str(data_dir)]
     return subprocess.run(
-        [*args, "--projects-root", str(root), *extra],
+        [*args, *extra],
         capture_output=True,
         text=True,
         encoding="utf-8",
         timeout=60,
-        env=env,
+        env=config_env(root, env),
     )
 
 
 def records(data_dir: Path) -> dict[str, dict]:
-    store = data_dir / "audit-sessions" / "store" / "v1" / "sessions"
-    return {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in store.glob("p-*/*.json")}
+    return {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in store_root(data_dir).glob("*/p-*/*.json")}
+
+
+def store_root(data_dir: Path) -> Path:
+    return data_dir / "audit-sessions" / "store" / "v2"
+
+
+def diag_path(data_dir: Path) -> str:
+    return max(store_root(data_dir).glob("diagnostics/*.json"), key=lambda p: p.stat().st_mtime_ns).as_posix()
 
 
 def stored_path(path: Path) -> str:
@@ -90,7 +90,7 @@ def test_full_session_record(data_dir, multi):
 
     rec = records(data_dir)["sess-a1"]
     identity, worktree = state_key(cwd_a).rsplit("/", 1)
-    assert rec["schema"] == "session-record/v1"
+    assert rec["schema"] == "session-record/v2"
     assert "project_dir" not in rec and "proj-a" not in json.dumps(rec)
     assert rec["cwd"] == stored_path(cwd_a)
     assert (rec["repo_identity"], rec["worktree"]) == (identity, worktree)
@@ -277,8 +277,7 @@ def test_changed_excerpt_words_reingests(data_dir, multi):
 def test_record_from_another_collection_policy_is_reingested(data_dir, multi, edit):
     root, _ = multi
     assert collect(data_dir, root).returncode == 0
-    store = data_dir / "audit-sessions" / "store" / "v1" / "sessions"
-    (path,) = store.glob("p-*/sess-a2.json")
+    (path,) = store_root(data_dir).glob("local/p-*/sess-a2.json")
     rec = json.loads(path.read_text(encoding="utf-8"))
     edit(rec)
     path.write_text(json.dumps(rec), encoding="utf-8")
@@ -290,8 +289,7 @@ def test_record_from_another_collection_policy_is_reingested(data_dir, multi, ed
 def test_record_without_digest_is_reingested_once(data_dir, multi):
     root, _ = multi
     assert collect(data_dir, root).returncode == 0
-    store = data_dir / "audit-sessions" / "store" / "v1" / "sessions"
-    (path,) = store.glob("p-*/sess-a2.json")
+    (path,) = store_root(data_dir).glob("local/p-*/sess-a2.json")
     rec = json.loads(path.read_text(encoding="utf-8"))
     del rec["collector_digest"]
     path.write_text(json.dumps(rec), encoding="utf-8")
@@ -323,32 +321,10 @@ def test_skipping_run_leaves_the_store_a_forced_run_would_write(data_dir, multi)
     assert skipped == forced
 
 
-HASHED_INPUTS = (
-    "scripts/collect.py",
-    "scripts/census.py",
-    "scripts/friction_scan.py",
-    "scripts/redact.py",
-    "scripts/transcript_reader.py",
-    "vendor/gitleaks/gitleaks-rules.json",
-    "lib/state-key.sh",
-)
-PLUGIN_ROOT = SCRIPTS.parents[2]
-
-
-@pytest.fixture
-def plugin_copy(tmp_path):
-    """A copy of the plugin files collect.py runs or reads, laid out as in the plugin."""
-    dest = tmp_path / "plugin" / "session-flow"
-    for relative in (*HASHED_INPUTS, ".claude-plugin/plugin.json"):
-        (dest / relative).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(PLUGIN_ROOT / relative, dest / relative)
-    return dest
-
-
 def collect_with(plugin: Path, data_dir: Path, root: Path, *extra: str) -> dict:
     script = plugin / "scripts" / "collect.py"
-    args = [sys.executable, str(script), "collect", "--data-dir", str(data_dir), "--projects-root", str(root), *extra]
-    result = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", timeout=60)
+    args = [sys.executable, str(script), "collect", *LOCK, "--data-dir", str(data_dir), *extra]
+    result = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", timeout=60, env=config_env(root))
     assert result.returncode == 0, result.stderr
     return envelope(result)["data"]
 
@@ -384,6 +360,17 @@ def test_plugin_version_change_alone_skips_every_session(data_dir, multi, plugin
     assert records(data_dir)["sess-a1"]["collector_version"] != "999.0.0"
     assert counts(collect_with(plugin_copy, data_dir, root, "--force")) == (3, 0)
     assert records(data_dir)["sess-a1"]["collector_version"] == "999.0.0"
+
+
+def test_excerpt_defaults_are_the_plugin_json_option_defaults(data_dir, multi, plugin_copy):
+    root, _ = multi
+    manifest_path = plugin_copy / ".claude-plugin" / "plugin.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["userConfig"]["audit_sessions_excerpt_chars"]["default"] = 17
+    manifest["userConfig"]["audit_sessions_excerpt_words"]["default"] = 7
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    collect_with(plugin_copy, data_dir, root)
+    assert records(data_dir)["sess-a1"]["excerpt_limits"] == {"chars": 17, "words": 7}
 
 
 def test_line_ending_change_alone_skips_every_session(data_dir, multi, plugin_copy):
@@ -423,9 +410,8 @@ def unhashed_plugin_files(plugin: Path, data_dir: Path, root: Path, tmp_path: Pa
     driver.write_text(AUDIT_DRIVER, encoding="utf-8")
     plugin = plugin.resolve()
     script = plugin / "scripts" / "collect.py"
-    args = [sys.executable, str(driver), str(script), str(out), "collect", "--data-dir", str(data_dir),
-            "--projects-root", str(root)]
-    result = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", timeout=60)
+    args = [sys.executable, str(driver), str(script), str(out), "collect", *LOCK, "--data-dir", str(data_dir)]
+    result = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", timeout=60, env=config_env(root))
     assert result.returncode == 0, result.stderr
     assert envelope(result)["data"]["ingested"] == 3
     trace = json.loads(out.read_text(encoding="utf-8"))
@@ -675,16 +661,17 @@ def collect_failing_closed(data_dir: Path, root: Path, tmp_path: Path) -> subpro
     plugin = tmp_path / "plugin"
     (plugin / "scripts").mkdir(parents=True)
     shutil.copytree(PLUGIN_SCRIPTS.parent / ".claude-plugin", plugin / ".claude-plugin")
-    for name in ("collect.py", "census.py", "friction_scan.py", "redact.py", "transcript_reader.py"):
-        shutil.copy2(PLUGIN_SCRIPTS / name, plugin / "scripts")
+    for relative in HASHED_INPUTS:
+        if relative.startswith("scripts/"):
+            shutil.copy2(PLUGIN_SCRIPTS.parent / relative, plugin / "scripts")
     (plugin / "vendor" / "gitleaks").mkdir(parents=True)
     rules = {"rules": [{"id": "broken", "regex": "(unclosed", "keywords": []}], "source_version": "test"}
     (plugin / "vendor" / "gitleaks" / "gitleaks-rules.json").write_text(json.dumps(rules), encoding="utf-8")
 
     script = plugin / "scripts" / "collect.py"
     return subprocess.run(
-        [sys.executable, str(script), "collect", "--data-dir", str(data_dir), "--projects-root", str(root)],
-        capture_output=True, text=True, encoding="utf-8", timeout=60,
+        [sys.executable, str(script), "collect", *LOCK, "--data-dir", str(data_dir)],
+        capture_output=True, text=True, encoding="utf-8", timeout=60, env=config_env(root),
     )
 
 
@@ -774,6 +761,7 @@ def test_unusable_bash_gives_null_identity_and_one_warning(data_dir, multi, tmp_
     fake.mkdir()
     (fake / "bash").write_text("#!/bin/sh\nexit 3\n", encoding="utf-8")
     (fake / "bash").chmod(0o755)
+    (fake / "python3").symlink_to(shutil.which("python3"))
     env = {k: v for k, v in os.environ.items() if k != "CLAUDE_CODE_GIT_BASH_PATH"}
     env["PATH"] = str(fake)
     result = collect(data_dir, root, env=env)
@@ -782,38 +770,67 @@ def test_unusable_bash_gives_null_identity_and_one_warning(data_dir, multi, tmp_
     assert result.stderr.count("warning:") == 1
 
 
+def test_lock_name_names_the_host_lock_a_reader_waits_on(data_dir, multi, tmp_path):
+    import transcript_run
+
+    root, _ = multi
+    name = LOCK[1] + "-held"
+    holder = transcript_run.local_lock(name)
+    if holder.mechanism == "missing":
+        holder.release()
+        pytest.skip("no per-host lock on this platform")
+    sources = tmp_path / "sources.json"
+    sources.write_text(json.dumps({"schema": "transcript-sources/v1", "defaults": {"lock_timeout_s": 0}, "sources": [
+        {"name": "host-a-wsl", "host": "host-a", "platform": "wsl", "config_dir": str(root.parent)},
+    ]}), encoding="utf-8")
+    args = [sys.executable, str(PLUGIN_SCRIPTS / "collect.py"), "collect", "--data-dir", str(data_dir), "--sources-file", str(sources)]
+    try:
+        held = subprocess.run([*args, "--lock-name", name], capture_output=True, text=True, encoding="utf-8", timeout=60)
+        other = subprocess.run([*args, *LOCK], capture_output=True, text=True, encoding="utf-8", timeout=60)
+    finally:
+        holder.release()
+    gaps = envelope(held)["data"]["gaps"]
+    assert (held.returncode, [(g["source"], g["kind"]) for g in gaps]) == (1, [("host-a-wsl", "busy")])
+    retry = gaps[0]["retry_argv"]
+    assert retry[retry.index("--lock-name") + 1] == name and retry[-2:] == ["--source", "host-a-wsl"]
+    assert (other.returncode, envelope(other)["data"]["gaps"]) == (0, []), other.stdout + other.stderr
+
+
 def test_concurrent_collectors_leave_valid_records(data_dir, multi):
     root, _ = multi
-    args = [sys.executable, str(PLUGIN_SCRIPTS / "collect.py"), "collect", "--data-dir", str(data_dir)]
-    args += ["--projects-root", str(root), "--force"]
-    runs = [subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE) for _ in range(2)]
+    args = [sys.executable, str(PLUGIN_SCRIPTS / "collect.py"), "collect", *LOCK, "--data-dir", str(data_dir)]
+    args += ["--force"]
+    runs = [subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=config_env(root)) for _ in range(2)]
     for run in runs:
         run.communicate(timeout=60)
-        assert run.returncode in (0, 1)
+        assert run.returncode == 0, "the second collector waits for the first one's host lock"
     stored = records(data_dir)
     assert set(stored) == {"sess-a1", "sess-a2", "sess-b1"}
-    assert {r["schema"] for r in stored.values()} == {"session-record/v1"}
+    assert {r["schema"] for r in stored.values()} == {"session-record/v2"}
 
 
-def test_unusable_data_dir_and_missing_projects_root_exit_2(tmp_path, multi):
+def test_unusable_data_dir_exits_2_and_a_missing_projects_dir_is_a_gap(tmp_path, multi):
     root, _ = multi
     not_a_dir = tmp_path / "file"
     not_a_dir.write_text("x", encoding="utf-8")
     result = collect(not_a_dir, root)
     assert (result.returncode, envelope(result)["status"]) == (2, "error")
-    result = collect(tmp_path / "data", tmp_path / "missing")
-    assert (result.returncode, envelope(result)["status"]) == (2, "error")
+    result = collect(tmp_path / "data", tmp_path / "missing" / "projects")
+    assert (result.returncode, envelope(result)["status"]) == (1, "warning")
+    assert [(g["source"], g["kind"]) for g in envelope(result)["data"]["gaps"]] == [("local", "unreadable")]
 
 
 @pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0, reason="needs POSIX permissions that bind")
-def test_unreadable_projects_root_exits_2(data_dir, multi):
+def test_unreadable_projects_dir_is_a_retryable_gap(data_dir, multi):
     root, _ = multi
     root.chmod(0)
     try:
         result = collect(data_dir, root)
     finally:
         root.chmod(0o755)
-    assert (result.returncode, envelope(result)["status"]) == (2, "error")
+    assert (result.returncode, envelope(result)["status"]) == (1, "warning")
+    (gap,) = envelope(result)["data"]["gaps"]
+    assert (gap["kind"], gap["retry_argv"][-2:]) == ("unreadable", ["--source", "local"])
 
 
 def test_titles_and_paths_outside_cwd_are_redacted(data_dir, multi):
@@ -899,7 +916,7 @@ def test_orphaned_record_an_earlier_collector_stored_is_purged(data_dir, tmp_pat
     project = tmp_path / "projects" / "proj-o"
     write_records(project, "gold-0010", [turn(0, "current", promptSource="typed")])
     assert collect(data_dir, tmp_path / "projects").returncode == 0
-    normal = next((data_dir / "audit-sessions" / "store" / "v1" / "sessions").glob("p-*/gold-0010.json"))
+    normal = next(store_root(data_dir).glob("local/p-*/gold-0010.json"))
     before = normal.read_bytes()
     orphan_id = "gold-0010.orphaned-1759500000000-cd34"
     stale = json.loads(before)
@@ -940,9 +957,9 @@ WIN_ENV = {"ProgramFiles": "C:\\Program Files", "PATH": "C:\\Windows\\System32;\
          "posix-fallback", "posix-none"],
 )
 def test_resolve_bash_follows_exec_bash_order(env, platform, present, expected):
-    import collect as collect_module
+    import session_record
 
-    assert collect_module.resolve_bash(env, platform, exists=present.__contains__) == expected
+    assert session_record.resolve_bash(env, platform, exists=present.__contains__) == expected
 
 
 def _stamp(seconds: int) -> str:

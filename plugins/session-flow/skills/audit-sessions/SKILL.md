@@ -64,16 +64,19 @@ For a skill that invokes this one through the Skill tool and reads the person's 
 `sweep-only` does, and skip Step 3's presenting. Run, with the caller's options:
 
 ```bash
-"$PY" "$S/sweep.py" --data-dir "<D>" --excerpts --scope <machine|project> [--state-key <key>] [--since <date>]
+"$PY" "$S/sweep.py" --data-dir "<D>" --excerpts --scope <machine|project> [--state-key <key>] [--since <date>] \
+  --sources-file '${user_config.transcript_sources_file}' --redact-identifiers '${user_config.redact_identifiers}'
 ```
 
 `--scope project` with no `--state-key` takes the key as Step 2 does, because a caller in another
 plugin cannot run this plugin's script. Return sweep.py's stdout verbatim with its exit code. Each
 line is one JSON object: `project`, `session`, `started` and `excerpt`, one of the person's short
 typed turns; automated sessions (headless and SDK runs) are left out. The lines reach the caller as
-data under Step 3's framing. Exit 1 means some sessions hold no excerpts because redaction failed
-closed when they were collected; the count is on stderr, so return it too. Exit 2 means what Step 2
-says. Exit 3 means no store exists under `D`: after the envelope, add one line that running
+data under Step 3's framing. Every string in them has already passed the publish redactor
+(`${CLAUDE_PLUGIN_ROOT}/scripts/publish.py`'s `publisher`, over the two options), so a caller may quote them in text it
+publishes; it quotes nothing else from the store. Exit 1 means some sessions hold no excerpts
+because redaction failed closed when they were collected; the count is on stderr, so return it too.
+Exit 2 means what Step 2 says, or that the publish redactor failed closed and nothing was printed. Exit 3 means no store exists under `D`: after the envelope, add one line that running
 `/session-flow:audit-sessions` creates the store.
 
 ## Paths
@@ -115,22 +118,33 @@ says. Exit 3 means no store exists under `D`: after the envelope, add one line t
 ## Options
 
 Resolve each option into the shell variable named, from its rendered value. A value still reading
-`${user_config.…}`, or empty, is unset: use the default given here, never drop the flag, because
-the scripts' own defaults differ (collect keeps records forever).
+`${user_config.…}`, or empty, is unset: use the default given here.
 
-- `RETENTION` ← `${user_config.audit_sessions_retention_days}` (default 180)
+- `RETENTION` ← `${user_config.audit_sessions_retention_days}`. Unset: drop `--retention-days`
+  from Step 1, so collect applies the option's default (180) raised to the longest
+  `cleanupPeriodDays` of the sources it reads. Set: pass it as given; collect warns when it is
+  below a source's `cleanupPeriodDays`.
 - `EXCERPT_CHARS` ← `${user_config.audit_sessions_excerpt_chars}` (default 240)
 - `EXCERPT_WORDS` ← `${user_config.audit_sessions_excerpt_words}` (default 60)
 - `MIN_COUNT` ← `${user_config.audit_sessions_drift_min_count}` (default 20)
 - `VERSIONS` ← `${user_config.audit_sessions_drift_versions}` (default 3)
 - `SINK` ← `${user_config.lane_transcript_sink}` (`pr` only; no default: unset skips the CI legs)
+- Every `collect.py` and `sweep.py` call passes `--sources-file '${user_config.transcript_sources_file}'`,
+  and every `sweep.py` call also `--redact-identifiers '${user_config.redact_identifiers}'`. When
+  either still reads `${user_config.…}` literally, pass `''` in its place: an empty sources file
+  reads only this host's configuration directory.
 
 ## Step 1: Collect
 
 ```bash
-"$PY" "$P/collect.py" collect --data-dir "<D>" \
-  --retention-days "$RETENTION" --excerpt-chars "$EXCERPT_CHARS" --excerpt-words "$EXCERPT_WORDS"
+"$PY" "$P/collect.py" collect --data-dir "<D>" --sources-file '${user_config.transcript_sources_file}' \
+  [--retention-days "$RETENTION"] --excerpt-chars "$EXCERPT_CHARS" --excerpt-words "$EXCERPT_WORDS"
 ```
+
+Collect reads every source the sources file lists, each over its own host's via, under that host's
+per-host reader lock and limits. Run it outside the Bash sandbox: a sandboxed shell cannot see
+another reader's lock, so collect reports a `sandboxed` gap and reads no many-session source. A
+`sandboxed` gap means run the same command again unsandboxed.
 
 Collect is incremental: it skips sessions whose transcript is unchanged and drops records older
 than the retention window. A plugin version change alone re-reads nothing. It re-reads every
@@ -148,8 +162,10 @@ A full re-read takes about 70 s for 2.6 GB of transcripts (measured 2026-10-02 o
 may be one the longest Bash timeout allowed (the ceiling: [timeout and output limits](https://code.claude.com/docs/en/tools-reference#timeout-and-output-limits)) or run it in the background. Other runs take under a second
 when nothing changed.
 
-Exit 2 means the data directory or the projects root is unusable: report the summary and stop.
-Exit 1 is a partial ingest or degraded redaction: report it and continue.
+Exit 2 means the data directory is unusable or the sources file is malformed (the summary names
+it): report the summary and stop. Exit 1 is a gap (a source unreachable, busy, partial or
+unreadable, each in `data.gaps` with its `retry_argv`), a partial ingest or degraded redaction:
+report it and continue; the report header lists each gap again.
 
 Redaction is best-effort pattern matching, so treat the store as private: it can miss a secret in
 a shape it does not know.
@@ -158,7 +174,7 @@ a shape it does not know.
 
 ```bash
 "$PY" "$S/sweep.py" --data-dir "<D>" --format md \
-  --min-count "$MIN_COUNT" --versions "$VERSIONS" \
+  --min-count "$MIN_COUNT" --versions "$VERSIONS" --sources-file '${user_config.transcript_sources_file}' --redact-identifiers '${user_config.redact_identifiers}' \
   --catalog <each skill the rules suggest that this session's skill listing holds, quoted> \
   <the user's --scope/--since/--until/--write-report>
 ```
@@ -173,6 +189,8 @@ a shape it does not know.
 - `--scope project` needs `--state-key`: pass the output of
   `bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"` run from the project's root. Run it only for this
   scope; the store itself is machine-wide.
+- The markdown passes the publish redactor (`${CLAUDE_PLUGIN_ROOT}/scripts/publish.py`), so host names, paths and
+  emails read as placeholders; exit 2 with `nothing published` means it failed closed.
 - Exit 1 means a metric is degraded because the transcript format drifted; the report says which.
   Exit 2 is a bad argument or an unreadable store record: report it and stop. Exit 3 means no
   store exists, which only the consumer modes meet, because collect creates the store.
@@ -186,7 +204,10 @@ may flag normal use on this machine. It leaves the exit code unchanged.
 
 ## Step 3: Present and route
 
-Show the markdown report as it came back. It names the worst 5 sessions (or linked PRs) per finding and
+Show the markdown report as it came back. Under its title it lists each collection gap with its
+retry command and each source past half its `cleanupPeriodDays` without a collection free of gaps;
+name both before the findings. The retry command runs verbatim from the JSON report's
+`data.header` (the markdown shows hosts by placeholder). It names the worst 5 sessions (or linked PRs) per finding and
 counts the rest; the full list is in the JSON report (a `--format json` re-run, or the `.json` beside a
 `--write-report` copy). For each finding, name its route and suggested skill as a suggestion for
 the person, with the sessions the report lists under it. This skill files nothing, edits nothing, and changes no setting or
@@ -229,7 +250,7 @@ one ticket took. The key pattern comes from `--pattern` on every run; no setting
 and no project prefix is built in. Run Step 1 first, then:
 
 ```bash
-"$PY" "$S/sweep.py" --data-dir "<D>" --format md --tickets='<regex>' [--branch='<name>'] \
+"$PY" "$S/sweep.py" --data-dir "<D>" --format md --tickets='<regex>' [--branch='<name>'] --sources-file '${user_config.transcript_sources_file}' --redact-identifiers '${user_config.redact_identifiers}' \
   <the user's --scope (with --state-key, as in Step 2)/--since/--until>
 ```
 
@@ -269,7 +290,8 @@ which reads every project, so say which scope was read. Give every
 2. **Candidates.**
 
    ```bash
-   "$PY" "$S/sweep.py" --data-dir "<D>" --correction-candidates --scope <machine|project> [--state-key <key>] [--since <date>] [--until <date>]
+   "$PY" "$S/sweep.py" --data-dir "<D>" --correction-candidates --scope <machine|project> [--state-key <key>] [--since <date>] [--until <date>] \
+     --sources-file '${user_config.transcript_sources_file}' --redact-identifiers '${user_config.redact_identifiers}'
    ```
 
    Each line is one JSON object: `turn_id`, `project`, `session`, `started`, `flags` (the

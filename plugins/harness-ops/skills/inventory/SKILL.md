@@ -42,8 +42,15 @@ because it is disabled, and a built-in command can be fully live while existing 
 ## Run it
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py" --deps-dir "${CLAUDE_PLUGIN_DATA}" --out ./claude-inventory.json
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py" --deps-dir "${CLAUDE_PLUGIN_DATA}" \
+  --sources-file '${user_config.transcript_sources_file}' --diagnostics-dir "${CLAUDE_PLUGIN_DATA}/diagnostics" --out ./claude-inventory.json
 ```
+
+`--sources-file` is the `transcript_sources_file` option (`''` when it still reads
+`${user_config.…}`): the configuration directory read is its first local source's, else
+`$CLAUDE_CONFIG_DIR`, else `~/.claude`. The report's `header` lists a local source whose projects
+directory cannot be listed as a gap, with its retry command, and `--diagnostics-dir` keeps it as a
+lookup diagnostics record; name each gap at the top of the report.
 
 Python 3.11+ is the only requirement of the default bundle reader (`--reader regex`). No
 `strings`, no `jq`, no PowerShell. The run takes about twenty seconds, dominated by reading and
@@ -53,7 +60,7 @@ pinned packages into the plugin data directory (`--deps-dir`) on first use, and 
 reports the binary source broken with the command that repairs it. `--reader compare` runs both.
 
 Useful flags: `--binary <path>` (else the session's own CLI, then `PATH` and the usual install roots) · `--config-dir <path>` (else
-`$CLAUDE_CONFIG_DIR`, else `~/.claude`) · `--binary-only` / `--disk-only` to skip a source ·
+the first local transcript source's, else `$CLAUDE_CONFIG_DIR`, else `~/.claude`) · `--binary-only` / `--disk-only` to skip a source ·
 `--reader regex|parser|compare` (default `regex`) · `--docs` to add the `docs_crosscheck` block,
 fetching the commands page, the changelog, and the tools reference · `--docs-file <path>` /
 `--changelog-file <path>` / `--tools-docs-file <path>` to read one from a file instead (each

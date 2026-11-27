@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "Gap: host-a-windows unreadable. Retry: python3 /opt/eval-plugins/harness-ops/skills/inventory/scripts/inventory.py --sources-file /srv/eval/sources.json --out ./claude-inventory.json", "why": "verbatim"},
+    {"answer": "Retry with:\n\n```bash\npython3 /opt/eval-plugins/harness-ops/skills/inventory/scripts/inventory.py --sources-file /srv/eval/sources.json --out ./claude-inventory.json\n```", "why": "in a code block"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Retry: rerun the inventory script.", "why": "no command"},
+    {"answer": "Retry: python3 inventory.py --out ./claude-inventory.json", "why": "drops --sources-file"},
+    {"answer": "Retry: python3 inventory.py --sources-file '' --out ./claude-inventory.json", "why": "different sources file"}
+  ]
+}

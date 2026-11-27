@@ -39,17 +39,23 @@ verification (does the change match intent), and not Claude Code's built-in `/in
 
 Resolve at runtime, never hardcode machine-specific paths:
 
-- **Session data root**. `~/.claude/projects/<project-slug>/`, where `<project-slug>` is the
-  project's absolute path with every character outside `[A-Za-z0-9]` replaced by `-`:
+- **Session data root**. `<config dir>/projects/<project-slug>/`. Each `<config dir>` is one line
+  the transcript-source resolver prints, the local sources of the `transcript_sources_file`
+  option in file order (unset, or still reading `${user_config.…}`: pass `''`, which prints this
+  host's configuration directory). `<project-slug>` is the project's absolute path with every
+  character outside `[A-Za-z0-9]` replaced by `-`:
 
   ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/transcript_sources.py" local-config-dir \
+    --sources-file '${user_config.transcript_sources_file}'
   PROJECT_SLUG=$(pwd -W 2>/dev/null || pwd)          # Windows drive form when available
   PROJECT_SLUG=$(printf '%s' "$PROJECT_SLUG" | sed 's/[^A-Za-z0-9]/-/g')
-  SESSION_DATA_DIR="$HOME/.claude/projects/$PROJECT_SLUG"
   ```
 
-  Verify the directory exists before use; if the computed slug misses, find it by locating the
-  current session's JSONL: `ls "$HOME/.claude/projects"/*/"${CLAUDE_CODE_SESSION_ID}.jsonl"`.
+  `SESSION_DATA_DIR` is `<config dir>/projects/<PROJECT_SLUG>` for the first printed directory
+  where it exists. When the slug misses in every one, locate the current session's JSONL:
+  `ls '<config dir>/projects'/*/"${CLAUDE_CODE_SESSION_ID}.jsonl"` for each printed directory.
+  Exit 2 names a malformed sources file: say so and stop.
 - Transcript: `<SESSION_DATA_DIR>/<session-id>.jsonl`; subagents:
   `<SESSION_DATA_DIR>/<session-id>/subagents/`
 - **Auto-memory** (feedback regression check): `<SESSION_DATA_DIR>/memory/`. Present only when the
@@ -245,5 +251,12 @@ writing it into a brief: a `${…}` token in a spoke reaches the Bash tool unsub
   [reference/enforcement-ladder.md](reference/enforcement-ladder.md)) names its proof in the PR:
   an eval case, or a deletion watch with a date (`/harness-config:unhobble` (if enabled)). A mechanical finding goes to `/corrections:codify` (if enabled), which proves its own check, run once the user picks it at
   Phase 4
+- **Codified learnings are published text.** Before an approved learning lands anywhere another
+  person reads (a committed rule or instruction file, an issue, a PR body), write its text to
+  `${CLAUDE_PLUGIN_DATA}/retro/learning.md` with the Write tool and pass it through the publish
+  redactor, `${CLAUDE_PLUGIN_ROOT}/scripts/publish.py`'s `publisher`:
+  `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/publish.py" --sources-file '${user_config.transcript_sources_file}' --redact-identifiers '${user_config.redact_identifiers}' < "${CLAUDE_PLUGIN_DATA}/retro/learning.md"`.
+  Land its stdout, never the draft. Exit 2 (`nothing published`) means land nothing and say why.
+  Auto-memory entries stay on this machine and skip it.
 - **Phase 4 is an interactive checkpoint**, never persist codifications without explicit user
   approval

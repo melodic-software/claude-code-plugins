@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "Gap: host-a-windows unreadable: its projects directory could not be listed.\n\n## Summary\n7 built-in commands", "why": "gap first"},
+    {"answer": "Note first: host-a-windows could not be listed. Seven built-in commands ship in this build.", "why": "word count after the gap"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "## Summary\n7 built-in commands\n\nGap: host-a-windows unreadable.", "why": "gap after the count"},
+    {"answer": "This build has seven built-in commands. One source, host-a-windows, could not be listed.", "why": "count before the gap"},
+    {"answer": "7 built-in commands.", "why": "no gap at all"}
+  ]
+}

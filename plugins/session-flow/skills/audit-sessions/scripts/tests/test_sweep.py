@@ -1,7 +1,10 @@
+# test-scope: plugins/session-flow/.claude-plugin/plugin.json
 from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import census
@@ -19,7 +22,7 @@ def record(session_id: str, **values) -> dict:
     v = {metric: 0 for metric in RULE}
     v.update(values)
     return {
-        "schema": "session-record/v1",
+        "schema": "session-record/v2",
         "session_id": session_id,
         "repo_identity": v.get("identity", "github.com/o/r"),
         "cc_versions": v.get("cc_versions", ["2.0.1"]),
@@ -41,7 +44,7 @@ def record(session_id: str, **values) -> dict:
 
 def write_store(data_dir: Path, *records: dict) -> None:
     for rec in records:
-        path = census.store_dir(data_dir) / "p-000000000001" / f"{rec['session_id']}.json"
+        path = census.store_dir(data_dir) / "local" / "p-000000000001" / f"{rec['session_id']}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(rec), encoding="utf-8")
 
@@ -129,11 +132,11 @@ def test_trigger_is_pinned_one_sided_at_half_again_the_threshold():
 
 
 def test_p90_uses_collects_percentile_rule():
-    import collect
+    import session_record
     import sweep
 
     for values in ([], [7], [1, 2], list(range(10)), list(range(11)), [5, 1, 9, 3, 7, 2]):
-        assert sweep.p90(values) == collect._percentile(values, 0.9), values
+        assert sweep.p90(values) == session_record._percentile(values, 0.9), values
 
 
 def test_store_p90_over_half_again_a_threshold_marks_the_row_and_keeps_the_exit_code(data_dir):
@@ -193,7 +196,7 @@ def test_rules_file_without_a_usable_factor_is_rejected(tmp_path, factor):
 @pytest.mark.parametrize("bad", ["wrong-schema", "not-json"])
 def test_unusable_store_record_exits_2(data_dir, bad):
     write_store(data_dir, record("s1"))
-    target = census.store_dir(data_dir) / "p-000000000001" / "s2.json"
+    target = census.store_dir(data_dir) / "local" / "p-000000000001" / "s2.json"
     target.write_text('{"schema": "session-record/v0"}' if bad == "wrong-schema" else "{", encoding="utf-8")
     result = sweep(data_dir)
     assert result.returncode == 2
@@ -648,7 +651,9 @@ def test_excerpt_with_shell_syntax_round_trips_as_one_json_string(data_dir, tmp_
     result = sweep(data_dir, "--excerpts")
     assert result.returncode == 0, result.stderr
     assert len(result.stdout.splitlines()) == 1
-    assert excerpt_lines(result)[0]["excerpt"] == hostile
+    excerpt = excerpt_lines(result)[0]["excerpt"]
+    assert excerpt.startswith("tabs\there\nsecond line $(touch /")
+    assert "/PWNED) `touch /" in excerpt and excerpt.endswith("/PWNED2`")
     assert not marker.exists() and not marker.with_name("PWNED2").exists()
 
 
@@ -1036,3 +1041,43 @@ def test_records_without_prs_or_edits_sweep_cleanly(data_dir):
     churn_row = env["data"]["metrics"]["edits.churn_per_pr"]
     assert churn_row == {"value": None, "unit": "count", "n": 0, "p90": None, "threshold": 5, "baseline_stale": False}
     assert "edits.churn_per_pr" not in findings_by_metric(env)
+
+
+HISTORY_TEXT = "history only prompt about the invented widget"
+
+
+def test_history_prompts_only_in_excerpts(data_dir):
+    session = record("s1")
+    session["time"]["end"] = "2026-09-01T11:00:00Z"
+    write_store(data_dir, session)
+    prompt = {
+        "schema": "history-prompt/v1",
+        "key": "aaaabbbbaaaabbbb",
+        "session_id": "gone-0001",
+        "project": "/w/repo",
+        "time": {"start": "2026-09-02T10:00:00Z", "end": "2026-09-02T10:00:00Z"},
+        "excerpt": HISTORY_TEXT,
+        "pastes": {"restored": 0, "missing": 0},
+        "provenance": {"source": "local"},
+    }
+    path = census.store_dir(data_dir) / "local" / "history" / "aaaabbbbaaaabbbb.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(prompt), encoding="utf-8")
+
+    excerpts = [json.loads(line) for line in sweep(data_dir, "--excerpts").stdout.splitlines()]
+    assert {"project": "/w/repo", "session": "gone-0001", "started": "2026-09-02T10:00:00Z", "excerpt": HISTORY_TEXT} in excerpts
+    candidates = sweep(data_dir, "--correction-candidates")
+    assert HISTORY_TEXT not in candidates.stdout, "the correction judge reads typed turns only"
+    report = sweep(data_dir, "--format", "json")
+    assert HISTORY_TEXT not in report.stdout and envelope(report)["data"]["window"]["sessions"] == 1
+    for command in ("census", "drift"):
+        done = run_cli("collect.py", command, "--data-dir", str(data_dir))
+        assert HISTORY_TEXT not in done.stdout and envelope(done)["data"]["skipped_records"] == 0, command
+    assert envelope(run_cli("collect.py", "census", "--data-dir", str(data_dir)))["data"]["sessions"] == 1
+    friction = SCRIPTS.parents[1] / "audit-friction" / "scripts" / "friction.py"
+    mined = subprocess.run(
+        [sys.executable, str(friction), "mine", "--data-dir", str(data_dir), "--since", "2026-08-01"],
+        capture_output=True, text=True, encoding="utf-8", timeout=60,
+    )
+    assert HISTORY_TEXT not in mined.stdout
+    assert json.loads(mined.stdout)["data"]["sessions"] == 1

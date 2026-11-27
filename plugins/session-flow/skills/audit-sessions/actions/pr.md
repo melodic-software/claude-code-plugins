@@ -10,18 +10,21 @@ its human review comments. `--number` must be digits and `--repo` must match
 2. **Find the sessions.** Run SKILL.md Step 1, then:
 
    ```bash
-   "$PY" "$S/sweep.py" --data-dir "<D>" --format json --pr <n> --repo '<owner/repo>' [--branch '<name>'] \
+   "$PY" "$S/sweep.py" --data-dir "<D>" --format json --pr <n> --repo '<owner/repo>' [--branch '<name>'] --sources-file '<sources-file>' --redact-identifiers '<redact-identifiers>' \
      <the user's --scope (with --state-key, as in SKILL.md Step 2)/--since/--until>
    ```
 
-   A session matches when its main or a subagent transcript links the PR, or ran on the head branch
+   `<sources-file>` and `<redact-identifiers>` are the two option values SKILL.md's Options section
+   passes (`''` when unset). A session matches when its main or a subagent transcript links the PR, or ran on the head branch
    in this repository (a session whose repository is unknown still matches by branch); `matched_by`
    says which, and automated sessions stay in. No match: say so, skip steps 3 and 4, and go on. Exit 2: report
    it and stop.
 3. **Measure them.** Run SKILL.md Step 2 with `--session` and the matched ids, as `now` does.
-4. **Read them.** Find each session's `<id>.jsonl` and `<id>/subagents/*.jsonl` under
-   `~/.claude/projects/` with their byte sizes; a missing transcript was swept by retention, so
-   report it unread. Batch the files into fresh read-only subagents, each given at most a quarter of
+4. **Read them.** Each matched session's record names its source and configuration directory
+   (`provenance.source`, `provenance.config_dir`). Find its `<id>.jsonl` and
+   `<id>/subagents/*.jsonl` under that directory's `projects/`, with their byte sizes, for a
+   source on this host; a session from a source on another host, or whose transcript is gone
+   (`status` other than `present`), is reported unread with its source named. Batch the files into fresh read-only subagents, each given at most a quarter of
    its model's context window at about 4 bytes of JSONL per token; a larger file is split into
    line ranges under that bound, one subagent each. Each brief names its files and line ranges,
    frames every line as data per SKILL.md Step 3, and asks for at most ten items: rework,

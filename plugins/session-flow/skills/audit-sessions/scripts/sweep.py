@@ -5,14 +5,16 @@
     sweep.py --data-dir D [--since YYYY-MM-DD] [--until YYYY-MM-DD]
              [--scope machine|project] [--state-key K] [--catalog SKILL ...]
              [--canaries FILE] [--min-count N] [--versions N] [--session-floor N]
-             [--format json|md] [--write-report] [--judged FILE] [--session ID ...]
+             [--format json|md] [--write-report] [--judged FILE] [--session ID ...] [--sources-file F]
+             [--redact-identifiers LIST]
     sweep.py --data-dir D --excerpts|--correction-candidates [--since ...] [--until ...] [--scope ...] [--state-key K]
              [--session ID ...]
     sweep.py --data-dir D --tickets PATTERN [--branch NAME] [--since ...] [--until ...] [--scope ...] [--state-key K]
              [--format json|md]
     sweep.py --data-dir D --pr N --repo OWNER/REPO [--branch NAME] [--since ...] [--until ...] [--scope ...] [--state-key K]
 
-Reads only the `session-record/v1` files `collect.py` wrote; it never opens a transcript. Each
+Reads only the `session-record/v2` files `collect.py` wrote, across every source's partition; it
+never opens a transcript. Each
 rule in `reference/sweep-rules.json` names one metric: per-session metrics report their median and
 raise one finding listing every session above the threshold (the markdown report names the worst
 few); a null threshold reports only. Each metric also reports this store's p90 beside the shipped
@@ -25,9 +27,22 @@ metric fed by a lost drift canary (census.py) is withheld. Prints one JSON envel
 on stdout; exit 0 pass, 1 warning (a metric degraded), 2 error, 3 no store under --data-dir.
 Without --write-report it writes nothing. Stdlib only; Python 3.10+.
 
+Markdown, on stdout or in a written report, and the written JSON report are published output: they
+pass through the publish redactor (`publish.publisher` over `--sources-file` and
+`--redact-identifiers`), every JSON string with it, and when that fails closed nothing is printed or written and the exit is 2.
+
+Every report and envelope carries `data.header`: the collection's gaps, each with its retry
+command, and each source past half its `cleanupPeriodDays` without a collection free of gaps
+(`transcript_sources.store_header`, judging the sources of `--sources-file`, which is loaded once
+and whose warnings go to stderr). The markdown lists them under its title.
+
 `--excerpts` prints, instead of the report, one JSON line per stored typed-turn excerpt inside the
-window and scope (`project`, `session`, `started`, `excerpt`); `--format` and `--write-report` do
-not apply. A record collected while redaction failed closed contributes none and makes the exit 1.
+window and scope (`project`, `session`, `started`, `excerpt`), then, at machine scope with no
+`--session`, one per stored history-only prompt (`history-prompt/v1`), which no other mode reads;
+`--format` and `--write-report` do not apply. Every string in those lines passes the publish
+redactor first, so they may be quoted in published text; when it fails closed nothing is printed
+and the exit is 2. A record collected while redaction failed closed contributes none and makes
+the exit 1.
 `--correction-candidates` prints the same excerpts with a stable `turn_id` and the collector's
 `flags`, for the skill's model judge.
 
@@ -68,6 +83,7 @@ import re
 import statistics
 import sys
 from collections import Counter
+from collections.abc import Callable
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -76,6 +92,8 @@ if _PLUGIN_SCRIPTS not in sys.path:
     sys.path.insert(0, _PLUGIN_SCRIPTS)
 
 import census  # noqa: E402  (plugin-level scripts/census.py)
+import publish  # noqa: E402  (plugin-level scripts/publish.py)
+import transcript_sources  # noqa: E402  (plugin-level scripts/transcript_sources.py)
 
 SCHEMA = "audit-sessions.sweep/v1"
 TICKETS_SCHEMA = "audit-sessions.tickets/v1"
@@ -416,7 +434,7 @@ def render_md(data: dict) -> str:
         sessions += f"; {n} session{'s' * (n != 1)} without an entrypoint kept"
     if window.get("sessions_not_found"):
         sessions += "; named but not in the store: " + ", ".join(markdown_code(s) for s in window["sessions_not_found"])
-    lines = [f"# Session audit ({data['scope']})", "", sessions, ""]
+    lines = [f"# Session audit ({data['scope']})", "", *transcript_sources.report_header_md(data.get("header") or []), sessions, ""]
     lines += [
         "## Metrics",
         "",
@@ -477,11 +495,23 @@ def render_md(data: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-def write_report(data_dir: Path, key: str, envelope: dict) -> None:
+def redacted_values(value: object, md_out: Callable[[str], str]) -> object:
+    """`value` with every string in it, keys included, passed through `md_out`."""
+    if isinstance(value, str):
+        return md_out(value)
+    if isinstance(value, dict):
+        return {md_out(str(k)): redacted_values(v, md_out) for k, v in value.items()}
+    if isinstance(value, list):
+        return [redacted_values(v, md_out) for v in value]
+    return value
+
+
+def write_report(data_dir: Path, key: str, envelope: dict, md_out: Callable[[str], str]) -> None:
     reports = data_dir / "audit-sessions" / "reports" / Path(*key.split("/"))
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-    data = envelope["data"]
-    if not (census.write_atomic(reports / f"{stamp}.json", envelope) and census.write_atomic(reports / f"{stamp}.md", render_md(data))):
+    md = md_out(render_md(envelope["data"]))
+    published = {k: redacted_values(v, md_out) for k, v in envelope.items()}
+    if not (census.write_atomic(reports / f"{stamp}.json", published) and census.write_atomic(reports / f"{stamp}.md", md)):
         print(f"sweep.py: report {stamp} not written: the target stayed locked", file=sys.stderr)
         return
     for old in sorted(reports.glob("*.json"))[:-KEEP_REPORTS]:
@@ -528,11 +558,30 @@ def flagged_turns(records: list[dict]) -> tuple[list[dict], int]:
     return lines, suppressed
 
 
-def print_turns(records: list[dict], keys: tuple[str, ...]) -> int:
-    """One JSON line per stored typed-turn excerpt; the text stays a JSON string, never a shell word."""
+def history_turns(prompts: list[dict]) -> list[dict]:
+    """Each stored history-only prompt's excerpt, in the `EXCERPT_KEYS` shape."""
+    lines = []
+    for prompt in prompts:
+        text, start = prompt.get("excerpt"), prompt.get("time")
+        if isinstance(text, str) and text:
+            lines.append(
+                {
+                    "project": prompt.get("project"),
+                    "session": prompt.get("session_id"),
+                    "started": start.get("start") if isinstance(start, dict) else None,
+                    "excerpt": text,
+                }
+            )
+    return lines
+
+
+def print_turns(
+    records: list[dict], keys: tuple[str, ...], md_out: Callable[[str], str], prompts: list[dict] | None = None,
+) -> int:
+    """One JSON line per stored typed-turn excerpt, then per history-only prompt, each string through `md_out`."""
     turns, suppressed = flagged_turns(records)
-    for turn in turns:
-        sys.stdout.write(json.dumps({key: turn[key] for key in keys}) + "\n")
+    for turn in [*turns, *history_turns(prompts or [])]:
+        sys.stdout.write(json.dumps(redacted_values({key: turn[key] for key in keys}, md_out)) + "\n")
     if suppressed:
         print(f"sweep.py: {suppressed} records in scope hold no excerpts: redaction failed closed at collect", file=sys.stderr)
         return 1
@@ -654,6 +703,7 @@ def tickets_md(data: dict) -> str:
     lines = [
         f"# Ticket rollup ({data['scope']})",
         "",
+        *transcript_sources.report_header_md(data.get("header") or []),
         f"Sessions: {window['sessions']} ({span}); {data['unkeyed']} with no key matching {markdown_code(data['pattern'])};"
         f" {window['automated_set_aside']} automated set aside",
     ]
@@ -717,6 +767,7 @@ def pr_md(data: dict) -> str:
     lines = [
         f"# Sessions on {markdown_code(data['repo'])} #{data['number']} ({data['scope']})",
         "",
+        *transcript_sources.report_header_md(data.get("header") or []),
         f"Sessions read: {window['sessions']} ({span}); head branch: {branch}",
         "",
     ]
@@ -738,9 +789,18 @@ def _pattern(value: str) -> re.Pattern:
         raise argparse.ArgumentTypeError(f"not a regular expression: {exc}") from exc
 
 
-def emit(fmt: str, status: str, summary: str, data: dict, code: int) -> int:
-    if fmt == "md" and status != "error":
-        sys.stdout.write(render_md(data))
+def unpublished(text: str) -> str:
+    raise RuntimeError("markdown reached output without the publish redactor")
+
+
+def fail(summary: str, code: int) -> int:
+    print(json.dumps({"schema": SCHEMA, "status": "error", "summary": summary, "data": {}}, indent=2))
+    return code
+
+
+def emit(fmt: str, status: str, summary: str, data: dict, code: int, md_out: Callable[[str], str]) -> int:
+    if fmt == "md":
+        sys.stdout.write(md_out(render_md(data)))
     else:
         print(json.dumps({"schema": SCHEMA, "status": status, "summary": summary, "data": data}, indent=2))
     return code
@@ -769,39 +829,48 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--repo", help="with --pr, the PR's OWNER/REPO")
     parser.add_argument("--branch", help="with --tickets, only the key this pattern matches in the branch name; with --pr, the PR's head branch")
     parser.add_argument("--session", nargs="+", action="extend", help="only these session ids")
+    parser.add_argument("--sources-file", default="", help="the transcript_sources_file option, whose identifiers markdown redacts")
+    parser.add_argument("--redact-identifiers", default="", help="the redact_identifiers option: more names and paths markdown redacts")
     try:
         args = parser.parse_args(argv)
     except SystemExit as exc:
         if exc.code == 0:
             raise
-        return emit("json", "error", "bad arguments", {}, 2)
+        return fail("bad arguments", 2)
     if args.judged is not None and args.write_report:
-        return emit("json", "error", "--judged findings quote excerpts, so --judged refuses --write-report", {}, 2)
+        return fail("--judged findings quote excerpts, so --judged refuses --write-report", 2)
     if args.session and args.write_report:
-        return emit("json", "error", "--session reports are not kept, so --session refuses --write-report", {}, 2)
+        return fail("--session reports are not kept, so --session refuses --write-report", 2)
     if args.tickets is not None and (args.session or args.write_report):
-        return emit("json", "error", "--tickets refuses --session and --write-report", {}, 2)
+        return fail("--tickets refuses --session and --write-report", 2)
     if args.branch is not None and args.tickets is None and args.pr is None:
-        return emit("json", "error", "--branch needs --tickets or --pr", {}, 2)
+        return fail("--branch needs --tickets or --pr", 2)
     if args.pr is not None and (args.session or args.write_report):
-        return emit("json", "error", "--pr refuses --session and --write-report", {}, 2)
+        return fail("--pr refuses --session and --write-report", 2)
     if (args.pr is None) != (args.repo is None) or (args.repo is not None and not REPO_RE.fullmatch(args.repo)):
-        return emit("json", "error", "--pr and --repo OWNER/REPO go together", {}, 2)
+        return fail("--pr and --repo OWNER/REPO go together", 2)
     if args.scope == "project" and not (args.state_key and STATE_KEY_RE.fullmatch(args.state_key)):
-        return emit("json", "error", "--scope project needs --state-key <identity>/<worktree>", {}, 2)
+        return fail("--scope project needs --state-key <identity>/<worktree>", 2)
+    md_out = unpublished
+    sources = transcript_sources.load_reported(args.sources_file)
+    if args.format == "md" or args.write_report or args.excerpts or args.correction_candidates:
+        try:
+            md_out = publish.publisher(args.sources_file, args.redact_identifiers, sources=sources).redact
+        except publish.PublishError as exc:
+            return fail(str(exc), 2)
     data_dir = Path(args.data_dir)
     if not census.store_dir(data_dir).is_dir():
-        return emit("json", "error", f"no audit-sessions store under {data_dir}; run collect first", {}, 3)
+        return fail(f"no audit-sessions store under {data_dir}; run collect first", 3)
     try:
         records, skipped = census.load_records(data_dir)
         canaries = census.load_canaries(Path(args.canaries))["canaries"]
         rules_file = load_rules(BUNDLED_RULES)
         verdicts = load_verdicts(Path(args.judged)) if args.judged is not None else None
     except (OSError, ValueError, KeyError, TypeError) as exc:
-        return emit("json", "error", str(exc), {}, 2)
+        return fail(str(exc), 2)
     if skipped:
         message = f"{skipped} store files unreadable or not {census.RECORD_SCHEMA}; re-run collect"
-        return emit("json", "error", message, {}, 2)
+        return fail(message, 2)
     if args.scope == "project":
         identity = args.state_key.rsplit("/", 1)[0]
         scope, key = f"repo:{identity}", args.state_key
@@ -815,22 +884,30 @@ def main(argv: list[str] | None = None) -> int:
         scoped = [r for r in scoped if r.get("session_id") in named]
     if args.excerpts or args.correction_candidates:
         keys = CANDIDATE_KEYS if args.correction_candidates else EXCERPT_KEYS
-        return print_turns([r for r in scoped if census.session_class(r) != "automated"], keys)
+        prompts = []
+        if args.excerpts and args.scope != "project" and not named:
+            try:
+                prompts, _ = census.load_history(data_dir)
+            except OSError as exc:
+                return fail(str(exc), 2)
+            prompts = [p for p in prompts if in_window(p, args.since, args.until)]
+        return print_turns([r for r in scoped if census.session_class(r) != "automated"], keys, md_out, prompts)
     window = {"since": args.since and args.since.isoformat(), "until": args.until and args.until.isoformat()}
+    header = transcript_sources.store_header(census.store_dir(data_dir), sources)
     if args.tickets is not None:
         data = ticket_data(population, args.tickets, args.branch)
-        data.update(scope=scope, window={**window, "sessions": len(population), "automated_set_aside": len(scoped) - len(population)})
+        data.update(header=header, scope=scope, window={**window, "sessions": len(population), "automated_set_aside": len(scoped) - len(population)})
         if args.format == "md":
-            sys.stdout.write(tickets_md(data))
+            sys.stdout.write(md_out(tickets_md(data)))
         else:
             summary = f"{len(data['tickets'])} keys over {len(population)} sessions"
             print(json.dumps({"schema": TICKETS_SCHEMA, "status": "pass", "summary": summary, "data": data}, indent=2))
         return 0
     if args.pr is not None:
         data = pr_data(scoped, args.repo, args.pr, args.branch)
-        data.update(scope=scope, window={**window, "sessions": len(scoped)})
+        data.update(header=header, scope=scope, window={**window, "sessions": len(scoped)})
         if args.format == "md":
-            sys.stdout.write(pr_md(data))
+            sys.stdout.write(md_out(pr_md(data)))
         else:
             summary = f"{len(data['sessions'])} of {len(scoped)} sessions worked on {args.repo}#{args.pr}"
             print(json.dumps({"schema": PR_SCHEMA, "status": "pass", "summary": summary, "data": data}, indent=2))
@@ -855,6 +932,7 @@ def main(argv: list[str] | None = None) -> int:
     data = build_data(
         records, rules_file["rules"], drift, fed, scope, window, catalog, factor, population=population if named else None
     )
+    data["header"] = header
     summary = f"{len(records)} sessions, {len(data['findings'])} findings"
     if verdicts is not None:
         data["judged"] = judged_section(flagged_turns(records)[0], verdicts, scope, catalog)
@@ -866,8 +944,8 @@ def main(argv: list[str] | None = None) -> int:
         status, code = "warning", 1
         summary += "; unavailable: " + ", ".join(drift["degraded_metrics"])
     if args.write_report:
-        write_report(data_dir, key, {"schema": SCHEMA, "status": status, "summary": summary, "data": data})
-    return emit(args.format, status, summary, data, code)
+        write_report(data_dir, key, {"schema": SCHEMA, "status": status, "summary": summary, "data": data}, md_out)
+    return emit(args.format, status, summary, data, code, md_out)
 
 
 if __name__ == "__main__":
