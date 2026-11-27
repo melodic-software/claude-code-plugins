@@ -96,7 +96,7 @@ so the id reappears in `missing_from_user_install` and the next sync reinstalls 
 `ask`/`none`.
 
 **Say that in the report, at the moment it fires.** When the policy is `all` and this step installed
-anything, the `Installed:` row carries the recurrence clause from SKILL.md's Report section. A
+anything, the render's `Installed:` row carries the recurrence clause. A
 caveat documented only here is invisible to the person reading the report, who is exactly the person
 about to be surprised by it on the next run. Do not leave it to inference.
 
@@ -245,8 +245,8 @@ maintenance action with no such abort, so there may be no human to answer.
   claude plugin enable <id> -s user     # or -s local
   ```
 
-- **`project`: never enable; report it, but only when the report would be runnable.** Emit an
-  "Action needed" row per SKILL.md's Report section carrying the exact command, so the user can run
+- **`project`: never enable; report it, but only when the report would be runnable.** The render's
+  `Action needed` item carries the exact command, so the user can run
   it deliberately and review the resulting diff:
 
   ```bash

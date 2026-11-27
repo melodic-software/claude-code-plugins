@@ -1,5 +1,5 @@
-# render-report.jq: the fixed-section report SKILL.md's Report section fixes,
-# as a pure function of sync-run.sh's digest.
+# render-report.jq: the fixed-section sync and audit report, as a pure function
+# of sync-run.sh's digest. fixtures/render/ holds a golden of each shape.
 #
 #   jq -r -f render-report.jq <run_dir>/digest.json
 #

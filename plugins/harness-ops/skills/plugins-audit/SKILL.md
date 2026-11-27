@@ -87,10 +87,10 @@ empty, which is not proof that nothing happened. When something in the run sugge
 render shows (a `Not verified:` row, or `Moved during this run:` ids), you may add one caveat line
 stating what the report cannot establish, never a cause.
 
-The verdict line reads `Result: see the predictions below, nothing under Action needed`, or
-`Result: no change predicted, a lower bound against the unrefreshed catalog`, or counts the
-`Action needed` items. Every call `sync` would make carries the `would run:` prefix. A remedy
-`sync` never runs itself (a `git -C <path> pull --ff-only`, a project-scope enable) reads unprefixed.
+The verdict line and every row shape, the `would run:` predictions included, are the plugins
+skill's: the "Report" section of `${CLAUDE_PLUGIN_ROOT}/skills/plugins/SKILL.md` points at the
+render rules and at the goldens under `${CLAUDE_PLUGIN_ROOT}/skills/plugins/scripts/fixtures/render/`
+that record each shape.
 
 **The prediction is a lower bound.** An audit issues no `marketplace update`, so its Step 3
 prediction is computed against an unrefreshed catalog and carries that catalog's `lastUpdated`. An
