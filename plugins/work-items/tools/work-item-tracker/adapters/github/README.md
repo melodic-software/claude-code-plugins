@@ -416,7 +416,7 @@ missing mutation, or HTTP `403`/`404` on an existing issue), each verb exits `6`
 
 ## PR closing-keyword mechanics
 
-For the `done` action's belt-and-suspenders keyword check. Read the PR body (bare `gh`); the
+For the `done` action's backup keyword check. Read the PR body (bare `gh`); the
 read-modify-write body edit uses `--body-file`, which REPLACES the body (WRITE, see the identity
 note above):
 

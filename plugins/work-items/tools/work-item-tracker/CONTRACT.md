@@ -281,7 +281,7 @@ includes revision metadata with `--versions`, and fetches an earlier revision wi
 Only the GitHub adapter implements these verbs today, wrapping `gh issue artifact`. When the local
 `gh` binary lacks `issue artifact`, or the repository returns HTTP `403` (non-rate-limit) or `404`
 on an existing item, the verb exits `6` and emits `{schema_version, id, available: false, reason,
-fallback: "comment"}` so callers fall back cleanly to an issue comment without failing on
+fallback: "comment"}` so callers fall back to an issue comment without failing on
 un-converged hosts. Missing items or artifacts still exit `5`, auth errors exit `4`, and rate
 limits exit `8` (or `4` on a rate-limited `403`).
 
@@ -292,7 +292,7 @@ to itself exits `2`. Only the GitHub adapter implements them today (`addRelatesT
 unavailable in the session or repository (GraphQL-refusing cloud session on writes, missing
 mutation, HTTP `403` non-rate-limit, or `404` on an existing item), the verb exits `6` and emits
 `{schema_version, id, available: false, reason, fallback: "refs-comment"}` so callers fall back
-to a `Refs` mention cleanly. An adapter that declares any of these six verbs `false` (or omits
+to a `Refs` mention. An adapter that declares any of these six verbs `false` (or omits
 them) exits `6` at the dispatcher.
 
 `get-item <id> --history` adds `state_history` to the item object: when the item was closed and

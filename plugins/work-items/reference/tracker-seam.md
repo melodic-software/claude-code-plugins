@@ -288,7 +288,7 @@ on Linear). The adapter owns that grammar and the change-to-item link text (`cha
 through `/work-items:track link` and writes the adapter's closing line into the PR body. The PR body
 shape and its pre-create linkage gate are owned by `/source-control:pull-request`.
 
-`/work-items:track done --pr <N>` is the belt-and-suspenders path for manual PR flows where
+`/work-items:track done --pr <N>` is the backup path for manual PR flows where
 `/source-control:pull-request create` was not used: it verifies keyword presence on the unmerged PR body or falls
 back to closing the item when the PR has already merged (mechanics: the GitHub adapter README "PR
 closing-keyword mechanics").
