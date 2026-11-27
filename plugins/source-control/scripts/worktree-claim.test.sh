@@ -812,6 +812,12 @@ assert_exit "--all-unclaimed --include-gone locks [gone] branch (exit 0)" 0 "$?"
 assert_contains "--include-gone locks the [gone] branch" \
   "$(git -C "$W5_REPO" worktree list --porcelain | awk -v RS= '/wt-gone/')" "session s-batch since"
 
+run_claim handover "$W5_EXT/wt-gone" --repo-dir "$W5_REPO" --session-id s-batch --to s-next
+assert_exit "handover of a [gone] branch releases instead (exit 0)" 0 "$?"
+assert_contains "handover names the [gone] release" "$OUT" "is [gone] upstream"
+assert_not_contains "handover leaves the [gone] tree unlocked" \
+  "$(git -C "$W5_REPO" worktree list --porcelain | awk -v RS= '/wt-gone/')" "locked"
+
 run_claim report --include-gone --repo-dir "$W5_REPO"
 assert_exit "--include-gone outside claim is usage (exit 2)" 2 "$?"
 
