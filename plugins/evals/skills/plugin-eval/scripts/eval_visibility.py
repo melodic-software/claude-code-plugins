@@ -28,7 +28,7 @@ WILD_PATH_RE = re.compile(r"[*?[$`{]")
 QUOTED_TOKEN_RE = re.compile(r"""(['"])([^'"\n]+)\1""")
 SELF_REF_RE = re.compile(r"BASH_SOURCE|\$\{?0(?![0-9])")
 PRINT_ONLY_RE = re.compile(
-    r"""^(?:[^\s()]*\)\s*)?(?:echo|printf(?!\s+-v))\s[^;&|<>`]*?(?:\s*[12]?>&[12])?"""
+    r"""^(?:[^\s()]*\)\s*)?echo\s[^;&|<>`]*?(?:\s*[12]?>&[12])?"""
     r"""\s*(?:;\s*exit(?:\s+\d+)?\s*)?(?:;;)?\s*$"""
 )
 SELF_LOCATE_RE = re.compile(
@@ -40,7 +40,7 @@ TEXT_TOOL_RE = re.compile(r"\b(?:awk|gawk|mawk|sed|grep|jq)\b(?:[^;&|()`$]|\$(?!
 
 
 def _printed_text_cut(line):
-    """`line` without what it only prints: nothing for an `echo` or `printf` line with no command
+    """`line` without what it only prints: nothing for an `echo` line with no command
     substitution or redirect into a file, and no `${name:?message}` message. A script naming
     itself there prints its name, never its source."""
     stripped = UNSET_MESSAGE_RE.sub(r"${\1}", line.strip())

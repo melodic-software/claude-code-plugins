@@ -119,7 +119,7 @@ class SelectCasesHiddenTest(unittest.TestCase):
         self.assert_runs(block, "check-runs.sh matches the whole line")
 
     def test_usage_line_naming_the_helper_is_no_run(self):
-        self._base(setup="printf 'usage: setup.sh a|b\\n' >&2\n")
+        self._base(setup="echo 'usage: setup.sh a|b' >&2\n")
         block = self._select(SETUP, "# Prints the fixture.\n", "")
         self.assert_free(block, "printing its own name prints no comment")
 
@@ -133,12 +133,18 @@ class SelectCasesHiddenTest(unittest.TestCase):
         block = self._select(SETUP, "# Prints the fixture.\n", "")
         self.assert_runs(block, "the helper writes its own source")
 
-    def test_helper_capturing_itself_with_printf_v_still_runs(self):
-        for setup in ('printf -v self %s "$0"\ncp "$self" ws/\n', 'printf -v self %s setup.sh\ncp "$self" ws/\n'):
+    def test_helper_naming_itself_in_printf_still_runs(self):
+        for setup in (
+            'printf -v self %s "$0"\ncp "$self" ws/\n',
+            'printf -v self %s setup.sh\ncp "$self" ws/\n',
+            'printf \'-v\' self %s "$0"\ncp "$self" ws/\n',
+            'printf "-v" self %s setup.sh\ncp "$self" ws/\n',
+            "printf 'usage: setup.sh a|b\\n' >&2\n",
+        ):
             with self.subTest(setup=setup):
                 self._base(setup=setup)
                 block = self._select(SETUP, "# Prints the fixture.\n", "")
-                self.assert_runs(block, "printf -v stores the path, it prints nothing")
+                self.assert_runs(block, "printf can store its text in a variable, so it is read as code")
 
     def test_helper_naming_itself_in_a_heredoc_it_runs_still_runs(self):
         self._base(

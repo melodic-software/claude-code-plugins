@@ -40,7 +40,7 @@ of `case.yaml` or `prompt.md` naming the suite's own plugin, a double-quoted pat
 last expansion (`.txt` in `"$dir/$1.txt"`) neither the script's name nor a folder holding it below that path ends
 with, a line that only binds a variable to the script's exact path (never exported or expanded with an operator,
 in a file with no `eval`), a `(cd <dir> && bash <script> <args>)` run whose `<dir>` names nothing in or above the
-suite, and an `echo`, `printf` or `${1:?message}` message that only prints the name. A file that pipes into a shell,
+suite, and an `echo` or `${1:?message}` message that only prints the name. A file that pipes into a shell,
 runs a string (`eval`, `bash -c`, `trap`, `alias`) or sources a stream (`/dev/stdin`, `<(...)`, a here-string) gets no single-quote
 reading. A case file that `cd`s or `pushd`es into the suite, or finds its own folder any other way than `$(dirname ...)` (`${0%/*}`,
 `realpath "$0"`, `__file__`), makes the script visible, and a case script naming `case.yaml` makes `case.yaml`
