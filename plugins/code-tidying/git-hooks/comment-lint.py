@@ -13,8 +13,9 @@ Judge the comments a change adds against a comment posture.
 
 Reads NUL-separated repository paths on stdin. Each path's text is <root>/<path>, and
 <ranges> holds the added lines as <path>TAB<first>TAB<last> rows. A comment token of
-the pygments lexer for the path's name (for a shell script, a comment by POSIX and Bash
-token rules, comment-census.py's tokens), on an added line, passes when it is one of the
+the pygments lexer for the path's name or shebang (comment-census.py's lexer_for; for a
+shell script, a comment by POSIX and Bash token rules, comment-census.py's tokens), on an
+added line, passes when it is one of the
 allowed shapes or an extended regular expression in <allow> (one per line, matched with
 grep -E) matches its text; every other one prints
   <path>:<line>: comment outside the <posture> posture: ...
@@ -62,6 +63,7 @@ DIRECTIVE = re.compile(
     | @ts-(?:ignore|expect-error|nocheck|check)\b | \bprettier-ignore\b | \bbiome-ignore\b
     | \b(?:istanbul|c8|v8)\s+ignore\b | \bdeno-lint-ignore | \bNOLINT | //\s*nolint\b | \bnolint:
     | \brubocop:(?:disable|enable|todo)\b | \bStryker\s+(?:disable|restore)\b | \bNOSONAR\b
+    | \bstylelint-(?:disable|enable)(?:-next-line|-line)?\b | [#@]\s*source(?:Mapping)?URL=
     | \bmarkdownlint-(?:disable|enable|capture|restore) | \bspellchecker:\s*(?:on|off|disable|ignore-next-line)
     | \bcspell:\s*\w | \btypos:\s*(?:on|off|ignore) | \bcodespell:\s*ignore | \bzizmor:\s*ignore
     | \bhadolint\s+ignore= | \byamllint\s+(?:disable|enable) | \bcheckov:skip= | \btfsec:ignore
@@ -113,7 +115,6 @@ GO_GROUP = re.compile(
     r"^\s*(?:type\s+\w+(?:\[[^\]]*\])?\s+(?:struct|interface)\s*\{|(?:const|var|type)\s*\()\s*$"
 )
 GO_MEMBER = re.compile(r"^\s+[A-Z]")
-TYPESCRIPT_SUFFIXES = (".mts", ".cts")
 CODE_WAIVER = re.compile(
     r"@SuppressWarnings\b|@Suppress\(|\bSuppressMessage(?:Attribute)?\b|#\s*pragma\s+warning\b"
     r"|\[Diagnostics\.CodeAnalysis\.|\bExcludeFromCodeCoverage\b"
@@ -150,15 +151,9 @@ def _is_comment(tok) -> bool:
 
 
 def _lex(path: str, text: str):
-    from pygments.lexers import get_lexer_by_name, get_lexer_for_filename
-    from pygments.util import ClassNotFound
-
-    try:
-        lexer = get_lexer_for_filename(path, stripnl=False)
-    except ClassNotFound:
-        if not path.lower().endswith(TYPESCRIPT_SUFFIXES):
-            return None, None
-        lexer = get_lexer_by_name("typescript", stripnl=False)
+    lexer = _CENSUS.lexer_for(path, text)
+    if lexer is None:
+        return None, None
     return lexer, _CENSUS.tokens(text, lexer)
 
 
