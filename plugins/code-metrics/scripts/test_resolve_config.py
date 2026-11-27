@@ -277,7 +277,7 @@ class PositionalLayerTests(unittest.TestCase):
         result = run(USER, FLOW)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("flow mapping", result.stderr)
-        self.assertIn("line 4", result.stderr)
+        self.assertIn("line 2", result.stderr)
         self.assertIn(FLOW, result.stderr)
         d = json.loads(result.stdout)
         self.assertEqual(d["_provenance"]["size.file_lines"]["value"], 800)

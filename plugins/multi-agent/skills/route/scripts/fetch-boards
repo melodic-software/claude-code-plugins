@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Fetch enabled benchmark registry pages through the plugin's scripts/fetch-docs.sh
-# with --profile generic --cache --public-only, per-row --max-age and the row's
-# --expect marker, and --render-fallback, so a blocked page or one drawn by
-# script renders through the Firecrawl CLI when docs-cache.sh's renderer is
-# firecrawl. Fetches only rows that can lead (status not support-only,
-# provider_own false). Writes pages and one combined manifest that stamps source_id and
-# page_date per row.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -78,7 +71,6 @@ done
 [[ -z "$SETTINGS" || -r "$SETTINGS" ]] || die "settings unreadable: $SETTINGS"
 command -v jq >/dev/null 2>&1 || die "jq is required"
 
-# Eval-runner env seam: cases use EVAL_* names because the eval schema permits only EVAL_*.
 if [[ -z "${FETCH_DOCS_FIXTURE_DIR+x}" && -n "${EVAL_FETCH_DOCS_FIXTURE_DIR:-}" ]]; then
   if [[ "$EVAL_FETCH_DOCS_FIXTURE_DIR" == /* || "$EVAL_FETCH_DOCS_FIXTURE_DIR" =~ ^[A-Za-z]:[/\\] ]]; then
     export FETCH_DOCS_FIXTURE_DIR="$EVAL_FETCH_DOCS_FIXTURE_DIR"
@@ -101,7 +93,6 @@ mkdir -p "$(dirname "$MANIFEST")" || die "cannot create manifest directory"
 WORK="$(mktemp -d)" || die "cannot create temp directory"
 trap 'rm -rf "$WORK"' EXIT
 
-# Compute max allowed page date (today + 1 day UTC) for deterministic date extraction.
 if [[ -n "${DOCS_CACHE_NOW:-}" && "${DOCS_CACHE_NOW}" =~ ^[0-9]+$ ]]; then
   NOW_PLUS_ONE=$((DOCS_CACHE_NOW + 86400))
   MAX_DATE="$(date -u -d "@$NOW_PLUS_ONE" +%Y-%m-%d 2>/dev/null || date -u -r "$NOW_PLUS_ONE" +%Y-%m-%d 2>/dev/null || date -u +%Y-%m-%d)"
@@ -109,10 +100,6 @@ else
   MAX_DATE="$(date -u -d '+1 day' +%Y-%m-%d 2>/dev/null || date -u -v+1d +%Y-%m-%d 2>/dev/null || date -u +%Y-%m-%d)"
 fi
 
-# Extract the latest valid non-future YYYY-MM-DD date from a page file
-# (ISO dates, "Mon DD, YYYY", or "DD Mon YYYY").
-# A date glued to an id (gpt-5.4-mini-2026-03-17) or ending a table cell's model
-# name (Qwen Image 2.0 Pro (2026-04-22) |) is a model snapshot, not a page date.
 extract_page_date() {
   local file="$1"
   [[ -s "$file" ]] || return 0

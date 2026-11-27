@@ -243,7 +243,7 @@ describe("team file", () => {
   test("a malformed file degrades and names the line", () => {
     const { team, routes } = fixture("flow-mapping.yaml");
     assert.equal(team.loaded, false);
-    assert.match(team.skipped_reason, /malformed: line 6: flow mapping/);
+    assert.match(team.skipped_reason, /malformed: line 5: flow mapping/);
     assert.match(team.skipped_reason, SKIPPED);
     builtIn(routes);
   });
