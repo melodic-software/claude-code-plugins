@@ -9,9 +9,12 @@
 #      handover: the lock now names NEW (or already did), or the branch is
 #      [gone] upstream and the lock was released instead
 #   1  report: one or more linked worktrees are unlocked (UNCLAIMED)
-#      stale: not provably stale (unlocked, reasonless, no session, another
-#      host, a running process holds the session, the session registry is
-#      missing or malformed, or a transcript changed within the idle window)
+#      stale: not provably stale (unlocked, reasonless, another host, a running
+#      process holds the session, the session registry is missing or malformed,
+#      or a transcript changed within the idle window; for a session-less
+#      "lane active on <host> since <utc>" lock: set within the idle window, a
+#      live session's cwd or a recent transcript's cwd at or under the path, an
+#      unparseable time or unconvertible cwd, or a host other than Linux)
 #   2  usage (release: main worktree, or no session id to prove ownership;
 #      handover: main worktree, or --session-id / --to missing)
 #   3  check-enter: the worktree is unlocked (UNCLAIMED)
@@ -628,7 +631,7 @@ load_session_registry() {
     if (.pid | type) == "number" and .pid > 0 and .pid == (.pid | floor)
       and (.sessionId | type) == "string" and (.sessionId | length) > 0
       and (.procStart | type) == "string" and (.procStart | test("^[0-9]+$"))
-    then [.sessionId, .pid, .procStart] | @tsv
+    then [.sessionId, .pid, .procStart, (if (.cwd | type) == "string" then .cwd else "" end)] | @tsv
     else error("unknown shape")
     end' "${entries[@]}" 2>/dev/null)"; then
     REGISTRY_SCAN=malformed
@@ -658,8 +661,7 @@ proc_start_time() {
   [[ "$PROC_START" =~ ^[0-9]+$ ]] || return 2
 }
 
-session_is_free() {
-  local entry_sid entry_pid entry_start rc
+registry_readable() {
   load_session_registry
   case "$REGISTRY_SCAN" in
     unreadable)
@@ -676,7 +678,12 @@ session_is_free() {
       ;;
     *) ;;
   esac
-  while IFS=$'\t' read -r entry_sid entry_pid entry_start; do
+}
+
+session_is_free() {
+  local entry_sid entry_pid entry_start rc
+  registry_readable || return 1
+  while IFS=$'\t' read -r entry_sid entry_pid entry_start _; do
     [[ "$entry_sid" == "$1" ]] || continue
     proc_start_time "$entry_pid"
     rc=$?
@@ -689,6 +696,117 @@ session_is_free() {
       return 1
     fi
   done <<<"$REGISTRY_ROWS"
+  return 0
+}
+
+utc_epoch() {
+  local s
+  s="$(date -u -d "$1" +%s 2>/dev/null)" || s="$(date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$1" +%s 2>/dev/null)" || return 1
+  [[ "$s" =~ ^[0-9]+$ ]] || return 1
+  printf '%s' "$s"
+}
+
+posix_cwd() {
+  local cwd="${1//\\\\/\\}"
+  if [[ "$cwd" == /* ]]; then
+    printf '%s' "$cwd"
+  elif command -v cygpath >/dev/null 2>&1; then
+    cygpath -u "$cwd" 2>/dev/null
+  else
+    return 1
+  fi
+}
+
+at_or_under() {
+  [[ "$1" == "$2" || "$1" == "$2"/* ]]
+}
+
+TRANSCRIPT_CWD_SCAN=""
+TRANSCRIPT_CWDS=()
+scan_transcript_cwds() {
+  [[ -z "$TRANSCRIPT_CWD_SCAN" ]] || return 0
+  local raw cwd canon
+  TRANSCRIPT_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
+  if [[ ! -d "$TRANSCRIPT_DIR" || ! -r "$TRANSCRIPT_DIR" ]]; then
+    TRANSCRIPT_CWD_SCAN=unreadable
+    return 0
+  fi
+  # shellcheck disable=SC2016  # awk program, not a shell expansion.
+  if ! raw="$(find "$TRANSCRIPT_DIR" -type f -name '*.jsonl' -mmin "-$idle_minutes" -print0 2>/dev/null |
+    xargs -0 -r awk '{ s = $0; while (match(s, /"cwd":"[^"]*"/)) { c[substr(s, RSTART + 7, RLENGTH - 8)] = 1; s = substr(s, RSTART + RLENGTH) } }
+      END { for (k in c) print k }' 2>/dev/null)"; then
+    TRANSCRIPT_CWD_SCAN=failed
+    return 0
+  fi
+  TRANSCRIPT_CWD_SCAN=ok
+  while IFS= read -r cwd; do
+    [[ "$cwd" == /* ]] || continue
+    canonicalize_path_to canon "$cwd"
+    TRANSCRIPT_CWDS+=("$canon")
+  done < <(printf '%s\n' "$raw" | sort -u)
+}
+
+sessionless_stale() {
+  local wt="$1" host="$2" since="$3" since_s now_s sid pid start cwd canon rc
+  if [[ "$host" != "$THIS_HOST" ]]; then
+    STALE_NOTE="not provable: the lock is from host $host, not this host"
+    return 1
+  fi
+  [[ -n "$HOST_KERNEL" ]] || HOST_KERNEL="$(uname -s 2>/dev/null)"
+  if [[ "$HOST_KERNEL" != Linux ]]; then
+    STALE_NOTE="not provable: a lock that names no session is judged on Linux only"
+    return 1
+  fi
+  if ! since_s="$(utc_epoch "$since")"; then
+    STALE_NOTE="not provable: cannot parse the lock time $since"
+    return 1
+  fi
+  printf -v now_s '%(%s)T' -1
+  if ((now_s - since_s < idle_minutes * 60)); then
+    STALE_NOTE="not provable: the lock was set within $idle_minutes minutes ($since)"
+    return 1
+  fi
+  registry_readable || return 1
+  while IFS=$'\t' read -r sid pid start cwd; do
+    [[ -n "$sid" && -n "$cwd" ]] || continue
+    proc_start_time "$pid"
+    rc=$?
+    if ((rc == 2)); then
+      STALE_NOTE="not provable: cannot read the start time of process $pid on this host"
+      return 1
+    fi
+    if ((rc != 0)) || [[ "$PROC_START" != "$start" ]]; then
+      continue
+    fi
+    if ! cwd="$(posix_cwd "$cwd")" || [[ -z "$cwd" ]]; then
+      STALE_NOTE="not provable: live session $sid has a non-POSIX cwd and cygpath is not available to convert it"
+      return 1
+    fi
+    canonicalize_path_to canon "$cwd"
+    if at_or_under "$canon" "$wt"; then
+      STALE_NOTE="not provable: live session $sid (process $pid) works in $canon"
+      return 1
+    fi
+  done <<<"$REGISTRY_ROWS"
+  scan_transcript_cwds
+  case "$TRANSCRIPT_CWD_SCAN" in
+    unreadable)
+      STALE_NOTE="not provable: transcript directory $TRANSCRIPT_DIR is unreadable"
+      return 1
+      ;;
+    failed)
+      STALE_NOTE="not provable: scanning $TRANSCRIPT_DIR failed"
+      return 1
+      ;;
+    *) ;;
+  esac
+  for cwd in ${TRANSCRIPT_CWDS[@]+"${TRANSCRIPT_CWDS[@]}"}; do
+    if at_or_under "$cwd" "$wt"; then
+      STALE_NOTE="not provable: a transcript changed within $idle_minutes minutes works in $cwd"
+      return 1
+    fi
+  done
+  STALE_NOTE="stale: lock from $host since $since names no session, and no live session or transcript within $idle_minutes minutes works in $wt"
   return 0
 }
 
@@ -705,13 +823,18 @@ stale_verdict() {
     STALE_NOTE="not provable: ${WT_PATHS[idx]} is not a linked worktree with a lock reason"
     return "$EX_UNCLAIMED_REPORT"
   fi
+  [[ -n "$THIS_HOST" ]] || THIS_HOST="$(worktree_host_name)"
   if ! worktree_reason_lane "$reason" >/dev/null; then
+    local sessionless='lane active on ([^ ]+) since ([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z)'
+    if [[ "$reason" =~ $sessionless ]]; then
+      sessionless_stale "${WT_PATHS[idx]}" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" || return "$EX_UNCLAIMED_REPORT"
+      return "$EX_OK"
+    fi
     STALE_NOTE="not provable: the lock reason names no session: $reason"
     return "$EX_UNCLAIMED_REPORT"
   fi
   host="${BASH_REMATCH[1]}"
   sid="${BASH_REMATCH[2]}"
-  [[ -n "$THIS_HOST" ]] || THIS_HOST="$(worktree_host_name)"
   if [[ "$host" != "$THIS_HOST" ]]; then
     STALE_NOTE="not provable: the lock is from host $host, not this host"
     return "$EX_UNCLAIMED_REPORT"

@@ -506,8 +506,8 @@ else
 fi
 
 registry_entry() {
-  printf '{"pid":%s,"sessionId":"%s","procStart":"%s","cwd":"/x","kind":"interactive"}\n' \
-    "$3" "$4" "$5" >"$1/sessions/$2.json"
+  printf '{"pid":%s,"sessionId":"%s","procStart":"%s","cwd":"%s","kind":"interactive"}\n' \
+    "$3" "$4" "$5" "${6:-/x}" >"$1/sessions/$2.json"
 }
 
 batch_agrees() {
@@ -669,6 +669,78 @@ if [[ "$(uname -s)" == Linux && -r "/proc/$$/stat" ]] && command -v jq >/dev/nul
   assert_exit "stale --batch through the jq stub is exit 0" 0 "$?"
   assert_contains "stale --batch still reports the live session" "$OUT" $'1\t'"$EXT/wt-lv-live"$'\t'
   assert_eq "stale --batch reads the session registry once" 1 "$(wc -l <"$JQ_COUNT_LOG" | tr -d ' ')"
+
+  SL_CFG="$TEST_TMPDIR/sessionless-config"
+  mkdir -p "$SL_CFG/projects/-proj" "$SL_CFG/sessions"
+  sessionless_reason() {
+    printf 'worktree-create.sh: lane active on %s since %s; unlock when the owning lane is done' \
+      "${2:-$STALE_HOST}" "$(date -u -d "$1" +%Y-%m-%dT%H:%M:%SZ)"
+  }
+  run_sl() {
+    local name="$1" CFG="$SL_CFG"
+    shift
+    run_stale "$name" "$@"
+  }
+  clear_sl_registry() { rm -f "$SL_CFG"/sessions/*.json; }
+
+  stale_lock wt-sl-old "$(sessionless_reason '3 hours ago')"
+  run_sl wt-sl-old
+  assert_exit "sessionless: an old lock with no live session or transcript is stale" 0 "$?"
+  assert_contains "stale: the session-less evidence says no live session works there" "$OUT" "no live session"
+
+  stale_lock wt-sl-recent "$(sessionless_reason '10 minutes ago')"
+  run_sl wt-sl-recent
+  assert_exit "sessionless: a lock set within the idle window is not provable" 1 "$?"
+
+  stale_lock wt-sl-live "$(sessionless_reason '3 hours ago')"
+  mkdir -p "$EXT/wt-sl-live/sub"
+  registry_entry "$SL_CFG" sl-live "$$" sl-live-sid "$OWN_START" "$EXT/wt-sl-live/sub"
+  run_sl wt-sl-live
+  assert_exit "sessionless: a live session whose cwd is inside the worktree blocks the proof" 1 "$?"
+  assert_contains "stale: the live-cwd refusal names the process" "$OUT" "process $$"
+  registry_entry "$SL_CFG" sl-live "$DEAD_PID" sl-live-sid 12345 "$EXT/wt-sl-live/sub"
+  run_sl wt-sl-live
+  assert_exit "stale: a dead session's cwd inside the worktree does not block the proof" 0 "$?"
+  clear_sl_registry
+
+  if command -v cygpath >/dev/null 2>&1; then
+    skip_case "sessionless: cygpath is on PATH, so a C: cwd converts here"
+  else
+    registry_entry "$SL_CFG" sl-win "$$" sl-win-sid "$OWN_START" 'C:\\work'
+    run_sl wt-sl-old
+    assert_exit "sessionless: a C:\\ cwd without cygpath is not provable" 1 "$?"
+    assert_contains "stale: the non-POSIX refusal names cygpath" "$OUT" "cygpath"
+    clear_sl_registry
+  fi
+
+  stale_lock wt-sl-foreign "$(sessionless_reason '3 hours ago' otherhost)"
+  run_sl wt-sl-foreign
+  assert_exit "sessionless: a lock from another host is not provable" 1 "$?"
+
+  stale_lock wt-sl-sub "$(sessionless_reason '3 hours ago')"
+  mkdir -p "$SL_CFG/projects/-proj/sl-parent/subagents"
+  printf '{"type":"user","cwd":"%s/deep"}\n' "$EXT/wt-sl-sub" >"$SL_CFG/projects/-proj/sl-parent/subagents/agent-1.jsonl"
+  run_sl wt-sl-sub
+  assert_exit "sessionless: a subagent transcript at depth 4 working inside blocks the proof" 1 "$?"
+  assert_contains "stale: the transcript refusal names the cwd" "$OUT" "$EXT/wt-sl-sub/deep"
+  run_sl wt-sl-old
+  assert_exit "stale: a recent transcript elsewhere does not block the proof" 0 "$?"
+
+  live_tree sl-named '3 hours ago'
+  registry_entry "$LIVE_CFG" sl-named "$$" sl-named "$OWN_START" "$EXT/wt-sl-named"
+  run_live sl-named
+  assert_exit "sessionless: a session-named lock reads live while its process runs (four-column registry)" 1 "$?"
+
+  batch_agrees "session-less locks" "$SL_CFG" "$EXT/wt-sl-old" "$EXT/wt-sl-recent" "$EXT/wt-sl-sub" "$EXT/wt-sl-foreign"
+
+  NODATE_BIN="$TEST_TMPDIR/nodate-bin"
+  mkdir -p "$NODATE_BIN"
+  printf '#!/usr/bin/env bash\nexit 1\n' >"$NODATE_BIN/date"
+  chmod +x "$NODATE_BIN/date"
+  CFG="$SL_CFG" PATH="$NODATE_BIN:$PATH_SAVED" run_stale wt-sl-old
+  assert_exit "stale: a lock time no date can parse is not provable" 1 "$?"
+  PATH="$DARWIN_BIN:$PATH_SAVED" run_sl wt-sl-old
+  assert_exit "stale: a session-less lock off Linux is not provable" 1 "$?"
 else
   skip_case "live registry cases: no Linux /proc or no jq on this host"
 fi
