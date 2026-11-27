@@ -2,6 +2,7 @@ import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { DRIFT_TITLE } from "../intake-triage/issue-spec.mjs";
 import { budgetedClient, pages } from "../lib/github-rest.mjs";
 import { countOpen, openItemCap, SOURCE_LABEL } from "./lane.mjs";
 
@@ -31,6 +32,13 @@ export const SECURITY_DEFECT = /\bsecurity[-\s]defects?\b|\bvulnerab|\bCWE-\d+|\
 
 export function withoutSecurityDefects(items) {
   const kept = items.filter((item) => !SECURITY_DEFECT.test(item.title) && !SECURITY_DEFECT.test(item.body));
+  return { kept, dropped: items.length - kept.length };
+}
+
+export const trustedShape = (item) => DRIFT_TITLE.test(item.title) || item.body.includes("<!--");
+
+export function withoutTrustedShapes(items) {
+  const kept = items.filter((item) => !trustedShape(item));
   return { kept, dropped: items.length - kept.length };
 }
 
@@ -70,7 +78,7 @@ export function summary({ filed, skipped }) {
   const shown = lines.slice(0, MAX_BULLETS);
   const verdict = filed.length > 0 ? `Filed: ${filed.length} issue(s), skipped ${skipped.length}.` : `Filed nothing: skipped ${skipped.length}.`;
   return [
-    "### maintenance-scan-architecture / file-architecture-findings",
+    "### maintenance-scan-architecture / file-findings",
     "",
     verdict,
     "",
@@ -81,8 +89,10 @@ export function summary({ filed, skipped }) {
 }
 
 async function main(command, env) {
-  const { kept: items, dropped } = withoutSecurityDefects(readItems(readFileSync(env.FINDINGS_FILE, "utf8")));
+  const { kept: clean, dropped } = withoutSecurityDefects(readItems(readFileSync(env.FINDINGS_FILE, "utf8")));
   if (dropped > 0) console.log(`::warning::dropped ${dropped} item(s) that name a security defect; run /architecture:improve with a person present to review them privately`);
+  const { kept: items, dropped: shaped } = withoutTrustedShapes(clean);
+  if (shaped > 0) console.log(`::warning::dropped ${shaped} item(s) shaped like an issue another script trusts (an Upstream drift: title or an HTML comment marker in the body)`);
   if (command === "check") {
     writeFileSync(env.FINDINGS_FILE, `${JSON.stringify({ items })}\n`);
     console.log(`::notice::the findings hold ${items.length} well-formed item(s)`);

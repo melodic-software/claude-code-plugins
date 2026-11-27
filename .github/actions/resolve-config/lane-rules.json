@@ -116,6 +116,6 @@
   "maintenance-scan-architecture": {
     "stage": "maintenance",
     "forbidden-effects": ["mutate-branch", "publish-artifact", "merge"],
-    "never": "Writes to a branch or a pull request, labels an issue agent-ready, or files an issue without exactly one source: architecture-improve label"
+    "never": "Writes to a branch or a pull request, holds a lanes App token, labels an issue agent-ready, or files an issue without exactly one source: architecture-improve label"
   }
 }

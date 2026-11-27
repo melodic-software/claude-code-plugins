@@ -35,6 +35,7 @@ jobs:
     outputs:
       run: ${{ steps.gate.outputs.run }}
       reason: ${{ steps.gate.outputs.reason }}
+      enabled: ${{ steps.gate.outputs.enabled }}
       room: ${{ steps.gate.outputs.room }}
       base-sha: ${{ github.sha }}
       next-leg: ${{ steps.credit.outputs.next-leg }}
@@ -214,6 +215,7 @@ jobs:
           key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
       - name: Stage the plugins and the prompt
+        id: stage
         if: steps.models.outcome == 'success'
         env:
           STAGE: ${{ runner.temp }}/scan-stage
@@ -275,7 +277,7 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
-          sandbox: "false"
+          sandbox: "true"
           tools: |
             Read
             Grep
@@ -284,20 +286,8 @@ jobs:
             Write
             Bash
             Agent
-          allowed-tools: |
-            Skill
-            Write
-            Bash
-            Agent
-          disallowed-tools: |
-            Bash(git push *)
-            Bash(gh *)
-            Edit
-            Write(./.lane/plugins/**)
-            Read(//proc/**)
-            WebFetch
-            WebSearch
-            mcp__*
+          allowed-tools: ${{ steps.stage.outputs.allowed-tools }}
+          disallowed-tools: ${{ steps.stage.outputs.disallowed-tools }}
           plugin-dirs: |
             .lane/plugins/improvement
             .lane/plugins/architecture
@@ -495,6 +485,7 @@ jobs:
           reason: ${{ needs.find-candidates.outputs.next-reason || needs.gate.outputs.next-reason }}
 
       - name: Stage the plugins and the prompt
+        id: stage
         if: steps.models.outcome == 'success'
         env:
           STAGE: ${{ runner.temp }}/scan-stage
@@ -557,7 +548,7 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
-          sandbox: "false"
+          sandbox: "true"
           tools: |
             Read
             Grep
@@ -566,20 +557,8 @@ jobs:
             Write
             Bash
             Agent
-          allowed-tools: |
-            Skill
-            Write
-            Bash
-            Agent
-          disallowed-tools: |
-            Bash(git push *)
-            Bash(gh *)
-            Edit
-            Write(./.lane/plugins/**)
-            Read(//proc/**)
-            WebFetch
-            WebSearch
-            mcp__*
+          allowed-tools: ${{ steps.stage.outputs.allowed-tools }}
+          disallowed-tools: ${{ steps.stage.outputs.disallowed-tools }}
           plugin-dirs: |
             .lane/plugins/improvement
             .lane/plugins/architecture
@@ -738,6 +717,7 @@ jobs:
           reason: ${{ needs.find-candidates-subscription.outputs.next-reason }}
 
       - name: Stage the plugins and the prompt
+        id: stage
         if: steps.models.outcome == 'success'
         env:
           STAGE: ${{ runner.temp }}/scan-stage
@@ -799,7 +779,7 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
-          sandbox: "false"
+          sandbox: "true"
           tools: |
             Read
             Grep
@@ -808,20 +788,8 @@ jobs:
             Write
             Bash
             Agent
-          allowed-tools: |
-            Skill
-            Write
-            Bash
-            Agent
-          disallowed-tools: |
-            Bash(git push *)
-            Bash(gh *)
-            Edit
-            Write(./.lane/plugins/**)
-            Read(//proc/**)
-            WebFetch
-            WebSearch
-            mcp__*
+          allowed-tools: ${{ steps.stage.outputs.allowed-tools }}
+          disallowed-tools: ${{ steps.stage.outputs.disallowed-tools }}
           plugin-dirs: |
             .lane/plugins/improvement
             .lane/plugins/architecture
@@ -976,13 +944,13 @@ jobs:
   file-findings:
     name: File Findings
     needs: [gate, scan]
-    if: ${{ !cancelled() && needs.scan.result == 'success' && needs.scan.outputs.artifact-id != '' }}
+    if: ${{ !cancelled() && needs.gate.outputs.enabled == 'true' && needs.scan.result == 'success' && needs.scan.outputs.artifact-id != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
     permissions:
       contents: read
-      id-token: write
+      issues: write
     env:
       GIT_CONFIG_GLOBAL: /dev/null
       GIT_CONFIG_NOSYSTEM: "1"
@@ -1013,21 +981,8 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      - name: Resolve the config
-        id: config
-        if: steps.kill.outputs.proceed == 'true'
-        env:
-          API_BUDGET_TOKEN: github-token
-        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
-        with:
-          lane: maintenance-scan-architecture
-          activity: file-architecture-findings
-          base-path: .base
-          output-path: ${{ runner.temp }}/resolved-config.json
-          standards-path: ${{ steps.standards.outputs.path }}
-
       - name: Download the findings
-        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        if: steps.kill.outputs.proceed == 'true'
         uses: actions/download-artifact@v8
         with:
           artifact-ids: ${{ needs.scan.outputs.artifact-id }}
@@ -1035,7 +990,7 @@ jobs:
 
       - name: Check the findings
         id: verify
-        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        if: steps.kill.outputs.proceed == 'true'
         env:
           FILE: ${{ runner.temp }}/findings/findings.json
           WANT: ${{ needs.scan.outputs.findings-sha256 }}
@@ -1050,37 +1005,16 @@ jobs:
             exit 1
           fi
 
-      - name: Request the lane token
-        id: lane-token
-        if: steps.verify.outcome == 'success'
-        uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
-        with:
-          broker-url: ${{ vars.LANES_BROKER_URL }}
-          audience: ${{ vars.LANES_BROKER_AUDIENCE }}
-          lane: maintenance-scan-architecture
-          activity: file-architecture-findings
-          effect: ${{ steps.config.outputs.effect }}
-          contents: ${{ steps.config.outputs.contents }}
-          pull-requests: ${{ steps.config.outputs.pull-requests }}
-          issues: ${{ steps.config.outputs.issues }}
-          kill-switch-ok: true
-
+      # "events triggered by the GITHUB_TOKEN will not create a new workflow run": https://docs.github.com/en/actions/concepts/security/github_token
       - name: File the findings
-        if: steps.lane-token.outputs.token != ''
+        if: steps.verify.outcome == 'success'
         env:
-          GITHUB_TOKEN: ${{ steps.lane-token.outputs.token }}
-          API_BUDGET_TOKEN: lanes-app
+          GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
           REPOSITORY: ${{ github.repository }}
           BASE_DIR: ${{ github.workspace }}/.base
           FINDINGS_FILE: ${{ runner.temp }}/findings/findings.json
         run: node .base/.github/scripts/maintenance-scan-architecture/file-findings.mjs file
-
-      - name: Revoke the lane token
-        if: always() && steps.lane-token.outputs.token != ''
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-        run: bash .base/.github/scripts/lib/revoke-lane-token.sh
 
       - name: Log the API budget at the end
         if: always()
@@ -1088,4 +1022,4 @@ jobs:
         timeout-minutes: 1
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
-          tokens: lanes-app github-token
+          tokens: github-token

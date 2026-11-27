@@ -8472,7 +8472,6 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
     "upstream-apply-changelog.yml:publish-native-baseline",
     "maintenance-tidy-code-upkeep.yml:push-branches",
     "maintenance-tidy-code-upkeep.yml:publish",
-    "maintenance-scan-architecture.yml:file-findings",
     "maintenance-measure-skill-edit.yml:push-branch",
     "maintenance-measure-skill-edit.yml:publish",
   ].sort());

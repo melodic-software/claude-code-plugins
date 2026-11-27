@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { fileFindings, ISSUE_TYPE, readItems, summary, withoutSecurityDefects } from "./file-findings.mjs";
+import { fileFindings, ISSUE_TYPE, readItems, summary, trustedShape, withoutSecurityDefects, withoutTrustedShapes } from "./file-findings.mjs";
 import { forge, ISSUE } from "./forge.fixtures.mjs";
 
 const item = (n) => ({ title: `Deepen module ${n}`, body: `Evidence: \`src/m${n}.mjs:1\`.\n\n## Done when\n\n- [ ] One seam.` });
@@ -77,9 +77,20 @@ test("an item that names a security defect in its title or body is dropped, and 
   assert.deepEqual(withoutSecurityDefects([{ title: "Secure the seam", body: "No defect named here." }]).dropped, 0);
 });
 
+test("an item shaped like an issue another script trusts is dropped: an Upstream drift: title or any HTML comment marker", () => {
+  const shaped = [
+    { title: "Upstream drift: anthropics/claude-code", body: "Upstream `anthropics/claude-code` changed since the pin on its docs/upstream page." },
+    { title: "t", body: "b\n<!-- recurring-schedule id=x -->" },
+    { title: "t", body: "<!-- monitor-signal key=1 -->" },
+  ];
+  const { kept, dropped } = withoutTrustedShapes([item(1), ...shaped]);
+  assert.deepEqual([kept, dropped], [[item(1)], 3]);
+  assert.equal(trustedShape({ title: "Upstream drift notes for the seam", body: "b" }), false, "only the exact drift title form drops");
+});
+
 test("the summary heads as lane / activity, says the verdict, shows at most five bullets and puts the full list in details", () => {
   const few = summary({ filed: [{ number: 7, title: "x" }], skipped: [{ title: "y", why: "a reason" }] });
-  assert.match(few, /^### maintenance-scan-architecture \/ file-architecture-findings\n\nFiled: 1 issue\(s\), skipped 1\.\n\n- filed #7\n- skipped one item: a reason\n/);
+  assert.match(few, /^### maintenance-scan-architecture \/ file-findings\n\nFiled: 1 issue\(s\), skipped 1\.\n\n- filed #7\n- skipped one item: a reason\n/);
   assert.doesNotMatch(few, /<details>/);
   const many = summary({ filed: Array.from({ length: 7 }, (_, i) => ({ number: i + 1, title: "x" })), skipped: [] });
   const visible = many.split("<details>")[0];

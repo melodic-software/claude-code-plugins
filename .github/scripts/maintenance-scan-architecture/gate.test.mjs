@@ -1,4 +1,4 @@
-// test-scope: .github/actions/resolve-config/package.json .github/workflows/maintenance-scan-architecture.yml docs/conventions/pr-pipeline.yaml docs/conventions/pr-pipeline/pr-pipeline.schema.json
+// test-scope: .github/actions/resolve-config/package.json .github/workflows/maintenance-scan-architecture.yml docs/conventions/pr-pipeline.yaml docs/conventions/pr-pipeline/pr-pipeline.schema.json .github/scripts/maintenance-scan-architecture/model-tools.json
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -12,7 +12,7 @@ import { STANDARDS_FIXTURE } from "../lib/trusted-actors.fixtures.mjs";
 import { runs } from "../lib/model-credential.mjs";
 import { workflowText } from "../lib/workflow-text.mjs";
 import { forge } from "./forge.fixtures.mjs";
-import { decide, gate, lastScan, mergesSince, promptText, statusLine } from "./gate.mjs";
+import { decide, gate, lastScan, mergesSince, modelTools, promptText, statusLine } from "./gate.mjs";
 import { countOpen, openItemCap, SOURCE_LABEL } from "./lane.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
@@ -79,6 +79,51 @@ test("the gate is the first job, runs a script and no model, and every model leg
     assert.ok([workflow.jobs[leg].needs].flat().includes("gate"), leg);
     assert.match(workflow.jobs[leg].if, /needs\.gate\.outputs\.run == 'true'/, leg);
   }
+});
+
+const LEGS = ["find-candidates", "find-candidates-subscription", "find-candidates-fallback"];
+const NETWORK = /^(curl|wget|nc|ncat|socat|ssh|scp|telnet|ftp|python\S*|perl|ruby|php|env|printenv|npm|npx|pip\S*|gh|git (push|fetch|clone|pull|remote|ls-remote|submodule))\b/;
+
+test("every model leg runs sandboxed, and its Bash rules allow no network-capable or interpreter command", () => {
+  const workflow = parse(WORKFLOW_TEXT);
+  const { allowed, disallowed } = modelTools("/runner/work/r/r");
+  for (const leg of LEGS) {
+    const steps = workflow.jobs[leg].steps;
+    const launch = steps.find((step) => /run-claude-cli@/.test(step.uses ?? ""));
+    assert.equal(launch.with.sandbox, "true", `${leg} sandbox`);
+    assert.equal(launch.with["permission-mode"], "dontAsk", leg);
+    assert.equal(launch.with["allowed-tools"], "${{ steps.stage.outputs.allowed-tools }}", leg);
+    assert.equal(launch.with["disallowed-tools"], "${{ steps.stage.outputs.disallowed-tools }}", leg);
+    assert.ok(steps.some((step) => step.id === "stage" && /gate\.mjs prompt/.test(step.run ?? "")), `${leg} stages the tool rules from model-tools.json`);
+  }
+  assert.ok(!allowed.includes("Bash") && !allowed.includes("Write"), "no unscoped Bash or Write");
+  for (const rule of allowed.filter((r) => r.startsWith("Bash("))) {
+    const command = /^Bash\((.*)\)$/.exec(rule)[1];
+    assert.doesNotMatch(command, NETWORK, rule);
+    if (/^(bash|node) /.test(command)) assert.match(command, /^(bash|node) \/runner\/work\/r\/r\/\.lane\/plugins\/\*$/, `${rule} runs only staged plugin scripts`);
+  }
+  for (const deny of ["Bash(curl *)", "Bash(wget *)", "Bash(env*)", "Bash(printenv*)", "Bash(node -e *)", "Bash(python* -c *)", "Bash(cat /proc/*)", "Bash(gh *)", "Bash(git push *)", "WebFetch", "WebSearch"]) {
+    assert.ok(disallowed.includes(deny), deny);
+  }
+  assert.throws(() => modelTools("relative/path"), /absolute path/);
+});
+
+test("with the lane off, a forced scan files nothing: File Findings runs only when the gate reads the lane on", () => {
+  const wf = workflowText(WORKFLOW_TEXT);
+  const ctx = (enabled) => ({ "needs.gate.outputs.enabled": enabled, "needs.scan.result": "success", "needs.scan.outputs.artifact-id": "42" });
+  assert.equal(runs(wf.jobIf("file-findings"), ctx("false")), false);
+  assert.equal(runs(wf.jobIf("file-findings"), ctx("")), false, "an unread setting files nothing");
+  assert.equal(runs(wf.jobIf("file-findings"), ctx("true")), true);
+  assert.equal(decide({ ...on, enabled: false, force: true, lastScan: scanned(2) }).run, true, "the forced scan itself still runs");
+});
+
+test("File Findings holds only issues write and contents read, files on the job's own GITHUB_TOKEN, and requests no lane token", () => {
+  const job = parse(WORKFLOW_TEXT).jobs["file-findings"];
+  assert.deepEqual(job.permissions, { contents: "read", issues: "write" });
+  const file = job.steps.find((step) => /file-findings\.mjs file$/.test(step.run ?? ""));
+  assert.equal(file.env.GITHUB_TOKEN, "${{ github.token }}");
+  assert.ok(!job.steps.some((step) => /request-lane-token|revoke-lane-token/.test(`${step.uses ?? ""} ${step.run ?? ""}`)));
+  assert.ok(!/request-lane-token/.test(WORKFLOW_TEXT));
 });
 
 test("the workflow runs only on its daily schedule and a dispatch, with no push trigger", () => {

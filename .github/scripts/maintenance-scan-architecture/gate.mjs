@@ -95,6 +95,17 @@ export function promptText(room) {
   return readFileSync(PROMPT_TEMPLATE, "utf8").replaceAll("ROOM", String(room)).replaceAll("SOURCE_LABEL", SOURCE_LABEL);
 }
 
+const MODEL_TOOLS = fileURLToPath(new URL("./model-tools.json", import.meta.url));
+
+export function modelTools(workspace) {
+  if (!/^\/[^\s*()]+$/.test(workspace ?? "")) throw new Error(`the workspace ${JSON.stringify(workspace)} is no absolute path without spaces, stars or parentheses`);
+  const { allowed, disallowed } = JSON.parse(readFileSync(MODEL_TOOLS, "utf8"));
+  const fill = (rules) => rules.map((rule) => rule.replaceAll("WORKSPACE", workspace));
+  return { allowed: fill(allowed), disallowed: fill(disallowed) };
+}
+
+const multiline = (name, lines) => `${name}<<TOOLS_EOF\n${lines.join("\n")}\nTOOLS_EOF\n`;
+
 export function statusLine(result) {
   const merges = result.merges ?? "n/a";
   const open = result.open ?? "n/a";
@@ -106,6 +117,8 @@ async function main(argv, env) {
   const [command] = argv;
   if (command === "prompt") {
     writeFileSync(env.PROMPT_FILE, promptText(Number(env.ROOM)));
+    const { allowed, disallowed } = modelTools(env.GITHUB_WORKSPACE);
+    appendFileSync(env.GITHUB_OUTPUT, multiline("allowed-tools", allowed) + multiline("disallowed-tools", disallowed));
     return 0;
   }
   if (command !== "gate") {
@@ -121,7 +134,7 @@ async function main(argv, env) {
   console.log("::endgroup::");
   console.log(`::notice::${line}`);
   if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `Architecture scan gate: ${line}\n`);
-  if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `run=${result.run}\nreason=${result.reason}\nroom=${result.room}\ncap=${result.cap}\n`);
+  if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `run=${result.run}\nreason=${result.reason}\nroom=${result.room}\ncap=${result.cap}\nenabled=${result.enabled}\n`);
   return 0;
 }
 

@@ -1,0 +1,40 @@
+{
+  "allowed": [
+    "Skill",
+    "Agent",
+    "Write(./.work/**)",
+    "Bash(git log *)",
+    "Bash(git rev-parse *)",
+    "Bash(git rev-list *)",
+    "Bash(git status *)",
+    "Bash(git ls-files *)",
+    "Bash(grep *)",
+    "Bash(sort *)",
+    "Bash(uniq *)",
+    "Bash(head *)",
+    "Bash(awk *)",
+    "Bash(wc *)",
+    "Bash(cut *)",
+    "Bash(bash WORKSPACE/.lane/plugins/*)",
+    "Bash(node WORKSPACE/.lane/plugins/*)"
+  ],
+  "disallowed": [
+    "Bash(git push *)",
+    "Bash(gh *)",
+    "Bash(curl *)",
+    "Bash(wget *)",
+    "Bash(env*)",
+    "Bash(printenv*)",
+    "Bash(node -e *)",
+    "Bash(node --eval *)",
+    "Bash(python* -c *)",
+    "Bash(bash -c *)",
+    "Bash(cat /proc/*)",
+    "Edit",
+    "Write(./.lane/plugins/**)",
+    "Read(//proc/**)",
+    "WebFetch",
+    "WebSearch",
+    "mcp__*"
+  ]
+}

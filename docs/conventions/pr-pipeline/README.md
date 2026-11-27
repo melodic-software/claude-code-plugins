@@ -212,12 +212,17 @@ when the lane is off, or `at-cap` when the cap is 0. Then it stops one as `at-ca
 `every-days` calendar days passed since the last run on main whose `Scan` job succeeded (read back
 through the whole run history, so a long stretch of stopped runs never hides it), or `no-merges`
 when nothing merged to main since it; `first-scan` means no such run exists. A dispatch's `force`
-input skips only `lane-off` and `not-due`; a schedule run never reads it. The model job runs
-`/improvement:find` unattended with `/architecture:improve deepening --unattended` inline and holds
-no write token: it returns the candidates find may file, sealed for the `Scan` job, which drops
-any naming a security defect, and `File Findings` files them on the lanes App token (`file-architecture-findings`, `mutate-tracker`,
-which a disabled lane is not granted), each with exactly one `source: architecture-improve` label.
-Admission's `own-agents.hold-sources` in `admission-rules.json` holds those filings for a listed
+input skips only `lane-off` and `not-due`; a schedule run never reads it. The model legs run
+sandboxed (`sandbox: "true"`), with the Bash commands and deny rules in
+`.github/scripts/maintenance-scan-architecture/model-tools.json`, and hold no write token: they
+return the candidates find may file, sealed for the `Scan` job, which drops any naming a security
+defect or shaped like an issue another script trusts (an `Upstream drift:` title, or an HTML
+comment marker in the body). `File Findings` runs only while the lane is on, so a forced run with
+the lane off files nothing. It files on the job's own `GITHUB_TOKEN` (`issues: write`, `contents:
+read`), each issue with exactly one `source: architecture-improve` label; the lane has no slot and
+the token broker grants it nothing. GitHub starts no workflow run on that token's events, so intake
+does not start on these issues, and admission's `own-agents.hold-sources` in
+`admission-rules.json` refuses any issue carrying a listed label, whoever filed it, for a listed
 human.
 
 `pr-unblock`'s dispatches come from `pr-unblock-dispatch.yml`, a scripted workflow with no model
