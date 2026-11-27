@@ -6,14 +6,14 @@ request and on into post-merge, release and maintenance work. A task is one work
 in [the PR pipeline contract](../pr-pipeline/README.md) and `docs/conventions/pr-pipeline.yaml`;
 this map only places the tasks.
 
-This map is a point-in-time snapshot, written by hand. **As of**: 2026-11-25, every
+This map is a point-in-time snapshot, written by hand. **As of**: 2026-11-27, every
 `.github/workflows/*.yml` file has a row, named in its Task cell or its Shape cell, and every
-plugin in `.claude-plugin/marketplace.json` is listed under [Plugins](#plugins). No check
-compares the map with that directory or that file, so a workflow or plugin added, renamed or
-removed since then may be missing or out of date here. **Recheck trigger**: a pull request that
-adds, renames or removes a file in `.github/workflows/` or a plugin, changes a workflow's
-triggers, jobs or outputs, or changes which plugin skills or scripts a workflow runs; update the
-rows and the as-of date in the same pull request.
+plugin in `.claude-plugin/marketplace.json` is listed once under [Plugins](#plugins). Required CI
+runs `scripts/check-lifecycle-map.sh --check` to enforce that file and plugin parity; triggers,
+jobs, outputs, and which plugin skills or scripts a workflow runs are not checked automatically.
+**Recheck trigger**: a pull request that changes a workflow's triggers, jobs or outputs, or changes
+which plugin skills or scripts a workflow runs; update the rows and the as-of date in the same pull
+request.
 
 ## Columns
 
@@ -195,7 +195,7 @@ otherwise they run only in a person's own Claude Code session:
 `autonomy`, `bugs`, `codebase-health`, `computer-use`, `context-budget`, `context-usage`,
 `corrections`, `coupling`, `debugging`, `desktop-notification`, `developer-experience`,
 `discipline`, `disk-hygiene`, `display-redaction`, `docs-naming`, `domain-driven-design`,
-`education`, `eol-normalizer`, `event-storming`, `explainer-video`, `external-agents`, `fleet`,
+`education`, `engineering-concepts`, `eol-normalizer`, `event-storming`, `explainer-video`, `external-agents`, `fleet`,
 `gaming`, `github`, `go-format`, `harness-config`, `harness-memory`,
 `javascript-format`, `kindle-dedrm`, `machine-health`, `markdown-format`, `mcp-tools`, `miro`,
 `naming`, `overengineering`, `pixel-art`, `playgrounds`, `plugin-diagnostics`,
