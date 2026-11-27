@@ -9,6 +9,7 @@ const test = (name: string, ...rest: [any] | [any, any]) =>
 const SID = 'sess-1'
 const DATA = '/data'
 const PROJECT = '/proj'
+const TEAM_SCRIPT = '/plugin/lib/observer-team.mjs'
 const LIVE = `${DATA}/session-flow-observer/live-${SID}.jsonl`
 const LEDGERS = `${PROJECT}/.work/running-retros`
 const FINDING = 'finding: Merged without reading the pr-verify verdict.\ncategory: verification\nrule: R6 merge only after the verdict (handoff Current rules)\nevidence: gh pr merge ran before monitor-poll --verdict'
@@ -36,12 +37,14 @@ type World = {
   submits: string[]
   aborts: string[]
   appendDeny?: string
+  team?: object
 }
 
 const world = (on: any, env: Record<string, string> = {}, hasProcess = true) => {
   const w: World = { sid: SID, files: {}, store: {}, forks: [], replies: [], fills: [], toasts: [], rewrites: [], runs: [], appends: [], submits: [], aborts: [] }
   on('process.run', ($: unknown, e: { argv: readonly string[]; init?: { stdin?: string } }) => {
     if (!hasProcess) throw new Error('process.run is not available on this surface')
+    if (e.argv[1] === TEAM_SCRIPT) return { value: { exitCode: 0, stdout: JSON.stringify(w.team ?? { observer: {}, guidance: '', notes: [] }), stderr: '' } }
     w.runs.push(e.argv)
     if (e.argv[0] === 'git') return { value: w.gitCommonDir ? { exitCode: 0, stdout: `${w.gitCommonDir}\n`, stderr: '' } : { exitCode: 128, stdout: '', stderr: 'not a git repository' } }
     if ((e.argv[2] as string).includes('rmSync')) return { value: { exitCode: 0, stdout: '', stderr: '' } }
@@ -55,7 +58,7 @@ const world = (on: any, env: Record<string, string> = {}, hasProcess = true) => 
   w.clock = mock.clock(on, { now: 1_791_050_400_000 })
   mock.env(on, env)
   on('session.id', () => ({ value: w.sid }))
-  on('process.hookEnv', () => ({ value: { CLAUDE_PLUGIN_DATA: DATA, CLAUDE_PROJECT_DIR: PROJECT } }))
+  on('process.hookEnv', () => ({ value: { CLAUDE_PLUGIN_DATA: DATA, CLAUDE_PROJECT_DIR: PROJECT, CLAUDE_PLUGIN_ROOT: '/plugin' } }))
   on('fs.exists', ($: unknown, e: { path: string }) => ({ value: e.path in w.files || Object.keys(w.files).some(f => f.startsWith(`${e.path}/`)) }))
   on('fs.read', ($: unknown, e: { path: string }) => {
     if (!(e.path in w.files)) throw new Error(`ENOENT: ${e.path}`)
@@ -588,14 +591,42 @@ kitTest('checksToSkipAfterIgnored: free for two ignores, then doubles to a cap o
   expect([0, 1, 2, 3, 4, 5, 6, 7, 8].map(checksToSkipAfterIgnored)).toEqual([0, 0, 0, 1, 2, 4, 8, 16, 16])
 })
 
-test('the request category is asked only with request on, and parses', () => {
-  expect(buildPrompt([], [], undefined, [], false, { request: true })).toContain('- request: part of the person')
-  expect(buildPrompt([], [], undefined, [], false, { request: true })).toContain('instruction | request>')
-  expect(buildPrompt([], [], undefined, [], false, { request: true })).toContain('Five kinds count')
+test('each optional kind is asked only when on, and parses', () => {
+  const all = buildPrompt([], [], undefined, [], false, { kinds: ['request', 'skill', 'improvement'] })
+  expect(all).toContain('- request: part of the person')
+  expect(all).toContain("- skill: work was done by hand, or another way, where a listed skill's trigger")
+  expect(all).toContain('- improvement: a step ran far longer than it should have')
+  expect(all).toContain('instruction | request | skill | improvement>')
+  expect(all).toContain('Seven kinds count')
+  expect(buildPrompt([], [], undefined, [], false, { kinds: ['skill'] })).toContain('Five kinds count')
   expect(buildPrompt([], [])).not.toContain('- request:')
+  expect(buildPrompt([], [])).not.toContain('- skill:')
   expect(buildPrompt([], [])).toContain('Four kinds count')
-  const r = parseReply('finding: The second question went unanswered.\ncategory: request\nrule: the person asked two questions\nevidence: the reply answered only the first')
-  expect(r.kind === 'finding' && r.value.category).toBe('request')
+  for (const kind of ['request', 'skill', 'improvement']) {
+    const r = parseReply(`finding: Something went wrong.\ncategory: ${kind}\nrule: a rule\nevidence: an act`)
+    expect(r.kind === 'finding' && r.value.category).toBe(kind)
+  }
+})
+
+test('buildPrompt adds the repository guidance before the person guidance, each capped', () => {
+  const p = buildPrompt([], [], undefined, [], false, { repoGuidance: 'Use the skill for pull requests.', guidance: 'Mine.', guidanceMax: 13 })
+  expect(p).toContain("The repository's guidance for these checks:\nUse the skill\n")
+  expect(p.indexOf("The repository's guidance")).toBeLessThan(p.indexOf("The person's guidance"))
+  expect(buildPrompt([], [])).not.toContain("repository's guidance")
+})
+
+test('an optional fix line routes the finding; a missing or unknown one means here', () => {
+  const base = 'finding: Left the flaky test.\ncategory: improvement\nrule: R\nevidence: E'
+  const fix = (text: string) => {
+    const r = parseReply(text)
+    return r.kind === 'finding' ? r.value.fix : 'unparsed'
+  }
+  expect(fix(base)).toBeUndefined()
+  expect(fix(`${base}\nfix: here`)).toBeUndefined()
+  expect(fix(`${base}\nfix: elsewhere`)).toBeUndefined()
+  expect(fix(`${base}\nfix: issue`)).toEqual({ route: 'issue', how: "file it as an issue under the repository's filing rules" })
+  expect(fix(`${base}\nfix: session`)).toMatchObject({ route: 'session', command: '' })
+  expect(buildPrompt([], [])).toContain('"fix: session"')
 })
 
 kitTest('buildPrompt lists what was seen and disputed', async () => {
@@ -889,4 +920,102 @@ test('with harness checks off no harness hook reads the log or records a row', a
   await turn($, 't1')
   await complete($, 't1')
   expect(live(w).some(r => 'harness' in r)).toBe(false)
+})
+
+const SKILL_FINDING = 'finding: Opened the pull request with a bare gh pr create.\ncategory: skill\nrule: AGENTS.md: open pull requests with /source-control:pull-request create\nevidence: gh pr create ran'
+const IMPROVEMENT_FINDING = 'finding: The flaky test failure was not raised.\ncategory: improvement\nrule: AGENTS.md: fix what you find in place\nevidence: the second run passed and nothing was said'
+const DEFER = { options: { observer_auto_send: true, observer_skill_check: true, observer_improvement_check: true, observer_defer_kinds: 'improvement' } }
+
+test('a deferred kind waits for the turn end and goes in one observer turn; a skill finding appends mid-turn', DEFER, async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer(IMPROVEMENT_FINDING), answer(SKILL_FINDING))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  expect(w.appends).toEqual([])
+  expect(w.submits).toEqual([])
+  await steps($, 't1', 12)
+  expect(w.appends.length).toBe(1)
+  expect(w.appends[0]).toContain('> skill: Opened the pull request')
+  await complete($, 't1')
+  expect(w.submits.length).toBe(1)
+  expect(w.submits[0]).toContain('> improvement: The flaky test failure was not raised.')
+  expect(live(w).find(r => r.answer === 'auto_sent' && r.delivery === 'submit')).toMatchObject({ deferred: 1 })
+  expect(w.forks[0]).toContain('- skill: ')
+  expect(w.forks[0]).toContain('- improvement: ')
+})
+
+test('a deferred finding from an idle check is sent at once', { options: { ...DEFER.options, observer_turn_end_check: true } }, async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer(IMPROVEMENT_FINDING))
+  await start($)
+  await turn($, 't1')
+  await bash($)
+  await complete($, 't1')
+  await settle()
+  expect(w.submits.length).toBe(1)
+  expect(live(w).find(r => r.answer === 'auto_sent')).not.toHaveProperty('deferred')
+})
+
+test('the default branch team layer adds repository guidance and wins over the user options; an invalid team value is dropped and recorded', { options: { observer_skill_check: false, observer_codify_threshold: 5 } }, async ($, on) => {
+  const w = world(on)
+  w.team = { observer: { skill_check: true, codify_threshold: -1 }, guidance: 'PRs go through the pull-request skill.', notes: [] }
+  await start($)
+  await settle()
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  expect(w.forks[0]).toContain("The repository's guidance for these checks:\nPRs go through the pull-request skill.")
+  expect(w.forks[0]).toContain('- skill: ')
+  expect(live(w).find(r => r.answer === 'option_invalid')).toMatchObject({ key: 'team:codify_threshold' })
+})
+
+test('a live finding routed to a session gets a ready command and is never auto-sent; an issue one is sent', AUTO, async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer(`${FINDING}\nfix: session`))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  expect(w.appends).toEqual([])
+  const [ledger] = ledgerFiles(w).filter(f => f.endsWith('.md'))
+  expect(w.files[ledger]).toMatch(/- Fix: take it to a dedicated session: cd '\/proj' && claude -n merged-without-reading-the-pr-verify-ver "An observer in another session found: /)
+  w.replies.push(answer(`${FINDING.replace('Merged without', 'Pushed without')}\nfix: issue`))
+  await steps($, 't1', 12)
+  expect(w.appends.length).toBe(1)
+  expect(w.appends[0]).toContain("> Fix: issue: file it as an issue under the repository's filing rules")
+})
+
+test('a rule found across sessions past the threshold suggests one codify session, at no model cost', { options: { observer_harness_check: true } }, async ($, on) => {
+  const w = world(on)
+  const rule = 'R6 merge only after the verdict (handoff Current rules)'
+  w.files[`${DATA}/session-flow-observer/live-a.jsonl`] = `${JSON.stringify({ outcome: 'shown', rule })}\n`
+  w.files[`${DATA}/session-flow-observer/live-b.jsonl`] = `${JSON.stringify({ outcome: 'shown', rule: `${rule}.` })}\n`
+  w.replies.push(answer(FINDING), answer(FINDING.replace('Merged without reading', 'Merged again without reading')))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  const forks = w.forks.length
+  const [ledger] = ledgerFiles(w).filter(f => f.endsWith('.md'))
+  expect(w.files[ledger]).toContain('A rule was broken in 3 observer findings across 3 sessions')
+  expect(w.files[ledger]).toContain('claude -n codify-r6-merge-only-after-the-verdict-h "/corrections:codify R6 merge only after the verdict (handoff Current rules)"')
+  expect(w.store.codified).toEqual([rule])
+  expect(live(w).find(r => r.outcome === 'shown')).toMatchObject({ rule })
+  expect(w.forks.length).toBe(forks)
+  await steps($, 't1', 12)
+  expect((w.files[ledger]?.match(/A rule was broken/g) ?? []).length).toBe(1)
+})
+
+test('after /clear the codify count reads the ended session as another session', { options: { observer_harness_check: true } }, async ($, on) => {
+  const w = world(on)
+  const rule = 'R6 merge only after the verdict (handoff Current rules)'
+  w.files[`${DATA}/session-flow-observer/live-a.jsonl`] = `${JSON.stringify({ outcome: 'shown', rule })}\n`
+  await start($)
+  await turn($, 't1')
+  w.replies.push(answer(FINDING))
+  await steps($, 't1', 6)
+  w.sid = 'sess-2'
+  await turn($, 't2')
+  w.replies.push(answer(FINDING.replace('Merged without reading', 'Merged again without reading')))
+  await steps($, 't2', 6)
+  const ledgers = ledgerFiles(w).map(f => w.files[f] ?? '').join('\n')
+  expect(ledgers).toContain('A rule was broken in 3 observer findings across 3 sessions')
 })

@@ -1,9 +1,9 @@
 import type { EngineInterface, Register } from 'claude-code'
 
 import { askedRow, band } from './observer-band.tsx'
-import { type CheckRequest, type Effect, type Event, type Options, type Rate, initial, readOptions, step } from './observer-machine.ts'
+import { type CheckRequest, type Effect, type Event, type Options, type Rate, initial, optionalKinds, readOptions, step } from './observer-machine.ts'
 import { buildPrompt, type Finding, type FinishDetail, isKnown, ledgerHeader, ledgerLine, ledgerSection, remember, summarize, type Trigger } from './observer-live.ts'
-import { commandKey, errorKey, type HarnessEvent, harness, harnessInitial, hookRunsFrom, type Platform } from './observer-harness.ts'
+import { codify, commandKey, errorKey, type HarnessEvent, harness, harnessInitial, hookRunsFrom, type Platform, type RuleRow, sessionCommand } from './observer-harness.ts'
 
 const DAY_MS = 86_400_000
 const USAGE = `Usage: /observer [on|off]. Bare /observer shows this session's and the last day's checks.`
@@ -13,7 +13,7 @@ const PLUGIN = 'session-flow'
 
 type Usage = { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }
 
-const fresh = () => ({ sid: '', dataDir: '', liveFile: '', ledgerDir: '', projectDir: '', platform: 'unknown' as Platform, icon: '◆', rows: [] as object[] })
+const fresh = () => ({ sid: '', dataDir: '', liveFile: '', ledgerDir: '', projectDir: '', platform: 'unknown' as Platform, icon: '◆', rows: [] as object[], repoGuidance: '', otherRules: undefined as RuleRow[] | undefined })
 let st = fresh()
 let m = initial()
 let hs = harnessInitial()
@@ -114,6 +114,8 @@ const lastDayRows = async ($: EngineInterface) => {
 const accept = async ($: EngineInterface, req: CheckRequest, finding: Finding) => {
   const redact = (t: string) => $.session.redact(t)
   const f = { ...finding, finding: await redact(finding.finding), rule: await redact(finding.rule), evidence: await redact(finding.evidence) }
+  if (f.fix?.route === 'session' && f.fix.command === '')
+    f.fix = { ...f.fix, command: sessionCommand({ repo: st.projectDir, platform: st.platform }, f.finding, `An observer in another session found: ${f.finding} Rule: ${f.rule} Evidence: ${f.evidence} Check whether it still holds and fix it.`) }
   const ledger = await writeFinding($, await iso($), req.trigger, req.turnId, req.step, f)
   await $.store.set('seen', remember(await list($, 'seen'), f.finding, opts.listMax))
   return run($, { kind: 'finding-accepted', req, finding: f, ledger })
@@ -175,7 +177,7 @@ const dispatch = async ($: EngineInterface, e: Event) => {
 const run = async ($: EngineInterface, e: Event) => (await dispatch($, e)).outcome
 
 const deliver = async ($: EngineInterface, fx: Extract<Effect, { kind: 'deliver' }>) => {
-  const done = (error?: string) => run($, { kind: 'delivered', cardId: fx.cardId, delivery: fx.delivery, chars: fx.text.length, stepsLate: fx.stepsLate, error })
+  const done = (error?: string) => run($, { kind: 'delivered', cardId: fx.cardId, delivery: fx.delivery, chars: fx.text.length, stepsLate: fx.stepsLate, deferred: fx.deferred, error })
   if (fx.delivery === 'submit') {
     void $.prompt.submit({ text: fx.text }).then(
       r => done('drop' in r && r.drop !== undefined ? `dropped: ${r.drop}` : undefined),
@@ -195,8 +197,9 @@ const gate = async ($: EngineInterface, command: string) => {
   const [seen, disputed, notRelevant] = [await list($, 'seen'), await list($, 'disputed'), await list($, 'notRelevant')]
   const prompt = buildPrompt(seen, disputed, undefined, notRelevant, (await count($, 'unclear')) > 0, {
     autoSend: true,
-    request: opts.requestCheck,
+    kinds: optionalKinds(opts),
     guidance: opts.guidance,
+    repoGuidance: st.repoGuidance,
     guidanceMax: opts.guidanceMax,
     override: opts.checkPrompt,
     heldCommand: command,
@@ -215,6 +218,7 @@ const syncSession = async ($: EngineInterface) => {
   if (sid === st.sid) return
   st.sid = sid
   st.liveFile = `${st.dataDir}/live-${sid}.jsonl`
+  st.otherRules = undefined
   hs = harnessInitial()
   await run($, { kind: 'session-changed' })
   st.rows = parseRows(await readOr($, st.liveFile))
@@ -231,9 +235,10 @@ const runCheck = async ($: EngineInterface, trigger: Trigger, turnId: string, st
   let usage: Usage | undefined
   let detail: FinishDetail | undefined
   let category: string | undefined
+  let rule: string | undefined
   try {
     const [seen, disputed, notRelevant] = [await list($, 'seen'), await list($, 'disputed'), await list($, 'notRelevant')]
-    const extra = { autoSend: opts.autoSend, request: opts.requestCheck, guidance: opts.guidance, guidanceMax: opts.guidanceMax, override: opts.checkPrompt }
+    const extra = { autoSend: opts.autoSend, kinds: optionalKinds(opts), guidance: opts.guidance, repoGuidance: st.repoGuidance, guidanceMax: opts.guidanceMax, override: opts.checkPrompt }
     const r = await $.model.fork({ prompt: buildPrompt(seen, disputed, req.open?.finding.finding, notRelevant, (await count($, 'unclear')) > 0, extra) })
     if (r.isAnswered) usage = r.usage
     const reply = r.isAnswered ? { isAnswered: true as const, text: r.text } : { isAnswered: false as const, reason: String(r.reason) }
@@ -242,14 +247,15 @@ const runCheck = async ($: EngineInterface, trigger: Trigger, turnId: string, st
     const fin = done.effects.find(fx => fx.kind === 'finish')
     if (fin?.kind === 'finish') detail = fin.detail
     const acc = done.effects.find(fx => fx.kind === 'accept')
-    if (outcome === 'shown' && acc?.kind === 'accept') category = acc.finding.category
+    if (outcome === 'shown' && acc?.kind === 'accept') ({ category, rule } = { category: acc.finding.category, rule: await $.session.redact(acc.finding.rule) })
   } catch {
     outcome = 'error'
   } finally {
     m = step(m, { kind: 'check-finished' }, opts).state
     const latencyMs = (await $.clock.now()) - started
-    await record($, { at: await iso($), trigger, turnId, step: stepIndex, outcome, latencyMs, usage, ...detail, ...(category ? { category } : {}) }).catch(() => undefined)
+    await record($, { at: await iso($), trigger, turnId, step: stepIndex, outcome, latencyMs, usage, ...detail, ...(category ? { category, rule } : {}) }).catch(() => undefined)
   }
+  if (rule !== undefined) await codifyCheck($, rule).catch(() => undefined)
 }
 
 const runHarness = async ($: EngineInterface, e: HarnessEvent) => {
@@ -263,6 +269,45 @@ const runHarness = async ($: EngineInterface, e: HarnessEvent) => {
     if (isKnown(finding.finding, ...(perSession ? [] : [seen]), disputed, notRelevant)) continue
     await accept($, { trigger: 'harness', turnId: '', step: -1, gen: m.gen, open: null, source: check }, finding).catch(() => undefined)
   }
+}
+
+const otherRules = async ($: EngineInterface) => {
+  if (st.otherRules !== undefined) return st.otherRules
+  const mine = `live-${st.sid}.jsonl`
+  const files = (await $.fs.list(st.dataDir)).filter(e => e.kind === 'file' && /^live-.*\.jsonl$/.test(e.name) && e.name !== mine)
+  st.otherRules = (await Promise.all(files.map(async e => parseRows((await $.fs.read(`${st.dataDir}/${e.name}`)) as string).map(r => ({ ...(r as RuleRow), sid: e.name }))))).flat()
+  return st.otherRules
+}
+
+const codifyCheck = async ($: EngineInterface, rule: string) => {
+  if (!opts.harnessCheck || opts.codifyThreshold < 1 || !m.on || (await $.store.get('paused')) === true) return
+  const done = await list($, 'codified')
+  if (isKnown(rule, done)) return
+  const rows = [...(await otherRules($)), ...st.rows.map(r => ({ ...(r as RuleRow), sid: st.sid }))]
+  const f = codify(rows, rule, opts.codifyThreshold, { repo: st.projectDir, platform: st.platform })
+  if (f === undefined) return
+  await $.store.set('codified', remember(done, rule, opts.listMax))
+  await record($, { at: await iso($), harness: 'codify', subject: f.finding.evidence })
+  await accept($, { trigger: 'harness', turnId: '', step: -1, gen: m.gen, open: null, source: 'codify' }, f.finding)
+}
+
+const TEAM_KEYS = { skill_check: 'observer_skill_check', improvement_check: 'observer_improvement_check', defer_kinds: 'observer_defer_kinds', codify_threshold: 'observer_codify_threshold' } as const
+
+const readTeam = async ($: EngineInterface, env: Record<string, string>, user: Readonly<Record<string, unknown>>) => {
+  if (!env.CLAUDE_PLUGIN_ROOT) return
+  const r = await $.process.run(['node', `${env.CLAUDE_PLUGIN_ROOT}/lib/observer-team.mjs`], { cwd: st.projectDir, env, timeoutMs: 30_000 }).catch(() => undefined)
+  if (r?.exitCode !== 0) return
+  const team = JSON.parse(r.stdout) as { observer?: Record<string, unknown>; guidance?: string }
+  const raw: Record<string, unknown> = {}
+  for (const [key, option] of Object.entries(TEAM_KEYS)) {
+    const v = team.observer?.[key]
+    if (v === undefined) continue
+    const value = Array.isArray(v) ? v.join(',') : v
+    if (readOptions({ [option]: value }).invalid.length === 0) raw[option] = value
+    else await record($, { at: await iso($), answer: 'option_invalid', key: `team:${key}` }).catch(() => undefined)
+  }
+  opts = readOptions({ ...user, ...raw }).options
+  st.repoGuidance = typeof team.guidance === 'string' ? team.guidance : ''
 }
 
 const hookLog = () => {
@@ -290,6 +335,7 @@ export const register: Register = (on, options) => {
     st.ledgerDir = `${await mainCheckout($, env.CLAUDE_PROJECT_DIR || e.cwd)}/.work/running-retros`
     void prune($, await $.clock.now())
     st.icon = (await $.env.get('TERM')) === 'dumb' ? '*' : '◆'
+    void readTeam($, env, options).catch(() => undefined)
     await run($, { kind: 'session-started' })
     for (const key of read.invalid) await record($, { at: await iso($), answer: 'option_invalid', key }).catch(() => undefined)
     await $.command.register({ name: 'observer', description: 'Session observer: show its checks and token use, or turn its live checks on or off on this machine' })

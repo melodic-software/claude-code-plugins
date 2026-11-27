@@ -178,3 +178,50 @@ test('a failed submission clears the observer-turn marker so the next person tur
   expect(next.effects).toEqual([])
   expect(next.state.observerTurnId).toBeNull()
 })
+
+test('the round-two options default off, take valid values and reject unknown deferred kinds', () => {
+  expect(readOptions({}).options).toMatchObject({ skillCheck: false, improvementCheck: false, deferKinds: [], codifyThreshold: 3 })
+  const ok = readOptions({ observer_skill_check: true, observer_defer_kinds: ' improvement, skill ', observer_codify_threshold: 0 })
+  expect(ok.invalid).toEqual([])
+  expect(ok.options).toMatchObject({ skillCheck: true, deferKinds: ['improvement', 'skill'], codifyThreshold: 0 })
+  const bad = readOptions({ observer_defer_kinds: 'improvement,taste' })
+  expect(bad.invalid).toEqual(['observer_defer_kinds'])
+  expect(bad.options.deferKinds).toEqual([])
+})
+
+test('a deferred finding mid-turn is held, sent once at the turn end, and dropped by /observer off', () => {
+  const o = readOptions({ observer_auto_send: true, observer_defer_kinds: 'improvement' }).options
+  const req = { trigger: 'step' as const, turnId: 't1', step: 6, gen: 1, open: null }
+  let s = step(initial(), { kind: 'session-started' }, o).state
+  s = step(s, { kind: 'turn-started', main: true, turnId: 't1', text: '', paused: false }, o).state
+  const held = step(s, { kind: 'finding-accepted', req, finding: { ...F, category: 'improvement' }, ledger: '/l.md' }, o)
+  expect(held.effects.some(fx => fx.kind === 'deliver')).toBe(false)
+  expect(held.state.deferred).toHaveLength(1)
+  const end = step(held.state, { kind: 'turn-completed', main: true, turnId: 't1', isAborted: false }, o)
+  expect(end.effects.filter(fx => fx.kind === 'deliver')).toEqual([expect.objectContaining({ delivery: 'submit', deferred: 1 })])
+  expect(end.state).toMatchObject({ deferred: [], submitWaiting: true })
+  const off = step(held.state, { kind: 'command', arg: 'off' }, o)
+  expect(off.state.deferred).toEqual([])
+})
+
+test('a gate finding of a deferred kind lets the command run and records deferred', () => {
+  const o = readOptions({ observer_gate_check: true, observer_defer_kinds: 'improvement' }).options
+  const r = step(initial(), { kind: 'gate-replied', command: 'git push', reply: { isAnswered: true, text: 'finding: Slow step.\ncategory: improvement\nrule: R\nevidence: E' }, latencyMs: 5 }, o)
+  expect(r.effects).toEqual([{ kind: 'record', row: { trigger: 'gate', latencyMs: 5, usage: undefined, outcome: 'deferred', finding: 'Slow step.', category: 'improvement' } }])
+  expect(r.state.refused).toEqual({})
+})
+
+test('a deferred finding the person disputes, dismisses or sends, or a check resolves, is not sent at the turn end; Noted keeps it', () => {
+  const o = readOptions({ observer_auto_send: true, observer_defer_kinds: 'improvement' }).options
+  const req = { trigger: 'step' as const, turnId: 't1', step: 6, gen: 1, open: null }
+  let s = step(initial(), { kind: 'session-started' }, o).state
+  s = step(s, { kind: 'turn-started', main: true, turnId: 't1', text: '', paused: false }, o).state
+  const held = step(s, { kind: 'finding-accepted', req, finding: { ...F, category: 'improvement' }, ledger: '/l.md' }, o).state
+  const sent = (state: typeof held) => step(state, { kind: 'turn-completed', main: true, turnId: 't1', isAborted: false }, o).effects.some(fx => fx.kind === 'deliver')
+  expect(sent(step(held, { kind: 'dispute', disputed: [] }, o).state)).toBe(false)
+  expect(sent(step(held, { kind: 'dismiss' }, o).state)).toBe(false)
+  expect(sent(step(held, { kind: 'send' }, o).state)).toBe(false)
+  const resolved = step(held, { kind: 'check-replied', req: { ...req, open: held.card }, reply: { isAnswered: true, text: 'finding: none\nresolved: yes' }, paused: false, seen: [], disputed: [] }, o).state
+  expect(sent(resolved)).toBe(false)
+  expect(sent(step(held, { kind: 'noted', ok: true }, o).state)).toBe(true)
+})
