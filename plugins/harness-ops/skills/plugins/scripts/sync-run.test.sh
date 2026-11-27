@@ -446,7 +446,7 @@ assert_eq "failed update: NOT recorded as updated" "0" \
 assert_eq "failed update: the CLI's own status is kept" "1" \
   "$(jq -r '.marketplaces[0].user_sweep.failed[0].rc' <<<"$out")"
 rendered=$(run_sync "$case_dir" --marketplace market1 --journal-root "$case_dir/journal" --render)
-bullet=$(printf '%s\n' "$rendered" | grep 'update failed' || true)
+bullet=$(printf '%s\n' "$rendered" | tail -n +3 | grep 'update failed' || true)
 assert_contains "failed update: the bullet carries the failure reason" "$bullet" \
   "update failed (exit 1): alpha@market1 -s user: ✘ Failed to update plugin"
 assert_eq "failed update: the progress line is not the reported reason" "0" \
@@ -1121,16 +1121,22 @@ assert_exit "render clean: exit 0" 0 "$REPORT_RC"
 assert_eq "render clean: stdout still opens with the digest line" "market1" \
   "$(jq -r '.marketplaces[0].name' <<<"$REPORT_DIGEST")"
 assert_golden "render clean: the report matches the golden" clean-current.txt "$REPORT_TEXT"
+assert_eq "render clean: the digest's verdict is the clean result, its block current with nothing pending" \
+  "clean 0 current 0" \
+  "$(jq -r '"\(.verdict.result) \(.verdict.action_count) \(.marketplaces[0].verdict | "\(.status) \(.pending)")"' <<<"$REPORT_DIGEST")"
 contract_keys() {
   jq -r --slurpfile c "$SCRIPT_DIR/digest-contract.json" -n --argjson d "$1" '
     def diff($a; $b): ($a | keys) - ($b | keys);
     "run extra: \(diff($d; $c[0].run)) missing: \(diff($c[0].run; $d))",
-    ($d.marketplaces[] | "block extra: \(diff(.; $c[0].marketplace)) missing: \(diff($c[0].marketplace; .))")'
+    "run verdict extra: \(diff($d.verdict; $c[0].run.verdict)) missing: \(diff($c[0].run.verdict; $d.verdict))",
+    ($d.marketplaces[] | "block extra: \(diff(.; $c[0].marketplace)) missing: \(diff($c[0].marketplace; .))",
+      "block verdict extra: \(diff(.verdict; $c[0].marketplace.verdict)) missing: \(diff($c[0].marketplace.verdict; .verdict))")'
 }
-assert_eq "digest contract: a sync run's run and block keys are the contract's, both ways" \
-  $'run extra: [] missing: []\nblock extra: [] missing: []' "$(contract_keys "$REPORT_DIGEST")"
-assert_eq "digest contract: an audit run's run and block keys are the contract's, both ways" \
-  $'run extra: [] missing: []\nblock extra: [] missing: []' \
+contract_clean=$'run extra: [] missing: []\nrun verdict extra: [] missing: []\nblock extra: [] missing: []\nblock verdict extra: [] missing: []'
+assert_eq "digest contract: a sync run's run, block and verdict keys are the contract's, both ways" \
+  "$contract_clean" "$(contract_keys "$REPORT_DIGEST")"
+assert_eq "digest contract: an audit run's run, block and verdict keys are the contract's, both ways" \
+  "$contract_clean" \
   "$(contract_keys "$(run_sync "$case_dir" --marketplace market1 --audit --install-new none | head -n 1)")"
 assert_eq "render: report.txt is written into the run directory on every run" "true" \
   "$([[ -s "$(jq -r '.run_dir' <<<"$REPORT_DIGEST")/report.txt" ]] && echo true || echo false)"
@@ -1631,13 +1637,23 @@ needs_digest() {
     }'
 }
 needs_check() {
-  local label="$1" mode="$2" patch="$3" want="$4" kind="${5:-bullet}" status="${6:-needs update}" text
-  text=$(needs_digest "$mode" "$patch" | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')
+  local label="$1" mode="$2" patch="$3" want="$4" kind="${5:-bullet}" status="${6:-needs update}" text digest facts
+  local pending=0
+  digest=$(needs_digest "$mode" "$patch")
+  text=$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$digest" | tr -d '\r')
   assert_contains "needs: $label marks the marketplace" "$text" "Marketplace: m: $status (autoUpdate: on)"
   if [[ "$kind" == bullet ]]; then
     assert_contains "needs: $label has an Action needed bullet" "$text" $'Action needed:\n  - '
   fi
   assert_contains "needs: $label names it" "$text" "$want"
+  facts=$(jq -c -L "$SCRIPT_DIR" 'include "verdict"; classify.blocks[0]' <<<"$digest")
+  [[ "$status" =~ ([0-9]+)\ action ]] && pending="${BASH_REMATCH[1]}"
+  assert_eq "needs: $label is classified ${status%%,*} with $pending pending item(s)" "${status%%,*} $pending $pending" \
+    "$(jq -r '"\(.status | sub("_"; " ")) \(.pending) \(.pending_kinds | length)"' <<<"$facts")"
+  if [[ "$kind" == bullet ]]; then
+    assert_eq "needs: $label is a classified Action needed item" "true" \
+      "$(jq -r --arg w "${want%%$'\n'*}" 'any(.actions[]; .lines | join("\n") | contains($w))' <<<"$facts")"
+  fi
 }
 pending_check() { needs_check "$1" "$2" "$3" "$4" "${5:-bullet}" "current, 1 action(s) pending"; }
 failed_row='{"id":"a@m","scope":"user","rc":1,"output":"$ x\nboom"}'
@@ -1656,7 +1672,13 @@ needs_check "marketplace error" sync '{"errors":["boom"]}' "error: boom"
 pending_check "unfilled enable gap" sync '{"enable_gap":["b@m"]}' "missing_from_enabled, not enabled this run: b@m"
 pending_check "project-scope enable gap" sync '{"project_enable_rows":[{"id":"b@m","project_path":"/w"}]}' \
   $'project-scope enable gap: b@m in /w\n    remedy: (cd "/w" && claude plugin enable b@m -s project)'
-pending_check "installed but not enabled" sync '{"installed_disabled":["b@m"]}' "b@m: installed but not enabled"
+pending_check "installed but not enabled" sync \
+  '{"installed":[{"id":"b@m","label":"claude plugin install b@m -s user","rc":0,"output":"","predicted":false,"disabled_by_default":true}]}' \
+  "b@m: installed but not enabled"
+assert_eq "needs: an install enabled at user scope this run is not installed but not enabled" "[]" \
+  "$(needs_digest sync '{"installed":[{"id":"b@m","rc":0,"predicted":false,"disabled_by_default":true}],
+      "enabled":[{"id":"b@m","scope":"user","rc":0,"predicted":false}]}' |
+    jq -c -L "$SCRIPT_DIR" 'include "verdict"; classify.blocks[0].installed_disabled')"
 pending_check "delisted" sync '{"delisted":["b@m"]}' "delisted, absent from the catalog: b@m"
 pending_check "install gap under none" sync '{"install_gap":["b@m"]}' "not installed at user scope (policy none): b@m"
 needs_check "install gap under none beside a failed update" sync \
@@ -2459,7 +2481,7 @@ EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_S
 report_of "$case_dir" --marketplace market1 --install-new all --journal-root "$case_dir/journal"
 assert_exit "disabled install: exit 0" 0 "$REPORT_RC"
 assert_eq "disabled install: the digest names the id" '["beta@market1"]' \
-  "$(jq -c '.marketplaces[0].installed_disabled' <<<"$REPORT_DIGEST")"
+  "$(jq -c '.marketplaces[0].verdict.installed_disabled' <<<"$REPORT_DIGEST")"
 assert_eq "disabled install: the stored output was truncated before the notice" "false" \
   "$(jq -r '.marketplaces[0].installed[0].output | contains("disabled by default")' <<<"$REPORT_DIGEST")"
 assert_contains "disabled install: the row says it is installed but not enabled" "$REPORT_TEXT" \
@@ -2561,7 +2583,7 @@ assert_eq "ask disabled pick: no user-scope false is left for either pick" "true
 assert_eq "ask disabled pick: only the pick the CLI installed disabled is enabled" "plugin enable beta@market1 -s user" \
   "$(grep 'plugin enable' "$case_dir/claude.log")"
 assert_eq "ask disabled pick: it is not reported as installed but not enabled" '[]' \
-  "$(jq -c '.marketplaces[0].installed_disabled' <<<"$REPORT_DIGEST")"
+  "$(jq -c '.marketplaces[0].verdict.installed_disabled' <<<"$REPORT_DIGEST")"
 assert_golden "ask disabled pick: the report matches the golden" ask-reentry-disabled-enabled.txt "$REPORT_TEXT"
 
 CASE_NUM=$((CASE_NUM + 1))
@@ -2577,7 +2599,7 @@ EXTRA_ENV+=(CLAUDE_STUB_ENABLE_FAIL_ID=beta@market1)
 report_of "$case_dir" --only-install beta@market1 --run-dir "$run_dir"
 assert_contains "ask failed enable: the failure is reported" "$REPORT_TEXT" "enable failed (exit 1): beta@market1 -s user"
 assert_eq "ask failed enable: the pick stays installed but not enabled" '["beta@market1"]' \
-  "$(jq -c '.marketplaces[0].installed_disabled' <<<"$REPORT_DIGEST")"
+  "$(jq -c '.marketplaces[0].verdict.installed_disabled' <<<"$REPORT_DIGEST")"
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -2588,7 +2610,7 @@ EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_S
   CLAUDE_STUB_INSTALL_DISABLED=1 CLAUDE_STUB_INSTALL_FAIL_ID=beta@market1)
 report_of "$case_dir" --marketplace market1 --install-new all --journal-root "$case_dir/journal"
 assert_eq "failed disabled install: not installed_disabled" '[]' \
-  "$(jq -c '.marketplaces[0].installed_disabled' <<<"$REPORT_DIGEST")"
+  "$(jq -c '.marketplaces[0].verdict.installed_disabled' <<<"$REPORT_DIGEST")"
 assert_contains "failed disabled install: reported as a failed install" "$REPORT_TEXT" \
   "install failed (exit 1): beta@market1"
 assert_eq "failed disabled install: no enable remedy" "0" \

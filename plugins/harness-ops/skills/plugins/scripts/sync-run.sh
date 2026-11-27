@@ -2234,7 +2234,7 @@ source_pull_field() {
 
 emit_marketplace_block() {
   local mp="$1" ir_u ir_f ir_w ir_l us_u us_f us_w wh dg moved inst en pr rec errs
-  local unset_cfg installed_disabled monitors spec name window windows="" sep=""
+  local unset_cfg monitors spec name window windows="" sep=""
   for spec in "${MP_STEPS[@]}"; do
     read -r name _ _ window <<<"$spec"
     [[ "$window" != to_block_end || -n "${STEP_S[$name]:-}" ]] || clock_into "STEP_S[$name]"
@@ -2271,12 +2271,6 @@ emit_marketplace_block() {
   monitor_rows monitors "$mp"
   jq_to unset_cfg -c '[.[] | select(.unset_user_config != null)
     | {id, options_unset: .unset_user_config.options_unset, required: .unset_user_config.required}]' <<<"$inst"
-  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to installed_disabled -c -s '
-    .[0] as $inst | .[1] as $en
-    | [$en[] | select(.predicted == false and .rc == 0 and .scope == "user") | .id] as $on
-    | [$inst[] | select(.rc == 0 and .disabled_by_default == true) | .id | select(IN($on[]) | not)]' \
-    <<<"$inst"$'\n'"$en"
   [[ -n "$div" ]] || div='{}'
   [[ -n "$extras" ]] || extras='{}'
   [[ -n "$reg_rows" ]] || reg_rows='[]'
@@ -2304,7 +2298,7 @@ emit_marketplace_block() {
     normalize "$NORMALIZE_JSON" cache "$CACHE_JSON" reg_rows "$reg_rows" \
     div "$div" self_updated "$SELF_UPDATED" self_update "$SELF_UPDATE" \
     extras "$extras" checkout "${checkout:-null}" pull "${pull:-null}" \
-    unset_cfg "${unset_cfg:-[]}" installed_disabled "${installed_disabled:-[]}" \
+    unset_cfg "${unset_cfg:-[]}" \
     monitors "${monitors:-[]}" errors "$errs" other_paths "$OTHER_PATHS_JSON" windows "{$windows}"
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to block -c \
@@ -2330,7 +2324,7 @@ emit_marketplace_block() {
           $us_u, $us_f, $us_w, $wh, $dg, $moved, $noop_unverified, $install_gap, $inst,
           $enable_gap, $en, $pr, $rec, $deferred, $stopped, $held, $normalize, $cache, $reg_rows,
           $div, $self_updated, $self_update, $extras, $checkout, $pull, $unset_cfg,
-          $installed_disabled, $monitors, $errors, $other_paths, $windows}
+          $monitors, $errors, $other_paths, $windows}
     | ($windows | map_values(dur(.[0]; .[1]))) as $steps
     | dur_up($t_mp_s; $t_mp_e) as $total
     # The time between and around the named steps, so the steps plus this
@@ -2357,7 +2351,6 @@ emit_marketplace_block() {
      install_gap: $install_gap,
      installed: $inst,
      installed_with_unset_user_config: $unset_cfg,
-     installed_disabled: $installed_disabled,
      install_enable_deferred: $deferred,
      stopped_before_install: $stopped,
      install_held: $held,
@@ -2500,7 +2493,7 @@ T_RUN_E=""
 clock_into T_RUN_E
 
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-jq_to DIGEST -c -n \
+jq_to DIGEST -c -n -L "$SCRIPT_DIR" \
   --arg run_dir "$RUN_DIR" \
   --arg cwd "$PWD" \
   --arg mode "$MODE" \
@@ -2515,6 +2508,7 @@ jq_to DIGEST -c -n \
   --arg resolution "$CLOCK_RESOLUTION" \
   --argjson first "$FIRST_PASS_TIMINGS" \
   --argjson errors "$RUN_ERRS" --slurpfile contract "$DIGEST_CONTRACT" '
+  include "verdict";
   def ms_sum($a; $b): ((($a * 1000) + ($b * 1000)) | round) / 1000;
   # The combined total is only as fine as the coarser clock that timed it. The
   # rungs run fine to coarse here, not in the ladder'"'"'s try order.
@@ -2550,7 +2544,8 @@ jq_to DIGEST -c -n \
      source_pull_invalid: (if $source_pull_invalid == "" then null else $source_pull_invalid end),
      quiet_auto_update: $quiet_auto_update,
      timings: $timings,
-     marketplaces: $marketplaces, errors: $errors}'
+     marketplaces: $marketplaces, errors: $errors}
+  | with_verdict'
 
 printf '%s\n' "$DIGEST" >"$RUN_DIR/digest.json"
 if [[ "$MODE" == "sync" ]] && ((ONLY_INSTALL_MODE == 0)); then

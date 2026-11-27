@@ -77,7 +77,8 @@ for it.
 
 The first line of output is one compact JSON digest; after a blank line comes the rendered report.
 Both live in the scratch directory, which is gone when the call returns, so answer follow-up
-questions from the printed digest.
+questions from the printed digest, whose `verdict` objects hold the report's classified facts (the
+plugins skill's `context/sync.md` names them).
 
 ## Report
 
@@ -112,8 +113,9 @@ nonzero `stale_project_records.total` or `cache_content.stale_content`. In those
 means `${CLAUDE_PLUGIN_ROOT}/skills/plugins`, and "SKILL.md" means that skill's SKILL.md.
 
 Only for a question about a state no render in hand shows,
-`${CLAUDE_PLUGIN_ROOT}/skills/plugins/scripts/render-report.jq` holds the row rules, at that exact
-path. Rows the user already has are the report: quote them as given and never check them against it.
+`${CLAUDE_PLUGIN_ROOT}/skills/plugins/scripts/render-report.jq` holds the row rules and
+`${CLAUDE_PLUGIN_ROOT}/skills/plugins/scripts/verdict.jq` the classification they format, at those
+exact paths. Rows the user already has are the report: quote them as given and never check them against it.
 
 ## userConfig: `install_new`
 

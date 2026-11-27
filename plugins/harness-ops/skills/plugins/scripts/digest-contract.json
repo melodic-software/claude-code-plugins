@@ -11,7 +11,8 @@
     "quiet_auto_update": [],
     "timings": null,
     "marketplaces": [],
-    "errors": []
+    "errors": [],
+    "verdict": {"result": null, "action_count": 0, "actions": []}
   },
   "marketplace": {
     "name": null,
@@ -38,7 +39,6 @@
     "install_gap": [],
     "installed": [],
     "installed_with_unset_user_config": [],
-    "installed_disabled": [],
     "install_enable_deferred": false,
     "stopped_before_install": false,
     "install_held": null,
@@ -67,7 +67,14 @@
     "self_updated": false,
     "self_update": null,
     "updated_with_monitors": [],
-    "errors": []
+    "errors": [],
+    "verdict": {
+      "status": null, "needs_update": false, "changed": false, "pending": 0, "pending_kinds": [],
+      "actions": [],
+      "installed": {"ok": [], "failed": [], "predicted": [], "left": []},
+      "enabled": {"ok": [], "failed": [], "predicted": [], "unfilled": []},
+      "installed_disabled": []
+    }
   },
   "shapes": {
     "call": {"label": "", "rc": null, "output": "", "predicted": false},

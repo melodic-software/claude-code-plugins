@@ -80,8 +80,13 @@ the name:
   and an `in_repo` or `user_sweep` `failed[]` row whose call ran) carries that call's outcome: `label` (the command as the journal records it),
   `rc`, `output` and `predicted` (the contract's `shapes.call`). In `audit` every call is a predicted row, `rc` `null`, and the
   report prints its `label` after `would run:`.
-- `installed_disabled[]` holds the ids whose install output said the plugin is disabled by default
-  and that this run did not then enable.
+- Each block's and the run's `verdict` holds the report's classified facts, from
+  `scripts/verdict.jq`, the classify step `render-report.jq` formats. A block's: `status`
+  (`needs_update`, `source_behind` or `current`), `pending` and one `pending_kinds[]` entry per
+  pending action, `changed`, `actions[]` (each `Action needed` item as `{kind, lines}`), the
+  `installed` and `enabled` outcomes, and `installed_disabled[]`, the ids whose install output said
+  the plugin is disabled by default and that this run did not then enable. The run's: `result` (the
+  `Result:` line's kind), `action_count` and its own `actions[]`.
 - `moved_during_run[]` holds ids that moved under an update call that reported them current, and
   `noop_unverified` counts the already-current answers the snapshots could not confirm.
 - `updated_with_monitors[]` is read from each moved record's own cache directory in the post-sweep

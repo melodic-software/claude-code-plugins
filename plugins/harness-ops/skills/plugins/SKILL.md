@@ -245,6 +245,7 @@ reproduces it from a run directory later.
 
 Every section, conditional row, annotation and `Action needed` bullet is a function of digest
 fields, which keeps a number, an id or a scope from being misstated between the run and the report.
+[scripts/verdict.jq](scripts/verdict.jq) classifies the digest and
 [scripts/render-report.jq](scripts/render-report.jq) holds the row rules, and the goldens under
 [scripts/fixtures/render/](scripts/fixtures/render/), pinned by `scripts/sync-run.test.sh`, are
 the record of every shape the report takes, `audit`'s `would run:` predictions included. Why a row
@@ -273,7 +274,8 @@ treat it as opting into a real token cost the bare command declines to pay on it
 covered: the render's `Action needed` names each updated plugin whose installed build declares one.
 [context/sync.md](context/sync.md) "Name the monitors" holds what that bullet says and where it was
 read, so the reload line does not restate it. After the line, answer follow-up questions from the digest
-and the run directory it names; load [context/sync.md](context/sync.md) when a question is about
+(its `verdict` objects hold the report's status, pending, changed and `Action needed` facts; see
+[context/sync.md](context/sync.md)) and the run directory it names; load [context/sync.md](context/sync.md) when a question is about
 why a step behaved the way it did.
 
 ## Stale project records and cache content

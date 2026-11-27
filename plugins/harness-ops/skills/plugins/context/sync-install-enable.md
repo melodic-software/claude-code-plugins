@@ -112,7 +112,7 @@ record of what it said.
 **An install the CLI reports as disabled by default is installed and not loading.** `sync-run.sh`
 classifies that notice from the untruncated CLI output. Under `ask` it enables the pick at user
 scope, and the report lists it under `Enabled:`. Under `all` nobody chose it, so it stays off by
-the publisher's choice: the digest's `installed_disabled[]` names it, and the render says the
+the publisher's choice: the digest's `verdict.installed_disabled[]` names it, and the render says the
 plugin is installed but not enabled and gives `claude plugin enable <id> -s user`. An `ask` pick
 whose enable failed is named there too, beside the failure. The classification keys off the CLI's line, never the catalog's `defaultEnabled`: we
 observed the two disagree for one plugin.
