@@ -91,18 +91,19 @@ the name:
   refresh leaves the last refresh's stamp, and a background refresh can move it again later in the
   run, so it dates the catalog as of Step 2, not every read.
 
-`timings` holds seconds to three decimals for
-`pre_refresh_read`, `marketplace_update`, `in_repo_update`, `other_paths` (Step 3a and the mid
-read that selects its records), `user_sweep`, `pre_install_read` (the
-Steps 4 and 5 gate read, taken on every pass), `install_enable`, `cache_content_check`,
-`post_read`, `finalize` (version capture, the divergence and regression diffs, and the monitor
-count that build the block), `unattributed` (the rest of the block's time, between and around those
-steps), and the marketplace's `total`, which those keys sum to, with `resolution` naming the
-clock that produced them (`microseconds` from bash's `EPOCHREALTIME`, `nanoseconds` from a
-validated `date +%s.%N`, else `seconds`). On the default-marketplace path the block's window opens
-at the resolving read, which is that marketplace's `pre_refresh_read`. A step this invocation did
-not run, because `audit` predicted it, the policy stopped before Step 4, or an `--only-install`
-re-entry reuses the first pass's result, reads `null`, never 0. The digest's top-level
+`scripts/steps.json` is the ordered step table the script runs each marketplace through: each row's
+`name` is its `timings` key, `modes` the passes it runs in (`sync`, `audit`, `reentry` for an
+`--only-install` re-entry), `stop_on_failed_read` whether a failed fleet-state read in it ends the
+block there, `window` whether its clock closes with the step or when the block is assembled, and
+`covers` what its time includes. `timings` holds seconds to three decimals for each row, in table
+order, then `unattributed` (the rest of the block's time, between and around those steps) and the
+marketplace's `total`, which those keys sum to, with `resolution` naming the clock that produced
+them (`microseconds` from bash's `EPOCHREALTIME`, `nanoseconds` from a validated `date +%s.%N`,
+else `seconds`). On the default-marketplace path the block's window opens at the resolving read,
+which is that marketplace's `pre_refresh_read`. A step this invocation did not run, because its
+mode leaves it out, `audit` predicted it, the policy stopped before Step 4, or an `--only-install`
+re-entry reuses the first pass's result, reads `null`, never 0; a step whose read failed and ended
+the block is timed. The digest's top-level
 `timings.total` times the run from its start until the digest is about to be assembled (so it
 excludes the digest's own assembly, the render and the print), and `timings.outside_marketplaces`
 is the part of it no block's window covers (run setup and each block's assembly into the digest).

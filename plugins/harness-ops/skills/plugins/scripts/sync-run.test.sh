@@ -335,6 +335,21 @@ run_sync() {
     bash "$SCRIPT" "$@" 2>"$case_dir/stderr.txt"
 }
 
+STEPS_TABLE="$SCRIPT_DIR/steps.json"
+step_names() { jq -r --arg mode "${1:-}" '[.[] | select($mode == "" or (.modes | index($mode))) | .name] | join(" ")' "$STEPS_TABLE"; }
+assert_steps_ran() {
+  local label="$1" digest="$2" mode="$3" skipped=" ${4:-} " name expected=""
+  for name in $(step_names "$mode"); do
+    [[ "$skipped" == *" $name "* ]] || expected+="${expected:+ }$name"
+  done
+  assert_eq "$label: the timed steps are the table's $mode steps that ran" "$expected" \
+    "$(jq -r --slurpfile s "$STEPS_TABLE" '.marketplaces[0].timings as $t
+      | [$s[0][].name | select($t[.] != null)] | join(" ")' <<<"$digest")"
+  assert_eq "$label: the steps plus unattributed sum to the marketplace total" "true" \
+    "$(jq -r --slurpfile s "$STEPS_TABLE" '.marketplaces[0].timings as $t | [($s[0][].name | $t[.]), $t.unattributed]
+      | map(select(. != null)) | (add // 0) - $t.total | . < 0.0015 and . > -0.0015' <<<"$digest")"
+}
+
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.3.0
@@ -370,6 +385,7 @@ assert_eq "audit: the predicted marketplace update has no timing" "null" \
   "$(jq -c '.marketplaces[0].timings.marketplace_update' <<<"$out")"
 assert_eq "audit: the pre-refresh read it did take is timed" "number" \
   "$(jq -r '.marketplaces[0].timings.pre_refresh_read | type' <<<"$out")"
+assert_steps_ran "audit" "$out" audit "marketplace_update install_enable"
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -542,6 +558,7 @@ assert_eq "ask: nothing installed" "0" "$(grep -c 'plugin install' "$case_dir/cl
 assert_eq "ask: the checker does not run before the installs" "0" "$(wc -l <"$case_dir/cc.log" | tr -d ' ')"
 assert_eq "ask: stopping before Step 4 leaves the cache check null" "null" \
   "$(jq -c '.marketplaces[0].timings.cache_content_check' <<<"$out")"
+assert_steps_ran "ask stop" "$out" sync "install_enable cache_content_check"
 
 run_dir=$(jq -r '.run_dir' <<<"$out")
 out2=$(run_sync "$case_dir" --only-install beta@market1 --run-dir "$run_dir")
@@ -567,6 +584,7 @@ assert_eq "--only-install: the cache check it ran is timed" "number" \
   "$(jq -r '.marketplaces[0].timings.cache_content_check | type' <<<"$out2")"
 assert_eq "--only-install: the steps it ran are timed" "number number number" \
   "$(jq -r '.marketplaces[0].timings | [.install_enable, .post_read, .total] | map(type) | join(" ")' <<<"$out2")"
+assert_steps_ran "--only-install" "$out2" reentry
 run_sync "$case_dir" --only-install beta@market2 --run-dir "$run_dir" --marketplace market2 >/dev/null
 assert_exit "--only-install: a marketplace the run never swept is exit 2" 2 $?
 assert_contains "--only-install: and says why" "$(cat "$case_dir/stderr.txt")" "no snapshot for marketplace"
@@ -644,6 +662,25 @@ assert_eq "exit-2 projection: the sweep is not reported as done" "0" \
   "$(jq -r '.marketplaces[0].user_sweep.updated | length' <<<"$out")"
 assert_eq "exit-2 projection: no update was issued off an empty list" "0" \
   "$(grep -c 'plugin update' "$case_dir/claude.log")"
+
+cat >"$case_dir/stubs/fleet-state.sh" <<STUB
+#!/usr/bin/env bash
+if [[ " \$* " == *" --marketplace "* ]]; then
+  n=\$(( \$(cat "$case_dir/reads" 2>/dev/null || echo 0) + 1 ))
+  echo "\$n" >"$case_dir/reads"
+  if (( n == 3 )); then
+    echo "ERROR: stub read failure" >&2
+    exit 3
+  fi
+fi
+exec bash "$SCRIPT_DIR/fleet-state.sh" "\$@"
+STUB
+: >"$case_dir/claude.log"
+out=$(run_sync "$case_dir" --marketplace market1 --journal-root "$case_dir/journal")
+assert_contains "failed mid read: reported as an error" \
+  "$(jq -r '.marketplaces[0].errors | join(" | ")' <<<"$out")" "mid fleet-state read failed (exit 3)"
+assert_steps_ran "failed mid read" "$out" sync "user_sweep pre_install_read install_enable cache_content_check post_read"
+assert_eq "failed mid read: no user-scope update ran after the stop" "0" "$(grep -c 'plugin update' "$case_dir/claude.log")"
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -916,18 +953,15 @@ esac
 assert_timings_shape() {
   local label="$1" digest="$2" t
   t=$(jq -c '.marketplaces[0].timings' <<<"$digest")
-  assert_eq "$label: the timings object carries the ten step keys, the remainder and resolution" \
-    "cache_content_check,finalize,in_repo_update,install_enable,marketplace_update,other_paths,post_read,pre_install_read,pre_refresh_read,resolution,total,unattributed,user_sweep" \
-    "$(jq -r 'keys | join(",")' <<<"$t")"
+  assert_eq "$label: the timings object carries a key per step-table row, in its order, then the remainder and resolution" \
+    "$(step_names) unattributed total resolution" "$(jq -r 'keys_unsorted | join(" ")' <<<"$t")"
   assert_eq "$label: every non-null timing is a non-negative number" "true" \
     "$(jq -r 'del(.resolution) | [.[] | select(. != null)] | all(type == "number" and . >= 0)' <<<"$t")"
   assert_eq "$label: the total is at least the sum of the steps" "true" \
-    "$(jq -r '. as $t | [.pre_refresh_read, .marketplace_update, .in_repo_update, .other_paths, .user_sweep,
-        .pre_install_read, .install_enable, .cache_content_check, .post_read, .finalize]
+    "$(jq -r --slurpfile s "$STEPS_TABLE" '. as $t | [$s[0][].name | $t[.]]
         | map(select(. != null)) | (add // 0) <= $t.total' <<<"$t")"
   assert_eq "$label: the steps plus unattributed sum to the marketplace total" "true" \
-    "$(jq -r '. as $t | [.pre_refresh_read, .marketplace_update, .in_repo_update, .other_paths, .user_sweep,
-        .pre_install_read, .install_enable, .cache_content_check, .post_read, .finalize, .unattributed]
+    "$(jq -r --slurpfile s "$STEPS_TABLE" '. as $t | [($s[0][].name | $t[.]), .unattributed]
         | map(select(. != null)) | (add // 0) - $t.total | . < 0.0015 and . > -0.0015' <<<"$t")"
   assert_eq "$label: the post-read work is a named step" "number" "$(jq -r '.finalize | type' <<<"$t")"
   assert_eq "$label: the pre-install read is a named step" "number" "$(jq -r '.pre_install_read | type' <<<"$t")"
@@ -962,6 +996,7 @@ assert_eq "timings: the sync steps that ran are all timed" "number number number
   "$(jq -r '.marketplaces[0].timings | [.pre_refresh_read, .marketplace_update, .in_repo_update, .user_sweep, .cache_content_check, .post_read] | map(type) | join(" ")' <<<"$out")"
 assert_eq "timings: an already-current install and enable set leaves install_enable null" "null" \
   "$(jq -c '.marketplaces[0].timings.install_enable' <<<"$out")"
+assert_steps_ran "timings" "$out" sync install_enable
 assert_eq "timings: cli counts the refresh and the one update, timed within the block" "2 true" \
   "$(jq -r '.marketplaces[0] | "\(.cli.calls) \(.cli.seconds >= 0 and .cli.seconds <= .timings.total)"' <<<"$out")"
 assert_eq "timings: the journal times each call on the line after its output" "2" \
@@ -2149,7 +2184,7 @@ golden_fixture "$case_dir" 0.1.0 0.1.0 true
 cat >"$case_dir/stubs/jq" <<'STUB'
 #!/usr/bin/env bash
 case " $* " in
-*" t_fn_s "*)
+*" t_mp_s "*)
   echo "jq: error: forced block failure" >&2
   exit 5
   ;;

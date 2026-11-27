@@ -10,6 +10,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIGEST_CONTRACT="$SCRIPT_DIR/digest-contract.json"
 RUN_RECORD_DECL="$SCRIPT_DIR/run-record.json"
+STEPS_DECL="$SCRIPT_DIR/steps.json"
 FLEET_STATE="${SYNC_RUN_FLEET_STATE:-$SCRIPT_DIR/fleet-state.sh}"
 CACHE_CHECK="${SYNC_RUN_CACHE_CHECK:-$SCRIPT_DIR/cache-content-check.sh}"
 NORMALIZE="${SYNC_RUN_NORMALIZE:-$SCRIPT_DIR/normalize-enabled-plugins.sh}"
@@ -272,6 +273,17 @@ fi
 while read -r RR_SCOPE RR_SPEC; do
   if [[ "$RR_SCOPE" == run ]]; then RR_RUN_FIELDS+=("$RR_SPEC"); else RR_MP_FIELDS+=("$RR_SPEC"); fi
 done <<<"$RR_DECL"
+
+MP_STEPS=()
+STEPS_LIST=""
+if ! jq_to STEPS_LIST -r '.[] | "\(.name) \(.modes | join(",")) \(.stop_on_failed_read) \(.window)"' \
+  "$STEPS_DECL" 2>/dev/null || [[ -z "$STEPS_LIST" ]]; then
+  echo "ERROR: the step table is unreadable: $STEPS_DECL" >&2
+  exit 2
+fi
+mapfile -t MP_STEPS <<<"$STEPS_LIST"
+STEP_MODE="$MODE"
+((ONLY_INSTALL_MODE == 0)) || STEP_MODE="reentry"
 
 json_lines() {
   local __var="$1"
@@ -999,6 +1011,8 @@ finalize_other_paths() {
   fi
 }
 
+declare -A STEP_S=() STEP_E=()
+STEP_WINDOW_S="" STEP_WINDOW_E=""
 reset_marketplace_state() {
   MP_ERRORS=()
   IR_UPDATED=() IR_FAILED=() IR_WOULD=() IR_LIVE=()
@@ -1012,9 +1026,7 @@ reset_marketplace_state() {
   REFRESH_RC="null" REFRESH_OUT="" REFRESH_REASON="" REFRESH_PREDICTED="false" REFRESH_LABEL="" REFRESH_FAILED=0
   REFRESH_SKIP_JSON="null"
   CATALOG_LAST_UPDATED="" PROJECT_ROOT_JSON="null" SOURCE_PULL_JSON="null"
-  T_PRR_S="" T_PRR_E="" T_MU_S="" T_MU_E="" T_IR_S="" T_IR_E="" T_OP_S="" T_OP_E="" T_US_S="" T_US_E=""
-  T_PI_S="" T_PI_E="" T_IE_S="" T_IE_E="" T_CC_S="" T_CC_E="" T_PR_S="" T_PR_E=""
-  T_FN_S="" T_MP_S="" T_MP_E=""
+  STEP_S=() STEP_E=() T_MP_S="" T_MP_E="" GAP_COUNT=0 ENABLE_GAP_COUNT=0
   CACHE_CHECK_RAN=0
   CLI_CALLS=0 CLI_MS=0
 }
@@ -1376,81 +1388,100 @@ ir_stopped_add() {
 }
 
 run_marketplace() {
-  local mp="$1"
+  local mp="$1" __st_spec __st_name __st_modes __st_stop __st_window __st_rc __st_s __st_e
   reset_marketplace_state
   clock_into T_MP_S
-  ((ONLY_INSTALL_MODE == 1)) || : >"$RUN_DIR/moves.$mp.tsv"
-
-  local rc dg_rc id scope old new result row reason
-  local pre_refresh="$RUN_DIR/pre-refresh.$mp.json"
-
-  if ((ONLY_INSTALL_MODE == 0)); then
-    if [[ ! -f "$pre_refresh" ]]; then
-      clock_into T_PRR_S
-      fleet_read "$mp" "$pre_refresh" pre-refresh
-      rc=$?
-      clock_into T_PRR_E
-      if ((rc != 0)); then
-        emit_marketplace_block "$mp"
-        return 0
-      fi
-    elif [[ "$mp" == "$MAIN_READ_MP" ]]; then
-      T_PRR_S="$MAIN_READ_S"
-      T_PRR_E="$MAIN_READ_E"
-      T_MP_S="$MAIN_READ_S"
-    fi
-
-    if [[ "$MODE" == "audit" ]]; then
-      cli_call "claude plugin marketplace update $mp" plugin marketplace update "$mp"
-      REFRESH_LABEL="$CLI_LABEL"
-      REFRESH_PREDICTED="$CLI_PREDICTED"
-      trunc REFRESH_OUT "$CLI_OUT"
-    else
-      clock_into T_MU_S
-      if ((PULL_SOURCES_SET == 1)) && name_listed "$mp" "$PULL_SOURCES"; then
-        source_fast_forward "$mp" "$pre_refresh"
-      fi
-      refresh_skip_check "$mp"
-      if [[ "$REFRESH_SKIP_JSON" != "null" ]]; then
-        clock_into T_MU_E
-      else
-        cli_call "claude plugin marketplace update $mp" plugin marketplace update "$mp"
-        clock_into T_MU_E
-        REFRESH_LABEL="$CLI_LABEL"
-        REFRESH_RC="$CLI_RC"
-        trunc REFRESH_OUT "$CLI_OUT"
-        REFRESH_REASON=$(cli_outcome_line "$CLI_OUT")
-        if ((CLI_RC != 0)); then
-          REFRESH_FAILED=1
-          mp_error "marketplace refresh failed (exit $CLI_RC): ${REFRESH_REASON}, so the catalog may be stale and install/enable maintenance is deferred"
-        fi
-      fi
-    fi
-  else
+  if ((ONLY_INSTALL_MODE == 1)); then
     run_record_restore_mp "$mp"
+  else
+    : >"$RUN_DIR/moves.$mp.tsv"
   fi
-
-  if ((ONLY_INSTALL_MODE == 0)); then
-    clock_into T_IR_S
-    fleet_read "$mp" "$RUN_DIR/pre.$mp.json" pre
-    rc=$?
-    if ((rc != 0)); then
-      emit_marketplace_block "$mp"
-      return 0
+  for __st_spec in "${MP_STEPS[@]}"; do
+    read -r __st_name __st_modes __st_stop __st_window <<<"$__st_spec"
+    [[ ",$__st_modes," == *",$STEP_MODE,"* ]] || continue
+    STEP_WINDOW_S="" STEP_WINDOW_E=""
+    clock_into __st_s
+    case "$__st_name" in
+      pre_refresh_read) step_pre_refresh_read "$mp" ;;
+      marketplace_update) step_marketplace_update "$mp" ;;
+      in_repo_update) step_in_repo_update "$mp" ;;
+      other_paths) step_other_paths "$mp" ;;
+      user_sweep) step_user_sweep "$mp" ;;
+      pre_install_read) step_pre_install_read "$mp" ;;
+      install_enable) step_install_enable "$mp" ;;
+      cache_content_check) step_cache_content_check "$mp" ;;
+      post_read) step_post_read "$mp" ;;
+      finalize) step_finalize "$mp" ;;
+      *)
+        run_error "steps.json names a step this script does not have: $__st_name"
+        false
+        ;;
+    esac
+    __st_rc=$?
+    clock_into __st_e
+    if ((__st_rc != 1)); then
+      STEP_S[$__st_name]="${STEP_WINDOW_S:-$__st_s}"
+      [[ "$__st_window" == to_block_end ]] || STEP_E[$__st_name]="${STEP_WINDOW_E:-$__st_e}"
     fi
-    jq_to CATALOG_LAST_UPDATED -r '.marketplace.lastUpdated // ""' "$RUN_DIR/pre.$mp.json"
-    jq_to PROJECT_ROOT_JSON -c '.project_root' "$RUN_DIR/pre.$mp.json"
-    [[ -n "$PROJECT_ROOT_JSON" ]] || PROJECT_ROOT_JSON="null"
+    ((__st_rc == 2)) && [[ "$__st_stop" == true ]] && break
+  done
+  emit_marketplace_block "$mp"
+}
 
-    project_ids update-candidates-project "$RUN_DIR/pre.$mp.json" "$RUN_DIR/ids.pre.$mp.txt"
-    rc=$?
-    if ((rc != 0)); then
-      mp_error "in-repo projection failed (exit $rc), step not run: $(proj_err)"
-    else
-      local live_path=""
-      if [[ "$MODE" == "audit" ]]; then
-        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-        jq_to live_path -r '
+step_pre_refresh_read() {
+  local mp="$1" pre_refresh="$RUN_DIR/pre-refresh.$1.json"
+  if [[ ! -f "$pre_refresh" ]]; then
+    fleet_read "$mp" "$pre_refresh" pre-refresh || return 2
+  elif [[ "$mp" == "$MAIN_READ_MP" ]]; then
+    STEP_WINDOW_S="$MAIN_READ_S" STEP_WINDOW_E="$MAIN_READ_E" T_MP_S="$MAIN_READ_S"
+  else
+    return 1
+  fi
+  return 0
+}
+
+step_marketplace_update() {
+  local mp="$1"
+  if [[ "$MODE" == "audit" ]]; then
+    cli_call "claude plugin marketplace update $mp" plugin marketplace update "$mp"
+    REFRESH_LABEL="$CLI_LABEL"
+    REFRESH_PREDICTED="$CLI_PREDICTED"
+    trunc REFRESH_OUT "$CLI_OUT"
+    return 1
+  fi
+  if ((PULL_SOURCES_SET == 1)) && name_listed "$mp" "$PULL_SOURCES"; then
+    source_fast_forward "$mp" "$RUN_DIR/pre-refresh.$mp.json"
+  fi
+  refresh_skip_check "$mp"
+  [[ "$REFRESH_SKIP_JSON" == "null" ]] || return 0
+  cli_call "claude plugin marketplace update $mp" plugin marketplace update "$mp"
+  REFRESH_LABEL="$CLI_LABEL"
+  REFRESH_RC="$CLI_RC"
+  trunc REFRESH_OUT "$CLI_OUT"
+  REFRESH_REASON=$(cli_outcome_line "$CLI_OUT")
+  if ((CLI_RC != 0)); then
+    REFRESH_FAILED=1
+    mp_error "marketplace refresh failed (exit $CLI_RC): ${REFRESH_REASON}, so the catalog may be stale and install/enable maintenance is deferred"
+  fi
+  return 0
+}
+
+step_in_repo_update() {
+  local mp="$1" rc id scope old new result reason
+  fleet_read "$mp" "$RUN_DIR/pre.$mp.json" pre || return 2
+  jq_to CATALOG_LAST_UPDATED -r '.marketplace.lastUpdated // ""' "$RUN_DIR/pre.$mp.json"
+  jq_to PROJECT_ROOT_JSON -c '.project_root' "$RUN_DIR/pre.$mp.json"
+  [[ -n "$PROJECT_ROOT_JSON" ]] || PROJECT_ROOT_JSON="null"
+
+  project_ids update-candidates-project "$RUN_DIR/pre.$mp.json" "$RUN_DIR/ids.pre.$mp.txt"
+  rc=$?
+  if ((rc != 0)); then
+    mp_error "in-repo projection failed (exit $rc), step not run: $(proj_err)"
+  else
+    local live_path=""
+    if [[ "$MODE" == "audit" ]]; then
+      # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+      jq_to live_path -r '
           def fold: gsub("\\\\"; "/") | rtrimstr("/");
           (.marketplace.source // "") as $s | (.project_root // "" | fold) as $r
           # fleet-state folds the project root to lower case after the drive letter
@@ -1461,141 +1492,136 @@ run_marketplace() {
               ($s | sub("^directory:"; "") | fold) as $p
               | if eqp($p; $r) or eqp(($p | .[0:($r | length) + 1]); $r + "/") then $p else "" end
             else "" end' "$RUN_DIR/pre.$mp.json"
-      fi
-      local ir_root=""
-      local ir_before=""
-      local ir_after=""
-      local ir_stopped=0
-      jq_to ir_root -r '.project_root // ""' "$RUN_DIR/pre.$mp.json"
-      ir_root="${ir_root//\\//}"
-      if [[ "$MODE" == "sync" && -n "$ir_root" ]]; then
-        settings_state ir_before "$ir_root"
-      fi
-      while IFS=$'\t' read -r id scope; do
-        id="${id//$'\r'/}"
-        scope="${scope//$'\r'/}"
-        [[ -n "$id" ]] || continue
-        if ((ir_stopped == 1)); then
-          ir_stopped_add "$id" "$scope" "$ir_root" \
-            "not tried: the .claude/ settings in this path changed after an earlier call"
-          continue
-        fi
-        version_at old "$RUN_DIR/pre.$mp.json" "$id" "$scope"
-        if [[ -n "$live_path" ]]; then
-          IR_LIVE+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" --arg path "$live_path" \
-            '{id: $id, scope: $sc, installed: $old, path: $path}')")
-          continue
-        fi
-        cli_call "claude plugin update $id -s $scope --json" plugin update "$id" -s "$scope" --json
-        if [[ "$CLI_PREDICTED" == "true" ]]; then
-          IR_WOULD+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$id" --arg sc "$scope" --arg old "$old" \
-            '$call + {id: $id, scope: $sc, installed: $old}')")
-          continue
-        fi
-        if [[ -n "$ir_root" ]]; then
-          settings_state ir_after "$ir_root"
-          if [[ "$ir_after" != "$ir_before" ]]; then
-            ir_stopped=1
-            ir_stopped_add "$id" "$scope" "$ir_root" \
-              "the .claude/ settings in this path changed after this call, so the path was stopped"
-            continue
-          fi
-        fi
-        if ((CLI_RC != 0)); then
-          reason=$(cli_outcome_line "$CLI_OUT")
-          IR_FAILED+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$id" --arg sc "$scope" \
-            --arg reason "$reason" '$call + {id: $id, scope: $sc, reason: $reason}')")
-          continue
-        fi
-        cli_update_result result new "$CLI_OUT"
-        printf 'in_repo\t%s\t%s\t%s\t%s\t%s\n' "$id" "$scope" "${old:--}" "${new:--}" "$result" \
-          >>"$RUN_DIR/moves.$mp.tsv"
-      done <"$RUN_DIR/ids.pre.$mp.txt"
     fi
-    clock_into T_IR_E
+    local ir_root=""
+    local ir_before=""
+    local ir_after=""
+    local ir_stopped=0
+    jq_to ir_root -r '.project_root // ""' "$RUN_DIR/pre.$mp.json"
+    ir_root="${ir_root//\\//}"
+    if [[ "$MODE" == "sync" && -n "$ir_root" ]]; then
+      settings_state ir_before "$ir_root"
+    fi
+    while IFS=$'\t' read -r id scope; do
+      id="${id//$'\r'/}"
+      scope="${scope//$'\r'/}"
+      [[ -n "$id" ]] || continue
+      if ((ir_stopped == 1)); then
+        ir_stopped_add "$id" "$scope" "$ir_root" \
+          "not tried: the .claude/ settings in this path changed after an earlier call"
+        continue
+      fi
+      version_at old "$RUN_DIR/pre.$mp.json" "$id" "$scope"
+      if [[ -n "$live_path" ]]; then
+        IR_LIVE+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" --arg path "$live_path" \
+          '{id: $id, scope: $sc, installed: $old, path: $path}')")
+        continue
+      fi
+      cli_call "claude plugin update $id -s $scope --json" plugin update "$id" -s "$scope" --json
+      if [[ "$CLI_PREDICTED" == "true" ]]; then
+        IR_WOULD+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$id" --arg sc "$scope" --arg old "$old" \
+          '$call + {id: $id, scope: $sc, installed: $old}')")
+        continue
+      fi
+      if [[ -n "$ir_root" ]]; then
+        settings_state ir_after "$ir_root"
+        if [[ "$ir_after" != "$ir_before" ]]; then
+          ir_stopped=1
+          ir_stopped_add "$id" "$scope" "$ir_root" \
+            "the .claude/ settings in this path changed after this call, so the path was stopped"
+          continue
+        fi
+      fi
+      if ((CLI_RC != 0)); then
+        reason=$(cli_outcome_line "$CLI_OUT")
+        IR_FAILED+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$id" --arg sc "$scope" \
+          --arg reason "$reason" '$call + {id: $id, scope: $sc, reason: $reason}')")
+        continue
+      fi
+      cli_update_result result new "$CLI_OUT"
+      printf 'in_repo\t%s\t%s\t%s\t%s\t%s\n' "$id" "$scope" "${old:--}" "${new:--}" "$result" \
+        >>"$RUN_DIR/moves.$mp.tsv"
+    done <"$RUN_DIR/ids.pre.$mp.txt"
+  fi
+  return 0
+}
+
+step_other_paths() {
+  fleet_read "$1" "$RUN_DIR/mid.$1.json" mid || return 2
+  other_paths_step "$1"
+  return 0
+}
+
+step_user_sweep() {
+  local mp="$1" rc dg_rc id scope old new result
+  project_ids downgrade-candidates "$RUN_DIR/mid.$mp.json" "$RUN_DIR/downgrades.$mp.txt"
+  dg_rc=$?
+  if ((dg_rc != 0)); then
+    mp_error "downgrade projection failed (exit $dg_rc): $(proj_err)"
+    : >"$RUN_DIR/downgrades.$mp.txt"
   fi
 
-  if ((ONLY_INSTALL_MODE == 0)); then
-    clock_into T_US_S
-    fleet_read "$mp" "$RUN_DIR/mid.$mp.json" mid
-    rc=$?
-    if ((rc != 0)); then
-      emit_marketplace_block "$mp"
-      return 0
-    fi
-
-    T_OP_S="$T_US_S"
-    other_paths_step "$mp"
-    clock_into T_OP_E
-    T_US_S="$T_OP_E"
-
-    project_ids downgrade-candidates "$RUN_DIR/mid.$mp.json" "$RUN_DIR/downgrades.$mp.txt"
-    dg_rc=$?
-    if ((dg_rc != 0)); then
-      mp_error "downgrade projection failed (exit $dg_rc): $(proj_err)"
-      : >"$RUN_DIR/downgrades.$mp.txt"
-    fi
-
-    project_ids update-candidates-user "$RUN_DIR/mid.$mp.json" "$RUN_DIR/ids.mid.$mp.txt"
-    rc=$?
-    if ((rc != 0)); then
-      mp_error "user-scope projection failed (exit $rc), sweep not run: $(proj_err)"
-    else
-      local sweep_rows=""
-      # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-      jq_to sweep_rows -r --rawfile ids "$RUN_DIR/ids.mid.$mp.txt" '
+  project_ids update-candidates-user "$RUN_DIR/mid.$mp.json" "$RUN_DIR/ids.mid.$mp.txt"
+  rc=$?
+  if ((rc != 0)); then
+    mp_error "user-scope projection failed (exit $rc), sweep not run: $(proj_err)"
+  else
+    local sweep_rows=""
+    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+    jq_to sweep_rows -r --rawfile ids "$RUN_DIR/ids.mid.$mp.txt" '
         . as $s
         | $ids | gsub("\r"; "") | split("\n")[] | select(length > 0) as $id
         | $id + "\u001f"
           + (first($s.installed[]? | select(.id == $id and .scope == "user") | .version) // "" | tostring)' \
-        "$RUN_DIR/mid.$mp.json" || sweep_rows=$(<"$RUN_DIR/ids.mid.$mp.txt")
-      sweep_rows="${sweep_rows//$'\r'/}"
-      while IFS=$'\x1f' read -r id old; do
-        [[ -n "$id" ]] || continue
-        cli_call "claude plugin update $id -s user --json" plugin update "$id" -s user --json
-        if [[ "$CLI_PREDICTED" == "true" ]]; then
-          US_WOULD+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$id" --arg old "$old" \
-            '$call + {id: $id, installed: $old}')")
-          continue
-        fi
-        if ((CLI_RC != 0)); then
-          us_failed_add "$id"
-          continue
-        fi
-        cli_update_result result new "$CLI_OUT"
-        printf 'user_sweep\t%s\t%s\t%s\t%s\t%s\n' "$id" user "${old:--}" "${new:--}" "$result" \
-          >>"$RUN_DIR/moves.$mp.tsv"
-      done <<<"$sweep_rows"
-    fi
-
-    while IFS=$'\t' read -r id scope old new; do
-      id="${id//$'\r'/}"
+      "$RUN_DIR/mid.$mp.json" || sweep_rows=$(<"$RUN_DIR/ids.mid.$mp.txt")
+    sweep_rows="${sweep_rows//$'\r'/}"
+    while IFS=$'\x1f' read -r id old; do
       [[ -n "$id" ]] || continue
-      scope="${scope//$'\r'/}"
-      old="${old//$'\r'/}"
-      new="${new//$'\r'/}"
-      if ((ALLOW_DOWNGRADE == 1)) && [[ "$MODE" == "sync" ]]; then
-        cli_call "claude plugin update $id -s $scope --json   # downgrade $old -> $new" \
-          plugin update "$id" -s "$scope" --json
-        if ((CLI_RC != 0)); then
-          us_failed_add "$id"
-          continue
-        fi
-        local applied=""
-        local applied_result=""
-        cli_move_result applied_result "$CLI_OUT"
-        [[ "$applied_result" == "updated" ]] && cli_reported_version applied "$CLI_OUT"
-        [[ -n "$applied" ]] || applied="$new"
-        printf 'user_sweep\t%s\t%s\t%s\t%s\t%s\n' "$id" "$scope" "${old:--}" "${applied:--}" updated \
-          >>"$RUN_DIR/moves.$mp.tsv"
-      else
-        withheld_add "$id" "$scope" "$old" "$new"
+      cli_call "claude plugin update $id -s user --json" plugin update "$id" -s user --json
+      if [[ "$CLI_PREDICTED" == "true" ]]; then
+        US_WOULD+=("$(jq -c -n --argjson call "$CLI_ROW" --arg id "$id" --arg old "$old" \
+          '$call + {id: $id, installed: $old}')")
+        continue
       fi
-    done <"$RUN_DIR/downgrades.$mp.txt"
-    clock_into T_US_E
+      if ((CLI_RC != 0)); then
+        us_failed_add "$id"
+        continue
+      fi
+      cli_update_result result new "$CLI_OUT"
+      printf 'user_sweep\t%s\t%s\t%s\t%s\t%s\n' "$id" user "${old:--}" "${new:--}" "$result" \
+        >>"$RUN_DIR/moves.$mp.tsv"
+    done <<<"$sweep_rows"
   fi
 
-  clock_into T_PI_S
+  while IFS=$'\t' read -r id scope old new; do
+    id="${id//$'\r'/}"
+    [[ -n "$id" ]] || continue
+    scope="${scope//$'\r'/}"
+    old="${old//$'\r'/}"
+    new="${new//$'\r'/}"
+    if ((ALLOW_DOWNGRADE == 1)) && [[ "$MODE" == "sync" ]]; then
+      cli_call "claude plugin update $id -s $scope --json   # downgrade $old -> $new" \
+        plugin update "$id" -s "$scope" --json
+      if ((CLI_RC != 0)); then
+        us_failed_add "$id"
+        continue
+      fi
+      local applied=""
+      local applied_result=""
+      cli_move_result applied_result "$CLI_OUT"
+      [[ "$applied_result" == "updated" ]] && cli_reported_version applied "$CLI_OUT"
+      [[ -n "$applied" ]] || applied="$new"
+      printf 'user_sweep\t%s\t%s\t%s\t%s\t%s\n' "$id" "$scope" "${old:--}" "${applied:--}" updated \
+        >>"$RUN_DIR/moves.$mp.tsv"
+    else
+      withheld_add "$id" "$scope" "$old" "$new"
+    fi
+  done <"$RUN_DIR/downgrades.$mp.txt"
+  return 0
+}
+
+step_pre_install_read() {
+  local mp="$1" rc
   fleet_read "$mp" "$RUN_DIR/pre-install.$mp.json" pre-install
   rc=$?
   if ((rc == 0)); then
@@ -1615,47 +1641,46 @@ run_marketplace() {
     fi
   fi
 
-  local gap_count
-  local enable_gap_count
-  jq_to gap_count -r 'length' <<<"$INSTALL_GAP"
-  jq_to enable_gap_count -r 'length' <<<"$ENABLE_GAP"
-  clock_into T_PI_E
+  jq_to GAP_COUNT -r 'length' <<<"$INSTALL_GAP"
+  jq_to ENABLE_GAP_COUNT -r 'length' <<<"$ENABLE_GAP"
+  return 0
+}
 
+step_install_enable() {
+  local mp="$1"
   recover_pending "$mp"
-
   if ((REFRESH_FAILED == 1)); then
     INSTALL_DEFERRED="true"
-  elif [[ "$MODE" == "sync" && "$INSTALL_NEW" == "ask" ]] && ((gap_count > 0)) && ((ONLY_INSTALL_MODE == 0)); then
+  elif [[ "$MODE" == "sync" && "$INSTALL_NEW" == "ask" ]] && ((GAP_COUNT > 0)) && ((ONLY_INSTALL_MODE == 0)); then
     STOPPED_BEFORE_INSTALL="true"
-  elif ((ALL == 1)) && [[ "$INSTALL_NEW" == "all" ]] && ((gap_count > 0)) && ((ONLY_INSTALL_MODE == 0)); then
+  elif ((ALL == 1)) && [[ "$INSTALL_NEW" == "all" ]] && ((GAP_COUNT > 0)) && ((ONLY_INSTALL_MODE == 0)); then
     STOPPED_BEFORE_INSTALL="true"
     INSTALL_HELD='"all-target"'
-  elif ((gap_count > 0)) || ((enable_gap_count > 0)) || ((ONLY_INSTALL_MODE == 1)); then
-    clock_into T_IE_S
-    run_install_step "$mp" "$gap_count"
+  elif ((GAP_COUNT > 0)) || ((ENABLE_GAP_COUNT > 0)) || ((ONLY_INSTALL_MODE == 1)); then
+    clock_into STEP_WINDOW_S
+    run_install_step "$mp" "$GAP_COUNT"
     run_enable_step "$mp"
-    clock_into T_IE_E
+    return 0
   fi
+  return 1
+}
 
-  if [[ "$STOPPED_BEFORE_INSTALL" != "true" ]]; then
-    clock_into T_CC_S
-    cache_content_block "$mp"
-    if ((CACHE_CHECK_RAN == 1)); then
-      clock_into T_CC_E
-    else
-      T_CC_S=""
-    fi
-  fi
+step_cache_content_check() {
+  [[ "$STOPPED_BEFORE_INSTALL" != "true" ]] || return 1
+  cache_content_block "$1"
+  ((CACHE_CHECK_RAN == 1)) || return 1
+  return 0
+}
 
-  clock_into T_PR_S
-  fleet_read "$mp" "$RUN_DIR/post.$mp.json" post
-  clock_into T_PR_E
+step_post_read() {
+  fleet_read "$1" "$RUN_DIR/post.$1.json" post || return 2
+  return 0
+}
 
-  clock_into T_FN_S
+step_finalize() {
+  local mp="$1" own row
   finalize_moves "$mp"
   finalize_other_paths "$mp"
-
-  local own
   own=$(own_plugin_name)
   if [[ -n "$own" ]]; then
     for row in ${IR_UPDATED[@]+"${IR_UPDATED[@]}"} ${US_UPDATED[@]+"${US_UPDATED[@]}"} \
@@ -1671,8 +1696,7 @@ run_marketplace() {
       esac
     done
   fi
-
-  emit_marketplace_block "$mp"
+  return 0
 }
 
 PENDING_FILE=""
@@ -2210,8 +2234,11 @@ source_pull_field() {
 
 emit_marketplace_block() {
   local mp="$1" ir_u ir_f ir_w ir_l us_u us_f us_w wh dg moved inst en pr rec errs
-  local unset_cfg installed_disabled monitors
-  [[ -n "$T_FN_S" ]] || clock_into T_FN_S
+  local unset_cfg installed_disabled monitors spec name window windows="" sep=""
+  for spec in "${MP_STEPS[@]}"; do
+    read -r name _ _ window <<<"$spec"
+    [[ "$window" != to_block_end || -n "${STEP_S[$name]:-}" ]] || clock_into "STEP_S[$name]"
+  done
   if [[ "$MODE" == "sync" ]] && ((ONLY_INSTALL_MODE == 0)); then
     local rec
     record_fields_to rec "${RR_MP_FIELDS[@]}"
@@ -2255,6 +2282,12 @@ emit_marketplace_block() {
   [[ -n "$reg_rows" ]] || reg_rows='[]'
 
   clock_into T_MP_E
+  for spec in "${MP_STEPS[@]}"; do
+    read -r name _ _ window <<<"$spec"
+    [[ "$window" != to_block_end || -z "${STEP_S[$name]:-}" ]] || STEP_E[$name]="$T_MP_E"
+    windows+="$sep\"$name\":[\"${STEP_S[$name]:-}\",\"${STEP_E[$name]:-}\"]"
+    sep=","
+  done
   local args_file="$RUN_DIR/.block-args.$mp.json"
   local err_file="$RUN_DIR/.block-err.$mp"
   local block_rc=0
@@ -2272,7 +2305,7 @@ emit_marketplace_block() {
     div "$div" self_updated "$SELF_UPDATED" self_update "$SELF_UPDATE" \
     extras "$extras" checkout "${checkout:-null}" pull "${pull:-null}" \
     unset_cfg "${unset_cfg:-[]}" installed_disabled "${installed_disabled:-[]}" \
-    monitors "${monitors:-[]}" errors "$errs" other_paths "$OTHER_PATHS_JSON"
+    monitors "${monitors:-[]}" errors "$errs" other_paths "$OTHER_PATHS_JSON" windows "{$windows}"
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to block -c \
     --arg name "$mp" \
@@ -2281,16 +2314,6 @@ emit_marketplace_block() {
     --arg refresh_reason "$REFRESH_REASON" \
     --arg refresh_label "$REFRESH_LABEL" \
     --arg reg_interval "$reg_interval" \
-    --arg t_prr_s "$T_PRR_S" --arg t_prr_e "$T_PRR_E" \
-    --arg t_mu_s "$T_MU_S" --arg t_mu_e "$T_MU_E" \
-    --arg t_ir_s "$T_IR_S" --arg t_ir_e "$T_IR_E" \
-    --arg t_op_s "$T_OP_S" --arg t_op_e "$T_OP_E" \
-    --arg t_us_s "$T_US_S" --arg t_us_e "$T_US_E" \
-    --arg t_pi_s "$T_PI_S" --arg t_pi_e "$T_PI_E" \
-    --arg t_ie_s "$T_IE_S" --arg t_ie_e "$T_IE_E" \
-    --arg t_cc_s "$T_CC_S" --arg t_cc_e "$T_CC_E" \
-    --arg t_pr_s "$T_PR_S" --arg t_pr_e "$T_PR_E" \
-    --arg t_fn_s "$T_FN_S" \
     --arg t_mp_s "$T_MP_S" --arg t_mp_e "$T_MP_E" \
     --argjson cli_calls "$CLI_CALLS" --argjson cli_ms "$CLI_MS" \
     --arg resolution "$CLOCK_RESOLUTION" --slurpfile contract "$DIGEST_CONTRACT" '
@@ -2307,17 +2330,8 @@ emit_marketplace_block() {
           $us_u, $us_f, $us_w, $wh, $dg, $moved, $noop_unverified, $install_gap, $inst,
           $enable_gap, $en, $pr, $rec, $deferred, $stopped, $held, $normalize, $cache, $reg_rows,
           $div, $self_updated, $self_update, $extras, $checkout, $pull, $unset_cfg,
-          $installed_disabled, $monitors, $errors, $other_paths}
-    | {pre_refresh_read: dur($t_prr_s; $t_prr_e),
-     marketplace_update: dur($t_mu_s; $t_mu_e),
-     in_repo_update: dur($t_ir_s; $t_ir_e),
-     other_paths: dur($t_op_s; $t_op_e),
-     user_sweep: dur($t_us_s; $t_us_e),
-     pre_install_read: dur($t_pi_s; $t_pi_e),
-     install_enable: dur($t_ie_s; $t_ie_e),
-     cache_content_check: dur($t_cc_s; $t_cc_e),
-     post_read: dur($t_pr_s; $t_pr_e),
-     finalize: dur($t_fn_s; $t_mp_e)} as $steps
+          $installed_disabled, $monitors, $errors, $other_paths, $windows}
+    | ($windows | map_values(dur(.[0]; .[1]))) as $steps
     | dur_up($t_mp_s; $t_mp_e) as $total
     # The time between and around the named steps, so the steps plus this
     # remainder account for the whole total.
