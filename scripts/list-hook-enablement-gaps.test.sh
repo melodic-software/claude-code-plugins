@@ -18,7 +18,6 @@ PENDING=(
   explainer-video
   fleet
   multi-agent
-  playwright
   plugin-profiles
   speech
   themes

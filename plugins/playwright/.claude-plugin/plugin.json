@@ -8,6 +8,12 @@
   "version": "2.1.9",
   "license": "MIT AND Apache-2.0",
   "userConfig": {
+    "install_python_deps_enabled": {
+      "type": "boolean",
+      "title": "Install Python deps hook",
+      "description": "Install demo-video Python packages (numpy, Pillow) into the plugin data directory at session start. Off by default; running /playwright:demo-video without them prints the one-line install command.",
+      "default": false
+    },
     "demo_style": {
       "type": "string",
       "title": "Demo video style",
