@@ -3155,13 +3155,13 @@ test("--find-prior stops not-applicable on an open lanes-App PR, with no comment
   assert.deepEqual(writesToGitHub(calls), []);
 });
 
-test("--find-prior stops not-applicable on a listed human's closing PR, names that PR and writes nothing", async () => {
+test("--find-prior stops closed-by-open-pr on a listed human's closing PR, names that PR and writes nothing", async () => {
   const lines = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
   try {
     const { calls, output } = await runPrior({ nodes: [closer("User", "kyle-sexton", OWNER_ID)] });
-    assert.equal(output, "proceed=false\nskip-reason=not-applicable\nreuse-branch=\n");
+    assert.equal(output, "proceed=false\nskip-reason=closed-by-open-pr\nreuse-branch=\n");
     assert.deepEqual(writesToGitHub(calls), []);
   } finally {
     console.log = log;
@@ -3301,7 +3301,7 @@ test("--find-prior reads every page of closing PRs, so outsiders' PRs cannot hid
   const { code, calls, output } = await runPrior({ graphqlPages: [outsiders, [closer("User", "kyle-sexton", OWNER_ID)]] });
   assert.equal(code, 0);
   assert.deepEqual(calls.filter((c) => c.path === "/graphql").map((c) => c.body.variables.after), [null, "c1"]);
-  assert.equal(output, "proceed=false\nskip-reason=not-applicable\nreuse-branch=\n");
+  assert.equal(output, "proceed=false\nskip-reason=closed-by-open-pr\nreuse-branch=\n");
 });
 
 test("--find-prior holds on a pull request listing that is not a list", async () => {
@@ -5477,6 +5477,112 @@ test("main on done still opens the PR when no open PR closes the issue, or only 
     assert.ok(opened(calls), JSON.stringify(nodes));
     assert.ok(!calls.some((c) => c.path.endsWith("/issues/77/comments")), JSON.stringify(nodes));
   }
+});
+
+async function preBuildSkip(closing, { pulls = {}, comments = [] } = {}) {
+  return withAsyncDir({ "trusted.json": TRUSTED_LIST }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["POST", /^\/graphql$/, ...closing],
+      ...Object.entries(pulls).map(([number, pull]) => ["GET", new RegExp(`/pulls/${number}$`), 200, pull]),
+      ["GET", /\/issues\/77\/comments$/, 200, comments],
+      ["GET", /\/issues\/77\/events$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\//, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    const lines = [];
+    const log = console.log;
+    console.log = (line) => lines.push(line);
+    try {
+      const code = await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json"), DIMENSION_SKIP: "closed-by-open-pr" }, fetch });
+      return { code, calls, lines };
+    } finally {
+      console.log = log;
+    }
+  });
+}
+const issueComments = (calls) => calls.filter((c) => c.method === "POST" && c.path.endsWith("/issues/77/comments"));
+const sample = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8"));
+const sampledClosers = (overrides) => {
+  const answer = sample("closing-pulls.json");
+  const refs = answer.data.repository.issue.closedByPullRequestsReferences;
+  const [node] = refs.nodes;
+  refs.nodes = overrides.map(({ author, ...rest }) => ({ ...node, ...rest, author: { ...node.author, ...author } }));
+  return answer;
+};
+const sampledPull = ({ user, ...rest }) => {
+  const pull = sample("pull-open.json");
+  return { ...pull, ...rest, user: { ...pull.user, ...user } };
+};
+const SAME_REPO_CLOSER = { number: 10686, repository: { nameWithOwner: "o/r" } };
+const TRUSTED_CLOSER = { ...SAME_REPO_CLOSER, author: { databaseId: OWNER_ID } };
+
+test("main on a closed-by-open-pr pre-build skip reads the closers itself and waits on the trusted one, with agent-ready kept", async () => {
+  const { code, calls, lines } = await preBuildSkip([200, sampledClosers([TRUSTED_CLOSER])], {
+    pulls: { 10686: sampledPull({ number: 10686, user: { id: OWNER_ID } }) },
+  });
+  assert.equal(code, 0);
+  const [comment] = issueComments(calls).map((c) => c.body.body);
+  const [marker, heading, verdict, blank, ...bullets] = comment.split("\n");
+  assert.equal(marker, "<!-- work-resolve-issue outcome=wait pr=10686 run=123 -->");
+  assert.equal(heading, "### work-resolve-issue / report-outcome");
+  assert.equal(verdict, "Waiting: open PR #10686 already closes this issue, so the run stopped before the model ran.");
+  assert.equal(blank, "");
+  assert.deepEqual(bullets, [
+    "- Stop: `closed-by-open-pr`.",
+    "- It keeps `agent-ready`, and work-unblock starts it again once #10686 merges or closes (wait 1 of 2).",
+    "- Run: https://example/o/r/actions/runs/123",
+  ]);
+  assert.ok(!calls.some((c) => c.method === "POST" && c.path === "/repos/o/r/pulls"));
+  assert.ok(!calls.some((c) => c.path.endsWith("/issues/77/labels") || c.method === "DELETE"));
+  assert.ok(lines.some((line) => line.includes("waits on #10686")), lines.join("\n"));
+});
+
+test("main on a closed-by-open-pr pre-build skip retries, in the lane output format, when the closer closed before the stop was written", async () => {
+  const { code, calls } = await preBuildSkip([200, sampledClosers([TRUSTED_CLOSER])], {
+    pulls: { 10686: sampledPull({ number: 10686, state: "closed", closed_at: "2026-11-28T00:00:00Z", user: { id: OWNER_ID } }) },
+  });
+  assert.equal(code, 0);
+  const [comment] = issueComments(calls).map((c) => c.body.body);
+  const lines = comment.split("\n");
+  assert.equal(lines[0], "<!-- work-resolve-issue outcome=retry run=123 -->");
+  assert.equal(lines[1], "### work-resolve-issue / report-outcome");
+  assert.ok(lines[2].startsWith("Retrying: "), comment);
+  assert.ok(lines.includes("- #10686 is not an open pull request here, so it retries instead."), comment);
+});
+
+test("main on a closed-by-open-pr pre-build skip whose waits are spent stops in the lane output format, quoting no run's words", async () => {
+  const waited = (run) => ({ user: { login: BOT }, body: `<!-- work-resolve-issue outcome=wait pr=10686 run=${run} -->`, created_at: "2026-11-20T00:00:00Z" });
+  const { code, calls } = await preBuildSkip([200, sampledClosers([TRUSTED_CLOSER])], {
+    pulls: { 10686: sampledPull({ number: 10686, user: { id: OWNER_ID } }) },
+    comments: [waited("100"), waited("101")],
+  });
+  assert.equal(code, 0);
+  const [comment] = issueComments(calls).map((c) => c.body.body);
+  const [marker, heading, verdict, blank, ...bullets] = comment.split("\n");
+  assert.equal(marker, "<!-- work-resolve-issue outcome=failed run=123 -->");
+  assert.equal(heading, "### work-resolve-issue / report-outcome");
+  assert.equal(verdict, "Stopped: open PR #10686 already closes this issue, so the run stopped before the model ran.");
+  assert.equal(blank, "");
+  assert.deepEqual(bullets, [
+    "- Stop: `closed-by-open-pr`, then `retry-spent`: the lane has retried this issue as many times as limits.stop-retries, or the stop's own row, allows.",
+    "- It set Work status to needs-triage and added no label.",
+    "- To run it again, set Work status to agent-ready.",
+    "- Run: https://example/o/r/actions/runs/123",
+  ]);
+});
+
+test("main on a closed-by-open-pr pre-build skip posts nothing when no trusted open PR closes the issue any more", async () => {
+  for (const nodes of [[], [SAME_REPO_CLOSER]]) {
+    const { code, calls } = await preBuildSkip([200, sampledClosers(nodes)]);
+    assert.equal(code, 0, JSON.stringify(nodes));
+    assert.deepEqual(issueComments(calls), [], JSON.stringify(nodes));
+  }
+});
+
+test("main on a closed-by-open-pr pre-build skip fails and posts nothing when the closers cannot be read", async () => {
+  const { code, calls } = await preBuildSkip([502, {}]);
+  assert.equal(code, 1);
+  assert.deepEqual(issueComments(calls), []);
 });
 
 test("main on done keeps the lanes App's own open PR from the branch without reading the closers", async () => {

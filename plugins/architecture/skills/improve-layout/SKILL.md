@@ -1,5 +1,5 @@
 ---
-description: "Co-change layout check: do the files that change together in git history live together in the folder tree? A tested script finds co-change clusters and how far each spreads over folders; each becomes a card judged against the layout style the repo records, then an interview on the picked card's target layout. Moves no file. Use when 'do files that change together live together', 'co-change layout', 'co-change clusters', 'which files always change together', 'are these files in the right folders'. Skip for module depth or boundary rules (/architecture:improve)."
+description: "Co-change folder-layout check from git history: finds co-change clusters and folder spread, judges cards against repo layout style, and interviews on a target layout (moves no files). Use for 'co-change layout', 'co-change clusters', or whether co-changing files live in the right folders. Not for module depth/boundaries: /architecture:improve."
 argument-hint: "[--path <dir> ...] [--<setting> <value> ...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

@@ -1,5 +1,5 @@
 ---
-description: "Fresh-context re-derivation of a performance result that does not inherit the implementer's numbers, reporting the target as met or not met without rounding a miss into a win. Use when: 'verify this speedup', 'is this result real', 'independent verification', 'write up the performance result'. Final phase after /performance:snapshot post. Skip when no baseline exists, or when reviewing a diff for general quality rather than a measured claim."
+description: "Final fresh-context re-derivation of a performance result after a post snapshot without implementer numbers: checks behavior parity to write up MET, NOT MET, or UNMEASURABLE without rounding a miss into a win. Use when: 'verify this speedup', 'is this result real', 'independent verification'. Not for diff review: /review:quality-gate."
 user-invocable: true
 argument-hint: "[<claim or target>]"
 disable-model-invocation: false

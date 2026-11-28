@@ -9,6 +9,7 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 import { admits } from "../lib/gate-expression.mjs";
 import { HELD_REASON, HELD_STEP, main, packReads } from "./resolve-pr.mjs";
 import { workflowText } from "../lib/workflow-text.mjs";
+import { assertPerHeadUnlessUpstreamCancelled } from "../lib/workflow-run-group.mjs";
 import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
@@ -204,12 +205,21 @@ test("pr-merge.yml gives the gate an Actions token for the verdict reads only", 
   assert.match(gate, /\n {10}BABYSIT_VERIFY_GH_TOKEN: \$\{\{ github\.token \}\}\n/);
 });
 
-test("the concurrency group is per PR and head and never cancels a running judgment", () => {
-  const group = /^concurrency:\n  group: (.*)\n  cancel-in-progress: (.*)$/m.exec(text);
-  assert.ok(group, "a top-level concurrency block");
-  assert.match(group[1], /workflow_run\.pull_requests\[0\]\.number/);
-  assert.match(group[1], /workflow_run\.head_sha/);
-  assert.equal(group[2], "false");
+test("the concurrency group is per PR and head unless the upstream was cancelled, and never cancels a running judgment", () => {
+  assertPerHeadUnlessUpstreamCancelled(text, "pr-verify");
+});
+
+test("a cancelled upstream's run admits no job, so its own group costs no verdict", () => {
+  const { ids, jobIf } = wf;
+  const skippedNeeds = Object.fromEntries(ids.map((other) => [other, { result: "skipped", outputs: {} }]));
+  for (const conclusion of ["success", "failure"]) {
+    assert.equal(admits(jobIf(KEY), { ...upstreamRun({ conclusion }), needs: skippedNeeds, vars: {} }), true, `a ${conclusion} upstream admits ${KEY}`);
+  }
+  const cancelled = { ...upstreamRun({ conclusion: "cancelled" }), needs: skippedNeeds, vars: {} };
+  for (const id of ids) {
+    assert.equal(admits(jobIf(id), cancelled), false, id);
+  }
+  assert.deepEqual(ids, [...JOBS, "wake-pr-merge"]);
 });
 
 test("each job judges on run-claude-cli as the pr-verify role with its one secret", () => {

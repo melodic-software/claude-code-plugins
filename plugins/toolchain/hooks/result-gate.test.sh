@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# test-scope: plugins/toolchain/hooks/hooks.json plugins/toolchain/lib/tree-result.mjs plugins/toolchain/scripts/record-result.mjs plugins/toolchain/.claude-plugin/plugin.json
+# test-scope: plugins/toolchain/hooks/hooks.json plugins/toolchain/lib/hook-enabled.mjs plugins/toolchain/lib/tree-result.mjs plugins/toolchain/scripts/record-result.mjs plugins/toolchain/.claude-plugin/plugin.json
 # test-scope: plugins/toolchain/lib/prerequisites.mjs plugins/toolchain/lib/prerequisites.ps1 plugins/toolchain/lib/prerequisites.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_TURN_END_RESULT_GATE \
@@ -224,17 +224,26 @@ expect "the hook on with the gate off stays quiet" "0|" "$(layered)"
 set_options '{"result_gate_enabled": true, "turn_end_result_gate": "enforce"}'
 expect "the hook on with the gate on enforce still blocks a FAIL" "block" "$(decision "$(layered)")"
 set_options '{"result_gate_enabled": false}'
-mv "$INSTALL/hooks/hook-enabled.sh" "$WORK/hook-enabled.sh"
+mv "$INSTALL/lib/hook-enabled.mjs" "$WORK/hook-enabled.mjs"
 expect "a missing helper fails open: the hook runs" "yes" "$(reports "$(layered)")"
-mv "$WORK/hook-enabled.sh" "$INSTALL/hooks/hook-enabled.sh"
+mv "$WORK/hook-enabled.mjs" "$INSTALL/lib/hook-enabled.mjs"
 rm -f "$CONFIG/settings.json"
 
 expect "record refuses a line that is not an Overall line" "1" \
-  "$(node "$RECORD" --dir "$R" --skill check --overall "all good" >/dev/null 2>&1; echo $?)"
+  "$(
+    node "$RECORD" --dir "$R" --skill check --overall "all good" >/dev/null 2>&1
+    echo $?
+  )"
 expect "record refuses an unknown skill" "1" \
-  "$(node "$RECORD" --dir "$R" --skill verify --overall "Overall: PASS" >/dev/null 2>&1; echo $?)"
+  "$(
+    node "$RECORD" --dir "$R" --skill verify --overall "Overall: PASS" >/dev/null 2>&1
+    echo $?
+  )"
 expect "record outside a repository exits 2" "2" \
-  "$(node "$RECORD" --dir "$WORK" --skill check --overall "Overall: PASS" >/dev/null 2>&1; echo $?)"
+  "$(
+    node "$RECORD" --dir "$WORK" --skill check --overall "Overall: PASS" >/dev/null 2>&1
+    echo $?
+  )"
 
 LIB="$INSTALL/lib/tree-result.mjs"
 hash_of() { node --input-type=module -e "import { repository, treeHash } from '$LIB'; console.log(treeHash(repository(process.argv[1])));" "$1" 2>/dev/null; }
@@ -255,14 +264,20 @@ mkdir "$S/f"
 printf 'inner\n' >"$S/f/inner"
 expect "a tracked file replaced by a directory hashes to the staged tree" "$(staged_tree "$S")" "$(hash_of "$S")"
 expect "a file-to-directory swap records a result" "0" \
-  "$(node "$RECORD" --dir "$S" --skill check --overall "Overall: PASS" >/dev/null 2>&1; echo $?)"
+  "$(
+    node "$RECORD" --dir "$S" --skill check --overall "Overall: PASS" >/dev/null 2>&1
+    echo $?
+  )"
 S="$WORK/swap-dir-to-file"
 swap_repo "$S"
 rm -r "$S/d"
 printf 'now a file\n' >"$S/d"
 expect "a tracked directory replaced by a file hashes to the staged tree" "$(staged_tree "$S")" "$(hash_of "$S")"
 expect "a directory-to-file swap records a result" "0" \
-  "$(node "$RECORD" --dir "$S" --skill check --overall "Overall: PASS" >/dev/null 2>&1; echo $?)"
+  "$(
+    node "$RECORD" --dir "$S" --skill check --overall "Overall: PASS" >/dev/null 2>&1
+    echo $?
+  )"
 
 echo "result-gate: $PASS passed, $FAIL failed"
 ((FAIL == 0))

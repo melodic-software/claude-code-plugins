@@ -1,0 +1,34 @@
+{
+  "skill": "instruction-placement:delta",
+  "plugin": "instruction-placement",
+  "skill_dir": "plugins/instruction-placement/skills/delta",
+  "competitors": [
+    "instruction-placement:audit",
+    "instruction-placement:check",
+    "instruction-placement:establish-hub",
+    "instruction-placement:migrate",
+    "instruction-placement:realign"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "check for any new misplaced rules since our previous placement review"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "show only instruction placement changes since last Monday without repeating old findings"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "did any rule path globs break since the previous instruction audit"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "run a weekly placement check that suppresses low-noise items and keeps declined items hidden"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "report what drifted in our repo instruction layout since the baseline snapshot"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "compare current conventions placement against last week's run and list only movement"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "anything new to relocate in our instructions since the last review"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "run the scheduled instruction placement check and ignore already declined items"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "surface only newly broken rule globs or index drift since our last baseline"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "what instruction placement items changed since Tuesday above the noise threshold"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "do a first-time full scan of root CLAUDE.md and docs/ to propose where conventions should live"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "run a pass/fail CI check to verify every .claude/rules glob matches real files"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "apply accepted placement finding IP-004 with my confirmation"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "convert our root CLAUDE.md into AGENTS.md with a one-line import shim"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "set up a central cross-repo hub repository where agent sessions begin"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "explain why the PostgreSQL connection pool is timing out under load"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "execute the approved instruction moves one by one from the findings report"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "propose destinations for stranded engineering rules in docs/ from scratch"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "verify whether our path-scoped rules frontmatter is silently failing in Claude Code"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "remove the old one-line CLAUDE.md shims across this repository"}
+  ]
+}

@@ -1,5 +1,5 @@
 ---
-description: "Verify and configure the mutation-testing plugin for this repository. check inspects the ecosystem's mutation tool (installed, runnable, supported test runner), the baseline suite's health, and the tracked docs/conventions/mutation-testing.yaml config across its merge layers, read-only; apply detects the ecosystem, installs or names the tool, interviews for the diff target and operator set, and writes the config plus an empty arid-node suppression record. Use when: 'set up mutation testing', 'is mutation testing configured', 'which mutation tool for this repo', 'mutation-testing setup', or the audit skill ran on fallback defaults or reports an unavailable tool. Re-runnable. Safe to invoke again to reconfigure."
+description: "Check mutation-testing prerequisites, baseline, config layers, and suppressions (`check`), or configure team/local files or user guidance (`apply`)."
 argument-hint: "[check|apply [team|local|user]]"
 user-invocable: true
 disable-model-invocation: true

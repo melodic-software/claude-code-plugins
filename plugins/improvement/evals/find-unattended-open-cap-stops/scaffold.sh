@@ -3,13 +3,9 @@ set -euo pipefail
 
 bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/seed-checkout-service.sh"
 
-mkdir -p .claude
-cat > .claude/improvement.md <<'CONFIG'
-# improvement config
-
-```yaml
+mkdir -p docs/conventions
+cat > docs/conventions/improvement.yaml <<'CONFIG'
 churn_window: "90 days ago"
-```
 CONFIG
 
 git init -q -b main

@@ -1,5 +1,5 @@
 ---
-description: "Fault seeding: plants a few realistic defects one at a time in a throwaway worktree, runs the tests on each, and reports seeds caught over planted, each survivor's file:line, as an estimate. Nothing is committed. Use when: 'plant some bugs and see if the tests catch them', 'seed faults', 'how many realistic bugs would my suite catch', a check beyond generated mutants, or grading a reviewer on planted defects."
+description: "Fault seeding: plants realistic defects in a throwaway worktree (never commits or edits your checkout), runs tests (or `--reviewer`), and reports caught/planted as an estimate with survivor file:lines. Use when: 'seed faults', 'plant some bugs and see if the tests catch them', or grading a reviewer. Not for mutants: /mutation-testing:audit."
 argument-hint: "--count <n> --paths <glob>... --tests <path>... --reviewer"
 user-invocable: true
 disable-model-invocation: false

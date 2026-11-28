@@ -1,5 +1,5 @@
 ---
-description: "One online documentation page turned into a verified knowledge slice: the original, section digests, independent verification records and an interview-ready handoff. Use when the user supplies a single documentation URL or asks to digest one vendor docs page into the knowledge base. Several pages or a whole site go to /knowledge:map-corpus; a book file to /knowledge:distill."
+description: "Turn one online documentation page into a verified knowledge slice: original, section digests, verification records, and an interview-ready handoff. Use when: 'digest this docs page', given a single documentation URL, or digesting one vendor docs page. Not for multi-page sites (/knowledge:map-corpus) or books (/knowledge:distill)."
 argument-hint: "[url]"
 user-invocable: true
 disable-model-invocation: false
