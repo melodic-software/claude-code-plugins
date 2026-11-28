@@ -1,5 +1,5 @@
 ---
-description: "Scrape, search, crawl, map, parse, or interact with web pages via the firecrawl-cli binary, writing results to disk instead of streaming them into context. Actions: scrape, batch-scrape, search, crawl, map, parse, interact, agent, monitor, developer, research, doctor, search-feedback, credit-usage. Use when: 'scrape this page', 'crawl this site', 'search the web for X', 'WebFetch is blocked', 'this page needs JS', 'extract the text from this PDF', when WebFetch returns 403 or 429 behind an anti-bot layer such as Cloudflare or PerimeterX, or for a natural-language web research task. Skip for plain unprotected pages (WebFetch suffices) or when synthesis is wanted rather than primary source."
+description: "Scrape, crawl, search, map, parse, or interact with web pages via firecrawl-cli to disk (batch-scrape, agent, monitor, developer, research, doctor, search-feedback, credit-usage). Use when: 'scrape this page', 'WebFetch is blocked' (403/429/anti-bot/Cloudflare/JS), 'extract the text from this PDF'. Not for plain pages (WebFetch) or synthesis."
 argument-hint: "<scrape|search|crawl|map|parse|interact|agent|monitor|developer|research|doctor|…> [args]"
 user-invocable: true
 disable-model-invocation: false
