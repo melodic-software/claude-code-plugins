@@ -1,5 +1,5 @@
 ---
-description: "Capture a baseline or post-change snapshot with the host qualified first: refuse a wall-clock claim from a bimodal-contention host and name the drift-immune counter instead. Interleaves before/after arms in one run. Use when: 'capture a baseline', 'take a post snapshot', 'run the A/B', 'can I even measure here'. Runs after /performance:goal; hands off to /performance:verify. Skip when no goal with a computed floor exists, or when the claim is code shape (/verification:measure)."
+description: "Capture a baseline or post-change snapshot after a goal with a floor, qualifying the host first: refuses wall-clock claims on bimodal-contention hosts (naming the drift-immune counter) and interleaves before/after arms in one run. Use when: 'capture a baseline', 'take a post snapshot', 'run the A/B'. Not for code shape: /verification:measure."
 user-invocable: true
 argument-hint: "[baseline|post] [<target>]"
 disable-model-invocation: false
