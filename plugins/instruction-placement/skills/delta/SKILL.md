@@ -1,5 +1,5 @@
 ---
-description: "Read-only re-run of the placement audit reporting only what moved since the last run above a noise budget; declined findings stay declined. Use when: 'placement delta', 'what changed since the last placement audit', 'weekly instruction-placement check', or scheduled runs. Not for applying changes: /instruction-placement:realign."
+description: "Read-only re-run of the instruction-placement audit reporting only placement changes, moved items, or broken rule globs since the last run above a noise budget; declined findings stay declined. Use when: 'placement delta', 'what changed since the last placement audit', 'weekly instruction-placement check', or scheduled runs."
 argument-hint: "[--since <ISO date>] [--noise-budget <n>] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
