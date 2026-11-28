@@ -85,22 +85,38 @@ const decidedThread = (reply = { author: KYLE }) => ({
 });
 
 const APP_USER = { login: "melodic-automation-lanes[bot]", id: APP_ID, type: "Bot" };
+const CAPTURED_BOT_RERUN_LISTING = JSON.parse(
+  readFileSync(new URL("./fixtures/workflow-runs-46072085390-bot-rerun.json", import.meta.url), "utf8"),
+);
+const CAPTURED_ATTEMPT_1_LISTING = JSON.parse(
+  readFileSync(new URL("./fixtures/workflow-runs-46103022626-attempt-1.json", import.meta.url), "utf8"),
+);
+const CAPTURED_BOT_RERUN_RUN = CAPTURED_BOT_RERUN_LISTING.workflow_runs[0];
+const CAPTURED_ATTEMPT_1_RUN = CAPTURED_ATTEMPT_1_LISTING.workflow_runs[0];
 
-// A workflow_run event's run object, in the REST workflow run schema
-// (https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run).
-const upstreamRun = (overrides = {}) => ({
-  id: Number(UPSTREAM_RUN_ID),
-  path: ".github/workflows/pr-review-hosted.yml",
-  event: "pull_request",
-  status: "completed",
-  run_attempt: 1,
-  actor: APP_USER,
-  triggering_actor: APP_USER,
-  head_sha: HEAD,
-  repository: { full_name: REPOSITORY },
-  head_repository: { full_name: REPOSITORY },
-  ...overrides,
-});
+// Derived from the captured GitHub Actions REST workflow-run response
+// (fixtures/workflow-runs-46103022626-attempt-1.json).
+const upstreamRun = (overrides = {}) => {
+  const base = structuredClone(CAPTURED_ATTEMPT_1_RUN);
+  delete base.created_at;
+  delete base.updated_at;
+  delete base.run_started_at;
+  delete base.conclusion;
+  return {
+    ...base,
+    id: Number(UPSTREAM_RUN_ID),
+    path: ".github/workflows/pr-review-hosted.yml",
+    event: "pull_request",
+    status: "completed",
+    run_attempt: 1,
+    actor: APP_USER,
+    triggering_actor: APP_USER,
+    head_sha: HEAD,
+    repository: { full_name: REPOSITORY },
+    head_repository: { full_name: REPOSITORY },
+    ...overrides,
+  };
+};
 
 function fakeApi({
   run = {},
@@ -3660,12 +3676,9 @@ test("an owner PR's CodeQL thread on a later push's scan dispatches with no @cod
 test("reviewRunAt lists each review workflow's runs one after the other and picks the newest broker-accepted run", async () => {
   const events = [];
   const run = (id, created_at, overrides = {}) => ({
+    ...structuredClone(CAPTURED_ATTEMPT_1_RUN),
     id,
     head_sha: HEAD,
-    event: "pull_request",
-    head_repository: { full_name: REPOSITORY },
-    conclusion: "success",
-    run_attempt: 1,
     actor: APP_USER,
     triggering_actor: APP_USER,
     created_at,
@@ -3673,7 +3686,13 @@ test("reviewRunAt lists each review workflow's runs one after the other and pick
   });
   const listings = {
     "a.yml": [run(1, "2026-10-28T07:00:00Z")],
-    "b.yml": [run(2, "2026-10-28T08:00:00Z"), run(3, "2026-10-28T09:00:00Z", { run_attempt: 2, triggering_actor: ACTIONS_BOT })],
+    "b.yml": [
+      run(2, "2026-10-28T08:00:00Z"),
+      run(3, "2026-10-28T09:00:00Z", {
+        run_attempt: CAPTURED_BOT_RERUN_RUN.run_attempt,
+        triggering_actor: structuredClone(CAPTURED_BOT_RERUN_RUN.triggering_actor),
+      }),
+    ],
   };
   const api = {
     listCompletedRuns: async (path) => {
@@ -3786,60 +3805,79 @@ test("a lane run still going ends the event path green with a skip line; any oth
   assert.match(other.line, /^::error::pr-feedback dispatch failed: boom/);
 });
 
-test("trustedReviewRun matches the broker's actor and attempt rule", () => {
+test("trustedReviewRun matches the broker's actor and attempt rule against captured workflow-run responses", () => {
   const ctx = { appSenderId: APP_ID, trustedHumans: new Set([KYLE.databaseId]) };
   const stranger = { id: STRANGER.databaseId, login: "stranger" };
-  assert.equal(trustedReviewRun({ run_attempt: 1, actor: APP_USER, triggering_actor: APP_USER }, ctx), true);
-  assert.equal(trustedReviewRun({ run_attempt: 1, actor: KYLE_USER, triggering_actor: KYLE_USER }, ctx), true);
-  assert.equal(trustedReviewRun({ run_attempt: 2, actor: APP_USER, triggering_actor: KYLE_USER }, ctx), true);
-  assert.equal(trustedReviewRun({ run_attempt: 2, actor: KYLE_USER, triggering_actor: KYLE_USER }, ctx), true);
-  assert.equal(trustedReviewRun({ run_attempt: 2, actor: APP_USER, triggering_actor: ACTIONS_BOT }, ctx), false);
-  assert.equal(trustedReviewRun({ run_attempt: 2, actor: KYLE_USER, triggering_actor: ACTIONS_BOT }, ctx), false);
-  assert.equal(trustedReviewRun({ run_attempt: 2, actor: APP_USER, triggering_actor: APP_USER }, ctx), false);
-  assert.equal(trustedReviewRun({ run_attempt: 1, actor: stranger, triggering_actor: KYLE_USER }, ctx), false);
-  assert.equal(trustedReviewRun({ run_attempt: 1, actor: KYLE_USER, triggering_actor: stranger }, ctx), false);
-  assert.equal(trustedReviewRun({ run_attempt: 2, actor: APP_USER, triggering_actor: APP_USER }, { appSenderId: APP_ID, trustedHumans: new Set([APP_ID]) }), false);
+  assert.equal(trustedReviewRun(CAPTURED_ATTEMPT_1_RUN, ctx), true);
+  assert.equal(trustedReviewRun(CAPTURED_BOT_RERUN_RUN, ctx), false);
+  assert.equal(trustedReviewRun({ ...CAPTURED_ATTEMPT_1_RUN, actor: APP_USER, triggering_actor: APP_USER }, ctx), true);
+  assert.equal(trustedReviewRun({ ...CAPTURED_BOT_RERUN_RUN, actor: APP_USER, triggering_actor: KYLE_USER }, ctx), true);
+  assert.equal(trustedReviewRun({ ...CAPTURED_BOT_RERUN_RUN, triggering_actor: KYLE_USER }, ctx), true);
+  assert.equal(trustedReviewRun({ ...CAPTURED_BOT_RERUN_RUN, actor: APP_USER }, ctx), false);
+  assert.equal(trustedReviewRun({ ...CAPTURED_BOT_RERUN_RUN, actor: APP_USER, triggering_actor: APP_USER }, ctx), false);
+  assert.equal(trustedReviewRun({ ...CAPTURED_ATTEMPT_1_RUN, actor: stranger }, ctx), false);
+  assert.equal(trustedReviewRun({ ...CAPTURED_ATTEMPT_1_RUN, triggering_actor: stranger }, ctx), false);
+  assert.equal(
+    trustedReviewRun({ ...CAPTURED_BOT_RERUN_RUN, actor: APP_USER, triggering_actor: APP_USER }, { appSenderId: APP_ID, trustedHumans: new Set([APP_ID]) }),
+    false,
+  );
 });
 
-test("dispatchFeedback skips a bot-rerun review run with reason and recovery path, and accepts a listed human's rerun", async () => {
-  const rerun = fakeApi({ run: { run_attempt: 2, actor: KYLE_USER, triggering_actor: ACTIONS_BOT } });
+test("dispatchFeedback skips a captured bot-rerun review run with reason and recovery path, and accepts a listed human's rerun", async () => {
+  const rerun = fakeApi({ run: { ...structuredClone(CAPTURED_BOT_RERUN_RUN), head_sha: HEAD } });
   const skipped = await decide(rerun);
   assert.equal(skipped.result, null);
   assert.deepEqual(rerun.calls.dispatch, []);
   assert.match(skipped.lines.at(-1), /attempt 2.*triggering_actor github-actions\[bot\].*not a broker-accepted review run.*push a fresh head or have a listed human re-run/);
 
-  const humanRerun = fakeApi({ run: { run_attempt: 2, actor: APP_USER, triggering_actor: KYLE_USER } });
+  const humanRerun = fakeApi({ run: { ...structuredClone(CAPTURED_BOT_RERUN_RUN), head_sha: HEAD, actor: APP_USER, triggering_actor: KYLE_USER } });
   const accepted = await decide(humanRerun);
   assert.equal(accepted.result?.number, 42);
   assert.equal(humanRerun.calls.dispatch.length, 1);
 });
 
-test("main falls back from a bot-rerun review event to a broker-accepted sibling review run, or skips when none exists", async (t) => {
+test("main falls back from a captured bot-rerun review event to a broker-accepted sibling REST listing, or skips when none exists", async (t) => {
   const dir = tempDir("pr-dispatch-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const actors = join(dir, "actors.json");
   writeFileSync(actors, JSON.stringify({ actors: [{ id: KYLE.databaseId, login: "kyle-sexton", kind: "human" }] }));
 
-  const botRerunEvent = upstreamRun({
-    id: 46072085390,
-    path: ".github/workflows/pr-review-hosted.yml",
-    run_attempt: 2,
-    actor: KYLE_USER,
-    triggering_actor: ACTIONS_BOT,
-    created_at: "2026-11-27T21:43:02Z",
-  });
-  const trustedSibling = upstreamRun({
-    id: 46072085399,
-    path: ".github/workflows/pr-review-security-hosted.yml",
-    run_attempt: 1,
-    actor: KYLE_USER,
-    triggering_actor: KYLE_USER,
-    created_at: "2026-11-27T21:43:00Z",
-  });
+  const incidentHead = CAPTURED_BOT_RERUN_RUN.head_sha;
+  const siblingListing = structuredClone(CAPTURED_ATTEMPT_1_LISTING);
+  siblingListing.workflow_runs[0].head_sha = incidentHead;
+  const listingClient = (securityListing) =>
+    createGitHubApi({
+      token: "t",
+      repository: REPOSITORY,
+      apiUrl: "https://api.example",
+      graphqlUrl: "https://api.example/graphql",
+      fetch: async (url) => {
+        const body = url.includes("/workflows/pr-review-hosted.yml/runs") ? CAPTURED_BOT_RERUN_LISTING : securityListing;
+        return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+      },
+    });
+  const incidentApi = (securityListing) => {
+    const rest = listingClient(securityListing);
+    const api = fakeApi({
+      pulls: [
+        {
+          number: 19482,
+          state: "open",
+          draft: false,
+          user: { id: APP_ID },
+          labels: [{ name: "work-class: mechanical" }],
+          head: { sha: incidentHead, repo: { full_name: REPOSITORY } },
+          base: { ref: "main", sha: "b".repeat(40) },
+        },
+      ],
+      comments: [marker("claude-review", incidentHead), marker("claude-security-review", incidentHead)],
+      threads: [thread([CLAUDE], false, incidentHead)],
+    });
+    api.listCompletedRuns = rest.listCompletedRuns;
+    return api;
+  };
 
-  const withSibling = fakeApi();
-  withSibling.listCompletedRuns = async (path) =>
-    path.endsWith("pr-review-hosted.yml") ? [botRerunEvent] : [trustedSibling];
+  const withSibling = incidentApi(siblingListing);
   const output1 = join(dir, "output-1");
   writeFileSync(output1, "");
   const lines1 = [];
@@ -3849,7 +3887,7 @@ test("main falls back from a bot-rerun review event to a broker-accepted sibling
       GITHUB_REPOSITORY: REPOSITORY,
       GITHUB_RUN_ID: RUN_ID,
       GITHUB_OUTPUT: output1,
-      GITHUB_EVENT_PATH: eventFile(dir, botRerunEvent),
+      GITHUB_EVENT_PATH: eventFile(dir, CAPTURED_BOT_RERUN_RUN),
       APP_SENDER_ID: String(APP_ID),
       TRUSTED_ACTORS: actors,
     },
@@ -3857,14 +3895,13 @@ test("main falls back from a bot-rerun review event to a broker-accepted sibling
   );
   assert.equal(code1, 0);
   assert.equal(withSibling.calls.dispatch.length, 1);
-  assert.equal(readFileSync(output1, "utf8"), "run-id=38779200001\nupstream-run-id=46072085399\n");
-  assert.ok(lines1.some((line) => /using sibling review run 46072085399/.test(line)), lines1.join("\n"));
+  assert.equal(readFileSync(output1, "utf8"), `run-id=38779200001\nupstream-run-id=${CAPTURED_ATTEMPT_1_RUN.id}\n`);
+  assert.ok(lines1.some((line) => line.includes(`using sibling review run ${CAPTURED_ATTEMPT_1_RUN.id}`)), lines1.join("\n"));
 
-  const noTrustedSibling = fakeApi();
-  noTrustedSibling.listCompletedRuns = async (path) =>
-    path.endsWith("pr-review-hosted.yml")
-      ? [botRerunEvent]
-      : [{ ...trustedSibling, run_attempt: 2, triggering_actor: ACTIONS_BOT }];
+  const untrustedSiblingListing = structuredClone(siblingListing);
+  untrustedSiblingListing.workflow_runs[0].run_attempt = CAPTURED_BOT_RERUN_RUN.run_attempt;
+  untrustedSiblingListing.workflow_runs[0].triggering_actor = structuredClone(CAPTURED_BOT_RERUN_RUN.triggering_actor);
+  const noTrustedSibling = incidentApi(untrustedSiblingListing);
   const output2 = join(dir, "output-2");
   writeFileSync(output2, "");
   const lines2 = [];
@@ -3874,7 +3911,7 @@ test("main falls back from a bot-rerun review event to a broker-accepted sibling
       GITHUB_REPOSITORY: REPOSITORY,
       GITHUB_RUN_ID: RUN_ID,
       GITHUB_OUTPUT: output2,
-      GITHUB_EVENT_PATH: eventFile(dir, botRerunEvent),
+      GITHUB_EVENT_PATH: eventFile(dir, CAPTURED_BOT_RERUN_RUN),
       APP_SENDER_ID: String(APP_ID),
       TRUSTED_ACTORS: actors,
     },
