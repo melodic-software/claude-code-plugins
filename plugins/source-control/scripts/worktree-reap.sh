@@ -313,11 +313,13 @@ with_timeout() {
     "$timeout_bin" "$secs" "$@"
     return
   fi
-  "$@" &
+  set -m
+  "$@" </dev/null &
   pid=$!
+  set +m
   (
     sleep "$secs"
-    kill -TERM "$pid"
+    kill -TERM -- "-$pid"
   ) >/dev/null 2>&1 &
   dog=$!
   wait "$pid"

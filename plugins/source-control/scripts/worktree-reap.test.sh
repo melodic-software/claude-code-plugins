@@ -661,7 +661,7 @@ mkdir -p "$HANG_BIN"
 cat >"$HANG_BIN/git" <<EOF
 #!/usr/bin/env bash
 case " \$* " in
-*" fetch "*) exec sleep 30 ;;
+*" fetch "*) sleep 30 & wait ;;
 *) exec "$REAL_GIT" "\$@" ;;
 esac
 EOF
@@ -673,7 +673,7 @@ for lane in "GNU timeout:$HANG_BIN:$PATH" "shell watchdog:$HANG_BIN:$NO_GNU_PATH
   t_start=$SECONDS
   RUN_HANG="$(
     reap_env env PATH="${lane#*:}" WORKTREE_REAP_PROC_ROOT="$PROC_OK" WORKTREE_REAP_FETCH_TIMEOUT=1 \
-      bash "$REAP" --root "$ROOT_HANG" --no-log --no-pr-proof >/dev/null 2>&1
+      bash "$REAP" --root "$ROOT_HANG" --no-log --no-pr-proof 2>&1 | cat >/dev/null
     latest_run
   )"
   assert_eq "$label: a fetch past the timeout is fetch-failed" "keep fetch-failed kept" "$(row "$RUN_HANG" /root-hang/wt)"
