@@ -217,9 +217,10 @@ done
 declares_both_fixtures A "$CASE_A"
 declares_both_fixtures B "$CASE_B"
 
+# Description-only trim (861 -> 410 chars) for #19475; all other frontmatter keys unchanged and neither lock-halt nor auto-guard defense is weakened.
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "aeee61b37df0e79abd73eaac56c9b5834612e256bdf05fecb9d2612949d087b3"
+  "dc9b11cb123378506d223693eabeda7e0b832e3d369195095665f1d01e6ac3f2"
 
 pin_section "SKILL.md Gates section is unchanged (the early twin of the five gates)" \
   "$SKILL" \
