@@ -17,6 +17,14 @@
     {
       "answer": "| 1 | Advisory | `docs-lookup-procedure.md:62` is a long sentence; splitting it into two shorter sentences would improve readability. | lib/docs-lookup-procedure.md:62 |\n\nSummary: readability suggestion only.",
       "why": "cites line 62 for prose style while missing the invalid byte-cost defect"
+    },
+    {
+      "answer": "| 1 | Advisory | The measured run pasted the K3 text directly into the prompt instead of loading `lib/docs-lookup-procedure.md`, so the edited file itself was not exercised end-to-end. | lib/docs-lookup-procedure.md:62 |\n\nSummary: restates the prompt-insertion deviation without addressing the byte-cost defect.",
+      "why": "only restates the disclosed pasted-into-prompt caveat without flagging the duplicate-children byte-cost invalidation"
+    },
+    {
+      "answer": "| 1 | Advisory | 5 of 6 K3 runs escalated to reading the whole page, so much of the recall gain comes with whole-page cost rather than slicing savings. | lib/docs-lookup-procedure.md:62 |\n\nSummary: notes whole-page escalations only.",
+      "why": "only restates the disclosed escalation caveat without flagging that the duplicate-children slice bug invalidates the byte-cost pass"
     }
   ]
 }
