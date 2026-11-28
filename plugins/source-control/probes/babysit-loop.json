@@ -10,7 +10,7 @@
     {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "stand up a recurring merge lane loop for acme/api via /loop"},
     {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "keep draining the pull request queue on acme/web until empty"},
     {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "start a standing babysit loop against org/service"},
-    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "run the merge lane for melodic-software/tools continuously"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "run the merge lane for acme-corp/tools continuously"},
     {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "operate a self-paced PR drain loop for owner/repo"},
     {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "launch a standing PR merge loop with telemetry for acme/core"},
     {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "drain every open PR in acme/platform using a merge lane"},
