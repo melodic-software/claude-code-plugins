@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fleet team config",
+  "description": "Schema for a repository's docs/conventions/fleet.yaml, the repository layer of the fleet plugin's hook-enablement settings. Contract: docs/contracts/hook-enablement/README.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "peer_list_enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Repository default for the SessionStart peer-list hook. An explicit userConfig value for this key wins over this repository setting per docs/contracts/hook-enablement/README.md."
+    }
+  }
+}
