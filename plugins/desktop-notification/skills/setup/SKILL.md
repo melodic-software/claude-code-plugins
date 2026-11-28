@@ -1,5 +1,5 @@
 ---
-description: "Verify the desktop-notification hook's runtime prerequisites and per-OS channel configuration for this machine. Use when: 'set up desktop-notification', 'configure desktop-notification', 'is desktop-notification working', notifications silently aren't firing, or the hook reported a missing prerequisite. Actions: check (read-only verification, default) | apply (resolve what check found). Re-runnable and safe."
+description: "Verify desktop-notification hook prerequisites and per-OS channel configuration (check, read-only), or resolve findings (apply)."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true

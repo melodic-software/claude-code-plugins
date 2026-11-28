@@ -1,6 +1,7 @@
 ---
 description: "Plugin profiles: named sets of installed plugins switched on for a folder, for every new folder, or for one session. Use when choosing which plugins load, applying, checking or clearing a profile, resetting every profile on the machine, asking which profile is in force, or setting up profiles from the installed plugins and usage history."
 argument-hint: "[apply <name>|launch [<name>]|status|clear|reset|check|setup]"
+user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: session

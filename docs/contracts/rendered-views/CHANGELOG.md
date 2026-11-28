@@ -3,6 +3,19 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## The `branding` setting, schema and resolver, 2026-11-27
+
+- **`rendered-views` gains the `branding` key and schema.** `SCHEMA` and `BRANDING_SCHEMA` in
+  `lib/view-registry.mjs` admit `branding` (`palette.light`, `palette.dark`, `type` stacks and
+  embedded `fonts`, and `logo` inline SVG, embedded PNG/JPEG/SVG file and text `label`) beside
+  `medium`, along with the canonical `BRANDING_USER_CONFIG_OPTION` manifest shape.
+- **`lib/view-settings.mjs` resolves `branding` in plain ADR 0075 order.** Personal override, then
+  team, then `userConfig`, then shipped defaults, reporting the supplying layer per key. Values are
+  validated per layer (six-digit hex, closed font charset, builder SVG allowlist, magic-byte checks
+  for PNG/JPEG and WOFF2/WOFF/TTF/OTF encoded as `data:` URLs, `--team-ref` reading committed blobs
+  only), and the WCAG 2.1 contrast floor drops any failing override back to the shipped value with
+  a notice naming the role, scheme, pair and ratio.
+
 ## A page may embed a logo and brand fonts, 2026-11-26
 
 - **The builder's policy gains `img-src data:` and `font-src data:`.** Interactive rule 3 states the

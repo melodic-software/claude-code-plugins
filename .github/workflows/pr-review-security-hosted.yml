@@ -105,6 +105,7 @@ jobs:
       actions: read
       checks: read
       contents: read
+      issues: read
       pull-requests: write
     uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@main
     with:
@@ -170,6 +171,7 @@ jobs:
         .github/scripts/lib/lane-vocabulary.mjs
         .github/scripts/pr-merge/superseded.mjs
         .github/scripts/pr-merge/clear-escalations.mjs
+        .github/scripts/pr-merge/verifier.mjs
         .github/scripts/pr-merge/release-eval-hold.mjs
         .github/scripts/pr-merge/carry-run-cache.mjs
         .github/scripts/pr-merge/gate-check.mjs

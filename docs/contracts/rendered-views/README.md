@@ -902,20 +902,56 @@ chrome's palette declares its own background instead of banning this one.
 
 ## The `rendered-views` settings
 
-The cross-plugin `medium` preference rides the
+The cross-plugin `medium` and `branding` preferences ride the
 [config-cascade convention](../config-cascade/README.md) on the ADR 0075 scopes; this section is
-the concern's owner declaration. One resolver, `lib/view-settings.mjs`, applies it for every view
-producer. A skill runs its `resolve` command and never reads the files itself.
+the concern's owner declaration. One resolver, `lib/view-settings.mjs`, applies both for every view
+producer, against `SCHEMA` in `lib/view-registry.mjs` (generated into every carrying plugin). A
+skill runs its `resolve` or `branding` command and never reads the files itself.
 
-- **Scopes**: the argument, the producer plugin's `medium` userConfig option, the team file
-  `docs/conventions/rendered-views.yaml`, and the personal override
-  `docs/conventions/rendered-views.local.yaml`, both in the repository's convention home. The
-  resolver reads each scope's own value with the cascade's file reader and schema check
-  (`readLayers` in `lib/config-cascade.mjs`), never the merged result, so a lower scope's local
-  value survives a higher scope's publishing one.
-- **Keys**: `medium`, one of `auto`, `terminal`, `file`, `artifact`, `hosted`. `auto` is no
-  preference: it resolves exactly as unset. Future keys are added here first.
-- **Precedence and the publish trust walk.** `medium` chooses whether a view leaves the machine,
+- **Scopes**: for `medium`, the argument, the producer plugin's `medium` `userConfig` option, the
+  team file `docs/conventions/rendered-views.yaml`, and the personal override
+  `docs/conventions/rendered-views.local.yaml`, both in the repository's convention home. For
+  `branding`, the same team file, personal override, and the producer plugin's `branding`
+  `userConfig` option (no command-line argument). The resolver reads each scope's own value with
+  the cascade's file reader and schema check (`readLayers` in `lib/config-cascade.mjs`), never the
+  merged result, so a lower scope's local `medium` survives a higher scope's publishing one.
+- **Keys**:
+  - `medium`: one of `auto`, `terminal`, `file`, `artifact`, `hosted`. `auto` is no preference: it
+    resolves exactly as unset.
+  - `branding`: an optional mapping of consumer overrides (`BRANDING_SCHEMA` in
+    `lib/view-registry.mjs`), merged key by key over the shipped tokens (`lib/html-tokens.css`):
+    - `palette.light` and `palette.dark`: optional mappings over the seven roles (`bg`, `fg`,
+      `panel`, `muted`, `accent`, `link`, `focus`), each a six-digit hex color (`#RRGGBB`).
+    - `type`: optional `serif`, `sans` and `mono` font-family stacks (comma-separated family names
+      in a closed character set: letters, digits, spaces, hyphens and underscores, optionally
+      single-quoted), plus an optional `fonts` list of `{ family, file, weight?, style? }` entries
+      for embedded brand fonts (`WOFF2`, `WOFF`, `TTF` or `OTF`, verified by magic bytes and
+      written as `data:font/<type>;base64,...` URLs in `@font-face`).
+    - `logo`: optional `svg` (inline SVG passing the builder's SVG allowlist) or `file` (a `PNG`,
+      `JPEG` or allowlisted `SVG` file, verified by magic bytes and written as
+      `data:image/png;base64,...` or `data:image/jpeg;base64,...` in `.rv-logo`, or inlined as
+      SVG), never both in one layer, plus an optional plain-text `label` (at most 80 characters, no
+      control or format characters).
+  Future keys are added here first.
+- **`branding` precedence, validation and accessibility floor.** `branding` changes only how a page
+  looks, never whether it leaves the machine, so it follows plain ADR 0075 precedence (not the
+  publish trust walk): personal override, then team, then `userConfig`, then the shipped defaults,
+  merged key by key with the supplying layer reported for every value. Values are validated per
+  layer before merging; an invalid value is reported in a notice and ignored without dropping valid
+  siblings or another layer's value. Team-layer file paths must be repository-relative with no
+  `..` segment or symlink; `userConfig` file paths must be absolute or start with `~/`; external
+  paths in a personal override apply only while the personal override is untracked and gitignored.
+  After merging, the resolver checks every pair an overridden palette role takes part in across
+  both schemes (`fg`, `muted` and `link` on `bg` and `panel` at 4.5:1; `focus` on `bg` and `panel`
+  at 3:1, per [ADR 0133](../../adr/0133-let-a-consumer-brand-rendered-pages-through-one-shared-token-layer.md)
+  Decision 3); any override that fails a pair reverts to the shipped value with a notice naming the
+  role, scheme, pair and measured ratio.
+- **Per-user `branding` `userConfig` option shape.** Follows
+  [plugin-option-naming](../plugin-option-naming/README.md) (`BRANDING_USER_CONFIG_OPTION` in
+  `lib/view-registry.mjs`): key `branding`, `type: "string"`, title
+  `Rendered-view branding (JSON)`, `default: ""`, holding one JSON object matching
+  `BRANDING_SCHEMA`.
+- **Precedence and the publish trust walk (`medium`).** `medium` chooses whether a view leaves the machine,
   so precedence alone does not decide it:
   1. The argument decides alone.
   2. Otherwise a `terminal` or `file` value from any scope keeps the view local. When several
@@ -933,8 +969,10 @@ producer. A skill runs its `resolve` command and never reads the files itself.
   An invalid value is reported and ignored without dropping another scope's value. This is not
   plain ADR 0075 precedence: under it a personal `artifact` would override a team `file`.
 - **Team file from a git ref.** A producer that must not let a checked-out branch configure it
-  (`/review:explain-change`) reads the team file from a named commit (`--team-ref`), never the
-  working tree. A ref that names no commit reads no team file and says so.
+  (`/review:explain-change`) reads the team file (both `medium` and `branding`, plus any
+  team-referenced logo or font files as committed regular blobs, refusing symlink entries) from a
+  named commit (`--team-ref`), never the working tree. A ref that names no commit reads no team
+  file and says so.
 - **Retired files.** `~/.claude/rendered-views.md`, `.claude/rendered-views.md`,
   `.claude/rendered-views.local.md` and a fenced config block in
   `docs/conventions/rendered-views.md` never give a publishing value. A retired file's `terminal`
@@ -948,10 +986,14 @@ producer. A skill runs its `resolve` command and never reads the files itself.
   ([plugin-data report keying](../plugin-data-report-keying/README.md), rule 1), and is written
   atomically.
 - **Resolution**: `view-settings.mjs resolve --producer <id> --option <user_config.medium>
-  [--argument <medium>] [--team-ref <ref>]` prints the resolution as one JSON line (`preferred`,
-  `medium`, `decidedBy`, `notices`), then the report line (see Reachability and the fallback
-  chain). Each producer registers once in the medium registry with its view kinds, whether it is
-  hosted-capable, and its default.
+  [--argument <medium>] [--team-ref <ref>] [--branding-option <user_config.branding>]` prints the
+  resolution as one JSON line (`preferred`, `medium`, `decidedBy`, `notices`, plus `branding` when
+  `--branding-option` is passed), then the report line (see Reachability and the fallback chain).
+  `view-settings.mjs branding [--option <user_config.branding>] [--team-ref <ref>]` resolves
+  `branding` alone and prints its JSON (`palette`, `type`, `logo`, `sources`, `overrides`, `css`,
+  `notices`) followed by the supplying layer of each override and each notice. Each producer
+  registers once in the medium registry with its view kinds, whether it is hosted-capable, and its
+  default.
 
   A plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../config-cascade/locations.md) says.
 

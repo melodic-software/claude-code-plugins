@@ -1,5 +1,5 @@
 ---
-description: "Build, test, and lint verification for changed files in each ecosystem the repository records or its build files imply, running only the project's own commands and reporting any it cannot resolve. Use when: 'does it compile', 'run tests', 'build it', 'run the tests', 'does this still build', 'check it', or after any code edit. Lint only: /toolchain:lint; outcome verification: /verification:confirm."
+description: "Build, test, and lint verification for changed files in each recorded or build-file-implied ecosystem, running only project commands and reporting unresolved ones. Use when: 'does it compile', 'run tests', 'does this still build', or after code edits. Not for lint only: /toolchain:lint; outcome verification: /verification:confirm."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[ecosystem] [--unattended] [--propose-records <dir>]"
