@@ -3679,8 +3679,9 @@ them on every `pull_request` run, contract-only runs included:
 
 A review usually finishes after ci-status first reads it, so on a full run (not a label flip or
 body edit) ci-status's review-lanes step waits: it polls each lane whose run on the head has not
-completed, every 60 seconds for at most 8 minutes (`REVIEW_WAIT_SECONDS`), reading that run once a
-poll, then judges both lanes as below. A lane with no run is not waited for. A review still running at the cap fails as before,
+completed, every 60 seconds for at most 15 minutes (`REVIEW_WAIT_SECONDS`) and stopping 4 minutes
+before the job's timeout (`REVIEW_STOP_MARGIN_SECONDS`), reading that run once a poll, then judges
+both lanes as below. A lane with no run is not waited for. A review still running at the cap fails as before,
 naming the automatic re-run, so no manual re-run is needed. Then `pr-dispatch-feedback.yml`'s
 `rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head
 when a review caller completes (not when GitHub skipped it) on an open same-repository PR still at
