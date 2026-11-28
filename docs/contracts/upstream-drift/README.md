@@ -471,9 +471,9 @@ locally). It is a member of the check-script family
 A truncated tree read, a failed API call, a missing `gh` or `jq`, a near-miss marker (including an
 indented or quoted one), an `under` scope absent at the pin, or a tree path holding a control
 character exits 2 with nothing on stdout: an unread tree is never a clean
-report ([the fetch route's read rules](#reading-the-basis-the-fetch-route)). Both readers check the
-same entries for a control character: the scope for a scoped row, the subtree for a folder row,
-and the parent folder's own entries for a file row. When the API fallback meets
+report ([the fetch route's read rules](#reading-the-basis-the-fetch-route)). The git read refuses a
+control character in any path of the tree; the API read checks the entries it reads: the scope
+for a scoped row, the subtree for a folder row, and the parent folder's own entries for a file row. When the API fallback meets
 an owner's IP allow list, that owner's repositories go back to anonymous git, not anonymous REST,
 whose per-address limit a hosted runner's shared address may already have spent. A page with any read
 (pin, HEAD or tree) still failing is named on stderr with git's error and listed as

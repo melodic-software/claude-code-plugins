@@ -221,7 +221,7 @@ anon_tree() {
       { i = index($0, "\t"); split(substr($0, 1, i - 1), m, " "); p = substr($0, i + 1); gsub(/[[:cntrl:]]/, "\001", p) }
       m[2] == "blob" || m[2] == "commit" { print m[2] " " m[3] " " p }')" ||
     die "git ls-tree $1/$2@$3 failed"
-  return 0
+  ! grep -q '[[:cntrl:]]' <<<"$OUT_TREE" || die "$1/$2@${3:0:12}: a tree path holds a control character"
 }
 
 declare -A GIT=() REST=()
@@ -336,14 +336,10 @@ git_tree() {
     { t = $1; s = $2; q = substr($0, length(t) + length(s) + 3) }
     q == p { exact = 1; next }
     p != "" && index(q, p "/") != 1 { next }
-    {
-      under = 1; rest = p == "" ? q : substr(q, length(p) + 2); i = index(rest, "/")
-      if ((rec ? rest : i ? substr(rest, 1, i - 1) : rest) ~ /[[:cntrl:]]/) control = 1
-      if (t == "blob" && (rec || !i)) print s " " q
-    }
-    END { if (control) print "control"; else if (!under) print (exact ? "notree" : "missing") }' <<<"${WHOLE[$key]}")"
+    { under = 1 }
+    t == "blob" && (rec || !index(substr(q, length(p) + (p != "") + 1), "/")) { print s " " q }
+    END { if (!under) print (exact ? "notree" : "missing") }' <<<"${WHOLE[$key]}")"
   case "${out##*$'\n'}" in
-  control) die "$o/$r@${sha:0:12}:$p: a tree path holds a control character" ;;
   notree) return 4 ;;
   missing) return 3 ;;
   esac

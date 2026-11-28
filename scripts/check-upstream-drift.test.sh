@@ -606,13 +606,13 @@ git clone -q --bare "$f/src" "$f/control-remote/acme/widgets.git" || exit 2
 run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/control-remote" -- --report
 want_rc "git read, control in tree path, --report" 2
 no_out "git read, control in tree path, --report"
-want_err "git read, control in tree path, --report" "acme/widgets@${control_head:0:12}:skills: a tree path holds a control character"
+want_err "git read, control in tree path, --report" "acme/widgets@${control_head:0:12}: a tree path holds a control character"
 tmp_clean "git read, control in tree path, --report"
 
 run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/control-remote" --
 want_rc "git read, control in tree path, default mode" 2
 no_out "git read, control in tree path, default mode"
-want_err "git read, control in tree path, default mode" "acme/widgets@${control_head:0:12}:skills: a tree path holds a control character"
+want_err "git read, control in tree path, default mode" "acme/widgets@${control_head:0:12}: a tree path holds a control character"
 tmp_clean "git read, control in tree path, default mode"
 
 outside_path=$'control\tpath'
@@ -622,14 +622,11 @@ ugit add -- "$outside_path" && ugit commit -qm outside || exit 2
 rm -rf "${f:?}/control-remote"
 mkdir -p "$f/control-remote/acme"
 git clone -q --bare "$f/src" "$f/control-remote/acme/widgets.git" || exit 2
+outside_head=$(ugit rev-parse HEAD) || exit 2
 run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/control-remote" --
-want_rc "git read, control outside the read path" 1
-want_err "git read, control outside the read path" "$PAGE:5: acme/widgets M skills/alpha/SKILL.md"
-if [[ "$ERR" != *"control character"* ]]; then
-  pass "git read, control outside the read path: not refused"
-else
-  bad "git read, control outside the read path: not refused" "$ERR"
-fi
+want_rc "git read, control outside the read path" 2
+no_out "git read, control outside the read path"
+want_err "git read, control outside the read path" "acme/widgets@${outside_head:0:12}: a tree path holds a control character"
 
 stub_api '{"message":"Not Found","status":"404"}'
 log_git
@@ -683,14 +680,14 @@ else
 fi
 
 shape() {
-  local name="$1" want="$2" scope="$3" link="$4" mode="$5" p
-  shift 5
+  local name="$1" want="$2" want_rest="$3" scope="$4" link="$5" mode="$6" p
+  shift 6
   new_root || return 2
   mkdir -p "$f/bin" "$f/tmp" "$f/remote/acme"
   git init -q -b main "$f/src" || return 2
   for p in "$@"; do
-    mkdir -p "$f/src/${p%/*}"
-    echo x >"$f/src/$p"
+    [[ "$p" != */* ]] || mkdir -p "$f/src/${p%/*}"
+    echo x >"$f/src/$p" || return 2
   done
   ugit add -A && ugit commit -qm one || return 2
   GPIN="$(ugit rev-parse HEAD)"
@@ -709,24 +706,35 @@ shape() {
   want_rc "$name, git read" "$want"
   no_gh "$name, git read"
   run_env PATH="$f/restbin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/nowhere" -- ${mode:+"$mode"}
-  want_rc "$name, REST read" "$want"
-  if [[ "$RC/$OUT/$ERR" == "$grc/$gout/$gerr" ]]; then
+  want_rc "$name, REST read" "$want_rest"
+  if ((want == 2)); then
+    if [[ -z "$gout" && "$gerr" == *"acme/widgets@${GPIN:0:12}: a tree path holds a control character"* ]]; then
+      pass "$name: git refuses on any control character in the tree"
+    else
+      bad "$name: git refuses on any control character in the tree" "git=$(printf '%q' "$grc/$gout/$gerr")"
+    fi
+    ((want_rest != 2)) || want_err "$name, REST read" "a tree path holds a control character"
+  elif [[ "$RC/$OUT/$ERR" == "$grc/$gout/$gerr" ]]; then
     pass "$name: git and REST give the same exit, stdout and stderr"
   else
     bad "$name: git and REST give the same exit, stdout and stderr" "git=$(printf '%q' "$grc/$gout/$gerr") rest=$(printf '%q' "$RC/$OUT/$ERR")"
   fi
 }
 TAB=$'\t'
-shape "tree row, control under it" 2 "" tree/skills/alpha "" skills/alpha/SKILL.md "skills/alpha/a${TAB}b"
-shape "tree row, control outside it" 0 "" tree/skills/alpha --report skills/alpha/SKILL.md "c${TAB}d"
-shape "blob row, control in a sibling name" 2 "" blob/skills/alpha/SKILL.md "" skills/alpha/SKILL.md "skills/alpha/a${TAB}b"
-shape "blob row, control below a sibling folder" 0 "" blob/skills/alpha/SKILL.md --report skills/alpha/SKILL.md "skills/alpha/sub/a${TAB}b"
-shape "blob row, control in a sibling folder name" 2 "" blob/skills/alpha/SKILL.md "" skills/alpha/SKILL.md "skills/alpha/s${TAB}b/x"
-shape "root blob row, control below a top folder" 0 "" blob/README.md --report README.md "skills/a${TAB}b"
-shape "root blob row, control in a top name" 2 "" blob/README.md "" README.md "c${TAB}d"
-shape "scoped page, control elsewhere in the scope" 2 skills tree/skills/alpha "" skills/alpha/SKILL.md "skills/beta/a${TAB}b"
-shape "scoped page, control outside the scope" 0 skills tree/skills/alpha --report skills/alpha/SKILL.md "c${TAB}d"
-shape "missing row path" 1 "" tree/skills/ghost --links skills/alpha/SKILL.md
+shape "folder row" 0 0 "" tree/skills/alpha --report skills/alpha/SKILL.md README.md
+shape "file row" 0 0 "" blob/skills/alpha/SKILL.md --report skills/alpha/SKILL.md skills/alpha/other.md
+shape "root file row" 0 0 "" blob/README.md --report README.md skills/alpha/SKILL.md
+shape "scoped page" 0 0 skills tree/skills/alpha --report skills/alpha/SKILL.md skills/beta/SKILL.md
+shape "missing row path" 1 1 "" tree/skills/ghost --links skills/alpha/SKILL.md
+shape "folder row, control under it" 2 2 "" tree/skills/alpha "" skills/alpha/SKILL.md "skills/alpha/a${TAB}b"
+shape "folder row, control outside it" 2 0 "" tree/skills/alpha --report skills/alpha/SKILL.md "c${TAB}d"
+shape "file row, control in a sibling name" 2 2 "" blob/skills/alpha/SKILL.md "" skills/alpha/SKILL.md "skills/alpha/a${TAB}b"
+shape "file row, control below a sibling folder" 2 0 "" blob/skills/alpha/SKILL.md --report skills/alpha/SKILL.md "skills/alpha/sub/a${TAB}b"
+shape "file row, control in a sibling folder name" 2 2 "" blob/skills/alpha/SKILL.md "" skills/alpha/SKILL.md "skills/alpha/s${TAB}b/x"
+shape "root file row, control below a top folder" 2 0 "" blob/README.md --report README.md "skills/a${TAB}b"
+shape "root file row, control in a top name" 2 2 "" blob/README.md "" README.md "c${TAB}d"
+shape "scoped page, control elsewhere in the scope" 2 2 skills tree/skills/alpha "" skills/alpha/SKILL.md "skills/beta/a${TAB}b"
+shape "scoped page, control outside the scope" 2 0 skills tree/skills/alpha --report skills/alpha/SKILL.md "c${TAB}d"
 
 setup
 path_without gh
