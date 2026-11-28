@@ -231,4 +231,48 @@ describe("planning branded view builds", () => {
       rmSync(work, { recursive: true, force: true });
     }
   });
+
+  test("branding labels and logos containing {{ build cleanly across interactive views", () => {
+    const dir = makeBrandedRepo(
+      [
+        "branding:",
+        "  logo:",
+        "    file: assets/mark.png",
+        "    label: '{{{ $& Acme }}'",
+        "",
+      ].join("\n"),
+      { "assets/mark.png": PNG_1X1 },
+    );
+    const outTmp = mkdtempSync(join(tmpdir(), "plan-braces-"));
+    try {
+      const env = { ...process.env, TMPDIR: outTmp, TEMP: outTmp, TMP: outTmp };
+      const teamRes = spawnSync("node", [BUILD_VIEW, "plan"], { cwd: dir, input: PLAN_FIXTURE, encoding: "utf8", env });
+      assert.equal(teamRes.status, 0, teamRes.stderr);
+      const teamHtml = readFileSync(teamRes.stdout.trim(), "utf8");
+      assert.deepEqual(validateView(teamHtml), { ok: true, failures: [] });
+      const teamLabel = /<span class="rv-brand-label">([\s\S]*?)<\/span>(?=<\/div>)/.exec(teamHtml)?.[1] ?? "";
+      assert.equal(teamLabel.replace(/<[^>]+>/g, ""), "{{{ $&amp; Acme }}");
+
+      const option = JSON.stringify({
+        logo: {
+          svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" aria-label="{{ Acme }}"><rect width="16" height="16" fill="currentColor"/></svg>',
+          label: "{{ Acme }}",
+        },
+      });
+      const optRes = spawnSync("node", [BUILD_VIEW, "plan", "--branding-option", option], {
+        cwd: outTmp,
+        input: PLAN_FIXTURE,
+        encoding: "utf8",
+        env,
+      });
+      assert.equal(optRes.status, 0, optRes.stderr);
+      const optHtml = readFileSync(optRes.stdout.trim(), "utf8");
+      assert.deepEqual(validateView(optHtml), { ok: true, failures: [] });
+      const optLabel = /<span class="rv-brand-label">([\s\S]*?)<\/span>(?=<\/div>)/.exec(optHtml)?.[1] ?? "";
+      assert.equal(optLabel.replace(/<[^>]+>/g, ""), "{{ Acme }}");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(outTmp, { recursive: true, force: true });
+    }
+  });
 });

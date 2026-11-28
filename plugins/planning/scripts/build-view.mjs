@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyBranding } from "../lib/html-branding.mjs";
+import { escapeHtml } from "../lib/html-escape.mjs";
 import { managedSettingsFiles, readOperatorOptions, resolveInstall } from "../lib/plugin-options.mjs";
 import { publishGate } from "../lib/publish-gate.mjs";
 import { buildView, VIEW_KINDS, ViewBuildError } from "../lib/view-builder.mjs";
@@ -29,6 +30,31 @@ const readBrandingOption = (flagValue, env = process.env) => {
   }
 };
 
+const breakSlots = (text, sep) => {
+  let out = text;
+  while (out.includes("{{")) out = out.replaceAll("{{", `{${sep}{`);
+  return out;
+};
+
+function applyTemplateBranding(template, { tokensCss, branding }) {
+  const logo = branding?.logo;
+  if (!logo || (!logo.label?.includes("{{") && !logo.svg?.includes("{{"))) {
+    return applyBranding(template, { tokensCss, branding });
+  }
+  const safeLabel = logo.label ? breakSlots(logo.label, " ") : logo.label;
+  const safeSvg = logo.svg ? breakSlots(logo.svg, " ") : logo.svg;
+  let branded = applyBranding(template, {
+    tokensCss,
+    branding: { ...branding, logo: { ...logo, label: safeLabel, svg: safeSvg } },
+  });
+  if (logo.label?.includes("{{")) {
+    const from = `<span class="rv-brand-label">${escapeHtml(safeLabel)}</span>`;
+    const to = `<span class="rv-brand-label">${breakSlots(escapeHtml(logo.label), "<span></span>")}</span>`;
+    branded = branded.replace(from, () => to);
+  }
+  return branded;
+}
+
 function renderBranded(kind, record, { connect = null, branding = null } = {}) {
   const entry = Object.hasOwn(VIEW_KINDS, kind) ? VIEW_KINDS[kind] : undefined;
   if (!entry) throw new Error(`view-builder: no view kind ${JSON.stringify(kind)}`);
@@ -36,7 +62,7 @@ function renderBranded(kind, record, { connect = null, branding = null } = {}) {
   const tokensCss = readFileSync(TOKENS_PATH, "utf8");
   return buildView({
     profile: entry.tier === "static" ? "report" : "interactive",
-    template: applyBranding(template, { tokensCss, branding }),
+    template: applyTemplateBranding(template, { tokensCss, branding }),
     data: entry.parse(record),
     connect,
   });
