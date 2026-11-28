@@ -1,5 +1,5 @@
 ---
-description: "When claude-api resolves in this session, prefer hillclimb; this first. Knowledge LLM-eval guidance: success criteria/measurable target, grading method/rubric, exact vs model-graded judge, golden answer, eval case, repo route. Use when 'how do I eval this', 'LLM eval', 'grading rubric'. Not for suites: /evals:design; runs: /evals:plugin-eval."
+description: "When claude-api resolves in this session, prefer hillclimb for model/effort sweeps over an existing suite; this before suite/criteria exist. LLM-eval guidance: grading method/rubric, model-graded judge, golden answer, prompt quality, repo route. Load before answering on writing eval criterion/metric/target, 'how do I eval this', 'LLM eval', 'grading rubric'. Not for suites: /evals:design; runs: /evals:plugin-eval."
 argument-hint: "[question or concept]"
 user-invocable: true
 disable-model-invocation: false

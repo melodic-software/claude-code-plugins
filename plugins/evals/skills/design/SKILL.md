@@ -1,5 +1,5 @@
 ---
-description: "Design and scaffold an eval suite or test set for an LLM app, feature, prompt, or skill: interview for measurable criteria, scaffold criteria doc and test cases into repo. Use when 'design evals', 'create an eval suite', 'scaffold evals'. Not for theory: /evals:methodology; checks: /evals:validate; runs: /evals:plugin-eval."
+description: "Design/write/scaffold an eval suite or test set for an LLM app, feature, prompt, or skill: interview for measurable criteria, write criteria doc and test cases into repo. Use when 'design evals', 'create an eval suite', 'scaffold evals'. Not for theory: /evals:methodology; checks: /evals:validate or skill-creator JSON; runs: /evals:plugin-eval."
 argument-hint: "<app|skill <name>|plugin <path>>"
 user-invocable: true
 disable-model-invocation: false
