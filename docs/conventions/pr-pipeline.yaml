@@ -859,6 +859,8 @@ merge:
         class: gate
       - glob: ".github/scripts/pr-merge/post-unarmed-status.mjs"
         class: gate
+      - glob: ".github/scripts/pr-merge/cancel-orphaned-runs.mjs"
+        class: gate
       - glob: ".github/scripts/pr-merge/verify-answers.mjs"
         class: gate
       - glob: ".github/scripts/lib/run-title.mjs"

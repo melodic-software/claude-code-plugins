@@ -1,0 +1,172 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+
+import { main } from "./cancel-orphaned-runs.mjs";
+
+const REPO = "melodic-software/claude-code-plugins";
+const NOW = Date.parse("2026-11-28T12:00:00Z");
+const ago = (seconds) => new Date(NOW - seconds * 1000).toISOString();
+const GONE = "gh-readonly-queue/main/pr-19486-1403eabc73b7919623f2e1f401b46fcc78bb511a";
+const LIVE = "gh-readonly-queue/main/pr-19486-269c6432aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const run = (id, head_branch, seconds = 300, event = "merge_group") => ({ id, event, head_branch, created_at: ago(seconds) });
+const LIST_QUEUED = `GET /repos/${REPO}/actions/runs?event=merge_group&status=queued&per_page=100&page=1`;
+const LIST_RUNNING = `GET /repos/${REPO}/actions/runs?event=merge_group&status=in_progress&per_page=100&page=1`;
+const LIST_REFS = `GET /repos/${REPO}/git/matching-refs/heads/gh-readonly-queue/`;
+const cancel = (id) => `POST /repos/${REPO}/actions/runs/${id}/cancel`;
+
+async function sweep({ queued = [], running = [], branches = [], failRefs = false, failRuns = false } = {}) {
+  const calls = [];
+  const github = async (method, path) => {
+    calls.push(`${method} ${path}`);
+    if (path.includes("/actions/runs?")) {
+      if (failRuns) {
+        throw new Error("GET runs failed with status 502");
+      }
+      const runs = path.includes("status=queued") ? queued : running;
+      return { total_count: runs.length, workflow_runs: runs };
+    }
+    if (path.includes("/git/matching-refs/")) {
+      if (failRefs) {
+        throw new Error("GET matching-refs failed with status 502");
+      }
+      return branches.map((branch) => ({ ref: `refs/heads/${branch}` }));
+    }
+    return null;
+  };
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  try {
+    const code = await main({ env: { GITHUB_REPOSITORY: REPO }, github, now: () => NOW });
+    return { code, calls, out: lines.join("\n") };
+  } finally {
+    console.log = log;
+  }
+}
+
+test("a queued run whose queue ref is gone is cancelled, after both listings and the ref read", async () => {
+  const r = await sweep({ queued: [run(46110287663, GONE)], branches: [LIVE] });
+  assert.equal(r.code, 0);
+  assert.deepEqual(r.calls, [LIST_QUEUED, LIST_RUNNING, LIST_REFS, cancel(46110287663)]);
+  assert.match(r.out, /::notice title=cancel-orphaned-runs::listed=1 cancelled=\[46110287663\] calls=4/);
+});
+
+test("an in-progress run whose queue ref is gone is cancelled too", async () => {
+  const r = await sweep({ running: [run(7, GONE)] });
+  assert.deepEqual(r.calls.slice(3), [cancel(7)]);
+});
+
+test("a run whose queue ref still exists is kept", async () => {
+  const r = await sweep({ queued: [run(1, LIVE), run(2, GONE)], branches: [LIVE] });
+  assert.deepEqual(r.calls.slice(3), [cancel(2)]);
+});
+
+test("a run 60 s old or younger is kept, one 61 s old is cancelled", async () => {
+  const r = await sweep({ queued: [run(1, GONE, 30), run(2, `${GONE}-b`, 60), run(3, `${GONE}-c`, 61)] });
+  assert.deepEqual(r.calls.slice(3), [cancel(3)]);
+});
+
+test("a run whose created_at does not parse is kept", async () => {
+  const r = await sweep({ queued: [{ ...run(1, GONE), created_at: "soon" }] });
+  assert.deepEqual(r.calls.slice(3), []);
+});
+
+test("a failed ref listing cancels nothing and ends green with a warning", async () => {
+  const r = await sweep({ queued: [run(1, GONE)], failRefs: true });
+  assert.equal(r.code, 0);
+  assert.deepEqual(r.calls, [LIST_QUEUED, LIST_RUNNING, LIST_REFS]);
+  assert.match(r.out, /::warning title=cancel-orphaned-runs::nothing more cancelled: GET matching-refs failed/);
+});
+
+test("a failed run listing cancels nothing and reads no refs", async () => {
+  const r = await sweep({ branches: [], failRuns: true });
+  assert.equal(r.code, 0);
+  assert.deepEqual(r.calls, [LIST_QUEUED]);
+});
+
+test("with no merge_group runs queued or in progress, the two listings are the only calls", async () => {
+  const r = await sweep();
+  assert.deepEqual(r.calls, [LIST_QUEUED, LIST_RUNNING]);
+  assert.match(r.out, /listed=0 cancelled=\[\] calls=2/);
+});
+
+test("a run on a branch outside gh-readonly-queue/, or from another event, is never cancelled", async () => {
+  const r = await sweep({ queued: [run(1, "main"), run(2, "feature/gh-readonly-queue/x"), run(3, GONE, 300, "push")] });
+  assert.deepEqual(r.calls.slice(3), []);
+});
+
+test("one sweep cancels at most 20 runs, the oldest first", async () => {
+  const queued = Array.from({ length: 25 }, (_, i) => run(100 + i, `${GONE}-${i}`, 1000 - i));
+  const r = await sweep({ queued });
+  const posts = r.calls.filter((call) => call.startsWith("POST"));
+  assert.equal(posts.length, 20);
+  assert.deepEqual(posts.slice(0, 2), [cancel(100), cancel(101)]);
+  assert.equal(posts.at(-1), cancel(119));
+});
+
+test("a run listed both queued and in progress is cancelled once", async () => {
+  const r = await sweep({ queued: [run(5, GONE)], running: [run(5, GONE)] });
+  assert.deepEqual(r.calls.slice(3), [cancel(5)]);
+});
+
+test("a cancel the API refuses is reported and the next one still goes", async () => {
+  const calls = [];
+  const github = async (method, path) => {
+    calls.push(`${method} ${path}`);
+    if (path.includes("status=queued")) return { total_count: 2, workflow_runs: [run(1, GONE, 400), run(2, `${GONE}-b`, 300)] };
+    if (path.includes("/actions/runs?")) return { total_count: 0, workflow_runs: [] };
+    if (path.includes("/git/matching-refs/")) return [];
+    if (path.endsWith("/1/cancel")) throw new Error("POST cancel failed with status 409");
+    return null;
+  };
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  try {
+    assert.equal(await main({ env: { GITHUB_REPOSITORY: REPO }, github, now: () => NOW }), 0);
+  } finally {
+    console.log = log;
+  }
+  assert.deepEqual(calls.slice(3), [cancel(1), cancel(2)]);
+  assert.match(lines.join("\n"), /run 1 not cancelled: POST cancel failed with status 409[\s\S]*cancelled=\[2\]/);
+});
+
+test("a paged ref listing cancels nothing", async () => {
+  const calls = [];
+  const github = async (method, path) => {
+    calls.push(`${method} ${path}`);
+    if (path.includes("status=queued")) return { total_count: 1, workflow_runs: [run(1, GONE)] };
+    if (path.includes("/actions/runs?")) return { total_count: 0, workflow_runs: [] };
+    const refs = [];
+    Object.defineProperty(refs, Symbol.for("github.link"), { value: '<https://api.github.com/x?page=2>; rel="next"' });
+    return refs;
+  };
+  const log = console.log;
+  console.log = () => {};
+  try {
+    await main({ env: { GITHUB_REPOSITORY: REPO }, github, now: () => NOW });
+  } finally {
+    console.log = log;
+  }
+  assert.deepEqual(calls.filter((call) => call.startsWith("POST")), []);
+});
+
+test("a full page of queued runs reads the next page, up to three", async () => {
+  const calls = [];
+  const page = (offset) => Array.from({ length: 100 }, (_, i) => run(offset + i, LIVE));
+  const github = async (method, path) => {
+    calls.push(`${method} ${path}`);
+    if (path.includes("status=queued")) return { total_count: 450, workflow_runs: page(Number(/page=(\d+)/.exec(path)[1]) * 1000) };
+    if (path.includes("/actions/runs?")) return { total_count: 0, workflow_runs: [] };
+    return [{ ref: `refs/heads/${LIVE}` }];
+  };
+  const log = console.log;
+  console.log = () => {};
+  try {
+    await main({ env: { GITHUB_REPOSITORY: REPO }, github, now: () => NOW });
+  } finally {
+    console.log = log;
+  }
+  assert.equal(calls.filter((call) => call.includes("status=queued")).length, 3);
+  assert.equal(calls.length, 5);
+});
