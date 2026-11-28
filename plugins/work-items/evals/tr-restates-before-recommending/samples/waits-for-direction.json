@@ -11,6 +11,10 @@
     {
       "answer": "I'll wait for your go-ahead before any label or comment.",
       "why": "go-ahead"
+    },
+    {
+      "answer": "**Which option do you want, A or B?** If B, tell me the scope you want or let me propose one.",
+      "why": "bold question followed by more text, from suite run 45912670651 r1"
     }
   ],
   "fail": [

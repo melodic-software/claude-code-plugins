@@ -8,7 +8,7 @@ graders:
     target: 'last_message'
   - name: 'waits-for-direction'
     type: 'regex'
-    pattern: '\?[ \t*_]*$|\bwait(?:s|ing)?\b[^\n]{0,40}\b(?:direction|go-ahead|confirm\w*|approval|answer|say-so)\b'
+    pattern: '\?[ \t*_]*$|\?(?:\*\*|__)|\bwait(?:s|ing)?\b[^\n]{0,40}\b(?:direction|go-ahead|confirm\w*|approval|answer|say-so)\b'
     flags: 'im'
     target: 'last_message'
   - name: 'meets-expectations'
