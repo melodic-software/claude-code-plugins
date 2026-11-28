@@ -146,7 +146,7 @@ const sources = readFileSync(3, "utf8")
 const names = [...roles, ...stacks].join("|");
 const declaration = new RegExp(`(?<![A-Za-z0-9_-])--(${names})(['"]?)[ \\t\\n]*:[ \\t\\n]*`, "g");
 const setProperty = new RegExp(`setProperty\\([ \\t\\n]*(['"\`])--(${names})\\1[ \\t\\n]*,[ \\t\\n]*`, "g");
-const quotedValue = /(['"`])([^'"`\n]*)\1/y;
+const quotedValue = /(['"`])((?:(?!\1)[^\n])*)\1/y;
 const tokenRef = /^var\([ \t]*--([A-Za-z0-9_-]+)[ \t]*\)$/;
 
 // A declaration inside a quoted string or attribute (an inline style, a JS

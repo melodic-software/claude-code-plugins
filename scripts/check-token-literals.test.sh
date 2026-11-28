@@ -130,6 +130,8 @@ write_page plugins/demo/scripts/theme.mjs 'root.style.setProperty("--accent", "v
 expect_finding "a literal set through style.setProperty fails" "TOKEN LITERAL: plugins/demo/scripts/theme.mjs:2: --sans: Arial, sans-serif"
 write_page plugins/demo/scripts/theme.mjs 'root.style.setProperty("--accent", "var(--clay)");' 'root.style.setProperty("--fg", theme.fg);'
 expect_finding "a computed value set through style.setProperty fails" "TOKEN LITERAL: plugins/demo/scripts/theme.mjs:2: --fg: theme.fg"
+write_page plugins/demo/scripts/theme.mjs 'const vars = { "--accent": "var(--clay)" };' 'const fonts = { "--mono": "'"'"'SF Mono'"'"', monospace" };'
+expect_finding "a quoted family inside a quoted JS value stays part of the value" "TOKEN LITERAL: plugins/demo/scripts/theme.mjs:2: --mono: 'SF Mono', monospace"
 git -C "${f}" rm -qf plugins/demo/scripts/theme.mjs
 
 allow() { printf '%s\n' "# pages still to migrate" "$@" >"${f}/scripts/token-literals-allowlist.txt"; }
