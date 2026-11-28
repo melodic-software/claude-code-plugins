@@ -1896,27 +1896,17 @@ const OWNER = { login: "maintainer", type: "User" };
 const LANES_BOT = { login: "melodic-automation-lanes[bot]", type: "Bot" };
 const bodyPull = (user, body) => ({ draft: false, head: { repo: { full_name: "o/r" } }, user, body });
 
-test("a Hold: line in an owner PR's body drops the patch uncommitted", async (t) => {
-  for (const body of ["Fixes it.\n\nHold: until the release", "hold: wait", "Fixes it.\n Hold: wait", "Fixes it.\rHold: wait", "Fixes it.\r\n  HOLD: wait"]) {
+test("body hold phrases in an owner or lanes App PR hold nothing; the do-not-merge label holds", async (t) => {
+  for (const pull of [bodyPull(OWNER, "Fixes it.\n\nHold: until the release"), bodyPull(OWNER, "Please do not merge."), bodyPull(LANES_BOT, "Closes #1\n\nHold: a human merges this")]) {
     const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
-    const api = fakeApi(fix.repo, fix.head, { pull: bodyPull(OWNER, body) });
-    assert.deepEqual(await pushWith(fix, api), { outcome: "held" }, JSON.stringify(body));
-    assert.deepEqual(writes(api), [], JSON.stringify(body));
+    const api = fakeApi(fix.repo, fix.head, { pull });
+    assert.notDeepEqual(await pushWith(fix, api), { outcome: "held" }, pull.body);
+    assert.ok(callNames(api).includes("updateRef"), `the branch moves: ${pull.body}`);
   }
-});
-
-test("a Hold: line in the lanes App's own PR body does not hold the patch", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
-  const api = fakeApi(fix.repo, fix.head, { pull: bodyPull(LANES_BOT, "Closes #1\n\nHold: a human merges this") });
-  assert.notDeepEqual(await pushWith(fix, api), { outcome: "held" });
-  assert.ok(callNames(api).includes("updateRef"), "the branch moves");
-});
-
-test("an owner PR body that only mentions Hold: mid-line pushes", async (t) => {
-  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
-  const api = fakeApi(fix.repo, fix.head, { pull: bodyPull(OWNER, "Fixes the Hold: parser.") });
-  assert.notDeepEqual(await pushWith(fix, api), { outcome: "held" });
-  assert.ok(callNames(api).includes("updateRef"), "the branch moves");
+  const api = fakeApi(fix.repo, fix.head, { pull: bodyPull(OWNER, "Fixes it."), labels: [{ name: "do-not-merge" }] });
+  assert.deepEqual(await pushWith(fix, api), { outcome: "held" });
+  assert.deepEqual(writes(api), []);
 });
 
 async function assertCredentialRefused(t, token) {

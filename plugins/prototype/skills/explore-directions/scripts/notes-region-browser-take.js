@@ -9,12 +9,12 @@ async page => {
     R.push("GEOM " + JSON.stringify(geom));
     const fb = await page.locator("#page").boundingBox();
     const status = (re) => page.waitForFunction((s) => new RegExp(s).test(document.getElementById("status").textContent), re.source, { timeout: 8000 });
-    const outline = (line = "dashed") => frame.evaluate((l) => {
+    const outline = async (line = "dashed") => (await frame.waitForFunction((l) => {
       const o = [...document.querySelectorAll("[data-ui-feedback-layer] > div")].find(e => e.style.outline.includes(l) && !e.dataset.note);
       return o ? { page: [o.style.left, o.style.top, o.style.width, o.style.height].map(parseFloat), scrollY } : null;
-    }, line);
+    }, line, { timeout: 10000 })).jsonValue();
     const editingBox = async () => {
-      await frame.waitForFunction(() => [...document.querySelectorAll("[data-ui-feedback-layer] > div")].some(e => e.style.outline.includes("dashed") && !e.dataset.note), null, { timeout: 5000 });
+      await outline();
       await page.waitForTimeout(800);
       return outline();
     };
@@ -29,6 +29,7 @@ async page => {
     await page.focus("#region");
     await page.keyboard.press("r");
     ok("R turns region mode on", await page.getAttribute("#region", "aria-pressed") === "true");
+    await outline();
     await page.mouse.move(fb.x + 100, fb.y + 120);
     await page.mouse.down();
     await page.mouse.move(fb.x + 400, fb.y + fb.height - 8, { steps: 8 });

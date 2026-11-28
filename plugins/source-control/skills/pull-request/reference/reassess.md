@@ -113,8 +113,8 @@ and re-runs the review lanes.
 
 This action never closes a PR and never lifts a label. Its comment comes only from
 [the comment renderer](../../../reference/providers/github/pull-request/reassess.md#post-or-edit-the-comment),
-whose fixed text and references carry no PR or issue text, local path, or wording that could read
-as a person's veto. The reasoning goes in the report. A re-run edits its earlier comment instead of
+whose fixed text and references carry no PR or issue text or local path. The reasoning goes in
+the report. A re-run edits its earlier comment instead of
 adding another.
 
 ## 5. Report

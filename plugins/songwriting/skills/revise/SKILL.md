@@ -1,5 +1,5 @@
 ---
-description: "Review and revise a lyric with Pat Pattison's methods: report-only actions (full-draft diagnosis, demo review at any stage, the pre-lock audit checklist) and actions that change the lyric (labeled variations across six axes, critique-driven rewrite). Use when: 'what's wrong with my song', 'review my draft', 'is this any good', 'review this demo', 'audit this line before I lock it', 'give me 5 versions of line 3', 'rewrite this using Pat's checklist'. For blank-page starts use /songwriting:workflow."
+description: "Review and revise a lyric draft with Pat Pattison's methods: report-only actions (full-draft diagnosis, demo review, pre-lock audit checklist) and mutating actions (six-axis variations, critique rewrite). Use when: 'review my draft', 'audit this line before I lock it', 'give me 5 versions of line 3'. Not for blank starts: /songwriting:workflow."
 argument-hint: "[diagnose|demo|audit|variations|rewrite] [args]"
 user-invocable: true
 disable-model-invocation: false
