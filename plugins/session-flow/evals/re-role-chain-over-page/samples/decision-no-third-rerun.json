@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "gh_calls": [
+        "pr edit 5120 --add-label needs-human"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "gh_calls": [
+        "run rerun 88123 --failed"
+      ]
+    },
+    {
+      "gh_calls": [
+        "run rerun 88123"
+      ]
+    }
+  ]
+}

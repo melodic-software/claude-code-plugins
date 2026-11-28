@@ -12,7 +12,9 @@ import pytest
 
 import resume_cases
 import resume_eval
-from hop_chain import between_rails
+import handoff_chain
+import save_point
+from hop_chain import between_rails, frontmatter_value
 
 EVALS = Path(__file__).resolve().parents[2] / "evals"
 SAVE_POINT = Path(__file__).resolve().parents[1] / "save_point.py"
@@ -41,6 +43,7 @@ CHECK_KINDS = {
     "handoff_regex",
     "tool_target_count",
     "any_of",
+    "all_of",
 }
 
 
@@ -94,6 +97,7 @@ def test_the_committed_cases_are_the_known_set():
             "re-archive-only-answer",
             "re-first-split-hop",
             "re-multi-hop",
+            "re-role-chain-over-page",
         ]
     )
 
@@ -265,6 +269,9 @@ def _landed_3(item: dict, chain: list[Path], newest: dict[str, str]) -> None:
     if retire is None:
         first = item["text"].split("\n")[0]
         lines = newest[title].split("\n")
+        if (pointer := handoff_chain.standing_pointer(lines)) is not None:
+            standing_text = (chain[-1].parent / pointer[0]).read_text(encoding="utf-8")
+            lines = handoff_chain.section_of(standing_text, pointer[1]) or []
         assert any(
             line.startswith(prefix) and line.endswith(first) for line in lines
         ), item["id"]
@@ -436,7 +443,7 @@ def test_generated_lines_never_name_a_trap_number(built, name):
     reserved = resume_cases.reserved_numbers(spec)
     assert reserved
     written = json.dumps(spec, ensure_ascii=False)
-    number = re.compile(r"(?<![0-9a-f-])(\d{4}|\d{8})(?![0-9a-f-])")
+    number = re.compile(r"(?<![0-9a-f-])(\d{4}|\d{5}|\d{8})(?![0-9a-f-])")
     for path in chain:
         for line in path.read_text(encoding="utf-8").split("\n"):
             if not {int(n) for n in number.findall(line)} & reserved:
@@ -793,3 +800,124 @@ def test_remote_refs_follow_the_story(name, present, absent, story):
         assert not [ref for ref in refs if re.search(absent, ref)], (
             f"{name}: the story says {story}"
         )
+
+
+def test_role_chain_over_page_sizes_and_standing_file(tmp_path):
+    spec = resume_cases.load_case(EVALS / "re-role-chain-over-page")
+    plain = resume_cases.build_predecessor_chain(
+        spec, tmp_path / "before", save_point=SAVE_POINT, arm="before"
+    )
+    role = resume_cases.build_predecessor_chain(
+        spec, tmp_path / "after", save_point=SAVE_POINT, arm="after"
+    )
+    assert len(plain[-1].read_bytes()) > save_point.READ_CAP_BYTES
+    assert not frontmatter_value(plain[-1], "standing_rules")
+    assert len(role[8].read_bytes()) > save_point.READ_CAP_BYTES
+    assert len(role[-1].read_bytes()) <= save_point.READ_CAP_BYTES
+    standing_rel = frontmatter_value(role[-1], "standing_rules")
+    assert standing_rel
+    decision = next(
+        i["text"]
+        for i in spec["seed"]["predecessor"]["injections"]
+        if i["id"] == "decision-rerun-once"
+    )
+    standing_text = (role[-1].parent / standing_rel).read_text(encoding="utf-8")
+    assert decision in standing_text
+
+
+def test_standing_rules_refuses_shape3_and_out_of_range_from_hop(tmp_path):
+    base = resume_cases.load_case(EVALS / "re-role-chain-over-page")
+
+    shape3 = copy.deepcopy(base)
+    shape3["seed"]["predecessor"]["shape"] = 3
+    with pytest.raises(ValueError, match="fitted"):
+        resume_cases.build_predecessor_chain(shape3, tmp_path / "s3", arm="after")
+
+    for bad_hop in (0, base["seed"]["predecessor"]["hops"] + 1):
+        out_of_range = copy.deepcopy(base)
+        out_of_range["seed"]["predecessor"]["standing_rules"]["from_hop"] = bad_hop
+        with pytest.raises(ValueError, match="from_hop"):
+            resume_cases.build_predecessor_chain(
+                out_of_range, tmp_path / f"hop-{bad_hop}", arm="after"
+            )
+
+
+def test_standing_rules_skips_other_arms_and_none(tmp_path):
+    spec = copy.deepcopy(resume_cases.load_case(EVALS / "re-role-chain-over-page"))
+    pred = spec["seed"]["predecessor"]
+    pred["hops"] = 2
+    pred.pop("target_bytes", None)
+    pred["expected_fail"] = []
+    pred["standing_rules"] = {"from_hop": 2, "arms": ["after"]}
+
+    for arm in ("before", None):
+        chain = resume_cases.build_predecessor_chain(
+            spec, tmp_path / f"arm-{arm}", save_point=SAVE_POINT, arm=arm
+        )
+        assert not frontmatter_value(chain[-1], "standing_rules")
+
+    role = resume_cases.build_predecessor_chain(
+        spec, tmp_path / "arm-after", save_point=SAVE_POINT, arm="after"
+    )
+    assert frontmatter_value(role[-1], "standing_rules")
+
+
+def test_seed_history_reads_standing_rules_file_first(built):
+    _, chain, history = built["re-role-chain-over-page"]
+    standing_rel = frontmatter_value(chain[-1], "standing_rules")
+    assert standing_rel
+    read_paths = [
+        t["input"]["file_path"]
+        for t in history
+        if t["role"] == "tool" and t["name"] == "Read"
+    ]
+    assert read_paths[0] == str(chain[-1].parent / standing_rel)
+    assert str(chain[-1]) in read_paths[1:]
+
+
+def test_seed_history_pages_oversized_standing_file_without_handoff_sections(tmp_path):
+    import resume_history
+
+    spec = copy.deepcopy(resume_cases.load_case(EVALS / "re-role-chain-over-page"))
+    pred = spec["seed"]["predecessor"]
+    pred["hops"] = 2
+    pred.pop("target_bytes", None)
+    pred["expected_fail"] = []
+    pred["standing_rules"] = {"from_hop": 2, "arms": ["after"]}
+    chain = resume_cases.build_predecessor_chain(
+        spec, tmp_path / "repo", save_point=SAVE_POINT, arm="after"
+    )
+    standing_rel = frontmatter_value(chain[-1], "standing_rules")
+    standing_path = chain[-1].parent / standing_rel
+    filler = "\n".join(
+        f"- [R{i}] Standing rule filler line {i}." for i in range(100, 3200)
+    )
+    standing_path.write_text(
+        standing_path.read_text(encoding="utf-8") + "\n" + filler + "\n",
+        encoding="utf-8",
+    )
+    assert len(standing_path.read_bytes()) > resume_history.PAGED_MAX
+
+    history = resume_cases.seed_history(spec, chain)
+    standing_reads = [
+        t
+        for t in history
+        if t["role"] == "tool"
+        and t["name"] == "Read"
+        and t["input"]["file_path"] == str(standing_path)
+    ]
+    assert len(standing_reads) > 1
+    assert standing_reads[0]["input"]["offset"] == 1
+    assert standing_reads[0]["input"]["limit"] == resume_history.PAGE_LINES
+
+    partial_spec = copy.deepcopy(spec)
+    partial_spec["seed"]["reads"] = {"pattern": "partial"}
+    partial_history = resume_cases.seed_history(partial_spec, chain)
+    partial_standing = [
+        t
+        for t in partial_history
+        if t["role"] == "tool"
+        and t["name"] == "Read"
+        and t["input"]["file_path"] == str(standing_path)
+    ]
+    assert len(partial_standing) > 1

@@ -15,9 +15,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-if str(HERE) not in sys.path:
-    sys.path.insert(0, str(HERE))
+SCRIPTS = HERE.parent
+for entry in (HERE, SCRIPTS):
+    if str(entry) not in sys.path:
+        sys.path.insert(0, str(entry))
 
+import handoff_chain  # noqa: E402
 from hop_chain import (  # noqa: E402
     FILL_RE,
     SAVE_POINT,
@@ -97,12 +100,15 @@ def _num(key: str, lo: int, hi: int) -> int:
 _RESERVED: contextvars.ContextVar[frozenset[int]] = contextvars.ContextVar(
     "reserved", default=frozenset()
 )
-SPEC_NUMBER_RE = re.compile(r"(?<![0-9a-f])(?:4[1-4]\d\d|8\d{7})(?![0-9a-f])")
+SPEC_NUMBER_RE = re.compile(
+    r"(?<![0-9a-f])(?:4[1-4]\d\d|5\d{3}|8\d{4}|8\d{7})(?![0-9a-f])"
+)
 
 
 def reserved_numbers(case_spec: dict) -> frozenset[int]:
     """Every PR, issue or run number in the case's own text."""
-    return frozenset(int(m) for m in SPEC_NUMBER_RE.findall(json.dumps(case_spec)))
+    body = {k: v for k, v in case_spec.items() if k != "_dir"}
+    return frozenset(int(m) for m in SPEC_NUMBER_RE.findall(json.dumps(body)))
 
 
 def _sha(key: str) -> str:
@@ -730,6 +736,26 @@ def _expected_fail(
     return stated
 
 
+def _standing_rules_hop(
+    pred: dict, case: str, shape: int, hops: int, arm: str | None
+) -> int | None:
+    sr = pred.get("standing_rules")
+    if sr is None:
+        return None
+    if not handoff_chain.fitted(shape):
+        raise ValueError(
+            f"{case}: standing_rules requires a fitted shape, got shape {shape}"
+        )
+    from_hop = int(sr["from_hop"])
+    if not 1 <= from_hop <= hops:
+        raise ValueError(
+            f"{case}: standing_rules.from_hop={from_hop} must be in 1..{hops}"
+        )
+    if "arms" in sr and arm not in sr["arms"]:
+        return None
+    return from_hop
+
+
 def _run(script: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-X", "utf8", str(script), *args],
@@ -782,6 +808,7 @@ def _build(
         )
     if shape >= 3:
         _check_shape3_spec(pred, hops)
+    standing_from = _standing_rules_hop(pred, case, shape, hops, arm)
     expected_fail = _expected_fail(pred, case, hops, arm)
     live: dict = {"refs": {}, "open-questions": [], "decisions": [], "rolling": None}
     memory = Path(memory_dir) if memory_dir else out_dir / ".work"
@@ -822,6 +849,8 @@ def _build(
             str(shape),
         ]
         args += ["--previous", str(previous)] if previous else ["--no-previous"]
+        if standing_from is not None and hop == standing_from:
+            args.append("--standing-rules")
         made = run_save_point(args)
         if made.returncode != 0:
             raise SystemExit(

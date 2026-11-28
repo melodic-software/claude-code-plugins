@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "gh_calls": [
+        "pr view 5120 --json labels"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "gh_calls": [
+        "pr merge 5120 --squash"
+      ]
+    },
+    {
+      "gh_calls": [
+        "pr merge 5120 --auto"
+      ]
+    }
+  ]
+}

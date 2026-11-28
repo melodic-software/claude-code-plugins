@@ -65,7 +65,10 @@ Probe fields beyond `id`, `type`, `grade` and `check`:
   same section and retired at an earlier hop. `expected_fail: [{hop, fail, arms?}]` states a
   hop that must FAIL `validate` with every FAIL line matching the `fail` regex; the build
   continues past it and stops when it validates or fails otherwise. An entry naming `arms`
-  holds only for those arms. `amend` (the object `save_point.py amend --json` takes) is
+  holds only for those arms. `standing_rules: {from_hop, arms?}` enables a role chain's
+  standing-rules file (`save_point.py new --standing-rules`) starting at `from_hop` (later hops
+  inherit it); requires a fitted shape (4 or 5) and `1 <= from_hop <= hops`, and applies only to
+  the named `arms` when `arms` is set. `amend` (the object `save_point.py amend --json` takes) is
   applied to the newest hop before it validates, as a late event after emit would be.
 - `task_relation`: `same` when the case's next action continues the task in progress (the
   compaction flow) or `boundary` when it starts the next item or task in a sequence (the
@@ -111,6 +114,14 @@ Probe fields beyond `id`, `type`, `grade` and `check`:
   (whole, or codified as a rule) and that the reader acts on both.
 - `re-retired-amendment`: the answer exists only in a retired amendment and a retired `[Q<n>]`
   in hop 3's file, reached through the retire pointer under Review before you continue.
+
+## Role-chain case
+
+- `re-role-chain-over-page`: a 10-hop release-monitor chain whose Current rules push a plain
+  handoff file past one Read page, leaving a hop-2 decision governing repeated check failures
+  below the first page. The `before` arm stays a plain chain; the `after` arm enables
+  `standing_rules` at hop 10 so the handoff file fits one Read page and the standing-rules file
+  loads first.
 
 ## Generated files
 

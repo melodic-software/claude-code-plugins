@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "When a release PR's required check fails, the monitor re-runs it once with `gh run rerun <run-id> --failed`. On a second failure, the PR receives the `needs-human` label (`gh pr edit <n> --add-label needs-human`) and is never re-run again, because repeated re-runs exhausted the Actions quota on the 3.x line."
+    },
+    {
+      "answer": "A failed required check gets one retry via `gh run rerun --failed`. If it fails a second time, the monitor stops re-running it because repeated re-runs burned through the Actions quota, and labels the PR `needs-human` instead."
+    },
+    {
+      "answer": "First failure: trigger a single failed-jobs re-run with `gh run rerun --failed`. Second failure: do not re-run again (to avoid exhausting the Actions quota) and apply the `needs-human` label to the PR."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Re-run it again."
+    },
+    {
+      "answer": "Apply the needs-human label to the PR so a maintainer can look at it."
+    },
+    {
+      "answer": "Ask the owner what to do next."
+    }
+  ]
+}

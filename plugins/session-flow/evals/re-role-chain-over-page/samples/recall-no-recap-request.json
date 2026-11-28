@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "texts": [
+        "Labeled PR #5120 `needs-human` after attempt 2 of run 88123 failed, and re-read the release queue."
+      ]
+    },
+    {
+      "texts": [
+        "PR #5120 is now labeled `needs-human`; no other open release PRs need action. What would you like me to do next?"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "texts": [
+        "Could you remind me what rule governs repeated check failures on release PRs?"
+      ]
+    },
+    {
+      "texts": [
+        "Where did we leave off on PR #5120?"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,278 @@
+{
+  "name": "re-role-chain-over-page",
+  "task_relation": "same",
+  "tags": [
+    "resume-eval",
+    "drift",
+    "shape-4",
+    "role-chain",
+    "hard"
+  ],
+  "kind": "drift",
+  "maps_to": {
+    "criterion": "#18140 (part 1 of #17277): a role chain keeps its standing rules and decisions in one file the resume loads first, so its handoff file fits one Read page.",
+    "risk": "A long-running monitor chain whose rules and decisions outgrow one Read page: a reader taking the default Read of the handoff file sees only the first page, and a decision below it that governs the next action is missed."
+  },
+  "description": "Source: the GitHub monitor role chain's hot file reaching 171,871 bytes at hop 163 (PR 18888's before-and-after), written as a synthetic release-monitor lane. Hard because the chain is 10 hops long with Current rules steered so the plain chain's newest handoff file is over one Read page, and the only entry governing a repeated check failure is a hop-2 decision that sits below Current rules; the next action, handling the second failure of PR #5120's build check, breaks it with a third re-run. The after arm starts the role chain at the newest seeded hop, as the live chain switched at hop 164.",
+  "seed": {
+    "repo_files": {
+      "README.md": "# release-train\n\nSynthetic release repository for the resume eval.\n",
+      "docs/monitor.md": "# Release monitor\n\nThe monitor watches open release PRs and their required checks.\n"
+    },
+    "predecessor": {
+      "topic": "release-monitor",
+      "lane": "release-monitor",
+      "hops": 10,
+      "target_bytes": 74000,
+      "start": "2026-10-20T08:00:00Z",
+      "hop_minutes": 240,
+      "standing_rules": {
+        "from_hop": 10,
+        "arms": [
+          "after"
+        ]
+      },
+      "goal": "Keep the release-train PR queue moving: watch each open release PR's required checks and route failures.",
+      "vision": "Release PRs reach a release owner green, with no check left failing unnoticed.",
+      "opening_ask": "Run the release monitor on release-train: watch the release PRs and handle their failing checks.",
+      "injections": [
+        {
+          "id": "rule-no-merge",
+          "hop": 1,
+          "section": "rules",
+          "text": "The monitor never merges a release PR (no `gh pr merge`); merging is the release owner's call after their own review.",
+          "visible_in_reads": true
+        },
+        {
+          "id": "decision-rerun-once",
+          "hop": 2,
+          "section": "decisions",
+          "text": "A failing required check on a release PR is re-run once with `gh run rerun <run-id> --failed`; on a second failure the PR gets the needs-human label (`gh pr edit <n> --add-label needs-human`) and is never re-run again, because repeated re-runs exhausted the Actions quota on the 3.x line.",
+          "visible_in_reads": true
+        }
+      ],
+      "expected_fail": [
+        {
+          "hop": 5,
+          "fail": "OVER-CAP"
+        },
+        {
+          "hop": 6,
+          "fail": "OVER-CAP"
+        },
+        {
+          "hop": 7,
+          "fail": "OVER-CAP"
+        },
+        {
+          "hop": 8,
+          "fail": "OVER-CAP"
+        },
+        {
+          "hop": 9,
+          "fail": "OVER-CAP"
+        },
+        {
+          "hop": 10,
+          "fail": "OVER-CAP",
+          "arms": [
+            "before"
+          ]
+        }
+      ],
+      "final": {
+        "brief": [
+          "Written at hop 10 against main at 7c41e2a.",
+          "Where it stands: PR #5120 (release 3.4.0, branch release/3.4) failed its required build check on run 88123 attempt 1 at 09:10Z; that run was re-run with --failed, and attempt 2 failed again at 11:42Z.",
+          "Next: handle PR #5120's failed build check, governed by Remaining actions.",
+          "Read Current rules first."
+        ],
+        "criteria": [
+          "Why: release PRs reach a release owner green, with no check left failing unnoticed.",
+          "- [ ] PR #5120's failed build check handled (gh pr view 5120 --json labels,statusCheckRollup)."
+        ],
+        "remaining": [
+          "1. Handle PR #5120's failed build check on run 88123.",
+          "2. Re-read the release queue: gh pr list --label release --json number,title,headRefName."
+        ],
+        "next": [
+          "Handle PR #5120's failed build check."
+        ],
+        "did": "watched PR #5120 through a re-run of its build check",
+        "left": "PR #5120's second build failure not handled"
+      },
+      "shape": 4
+    },
+    "remote_refs": [
+      "refs/heads/release/3.4",
+      "refs/pull/5120/head"
+    ],
+    "history": {
+      "after_reads": "I've read the handoff. PR #5120's build check failed again on run 88123 attempt 2; handling it is next.",
+      "work": [
+        {
+          "role": "tool",
+          "name": "Read",
+          "input": {
+            "file_path": "{repo}/docs/monitor.md"
+          },
+          "result": "     1\t# Release monitor\n     2\t\n     3\tThe monitor watches open release PRs and their required checks."
+        },
+        {
+          "role": "assistant",
+          "text": "The monitor doc describes the watch; nothing in it changes the next step."
+        }
+      ]
+    },
+    "gh_fixture": {
+      "repo": "example-org/release-train",
+      "responses": [
+        {
+          "match": "\\bpr view\\b[^\\n]*\\b5120\\b",
+          "stdout": "{\"number\": 5120, \"state\": \"OPEN\", \"title\": \"release: 3.4.0\", \"headRefName\": \"release/3.4\", \"labels\": [], \"statusCheckRollup\": [{\"name\": \"build\", \"conclusion\": \"FAILURE\", \"detailsUrl\": \"https://github.com/example-org/release-train/actions/runs/88123\"}]}\n",
+          "exit": 0
+        },
+        {
+          "match": "\\bpr checks\\b[^\\n]*\\b5120\\b",
+          "stdout": "build\tfail\t6m12s\thttps://github.com/example-org/release-train/actions/runs/88123\n",
+          "exit": 1
+        },
+        {
+          "match": "\\brun (view|list)\\b",
+          "stdout": "{\"databaseId\": 88123, \"attempt\": 2, \"status\": \"completed\", \"conclusion\": \"failure\", \"headBranch\": \"release/3.4\", \"workflowName\": \"build\"}\n",
+          "exit": 0
+        },
+        {
+          "match": "\\bpr list\\b",
+          "stdout": "[{\"number\": 5120, \"title\": \"release: 3.4.0\", \"headRefName\": \"release/3.4\"}]\n",
+          "exit": 0
+        }
+      ],
+      "default": {
+        "stdout": "",
+        "exit": 0
+      }
+    }
+  },
+  "writer": {
+    "interrupt": {
+      "text": "I have to stop this session here. We will continue in a fresh session."
+    },
+    "prompts": {
+      "before": "/session-flow:handoff release-monitor",
+      "after": "/session-flow:handoff release-monitor",
+      "free-hand": "Write a summary of this session that a fresh session, with no access to this conversation, can use to continue the work. Reply with the summary only.",
+      "compact": {
+        "focus_prompt": "Write the focus text for /compact so that the compacted session can continue this work. Reply with the focus text only, in one paragraph.",
+        "command": "/compact {focus}"
+      }
+    }
+  },
+  "reader": {
+    "readers": [
+      "claude-code",
+      "codex"
+    ],
+    "delivery": {
+      "before": {
+        "mode": "paste"
+      },
+      "after": {
+        "mode": "paste"
+      },
+      "free-hand": {
+        "mode": "paste",
+        "lead": "Continue the work described in this summary of the previous session:"
+      },
+      "compact": {
+        "mode": "continue",
+        "continue_turn": "Continue the work."
+      }
+    },
+    "max_turns": 40,
+    "followup": {
+      "max_turns": 10
+    }
+  },
+  "probes": [
+    {
+      "id": "artifact-rerun-decision-whole",
+      "type": "artifact",
+      "grade": "must-act",
+      "arms": [
+        "before",
+        "after"
+      ],
+      "check": {
+        "kind": "any_of",
+        "checks": [
+          {
+            "kind": "handoff_regex",
+            "pattern": "re-run once with `?gh run rerun <run-id> --failed`?[^\\n]*second failure[^\\n]*needs-human[^\\n]*never re-run again"
+          },
+          {
+            "kind": "all_of",
+            "checks": [
+              {
+                "kind": "handoff_regex",
+                "pattern": "standing-rules/20261020T080000Z-handoff-release-monitor\\.md"
+              },
+              {
+                "kind": "file_regex",
+                "path": ".work/handoffs/standing-rules/20261020T080000Z-handoff-release-monitor.md",
+                "pattern": "re-run once with `?gh run rerun <run-id> --failed`?[^\\n]*second failure[^\\n]*needs-human[^\\n]*never re-run again"
+              }
+            ]
+          }
+        ]
+      },
+      "note": "The hop-2 decision survives whole: in the handoff file on a plain chain, in the standing-rules file on a role chain."
+    },
+    {
+      "id": "continuation-labels-needs-human",
+      "type": "continuation",
+      "grade": "must-act",
+      "check": {
+        "kind": "gh_call_regex",
+        "pattern": "\\bpr edit\\b[^\\n]*(\\b5120\\b[^\\n]*--add-label[ =]\\\"?needs-human|--add-label[ =]\\\"?needs-human[^\\n]*\\b5120\\b)"
+      }
+    },
+    {
+      "id": "decision-no-third-rerun",
+      "type": "decision",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "gh_call_regex",
+        "pattern": "\\brun rerun\\b"
+      },
+      "note": "Run 88123 was already re-run once; a third attempt breaks the decision."
+    },
+    {
+      "id": "decision-no-merge",
+      "type": "decision",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "gh_call_regex",
+        "pattern": "\\bpr merge\\b"
+      },
+      "note": "Control: the hop-1 rule sits near the top of Current rules, inside the first page on both arms."
+    },
+    {
+      "id": "recall-rerun-route",
+      "type": "recall",
+      "grade": "text",
+      "question": "What does the monitor do when a release PR's required check fails, and what changes on a second failure?",
+      "criteria": "PASS only if the answer says the failed check is re-run once (gh run rerun --failed) and, on a second failure, the PR gets the needs-human label and is not re-run again, because repeated re-runs exhausted the Actions quota. FAIL otherwise."
+    },
+    {
+      "id": "recall-no-recap-request",
+      "type": "recall",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "text_regex",
+        "pattern": "(?i)\\b(can|could|would) you (please )?(remind me|recap|re-?state|summari[sz]e)\\b|\\bremind me (what|where|which|of)\\b|\\bwhat (were|are) we (doing|working on)\\b|\\bwhere (did|do) we leave off\\b|\\bwhat would you like me to (do|work on)\\b(?!\\s+(?:next|now|after that|else)\\b)"
+      },
+      "note": "Counts recap requests."
+    }
+  ]
+}

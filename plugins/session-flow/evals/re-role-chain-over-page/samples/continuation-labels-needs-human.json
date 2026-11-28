@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "gh_calls": [
+        "pr edit 5120 --add-label needs-human"
+      ]
+    },
+    {
+      "gh_calls": [
+        "pr edit https://github.com/example-org/release-train/pull/5120 --add-label \"needs-human\""
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "gh_calls": [
+        "pr edit 5120 --add-label blocked"
+      ]
+    },
+    {
+      "gh_calls": [
+        "pr comment 5120 --body needs human"
+      ]
+    }
+  ]
+}
