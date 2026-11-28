@@ -1402,6 +1402,7 @@ CARRIED_RUN_SECTION = "carried-run-record"
 CARRIED_RECORD_SECTION = "carried-fail-head-ref"
 CARRIED_ON_BRANCH = "carried-on-branch"
 UNREAD_RECORD_SECTION = "unreadable-fail-head-ref"
+DRAFT_JUDGMENT_SECTION = "draft-judgment"
 RUN_FIELDS = (
     "id",
     "path",
@@ -4527,13 +4528,21 @@ class Reader:
         completes, so the run it judged is among them. The verifier run's
         creation is read fresh (`_fresh_created`), so no carried record can
         turn a FAIL away. A failed read, a list cut short, a time that cannot
-        be read, or no run before it answers False: the FAIL counts."""
+        be read, or no run before it answers False: the FAIL counts. An answer
+        read whole is shared by the run's gate processes, however long ago:
+        it rests on runs at a fixed head created before a fixed run."""
         key = (sha, run_id)
         if key not in self._draft_judgments:
-            try:
-                self._draft_judgments[key] = self._judged_a_draft(sha, run_id)
-            except _Unreadable:
-                self._draft_judgments[key] = False
+            shared_key = f"{self.repo}|{sha}|{run_id}"
+            judged = run_cache.get(DRAFT_JUDGMENT_SECTION, shared_key, None)
+            if not isinstance(judged, bool):
+                try:
+                    judged = self._judged_a_draft(sha, run_id)
+                except _Unreadable:
+                    judged = False
+                else:
+                    run_cache.put(DRAFT_JUDGMENT_SECTION, shared_key, judged)
+            self._draft_judgments[key] = judged
         return self._draft_judgments[key]
 
     def _judged_a_draft(self, sha: str, run_id: int) -> bool:
@@ -4549,7 +4558,9 @@ class Reader:
         )
         runs = listed.get("workflow_runs")
         if not is_json_array(runs) or listed.get("total_count") != len(runs):
-            return False
+            raise _Unreadable(
+                f"the checks runs at {sha[:12]} could not be listed whole"
+            )
         created = self._fresh_created(run_id)
         if created is None:
             return False

@@ -8567,6 +8567,76 @@ class AFailJudgedFromADraftRunCountsAsNone(unittest.TestCase):
                 self.assertEqual(read(fake).refusal, "verify:fail")
 
 
+class OneRunSharesADraftJudgmentReadWhole(unittest.TestCase):
+    """Two gate processes of one pr-merge run judging the same FAIL at the
+    head: the second lists no checks runs, reads no jobs and no verifier run
+    when the first judged it from whole reads. A judgment cut short by a
+    failed read is judged again by the next process, and with no run cache
+    named every process reads as before."""
+
+    def setUp(self) -> None:
+        self.dir = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(mock.patch.dict(os.environ, {}))
+        self.runs = 0
+
+    def new_run(self) -> None:
+        self.runs += 1
+        os.environ[run_cache.ENV] = str(self.dir / f"run-{self.runs}.json")
+
+    @staticmethod
+    def reads(fake: FakeGitHub) -> tuple[int, int, int]:
+        joined = [" ".join(c) for c in fake.calls]
+        return (
+            sum("/pr-require-checks.yml/runs?head_sha=" in c for c in joined),
+            sum("/jobs?filter=latest" in c for c in joined),
+            sum(c.endswith(f"repos/{REPO}/actions/runs/2") for c in joined),
+        )
+
+    def two_processes(
+        self, fake: FakeGitHub, refusal: str | None
+    ) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+        self.assertEqual(read(fake).refusal, refusal, "first process")
+        first = self.reads(fake)
+        fake.calls.clear()
+        self.assertEqual(read(fake).refusal, refusal, "second process")
+        return first, self.reads(fake)
+
+    def test_a_draft_judgment_is_read_once_per_run(self) -> None:
+        fail_at = AFailJudgedFromADraftRunCountsAsNone.fail_at
+        for label, jobs, refusal in (
+            ("judged a draft", DRAFT_JOBS, None),
+            ("judged a ready run", READY_JOBS, "verify:fail"),
+        ):
+            with self.subTest(label):
+                self.new_run()
+                fake = draft_race(fail_at(HEAD), HEAD, jobs)
+                first, second = self.two_processes(fake, refusal)
+                self.assertEqual(first, (1, 1, 1), "first process reads")
+                self.assertEqual(second, (0, 0, 0), "second process reads")
+
+    def test_a_judgment_cut_short_is_judged_again(self) -> None:
+        fail_at = AFailJudgedFromADraftRunCountsAsNone.fail_at
+        cases = [(label, jobs, None) for label, jobs in UNREADABLE_DRAFT_STATE.items()]
+        cases.append(("the checks runs listed short", DRAFT_JOBS, 3))
+        for label, jobs, total in cases:
+            with self.subTest(label):
+                self.new_run()
+                fake = draft_race(fail_at(HEAD), HEAD, jobs)
+                if total is not None:
+                    fake.checks_total[HEAD] = total
+                first, second = self.two_processes(fake, "verify:fail")
+                self.assertEqual(second[0], 1, "second process lists again")
+                self.assertEqual(second[:2], first[:2], "jobs read again")
+
+    def test_with_no_run_cache_every_process_reads(self) -> None:
+        os.environ.pop(run_cache.ENV, None)
+        fail_at = AFailJudgedFromADraftRunCountsAsNone.fail_at
+        fake = draft_race(fail_at(HEAD), HEAD)
+        first, second = self.two_processes(fake, None)
+        self.assertEqual(first, (1, 1, 1), "first process reads")
+        self.assertEqual(second, (1, 1, 1), "second process reads")
+
+
 class EvidenceCommandTakesWhatTheQueueJobHolds(unittest.TestCase):
     """ci-status's merge-queue step runs `evidence --base-sha` with the
     default branch from the event (`merge_policy.DEFAULT_BRANCH_ENV`) and the
