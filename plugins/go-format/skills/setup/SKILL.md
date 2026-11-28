@@ -190,9 +190,10 @@ refused untouched. It fails a commit only for a file goimports cannot parse. The
 entry. A decline of the earlier `goimports-format` entry carries to `format`.
 
 A remote entry stays in the committed `lefthook.yml`, so stop it in one clone by skipping its job,
-`go-format-remote-<entry>`, in the clone's untracked `lefthook-local.yml`; a failing remote job prints
-that skip, and the [adoption
-path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md#when-a-remote-job-breaks)
+`go-format-remote-<entry>`, in the clone's gitignored lefthook local config, written as lefthook's
+docs say at the time (pointer: [lefthook-local](https://lefthook.dev/examples/lefthook-local/) and
+[skip](https://lefthook.dev/configuration/skip/)); a failing remote job prints that skip, and the
+[adoption path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md#when-a-remote-job-breaks)
 says when to use it and how to drop it.
 
 When the user does not want the entry in this clone, run
