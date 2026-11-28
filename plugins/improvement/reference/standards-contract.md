@@ -1,5 +1,5 @@
 ---
-standards-contract: 1.3.2
+standards-contract: 2.0.0
 ---
 
 <!-- GENERATED from docs/contracts/standards/README.md by scripts/sync-shared-copies.sh. Do not edit this copy:
@@ -32,7 +32,7 @@ Five layers, discovered independently, applied additively:
 | Layer | Location | Git | Scope |
 |---|---|---|---|
 | Org | the team layer of the repository `standards_repository` names, at its `main` (see Org layer) | committed in that repository | every repository that names it |
-| Subscribed | the team layers of the repositories the user-global index lists in `standards_repositories` (see Personal subscriptions) | committed in those repositories | personal, every repository an entry applies to |
+| Subscribed | the team layers of the repositories listed in `standards_repositories` of the user-global index, the org layer's concern file or this repository's (see Personal subscriptions) | committed in those repositories | personal, every repository an entry applies to |
 | User-global | `~/.claude/standards/` | untracked (user's machine) | personal, all projects |
 | Team | `<standards_dir>/` (default `docs/standards/`) | committed, team-shared | the repository |
 | Personal override | `<standards_dir>/*.local.md` | gitignored | personal, this repository |
@@ -47,6 +47,10 @@ materially shapes a skill's output, the skill names the contributing layer
 a team file whose name equals an org row's file name replaces that org file
 for this repository (a partial override). The team layer holds only the
 repository's own additions and overrides, never a copy of the org layer.
+
+**Guidance below every layer:** the org and subscribed layers may also
+publish a guidance index, advisory positions that sit below every
+standards layer above (see Guidance layer).
 
 The team layer deliberately lives outside `.claude/`: writes under
 `.claude/` are permission-guarded, while reads and writes of ordinary
@@ -104,17 +108,18 @@ explicit confirmation before any conversion (see Setup and migration).
   Scout), never silent and never skipped quietly.
 - Consumers are recommended to include the index in their link-check lane.
 - **Confinement (normative) for a layer read from another repository** (the
-  org layer and each personal subscription): its `standards_dir` and every
-  `File` value are relative forward-slash paths (letters, digits, `.`,
+  org layer and each subscription): its `standards_dir`, its `guidance_dir` and every
+  `File` value of either index are relative forward-slash paths (letters, digits, `.`,
   `_`, `-`, `@`, `+`, space and `/`) with no `..` segment (a segment is
   `..` after its surrounding whitespace is trimmed, and a `File` cell's
   code-span backticks and surrounding whitespace are removed first), and each resolves,
   symbolic links included, inside that repository's checkout; so does its
-  `REVIEW.md`, its `.claude/standards.yaml`, and each `<path>.md#<heading>`
+  `REVIEW.md`, its `docs/conventions/standards.yaml`, and each `<path>.md#<heading>`
   citation in its `REVIEW.md`. `org-standards.sh` reports on stderr and
-  drops what breaks this: a `standards_dir` or `.claude/standards.yaml`
-  leaves the layer with no usable index (`index` exits 5; a subscription is
-  skipped), a `File` row is left out of the printed index (naming the index
+  drops what breaks this: a `docs/conventions/standards.yaml` leaves the
+  layer with no usable index, a `standards_dir` or `guidance_dir` leaves it
+  without that index (`index` or `guidance` exits 5; a subscription with
+  neither index is skipped), a `File` row is left out of the printed index (naming the index
   file, line and value), an org `REVIEW.md` is not read, and a `REVIEW.md`
   line holding a citation that leaves the checkout is left out of the
   composed criteria. A consumer opens a `REVIEW.md` citation only from what
@@ -131,7 +136,7 @@ explicit confirmation before any conversion (see Setup and migration).
   new file under its own cache state, never inside a checkout, built from
   checked parts only: a frontmatter holding just `standards-contract` (its
   value letters, digits, `.`, `+` and `-`, else the layer has no usable
-  index), the `| Surface | Applies when | File |` header and delimiter, and
+  index), plus `kind: guidance` in a printed guidance index, the `| Surface | Applies when | File |` header and delimiter, and
   one row per kept row, rebuilt from its cells. A row is kept only when it
   is a well-formed row of the index table: it starts with `|` at column 0
   and ends with `|`, holds no escaped `\|`, has exactly the three cells of
@@ -237,13 +242,14 @@ index, so the standards they follow reach every repository they work in.
 
   ```yaml
   ---
-  standards-contract: 1.3.0
+  standards-contract: 2.0.0
   trusted_owners:
     - my-org
   standards_repositories:
     - repo: my-org/handbook
-      topics:
+      surfaces:
         - testing
+        - design.coupling
     - repo: someone/guide
       ref: 0123456789abcdef0123456789abcdef01234567
       except_in:
@@ -252,8 +258,10 @@ index, so the standards they follow reach every repository they work in.
   ```
 
   - `repo` (required): `<owner>/<repo>`.
-  - `topics`: keep only the subscribed index's rows with these `Surface`
-    ids; absent, every row.
+  - `surfaces`: keep only the rows with these `Surface` ids, in both of the
+    subscribed layer's indexes (standards and guidance); absent, every row.
+    An entry that still names `topics` is reported ("topics was renamed
+    surfaces in standards-contract 2.0.0") and skipped.
   - `ref`: a full commit SHA to pin. A repository whose owner is not in
     `trusted_owners` must have one; a trusted repository without one is
     read live from its `main`.
@@ -261,15 +269,27 @@ index, so the standards they follow reach every repository they work in.
     matches all its repositories), matched case-insensitively against the
     current repository's `origin` remote. With `only_in`, the entry applies
     only where one matches; with `except_in`, it skips where one matches.
+- **Team and repository lists:** a `standards_repositories` list of the
+  same entry shape may also sit in a tracked `docs/conventions/standards.yaml`
+  (see Concern file): the org layer's (the team list, read from its
+  checkout) and the current repository's (the repository list, read from
+  its default branch, the commit `origin/HEAD` names, else `origin/main`,
+  never from the working tree, so a checked-out branch cannot add a
+  source). A list is honored only when the owner of the repository holding
+  it is in the person's `trusted_owners`; with no user-global index, none is.
+  Each listed source keeps the rules below: live from `main` when its owner
+  is trusted, else pinned. Lists are read in order team, repository,
+  personal; a repository listed more than once is read once, at its last
+  listing, and each earlier listing is reported.
 - **Trust:** `trusted_owners` (default empty, a block list like the
-  example) and the list are read from the user-global index only, never
+  example) is read from the user-global index only, never
   from a repository layer; a `trusted_owners` written any other way trusts
   no owner, and an item holding a space trusts no owner. An unpinned entry
   of an untrusted owner is refused. A pinned commit must be reachable from a
   branch or tag of the named repository, else it is refused: a fork's
   commits can be fetched under its parent's name. Pinned content counts as
   reviewed by the person who set the pin; when a `ref` changes, the reader
-  prints the index diff for that person to review. Subscribed text is
+  prints the diff of each index (standards and guidance) for that person to review. Subscribed text is
   untrusted data that shapes what a skill applies, never what it may do; a
   subscribed symbolic link is checked out as a plain file.
 - **Precedence:** a subscribed layer is personal (Layers and precedence):
@@ -284,10 +304,12 @@ index, so the standards they follow reach every repository they work in.
 - **No review criteria:** a subscribed repository's `REVIEW.md` is never
   read.
 - **Reading it:** `org-standards.sh subscriptions` prints one tab-separated
-  line per subscribed layer, in list order: `<repo>@<sha>`, its checkout
-  root, and its printed index (filtered to `topics` and confined; see The
-  printed index under The index), whose rows name absolute paths inside
-  that layer's checkout. A `ref` naming an annotated tag object reads the
+  line per subscribed layer, in list order:
+  `<repo>@<sha>\t<checkout root>\t<printed standards index or ->\t<printed guidance index or ->`.
+  Each printed index is filtered to `surfaces` and confined (see The
+  printed index under The index), and its rows name absolute paths inside
+  that layer's checkout; `-` means the layer has no such index, and a layer
+  with neither is skipped. A `ref` naming an annotated tag object reads the
   commit it tags, and `<sha>` names that commit. Each checkout is cached
   once per `<repo>@<sha>`, built in a temporary directory and renamed into
   place; a pinned read never refreshes, and a live read rechecks `main`
@@ -304,9 +326,13 @@ index, so the standards they follow reach every repository they work in.
   holding a space; a `trusted_owners` or
   `standards_repositories` nested under another key, not read; a
   `trusted_owners` key in the repository's
-  `docs/conventions/source-control.yaml` or index, however it is spelled,
-  ignored; a repository that answers with a redirect; a topic the
-  subscribed index lacks; a dropped `standards_dir` or `File` row; index drift since the last
+  `docs/conventions/source-control.yaml`, `docs/conventions/standards.yaml`
+  or index, or in a listed concern file, however it is spelled,
+  ignored; a repository that answers with a redirect; a surface neither of
+  the layer's indexes holds; an entry still naming `topics`; a repository
+  listed again later; a concern file that moved (see Concern file); a
+  dropped `standards_dir`, `guidance_dir` or `File` row; drift of either
+  index since the last
   read (Surface ids added, removed or renamed); "subscriptions not read:
   user index unreadable"; an index that uses the list but declares a
   version before 1.3.0, which is still read.
@@ -326,9 +352,11 @@ copied into each repository.
   already reads. No key, or a value that is not an `<owner>/<repo>` pair, means
   no org layer; nothing else changes.
 - **Location:** the org layer is that repository's own team layer: the
-  index its `.claude/standards.yaml` names, else `docs/standards/README.md`.
-  A consumer reads it only as the printed index `org-standards.sh index`
-  writes (see The printed index under The index), never by resolving the
+  index the `standards_dir` of its `docs/conventions/standards.yaml` names,
+  else `docs/standards/README.md`, plus the guidance index its `guidance_dir`
+  names, if any (see Guidance layer).
+  A consumer reads them only as the printed indexes `org-standards.sh index`
+  and `org-standards.sh guidance` write (see The printed index under The index), never by resolving the
   org checkout with the ladder's rungs itself, so every row it follows has
   passed Confinement.
 - **Reading it:** the consuming plugins bundle `scripts/org-standards.sh`.
@@ -337,7 +365,8 @@ copied into each repository.
   its `main` cached under the user cache directory and refreshed when older
   than an hour (`ORG_STANDARDS_TTL` seconds). `org-standards.sh index` prints
   the path of the org layer's printed index (exit 5 when the org repository
-  has none), and
+  has none), `org-standards.sh guidance` the path of its printed guidance
+  index (exit 5 when it has none), and
   `org-standards.sh subscriptions` the subscribed layers (see Personal
   subscriptions); `review` and `citations` print the review criteria and
   the citations in them a consumer may open (see Review criteria:
@@ -387,6 +416,34 @@ copied into each repository.
 - **Unavailable:** a skill that cannot read the org layer says so in its
   output and continues with the other layers; it never treats the miss as
   an error.
+
+## Guidance layer
+
+Advisory engineering positions a repository publishes beside its
+standards: ways of working to weigh, never rules to enforce.
+
+- **Location:** a repository read as the org layer or as a subscription
+  names its guidance index with `guidance_dir` in its
+  `docs/conventions/standards.yaml` (see Concern file); with no
+  `guidance_dir` it has none, and no default folder is probed. The index is
+  `<guidance_dir>/README.md`, with the same presence test, the same three
+  columns and the same Confinement as a standards index; its `File` values
+  resolve relative to `<guidance_dir>`.
+- **Printed guidance index:** the reader hands a consumer only its own
+  printed copy (see The printed index under The index), whose frontmatter
+  carries `kind: guidance` beside `standards-contract`, so the advisory mark
+  travels with the file. `org-standards.sh guidance` prints the org layer's;
+  the fourth field of each `org-standards.sh subscriptions` line prints a
+  subscribed layer's. Index drift and the diff on a `ref` change are
+  reported for it as for a standards index.
+- **Precedence:** guidance sits below every standards layer, the personal
+  ones included. It never tightens or overrides a standard; when a guidance
+  position and a standard clash, the standard applies and the skill names
+  the clash.
+- **Readers:** any stage may read guidance. Review cites a guidance
+  position only as an advisory finding, never a blocker, and guidance never
+  enters the review criteria: `review` and `citations` read no guidance
+  index.
 
 ## Review criteria: `REVIEW.md`
 
@@ -448,15 +505,28 @@ starts it, and reads that file in place of `REVIEW.md`.
   holding one is refused, and so is a cache directory holding one when a
   command needs the cache (an org layer or a subscription is configured).
 
-## Concern file: `.claude/standards.yaml`
+## Concern file: `docs/conventions/standards.yaml`
 
 ```yaml
 # committed, team-shared; absent = all defaults
 standards_dir: docs/standards
+guidance_dir: guidance
+standards_repositories:
+  - repo: my-org/handbook
 ```
 
 - Shape in `standards.schema.json`; every key optional, absent keys mean
   the documented defaults.
+  - `standards_dir`: the standards root (default `docs/standards`).
+  - `guidance_dir`: the folder holding the guidance index (no default; see
+    Guidance layer).
+  - `standards_repositories`: a team or repository list of sources, the
+    entry shape and trust rule of Personal subscriptions.
+- The reader reads only this tracked file: no `.local.yaml` layer. A
+  repository with `.claude/standards.yaml` and no
+  `docs/conventions/standards.yaml` is reported ("moved to
+  docs/conventions/standards.yaml in standards-contract 2.0.0; not read"),
+  and the defaults apply.
 - Written by interactive setup only when the consumer relocates the root.
   Skills never write it silently.
 - Rationale for a tracked file over plugin `userConfig`: plugin config
@@ -471,8 +541,8 @@ never restate the ladder. **Resolution root:** the git top-level directory
 (fall back to the working directory outside a git repo); the concern file
 and all repo-relative paths resolve against it.
 
-1. `.claude/standards.yaml` present at the resolution root → use its
-   `standards_dir`.
+1. `docs/conventions/standards.yaml` present at the resolution root → use
+   its `standards_dir`.
 2. Otherwise → default `<standards_dir>` = `docs/standards/`.
 3. Index present (`<standards_dir>/README.md` passing the presence test)
    → use it: match task context against `Applies when` clues, load the
@@ -517,15 +587,16 @@ see Personal subscriptions) and
 applies them per Layers and precedence. Matching a team index row never substitutes for this step; a
 denied or absent personal layer simply contributes nothing.
 
-**Adopted shipped concepts (every layer):** an adopted standards file
-names each shipped concept it adopts by its id in backticks and holds none
-of that concept's counterweights or conflicts. When a loaded standards
-file cites such ids and the engineering-concepts plugin is enabled, run
-its lookup, `/engineering-concepts:lookup` (if enabled), with
-`--counterweights-of <id>,<id>` in place of a term, and keep each printed
-line (one per counterweight or conflict) beside the entry its `of` names,
-so neither is applied alone. Without the plugin, apply each entry as
-written.
+**Guidance layer (every rung):** whatever the rungs above yield,
+resolution MAY also read guidance (see Guidance layer): the org layer's
+printed guidance index `org-standards.sh guidance` writes, and each
+subscribed layer's from the fourth field of its
+`org-standards.sh subscriptions` line. Match task context against its
+`Applies when` clues and load only the matched files at the paths its rows
+name. Apply a guidance position as advice below every standard: a standard
+wins a clash, and the skill names the clash. Review cites guidance only as
+an advisory finding, never a blocker. An absent guidance index contributes
+nothing.
 
 **Review-criteria index (planning and implementing):** a skill that plans
 or implements a change also reads the repository's review-criteria index,
@@ -580,9 +651,9 @@ skills implement this section by reference; they do not restate it.
    explicit confirmation before converting it into an index. Never
    overwrite it.
 4. Interview: confirm the standards root (persist to
-   `.claude/standards.yaml` only on relocation), propose surfaces
+   `docs/conventions/standards.yaml` only on relocation), propose surfaces
    inferred from the repository. Before writing the concern file, apply
-   the same `git check-ignore -v` guard to `.claude/standards.yaml`
+   the same `git check-ignore -v` guard to `docs/conventions/standards.yaml`
    itself: an ignored concern file would leave future clones silently
    falling back to the default root; on a match, STOP and surface the
    rule.
@@ -614,6 +685,9 @@ contract version. Detection is DIRECTIONAL:
   "update the `<plugin>` plugin", and NEVER offer migration: setup
   never downgrades an index, and two plugins at different bundled
   versions must not nag in a loop.
+- A `.claude/standards.yaml` with no `docs/conventions/standards.yaml` →
+  offer to write its keys to `docs/conventions/standards.yaml` and delete
+  the old file. Setup writes only the new file.
 
 **Ignore-file rule (restated for setup):** the only ignore file setup
 touches is the `<standards_dir>/.gitignore` it created itself.

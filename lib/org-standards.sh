@@ -5,6 +5,7 @@ export LC_ALL=C
 
 REPLACE_MARKER='<!-- review-base: replace -->'
 SUBSCRIPTIONS_SINCE=1.3.0
+CONCERN=docs/conventions/standards.yaml
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 US=$'\037'
 
@@ -40,7 +41,7 @@ while [[ $# -gt 0 ]]; do
     *) die "unknown argument: $1" ;;
   esac
 done
-case "$cmd" in dir|index|review|citations|subscriptions) ;; *) die "usage: org-standards.sh dir|index|review|citations|subscriptions [--root DIR]" ;; esac
+case "$cmd" in dir|index|guidance|review|citations|subscriptions) ;; *) die "usage: org-standards.sh dir|index|guidance|review|citations|subscriptions [--root DIR]" ;; esac
 if [[ -z "$root" ]]; then
   root=$(GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null command git "${GIT_ISOLATE[@]}" rev-parse --show-toplevel 2>/dev/null || pwd)
 fi
@@ -208,16 +209,27 @@ within() {
   inside "$1" "$p"
 }
 
+concern_ok() {
+  local conf="$1/$CONCERN" old="$1/.claude/standards.yaml"
+  if [[ -e "$conf" || -L "$conf" ]]; then
+    inside "$1" "$conf" || { note "$conf resolves outside its checkout; no usable index"; return 1; }
+  elif [[ -e "$old" || -L "$old" ]]; then
+    note "$old: moved to $CONCERN in standards-contract 2.0.0; not read"
+  fi
+}
+
 index_of() {
-  local conf="$1/.claude/standards.yaml" dir index why
-  if [[ -e "$conf" || -L "$conf" ]] && ! inside "$1" "$conf"; then
-    note "$conf resolves outside its checkout; no usable index"; return 1
-  fi
-  dir=$(yaml_value "$conf" standards_dir)
+  local key=$2 conf="$1/$CONCERN" dir index why
+  if [[ -e "$conf" || -L "$conf" ]] && ! inside "$1" "$conf"; then return 1; fi
+  dir=$(yaml_value "$conf" "$key")
   if why=$(path_problem "$dir"); then
-    note "$conf: standards_dir $dir $why; no usable index"; return 1
+    note "$conf: $key $dir $why; no usable index"; return 1
   fi
-  index="$1/${dir:-docs/standards}"; index="${index%/}/README.md"
+  if [[ -z "$dir" ]]; then
+    [[ "$key" == standards_dir ]] || return 1
+    dir=docs/standards
+  fi
+  index="$1/$dir"; index="${index%/}/README.md"
   [[ -f "$index" ]] || return 1
   if ! inside "$1" "$index"; then
     note "$index: the index resolves outside its checkout; no usable index"; return 1
@@ -273,13 +285,14 @@ locate() {
 }
 
 confine() {
-  local root=$1 index=$2 topics=$3 sdir line kind id when f path version text key out
+  local root=$1 index=$2 topics=$3 marker="" sdir line kind id when f path version text key out
+  [[ -z "${4:-}" ]] || marker="kind: $4"$'\n'
   need_cache
   version=$(yaml_value "$index" standards-contract)
   if ! [[ "$version" =~ ^[0-9A-Za-z.+-]+$ ]]; then
     note "$index: standards-contract $version is not a version; no usable index"; return 1
   fi
-  text=$(printf -- '---\nstandards-contract: %s\n---\n\n| Surface | Applies when | File |\n|---|---|---|' "$version")
+  text=$(printf -- '---\nstandards-contract: %s\n%s---\n\n| Surface | Applies when | File |\n|---|---|---|' "$version" "$marker")
   sdir=$(dirname "$index")
   while IFS="$US" read -r line kind id when f; do
     case "$kind" in
@@ -296,7 +309,7 @@ confine() {
     esac
   done < <(awk "$CLASSIFY" "$index")
   key=$(tr ' ' '\n' <<<"$topics" | sort -u | paste -sd+ -)
-  out="$STATE/confined/$(printf '%s' "$index" | cache_git hash-object --stdin).${key:-@all}.md"
+  out="$STATE/confined/$(printf '%s' "$index" | cache_git hash-object --stdin).${key:-@all}${4:+.$4}.md"
   printf '%s\n' "$text" | write_atomic "$out" || return 1
   printf '%s\n' "$out"
 }
@@ -407,7 +420,7 @@ citations() {
 
 drift() {
   awk -F'\t' '
-    FNR == NR { old[$1] = $2; next }
+    FILENAME == ARGV[1] { old[$1] = $2; next }
     { new[$1] = $2 }
     END {
       for (i in new) if (!(i in old)) added[i] = new[i]
@@ -479,7 +492,8 @@ to_records() {
       if (field == "") { prob[k] = "an entry is a mapping with a repo key"; next }
       key = field; sub(/\..*/, "", key); islist = (field != key)
       if (key == "repo" || key == "ref") { if (islist) prob[k] = key " is a single value"; else v[k, key] = $2; next }
-      if (key == "topics" || key == "only_in" || key == "except_in") {
+      if (key == "topics") { prob[k] = "topics was renamed surfaces in standards-contract 2.0.0"; next }
+      if (key == "surfaces" || key == "only_in" || key == "except_in") {
         if (!islist) prob[k] = key " is a list"
         else v[k, key] = (v[k, key] == "" ? "" : v[k, key] " ") $2
         next
@@ -490,7 +504,7 @@ to_records() {
       if (bad || (no && !tl) || on_key_line(text[tl])) print "untrusted\t" (tl ? tl : "?")
       else for (i = 1; i <= no; i++) print "trusted\t" owners[i]
       for (k = 0; k < n; k++) if (k in seen)
-        printf "%s%c%s%c%s%c%s%c%s%c%s%c%s\n", S[k + 1], 31, v[k, "repo"], 31, v[k, "ref"], 31, v[k, "topics"], 31, v[k, "only_in"], 31, v[k, "except_in"], 31, prob[k]
+        printf "%s%c%s%c%s%c%s%c%s%c%s%c%s\n", S[k + 1], 31, v[k, "repo"], 31, v[k, "ref"], 31, v[k, "surfaces"], 31, v[k, "only_in"], 31, v[k, "except_in"], 31, prob[k]
     }' "$2" -
 }
 
@@ -596,18 +610,11 @@ live_sha() {
 }
 
 subscription() {
-  local file=$1 line=$2 repo=$3 ref=$4 topics=$5 only=$6 except=$7 org=$8 cur=$9 trusted=${10}
-  local at="$file:$line" owner repo_l only_hit except_hit sha dir status=0 index last laststate
+  local file=$1 line=$2 repo=$3 ref=$4 topics=$5 trusted=$6
+  local at="$file:$line" owner sha dir status=0 last k old t ids said=""
   local REDIRECT_NOTE="$at: $repo answered with a redirect (for example, it was renamed or moved), which is not followed; set the subscription's repo to its new location"
+  local keys=(standards_dir guidance_dir) kinds=("" guidance) labels=("" "guidance ") idx=("" "") out=("" "")
   owner=$(lower "${repo%%/*}")
-  repo_l=$(lower "$repo")
-  only_hit=$(glob_hit "$cur" "$only")
-  except_hit=$(glob_hit "$cur" "$except")
-  if [[ -n "$only" && "$only_hit" == 0 ]] || [[ "$except_hit" == 1 ]]; then return 0; fi
-  if [[ -n "$org" ]] && [[ "$repo_l" == "$org" ]]; then
-    note "$at: $repo is also this repository's org layer; it is read once there, at the org layer's commit and team strength${ref:+ (pin ${ref:0:12} skipped)}"
-    return 0
-  fi
   if [[ -n "$ref" ]]; then
     sha=$ref
     dir=$(layer_checkout "$repo" "$sha" 1) || status=$?
@@ -623,40 +630,96 @@ subscription() {
     6) note "$at: $sha is not reachable from a branch or tag of $repo; subscription refused"; return 0 ;;
     *) note "$at: cannot read $repo@${sha:0:12}; layer skipped this run"; return 0 ;;
   esac
-  index=$(index_of "$dir") || { note "$at: $repo@${sha:0:12} has no standards index; layer skipped"; return 0; }
-  laststate="$STATE/$repo.last"
+  concern_ok "$dir" || { note "$at: $repo@${sha:0:12} has no usable index; layer skipped"; return 0; }
+  for k in 0 1; do idx[k]=$(index_of "$dir" "${keys[k]}") || idx[k]=""; done
+  [[ -n "${idx[0]}${idx[1]}" ]] || { note "$at: $repo@${sha:0:12} has no standards or guidance index; layer skipped"; return 0; }
+  local laststate="$STATE/$repo.last"
   last=""
   [[ -f "$laststate" ]] && read -r last <"$laststate" || true
   [[ "$last" =~ $SHA_RE ]] || last=""
-  if [[ -n "$last" ]] && [[ "$last" != "$sha" ]]; then
-    local old=""
-    if clear_links "$CACHE/$repo@$last"; then old=$(index_of "$CACHE/$repo@$last" 2>/dev/null) || old=""; fi
-    if [[ -n "$old" ]]; then
+  if [[ -n "$last" ]] && [[ "$last" != "$sha" ]] && clear_links "$CACHE/$repo@$last"; then
+    for k in 0 1; do
+      old=$(concern_ok "$CACHE/$repo@$last" 2>/dev/null && index_of "$CACHE/$repo@$last" "${keys[k]}" 2>/dev/null) || old=""
+      [[ -n "$old${idx[k]}" ]] || continue
       if [[ -n "$ref" ]]; then
-        note "$at: ref of $repo changed from ${last:0:12} to ${sha:0:12}; review the index diff below"
-        diff -u --label "$repo@${last:0:12}" --label "$repo@${sha:0:12}" "$old" "$index" \
+        [[ -n "$said" ]] || note "$at: ref of $repo changed from ${last:0:12} to ${sha:0:12}; review the index diff below"
+        said=1
+        diff -u --label "$repo@${last:0:12} ${labels[k]}index" --label "$repo@${sha:0:12} ${labels[k]}index" "${old:-/dev/null}" "${idx[k]:-/dev/null}" \
           | awk "$ESCAPE"'{ print esc($0, 1) }' >&2 || true
       fi
       while IFS= read -r change; do
-        [[ -z "$change" ]] || note "$repo: index drift since ${last:0:12}: $change"
-      done < <(drift "$old" "$index")
-    fi
+        [[ -z "$change" ]] || note "$repo: ${labels[k]}index drift since ${last:0:12}: $change"
+      done < <(drift "${old:-/dev/null}" "${idx[k]:-/dev/null}")
+    done
   fi
   [[ "$last" == "$sha" ]] || printf '%s\n' "$sha" | write_atomic "$laststate" || true
   if [[ -n "$topics" ]]; then
-    local t ids
-    ids=$(surfaces "$index" | cut -f1)
+    ids=$(for k in 0 1; do [[ -z "${idx[k]}" ]] || surfaces "${idx[k]}" | cut -f1; done)
     for t in $topics; do
-      grep -qxF -- "$t" <<<"$ids" || note "$at: topic $t is not a Surface id in the index of $repo@${sha:0:12}"
+      grep -qxF -- "$t" <<<"$ids" || note "$at: surface $t is not a Surface id in any index of $repo@${sha:0:12}"
     done
   fi
-  index=$(confine "$dir" "$index" "$topics") || { note "$at: $repo@${sha:0:12} has no usable index; layer skipped"; return 0; }
-  printf '%s@%s\t%s\t%s\n' "$repo" "$sha" "$dir" "$index"
+  for k in 0 1; do
+    [[ -z "${idx[k]}" ]] || out[k]=$(confine "$dir" "${idx[k]}" "$topics" "${kinds[k]}") || out[k]=""
+  done
+  [[ -n "${out[0]}${out[1]}" ]] || { note "$at: $repo@${sha:0:12} has no usable index; layer skipped"; return 0; }
+  printf '%s@%s\t%s\t%s\t%s\n' "$repo" "$sha" "$dir" "${out[0]:--}" "${out[1]:--}"
+}
+
+read_list() {
+  local file=$1 text=$2 ranges="" parsed status=0 list_at errline msg range starts
+  parsed=$(printf '%s\n' "$text" | parse_yaml "$awkf") || status=$?
+  list_at=$(printf '%s\n' "$parsed" | awk -F'\t' '$1 == ".key" && $2 == "standards_repositories" { print $3 }')
+  [[ -z "$list_at" ]] || ranges=$(printf '%s\n' "$text" | list_ranges "$list_at")
+  if [[ "$ranges" == not-block ]]; then
+    note "subscriptions not read: $file:$list_at: standards_repositories is not a block list; write each entry as a block mapping"
+    return 1
+  fi
+  while [[ "$status" -ne 0 ]]; do
+    errline=$(printf '%s\n' "$parsed" | awk -F'\t' '$1 == "error" { print $2; exit }')
+    msg=$(printf '%s\n' "$parsed" | awk -F'\t' '$1 == "error" { print $3; exit }')
+    range=$(printf '%s\n' "$ranges" | awk -v l="$errline" '$1 <= l + 0 && l + 0 <= $2 { print; exit }')
+    if [[ -z "$range" ]]; then
+      note "subscriptions not read: $file:$errline: $msg"; return 1
+    fi
+    note "$file:${range% *}: malformed subscription ($msg at line $errline); entry skipped"
+    text=$(printf '%s\n' "$text" | awk -v a="${range% *}" -v b="${range#* }" 'NR >= a && NR <= b { print ""; next } { print }')
+    ranges=$(printf '%s\n' "$ranges" | grep -vxF -- "$range" || true)
+    status=0
+    parsed=$(printf '%s\n' "$text" | parse_yaml "$awkf") || status=$?
+  done
+  starts=$(printf '%s\n' "$ranges" | awk 'NF { printf "%s%s", sep, $1; sep = " " }')
+  printf '%s\n' "$parsed" | awk -F'\t' '$1 == ".nested" { print "nested\t" $2 "\t" $3 }' | sort -t $'\t' -k3,3n
+  printf '%s\n' "$parsed" | to_records "$starts" <(printf '%s\n' "$text")
+}
+
+listed_entries() {
+  local l key entry="^[0-9]+$US"
+  while IFS= read -r l; do
+    if [[ "$l" == nested$'\t'* ]]; then
+      l=${l#nested$'\t'}; key=${l%%$'\t'*}
+      note "$1:${l#*$'\t'}: $key is under another key, so it is not read; write ${key##*.} at the top level of the frontmatter"
+    elif [[ "$l" =~ $entry ]]; then
+      printf '%s%s%s\n' "$1" "$US" "$l"
+    fi
+  done <<<"$2"
+}
+
+ignored_trust() {
+  local at
+  at=$(key_line "$awkf" "$2" trusted_owners)
+  [[ -z "$at" ]] || note "$1:$at: trusted_owners is read from the user-global index only; ignored here"
+}
+
+default_ref() {
+  local ref
+  ref=$(git -C "$root" symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null) || ref=refs/remotes/origin/main
+  git -C "$root" rev-parse --verify --quiet "$ref^{commit}" >/dev/null 2>&1 && printf '%s\n' "${ref#refs/remotes/}"
 }
 
 subscriptions() {
   if [[ "${STANDARDS_SUBSCRIPTIONS_DISABLED:-}" == "true" ]]; then
-    note "personal subscriptions skipped this session (STANDARDS_SUBSCRIPTIONS_DISABLED=true)"
+    note "subscriptions skipped this session (STANDARDS_SUBSCRIPTIONS_DISABLED=true)"
     return 0
   fi
   [[ -n "${HOME:-}" ]] || { note "subscriptions not read: HOME is not set"; return 0; }
@@ -668,32 +731,8 @@ subscriptions() {
   elif [[ -f "$HERE/../lib/yaml-subset.awk" ]]; then awkf="$HERE/../lib/yaml-subset.awk"
   else note "subscriptions not read: yaml-subset.awk is missing beside $0"; return 0
   fi
-  local text ranges="" parsed status=0 list_at errline msg range
-  text=$(frontmatter "$file")
-  parsed=$(printf '%s\n' "$text" | parse_yaml "$awkf") || status=$?
-  list_at=$(printf '%s\n' "$parsed" | awk -F'\t' '$1 == ".key" && $2 == "standards_repositories" { print $3 }')
-  [[ -z "$list_at" ]] || ranges=$(printf '%s\n' "$text" | list_ranges "$list_at")
-  if [[ "$ranges" == not-block ]]; then
-    note "subscriptions not read: $file:$list_at: standards_repositories is not a block list; write each entry as a block mapping"
-    return 0
-  fi
-  while [[ "$status" -ne 0 ]]; do
-    errline=$(printf '%s\n' "$parsed" | awk -F'\t' '$1 == "error" { print $2; exit }')
-    msg=$(printf '%s\n' "$parsed" | awk -F'\t' '$1 == "error" { print $3; exit }')
-    range=$(printf '%s\n' "$ranges" | awk -v l="$errline" '$1 <= l + 0 && l + 0 <= $2 { print; exit }')
-    if [[ -z "$range" ]]; then
-      note "subscriptions not read: $file:$errline: $msg"; return 0
-    fi
-    note "$file:${range% *}: malformed subscription ($msg at line $errline); entry skipped"
-    text=$(printf '%s\n' "$text" | awk -v a="${range% *}" -v b="${range#* }" 'NR >= a && NR <= b { print ""; next } { print }')
-    ranges=$(printf '%s\n' "$ranges" | grep -vxF -- "$range" || true)
-    status=0
-    parsed=$(printf '%s\n' "$text" | parse_yaml "$awkf") || status=$?
-  done
-  local records version="" trusted="" starts untrusted_at="" spaced=() item
-  starts=$(printf '%s\n' "$ranges" | awk 'NF { printf "%s%s", sep, $1; sep = " " }')
-  records=$(printf '%s\n' "$parsed" | to_records "$starts" <(printf '%s\n' "$text"))
-  [[ -n "$records" ]] || return 0
+  local records version="" trusted="" untrusted_at="" spaced=() item kind value
+  records=$(read_list "$file" "$(frontmatter "$file")") || return 0
   while IFS=$'\t' read -r kind value; do
     case "$kind" in
       version) version=$value ;;
@@ -706,49 +745,74 @@ subscriptions() {
   if [[ -z "$version" ]]; then
     note "subscriptions not read: $file has no standards-contract frontmatter key, so it is not an index"; return 0
   fi
-  local nkey nline
-  while IFS=$'\t' read -r nkey nline; do
-    note "$file:$nline: $nkey is under another key, so it is not read; write ${nkey##*.} at the top level of the frontmatter"
-  done < <(printf '%s\n' "$parsed" | awk -F'\t' '$1 == ".nested" { print $2 "\t" $3 }' | sort -t $'\t' -k2,2n)
-  local entries
-  entries=$(printf '%s\n' "$records" | grep -vE $'^(version|trusted|untrusted|spaced)\t' || true)
-  [[ -n "$entries" ]] || return 0
+  local personal
+  personal=$(listed_entries "$file" "$records")
+  [[ -n "$personal" || -n "$trusted" ]] || return 0
   need_cache
-  if version_lt "$version" "$SUBSCRIPTIONS_SINCE"; then
+  if [[ -n "$personal" ]] && version_lt "$version" "$SUBSCRIPTIONS_SINCE"; then
     note "$file declares standards-contract $version; standards_repositories needs $SUBSCRIPTIONS_SINCE: update its frontmatter"
   fi
   [[ -z "$untrusted_at" ]] || note "$file:$untrusted_at: trusted_owners is not a block list; no owner is trusted"
   for item in ${spaced[@]+"${spaced[@]}"}; do
     note "$file:${item%%$'\t'*}: trusted_owners item \"${item#*$'\t'}\" holds a space, and an owner name has none; it trusts no owner"
   done
-  local org cur line repo ref topics only except prob layerfile at
-  for layerfile in "$root/docs/conventions/source-control.yaml" "$(index_of "$root" 2>/dev/null || true)"; do
+  local layerfile
+  for layerfile in "$root/docs/conventions/source-control.yaml" "$root/$CONCERN" "$(concern_ok "$root" 2>/dev/null && index_of "$root" standards_dir 2>/dev/null || true)"; do
     [[ -f "$layerfile" ]] || continue
-    at=$(key_line "$awkf" "$(if [[ "$layerfile" == *.md ]]; then frontmatter "$layerfile"; else cat "$layerfile"; fi)" trusted_owners)
-    [[ -z "$at" ]] || note "$layerfile:$at: trusted_owners is read from the user-global index only; ignored here"
+    ignored_trust "$layerfile" "$(if [[ "$layerfile" == *.md ]]; then frontmatter "$layerfile"; else cat "$layerfile"; fi)"
   done
+  local org cur team="" here="" odir status=0 dref text
   org=$(lower "$(yaml_value "$root/docs/conventions/source-control.yaml" standards_repository)")
   cur=$(origin_repo)
-  while IFS="$US" read -r line repo ref topics only except prob; do
+  if [[ -n "$org" && " $trusted " == *" ${org%%/*} "* ]]; then
+    odir=$(org_dir) || status=$?
+    if [[ "$status" -eq 0 ]] && concern_ok "$odir" 2>/dev/null && [[ -f "$odir/$CONCERN" ]]; then
+      text=$(cat "$odir/$CONCERN")
+      ignored_trust "$odir/$CONCERN" "$text"
+      team=$(read_list "$odir/$CONCERN" "$text") && team=$(listed_entries "$odir/$CONCERN" "$team") || team=""
+    fi
+  fi
+  if [[ -n "$cur" && "$cur" != "$org" && " $trusted " == *" ${cur%%/*} "* ]] && dref=$(default_ref) \
+    && text=$(GIT_NO_LAZY_FETCH=1 git -C "$root" cat-file blob "refs/remotes/$dref:$CONCERN" 2>/dev/null); then
+    ignored_trust "$dref:$CONCERN" "$text"
+    here=$(read_list "$dref:$CONCERN" "$text") && here=$(listed_entries "$dref:$CONCERN" "$here") || here=""
+  fi
+  local label line repo ref topics only except prob i j L=() N=() R=() F=() T=() RL=()
+  while IFS="$US" read -r label line repo ref topics only except prob; do
+    [[ -n "$label" ]] || continue
     if [[ -z "$prob" ]]; then
       if [[ -z "$repo" ]]; then prob="no repo key"
       elif ! [[ "$repo" =~ $REPO_RE ]]; then prob="repo $repo is not <owner>/<repo>"
       elif [[ -n "$ref" ]] && ! [[ "$ref" =~ $SHA_RE ]]; then prob="ref is not a full commit SHA"
-      elif [[ -n "$topics" ]] && ! [[ "$topics" =~ ^[A-Za-z0-9._\ -]+$ ]]; then prob="a topic is not a Surface id"
+      elif [[ -n "$topics" ]] && ! [[ "$topics" =~ ^[A-Za-z0-9._\ -]+$ ]]; then prob="a surface is not a Surface id"
       fi
     fi
-    if [[ -n "$prob" ]]; then note "$file:$line: malformed subscription ($prob); entry skipped"; continue; fi
-    subscription "$file" "$line" "$repo" "$ref" "$topics" "$only" "$except" "$org" "$cur" "$trusted"
-  done <<<"$entries"
+    if [[ -n "$prob" ]]; then note "$label:$line: malformed subscription ($prob); entry skipped"; continue; fi
+    if [[ -n "$only" && "$(glob_hit "$cur" "$only")" == 0 ]] || [[ "$(glob_hit "$cur" "$except")" == 1 ]]; then continue; fi
+    if [[ -n "$org" ]] && [[ "$(lower "$repo")" == "$org" ]]; then
+      note "$label:$line: $repo is also this repository's org layer; it is read once there, at the org layer's commit and team strength${ref:+ (pin ${ref:0:12} skipped)}"
+      continue
+    fi
+    L+=("$label") N+=("$line") R+=("$repo") F+=("$ref") T+=("$topics") RL+=("$(lower "$repo")")
+  done < <(printf '%s\n%s\n%s\n' "$team" "$here" "$personal")
+  for ((i = 0; i < ${#R[@]}; i++)); do
+    for ((j = i + 1; j < ${#R[@]}; j++)); do [[ "${RL[j]}" != "${RL[i]}" ]] || break; done
+    if [[ "$j" -lt "${#R[@]}" ]]; then
+      note "${L[i]}:${N[i]}: ${R[i]} is listed again at ${L[j]}:${N[j]}; it is read once, there"
+      continue
+    fi
+    subscription "${L[i]}" "${N[i]}" "${R[i]}" "${F[i]}" "${T[i]}" "$trusted"
+  done
 }
 
 case "$cmd" in
   dir)
     org_dir ;;
-  index)
+  index|guidance)
     org=$(org_dir) || exit $?
-    idx=$(index_of "$org") || { note "$org has no standards index"; exit 5; }
-    confine "$org" "$idx" "" || { note "$org has no usable index"; exit 5; } ;;
+    if [[ "$cmd" == index ]]; then key=standards_dir what=standards kind=""; else key=guidance_dir what=guidance kind=guidance; fi
+    if ! concern_ok "$org" || ! idx=$(index_of "$org" "$key"); then note "$org has no $what index"; exit 5; fi
+    confine "$org" "$idx" "" "$kind" || { note "$org has no usable $what index"; exit 5; } ;;
   subscriptions)
     subscriptions ;;
   review|citations)

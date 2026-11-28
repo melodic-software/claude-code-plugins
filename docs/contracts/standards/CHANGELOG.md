@@ -1,5 +1,34 @@
 # Changelog for the standards convention
 
+## 2.0.0 - 2026-11-28
+
+Breaking. The concern file moves to `docs/conventions/standards.yaml`, which gains `guidance_dir`
+and `standards_repositories`; a new guidance layer; `topics` becomes `surfaces`; each
+`subscriptions` line gains a fourth field.
+
+- **Guidance layer:** a repository read as the org layer or a subscription may name a guidance
+  index with `guidance_dir` (no default). Its printed copy carries `kind: guidance` beside
+  `standards-contract`. Guidance sits below every standards layer, review cites it only as an
+  advisory finding, and it never enters the review criteria. `org-standards.sh guidance` prints
+  the org layer's printed guidance index (exit 5 when none). The Resolution ladder's "Guidance
+  layer (every rung)" paragraph replaces "Adopted shipped concepts".
+- **Team and repository lists:** `standards_repositories` in the org layer's concern file and in
+  the current repository's (read from its default branch, never the working tree) are honored
+  when that repository's owner is in the person's `trusted_owners`. Order team, repository,
+  personal; a repository listed twice is read once, at its last listing.
+- **Drift:** index drift and the diff on a `ref` change are reported for the guidance index too.
+
+Migration:
+
+- Move `.claude/standards.yaml` to `docs/conventions/standards.yaml`. A repository with only the old
+  file is reported ("moved to docs/conventions/standards.yaml in standards-contract 2.0.0; not
+  read") and gets the defaults; the old file is not read.
+- Rename each subscription's `topics` to `surfaces`. An entry still using `topics` is reported
+  ("topics was renamed surfaces in standards-contract 2.0.0") and skipped.
+- A consumer parsing `org-standards.sh subscriptions` reads four tab-separated fields:
+  `<repo>@<sha>`, the checkout root, the printed standards index or `-`, the printed guidance
+  index or `-`.
+
 ## 1.3.2 - 2026-11-28
 
 Clarification. Paved paths now names every carrier of the ecosystem-resolution contract among the

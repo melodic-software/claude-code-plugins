@@ -78,9 +78,9 @@ handbook_confined() {
 }
 expect_layer() {
   local co="$ORG_STANDARDS_CACHE/$1@$2"
-  printf '%s@%s\t%s\t%s\n%s' "$1" "$2" "$co" "$ORG_STANDARDS_CACHE/.state/confined" "${3:-$(handbook_confined "$co")}"
+  printf '%s@%s\t%s\t%s\t-\n%s' "$1" "$2" "$co" "$ORG_STANDARDS_CACHE/.state/confined" "${3:-$(handbook_confined "$co")}"
 }
-shown() { local l c i; while IFS=$'\t' read -r l c i; do printf '%s\t%s\t%s\n%s\n' "$l" "$c" "$(dirname "$i")" "$(cat "$i")"; done; }
+shown() { local l c i g; while IFS=$'\t' read -r l c i g; do printf '%s\t%s\t%s\t%s\n%s\n' "$l" "$c" "$(dirname "$i")" "$g" "$(cat "$i")"; done; }
 
 publish() {
   local work="$TEST_TMPDIR/work/$1" bare="$TEST_TMPDIR/git/$1.git"

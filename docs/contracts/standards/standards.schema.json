@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/standards/standards.schema.json",
-  "title": "Standards concern file (.claude/standards.yaml)",
+  "title": "Standards concern file (docs/conventions/standards.yaml)",
   "description": "Consumer-side single source of truth for the standards convention. Every key is optional; absent keys mean the documented defaults.",
   "type": "object",
   "additionalProperties": false,
@@ -10,6 +10,46 @@
       "type": "string",
       "default": "docs/standards",
       "description": "Team standards root, relative to the resolution root (git top-level). Holds the standards index (README.md with standards-contract frontmatter), SRP-organized standards files, and gitignored *.local.md personal overrides."
+    },
+    "guidance_dir": {
+      "type": "string",
+      "description": "Folder holding the guidance index (README.md with standards-contract frontmatter), relative to the resolution root. No default: absent means the repository publishes no guidance index."
+    },
+    "standards_repositories": {
+      "type": "array",
+      "description": "Team or repository list of standards sources, honored only when this repository's owner is in the person's trusted_owners. The repository list is read from the default branch, never the working tree.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["repo"],
+        "properties": {
+          "repo": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*$",
+            "description": "<owner>/<repo> of the source."
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$",
+            "description": "Full commit SHA to pin; required when the source's owner is not in trusted_owners."
+          },
+          "surfaces": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+            "description": "Surface ids to keep, in both of the source's indexes (standards and guidance); absent, every row."
+          },
+          "only_in": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Globs over <owner>/<repo>; the entry applies only where one matches the current repository."
+          },
+          "except_in": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Globs over <owner>/<repo>; the entry is skipped where one matches the current repository."
+          }
+        }
+      }
     }
   }
 }

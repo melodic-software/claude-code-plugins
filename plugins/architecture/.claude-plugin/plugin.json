@@ -26,6 +26,12 @@
       "description": "How /architecture:adr retires a record a new decision reverses, after your yes. delete (default): remove the file; its number is never reused. supersede: mark it superseded. archive: move it to the ADR folder's archive folder. A repository's team or personal architecture.yaml overrides it.",
       "default": "delete",
       "options": ["delete", "supersede", "archive"]
+    },
+    "branding": {
+      "type": "string",
+      "title": "Rendered-view branding (JSON)",
+      "description": "Palette, type and logo overrides for rendered HTML pages as one JSON object matching branding in docs/conventions/rendered-views.yaml. Empty (default): shipped look. Repository team and personal override files win; invalid values are reported and ignored.",
+      "default": ""
     }
   },
   "license": "MIT",
