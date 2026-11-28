@@ -12,7 +12,6 @@ C4Context
   title System Landscape
   Enterprise_Boundary(b0, "melodic-software") {
     System(melodic_software__github, ".github", "not checked out here")
-    System(melodic_software_architecture, "architecture", "not checked out here")
     System(melodic_software_azure_iac, "azure-iac", "not checked out here")
     System(melodic_software_ci_runner, "ci-runner", "not checked out here")
     System(melodic_software_ci_workflows, "ci-workflows", "not checked out here")
@@ -41,7 +40,6 @@ C4Context
   Rel(melodic_software_claude_code_plugins, anthropics_claude_code, "cites (130)")
   Rel(melodic_software_claude_code_plugins, cursor_plugins, "cites (200)")
   Rel(melodic_software_claude_code_plugins, melodic_software__github, "cites (6)")
-  Rel(melodic_software_claude_code_plugins, melodic_software_architecture, "cites (3)")
   Rel(melodic_software_claude_code_plugins, melodic_software_azure_iac, "cites (17)")
   Rel(melodic_software_claude_code_plugins, melodic_software_ci_runner, "cites (2)")
   Rel(melodic_software_claude_code_plugins, melodic_software_ci_workflows, "cites (481)")
