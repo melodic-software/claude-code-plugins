@@ -8,34 +8,12 @@ import {
   stampPage,
   validateRenderedPage,
 } from "../../../lib/html-escape.mjs";
+import { reportBranding } from "../../../lib/page-kit.mjs";
 
 const CSS = `
-:root {
-  --ivory: #faf9f5;
-  --slate: #141413;
-  --clay-deep: #a0512e;
-  --gray-300: #d1cfc5;
-  --gray-500: #87867f;
-  --serif: ui-serif, Georgia, serif;
-  --sans: system-ui, sans-serif;
-  --mono: ui-monospace, monospace;
-  --bg: var(--ivory);
-  --fg: var(--slate);
-  --muted: var(--gray-500);
-  --focus: var(--clay-deep);
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: var(--slate);
-    --fg: var(--ivory);
-    --muted: var(--gray-300);
-    --focus: #e89b7e;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
-html { color-scheme: light dark; }
 body {
   margin: 0 auto;
   max-width: 860px;
@@ -150,10 +128,12 @@ function referenceItems(source) {
  * @param {Record<string, unknown>} model
  * @returns {string}
  */
-export function buildReportPage(model) {
+export function buildReportPage(model, { brandingOption = null } = {}) {
   const source = model && typeof model === "object" ? model : {};
   const title = asText(source.title) || "Change report";
   const questions = asList(source.questions).filter((row) => row && typeof row === "object");
+  const { tokens, extraCss, barHtml } = reportBranding({ brandingOption });
+  const styleBlock = [tokens, CSS, extraCss].filter(Boolean).join("\n");
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -161,11 +141,11 @@ export function buildReportPage(model) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${e(title)}</title>
 <style>
-${CSS}
+${styleBlock}
 </style>
 </head>
 <body>
-<p class="muted">Quiz-me report</p>
+${barHtml}<p class="muted">Quiz-me report</p>
 <h1>${e(title)}</h1>
 <p class="muted">${e(source.ref)}</p>
 ${sectionBlocks(source)}
@@ -206,7 +186,12 @@ function main() {
     if (!verdict.ok) fail(verdict.failures.join(","), 1);
     return;
   }
-  if (args.length > 0) fail("usage: build-report.mjs [< model.json] | --check <file>", 2);
+  let brandingOption = null;
+  if (args.length === 2 && args[0] === "--branding-option") {
+    brandingOption = args[1];
+  } else if (args.length > 0) {
+    fail("usage: build-report.mjs [--branding-option <value>] [< model.json] | --check <file>", 2);
+  }
   let model;
   try {
     model = JSON.parse(readFileSync(0, "utf8"));
@@ -216,7 +201,7 @@ function main() {
   if (!model || typeof model !== "object" || Array.isArray(model)) {
     fail("JSON root must be an object", 2);
   }
-  const page = buildReportPage(model);
+  const page = buildReportPage(model, { brandingOption });
   const verdict = validateRenderedPage(page);
   if (!verdict.ok) fail(`refused to emit (${verdict.failures.join(",")})`, 1);
   process.stdout.write(page);

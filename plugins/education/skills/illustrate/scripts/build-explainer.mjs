@@ -4,10 +4,42 @@ import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "no
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { asText, rows, textList } from "../../../lib/page-kit.mjs";
+import { escapeHtml } from "../../../lib/html-escape.mjs";
+import { asText, readBrandingOption, readTokensCss, rows, textList } from "../../../lib/page-kit.mjs";
 import { buildView, validateView, ViewBuildError } from "../../../lib/view-builder.mjs";
+import { findRoot, resolveBranding } from "../../../lib/view-settings.mjs";
 
 const TEMPLATE = new URL("../templates/explainer.html", import.meta.url);
+const BRAND_CSS = [
+  ".rv-brand { display: inline-flex; align-items: center; gap: 0.5rem; margin-right: auto; }",
+  ".rv-brand svg { height: 1.5rem; width: auto; display: block; }",
+  ".rv-brand-mark { display: inline-block; width: 1.5rem; height: 1.5rem; background-size: contain; background-repeat: no-repeat; background-position: center; }",
+  ".rv-brand-label { font-family: var(--sans); font-weight: 600; font-size: 0.95rem; color: var(--fg); }",
+].join("\n");
+
+function applyBranding(template, brandingOption = null) {
+  const tokens = readTokensCss();
+  const branding = resolveBranding({ userConfig: readBrandingOption(brandingOption), projectRoot: findRoot() });
+  for (const notice of branding.notices) {
+    process.stderr.write(`notice: ${notice.text}\n`);
+  }
+  const logo = branding?.logo;
+  const parts = [];
+  if (logo?.kind === "svg" && logo.svg) {
+    parts.push(logo.svg);
+  } else if (logo?.kind === "image") {
+    parts.push(`<span class="rv-brand-mark rv-logo" role="img" aria-label="${escapeHtml(logo.label || "Brand logo")}"></span>`);
+  }
+  if (logo?.label) {
+    parts.push(`<span class="rv-brand-label">${escapeHtml(logo.label)}</span>`);
+  }
+  const slot = parts.length ? `<div class="rv-brand">${parts.join("")}</div>` : "";
+  const extraCss = [slot ? BRAND_CSS : "", branding?.css ?? ""].filter(Boolean).join("\n");
+  let out = template.replace(/<style>\s*/i, (open) => `${open}${tokens}\n`);
+  if (extraCss) out = out.replace(/<\/style>/i, (close) => `\n${extraCss}\n${close}`);
+  if (slot) out = out.replace(/<div class="rv-bar">/i, (bar) => `${bar}${slot}`);
+  return out;
+}
 
 const FLOW_ROW_MAX = 4;
 const LABEL_MAX = 40;
@@ -93,10 +125,10 @@ function normalize(model, warnings = []) {
   };
 }
 
-function explainerPage(data) {
+function explainerPage(data, { brandingOption = null } = {}) {
   return buildView({
     profile: "interactive",
-    template: readFileSync(TEMPLATE, "utf8"),
+    template: applyBranding(readFileSync(TEMPLATE, "utf8"), brandingOption),
     data,
     title: data.title,
   });
@@ -106,8 +138,8 @@ function explainerPage(data) {
  * @param {Record<string, unknown>} model
  * @returns {string} the validated interactive page
  */
-export function buildExplainerPage(model) {
-  return explainerPage(normalize(model));
+export function buildExplainerPage(model, opts = {}) {
+  return explainerPage(normalize(model), opts);
 }
 
 const md = (value) =>
@@ -258,11 +290,13 @@ function write(path, text) {
 
 function main(args) {
   const usage =
-    "usage: build-explainer.mjs --out-dir <dir> [--format page|markdown] --model <model.json> | --record <out.md> [--page <out.html>] [--model <model.json> | < model.json] | --check <page.html>";
+    "usage: build-explainer.mjs --out-dir <dir> [--format page|markdown] [--branding-option <value>] --model <model.json> | --record <out.md> [--page <out.html>] [--branding-option <value>] [--model <model.json> | < model.json] | --check <page.html>";
   const opts = {};
   for (let i = 0; i < args.length; i += 2) {
-    if (!["--record", "--page", "--check", "--model", "--out-dir", "--format"].includes(args[i]) || !args[i + 1]) return [2, "", usage];
-    opts[args[i].slice(2)] = args[i + 1];
+    const flag = args[i];
+    const value = args[i + 1];
+    if (!["--record", "--page", "--check", "--model", "--out-dir", "--format", "--branding-option"].includes(flag) || value === undefined || (value === "" && flag !== "--branding-option")) return [2, "", usage];
+    opts[flag.slice(2)] = value;
   }
   if (opts.check) {
     if (args.length > 2) return [2, "", usage];
@@ -301,7 +335,7 @@ function main(args) {
   try {
     const warnings = [];
     const view = normalize(model, warnings);
-    const page = opts.page ? explainerPage(view) : null;
+    const page = opts.page ? explainerPage(view, { brandingOption: opts["branding-option"] ?? null }) : null;
     let out = write(opts.record, explainerRecord(view));
     if (page !== null) {
       try {

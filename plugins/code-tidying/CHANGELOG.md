@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.4] - 2026-11-28
+
+### Changed
+
+- Updated `/code-tidying:setup` remote-job skip guidance to point at lefthook's `lefthook-local` and `skip` docs instead of naming a hardcoded `lefthook-local.yml` file.
+
 ## [2.2.3] - 2026-11-28
 
 ### Changed
