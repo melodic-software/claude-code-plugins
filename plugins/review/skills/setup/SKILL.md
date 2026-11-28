@@ -1,5 +1,5 @@
 ---
-description: "Check or apply the review plugin's repository setup: the standards index, docs/conventions/review.yaml settings, the repository's own design-smell list, and the move of retired review-digest files."
+description: "Check (read-only default) or apply review setup: standards index, docs/conventions/review.yaml, design-smell list, and retired-digest migration."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true

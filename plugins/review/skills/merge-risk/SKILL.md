@@ -1,5 +1,5 @@
 ---
-description: "Merge-risk rating of one pull request: alignment with its closing issue, impact, verification, reversibility and error detection, each LOW to CRITICAL and checked blind, plus a demote flag that can only send an unattended merge to a human. Never posts or gates. Use when asked 'how risky is this PR', 'should a human review this', or 'rate the merge risk'."
+description: "Blind merge-risk rating (LOW to CRITICAL) of one PR across closing-issue alignment, impact, verification, reversibility, and error detection, with a demote-only human-review flag. Never posts or gates. Use when asked 'how risky is this PR', 'should a human review this', or 'rate the merge risk'."
 argument-hint: "[pr-number|pr-url|this branch] [--dir <dir>]"
 user-invocable: true
 disable-model-invocation: false
