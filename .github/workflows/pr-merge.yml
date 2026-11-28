@@ -2747,11 +2747,10 @@ jobs:
             # Kept in step with pr-verify.yml's wake-pr-merge: the broker
             # mints for this wake on a lanes App pull request and on a
             # trusted person's (a User whose id is kind "human" on the
-            # trusted-actor list), whose draft or body Hold: line waits for
-            # the sweep.
+            # trusted-actor list), whose draft waits for the sweep.
             if ! answer=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" \
-              --jq '"\(.user.id) \(.user.type) \(.auto_merge != null) \([.labels[].name] | index("do-not-merge") != null) \(.draft) \((.body // "") | test("(^|[\\r\\n])[ \\t]*hold:"; "i"))"') ||
-              ! read -r id type armed held draft hold <<<"$answer" ||
+              --jq '"\(.user.id) \(.user.type) \(.auto_merge != null) \([.labels[].name] | index("do-not-merge") != null) \(.draft)"') ||
+              ! read -r id type armed held draft <<<"$answer" ||
               [ -z "${id:-}" ] || [ -z "${type:-}" ]; then
               echo "::warning::wake-eval-released: pr=$pr pull request could not be read; nothing woken (the next scheduled run arms it)"
               continue
@@ -2780,10 +2779,6 @@ jobs:
             fi
             if [ "$type" = User ] && [ "$draft" = true ]; then
               echo "::notice title=eval-release wake::pr=$pr a draft; nothing woken"
-              continue
-            fi
-            if [ "$type" = User ] && [ "$hold" = true ]; then
-              echo "::notice title=eval-release wake::pr=$pr held (body Hold: line); nothing woken"
               continue
             fi
             woken=$((woken + 1))

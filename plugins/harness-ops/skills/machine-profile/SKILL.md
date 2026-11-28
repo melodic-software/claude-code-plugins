@@ -1,5 +1,5 @@
 ---
-description: "Re-runnable profile of this machine's facts and identity domains, with drift between the stored profile and the host now; read-only unless the operator confirms a write, never installs, never reapplies a stored value on its own. Use when: 'profile this machine', 'what does this host have configured', 'has this machine changed', 'which identity domains exist here', 'hand my machine facts to setup'."
+description: "Re-runnable profile of this machine's facts, identity domains, and drift vs the stored profile; read-only unless operator confirms a write (never installs, never reapplies stored values). Use when 'profile this machine', 'has this machine changed', 'which identity domains exist here', what this host has configured, or hand machine facts to setup."
 argument-hint: "[profile|diff|explain <key>|apply --option <key>]"
 user-invocable: true
 disable-model-invocation: false

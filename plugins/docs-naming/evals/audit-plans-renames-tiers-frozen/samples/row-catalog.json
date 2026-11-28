@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {"answer":"| `FN-c5a4747f` | `docs/CATALOG.md` → `docs/catalog.md` | 4 in 3 files | 1 current (edit), 2 current (review), 1 released (report) |"},
+    {"answer":"- **FN-c5a4747f:** `docs/CATALOG.md` → `docs/catalog.md`. It has 4 sites in 3 files: 1 current (edit), 2 review and 1 released (report)."},
+    {"answer":"finding FN-c5a4747f `docs/CATALOG.md` to `docs/catalog.md`: 4 site(s) in 3 file(s); by tier: 1 current (edit), 2 current (review), 1 released (report); review: 2; generated: none"},
+    {"answer":"**FN-c5a4747f** (4 sites in 3 files): `docs/CATALOG.md` → `docs/catalog.md`; 1 current (edit), 2 current (review), 1 released (report)"},
+    {"answer":"`docs/CATALOG.md` → `docs/catalog.md`: 4 sites in 3 files; 1 current (`edit`), 2 current (`review`), 1 released (`report`)"},
+    {"answer":"| `docs/CATALOG.md` | `docs/catalog.md` | 4 | 1 current (edit), 2 current (review), 1 released (report) |"},
+    {"answer":"`docs/CATALOG.md` → `docs/catalog.md`: 4 sites in 3 files; 1 current (edit), 2 review, 1 released (report)"}
+  ],
+  "fail": [
+    {"answer":"| `docs/CATALOG.md` | `docs/catalog.md` |"},
+    {"answer":"`docs/CATALOG.md` → `docs/catalog.md`: 4 sites in 3 files, 3 current and 1 released."},
+    {"answer":"`docs/CATALOG.md` → `docs/catalog.md`: 4 sites, 1 current (report), 2 current (review), 1 released (edit)"},
+    {"answer":"`docs/CATALOG.md` → `docs/catalog.md`: 4 sites in 3 files; 2 current (edit), 1 released (report); review: 2"},
+    {"answer":"`docs/CATALOG.md` → `docs/catalog.md`: 3 sites in 3 files; 1 current (edit), 2 current (review), 1 released (report)"},
+    {"answer":"`docs/CATALOG.md` → `docs/catalog.md`: 4 sites in 3 files; 1 current (edit), 1 current (review), 2 released (report)"},
+    {"answer":"| `docs/CATALOG.md` | `docs/catalog.md` | 3 | 4 files | 1 current (edit), 2 current (review), 1 released (report) |"}
+  ]
+}

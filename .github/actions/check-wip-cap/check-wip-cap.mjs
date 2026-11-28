@@ -15,7 +15,6 @@ import { LANES_APP_LOGIN as DEFAULT_BOT, WIP_CAP_HOLDS } from "../../scripts/lib
 
 const HOUR_MS = 3_600_000;
 export const HOLD_LABELS = WIP_CAP_HOLDS;
-export const HOLD_LINE = "Hold: a human merges this";
 const ISSUE_HOLDS = new Set(["needs-human", "needs-owner-decision", "needs-reporter-info", "host-run", "attended"]);
 const lowered = (names) => names.filter((name) => typeof name === "string").map((name) => name.toLowerCase());
 const isQueued = (names) => {
@@ -71,11 +70,7 @@ export function listedStatusOf({ env = {}, github, repository, config, trustedAc
   return statusOf;
 }
 
-export const isHeld = (pr) =>
-  (pr?.labels ?? []).some((label) => typeof label?.name === "string" && HOLD_LABELS.has(label.name.toLowerCase())) ||
-  String(pr?.body ?? "")
-    .split(/\r?\n/)
-    .includes(HOLD_LINE);
+export const isHeld = (pr) => (pr?.labels ?? []).some((label) => typeof label?.name === "string" && HOLD_LABELS.has(label.name.toLowerCase()));
 
 const namedIssue = (pr) => {
   const match = NAMES_ISSUE.exec(String(pr?.body ?? "").split(/\r?\n/, 1)[0].trim());

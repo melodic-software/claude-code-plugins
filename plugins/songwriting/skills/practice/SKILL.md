@@ -1,5 +1,5 @@
 ---
-description: "Build a songwriting practice habit with Pat Pattison's curriculum, the daily object-writing/craft routine and numbered exercises drawn from all four books (Essential Guide to Lyric Form and Structure structural exercises, Songwriting Without Boundaries 56-day curriculum, Essential Guide to Rhyming worksheets). Use when: 'daily practice plan', 'build a writing habit', 'give me a 90-second writing prompt', 'run me a numbered exercise', 'exercise 4.6', 'daily craft prompt'. For a one-off object-writing prompt use /songwriting:object-writing."
+description: "Build a songwriting practice habit with Pat Pattison's curriculum: daily object-writing/craft routine and numbered exercises across all four books (Essential Guide structural, 56-day curriculum, rhyming worksheets). Use when: 'daily practice plan', 'give me a 90-second writing prompt', 'exercise 4.6'. Not for one-offs: /songwriting:object-writing."
 argument-hint: "[daily|exercise] [args]"
 user-invocable: true
 disable-model-invocation: false

@@ -1,5 +1,5 @@
 ---
-description: "Verify and configure the improvement plugin for this repository. check (default) inspects the config cascade read-only (userConfig, team, personal override) and reports the effective evidence-source configuration: which layers exist, what churn window and exclusion patterns resolve, and which Tier 2 MCP telemetry sources are declared. apply interviews the user and writes the team file. Zero config is a valid state. Tier 0 evidence needs nothing configured. Use when: 'set up improvement', 'configure improvement', 'is improvement configured', 'improvement setup', 'declare a telemetry source for the improvement finder', 'tune churn exclusions', or /improvement:find reports Tier 2 as an evidence gap to close. Re-runnable. Safe to invoke again to reconfigure."
+description: "Inspect improvement config cascade and evidence sources read-only (check, default) or interview and write team improvement.yaml (apply)."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true

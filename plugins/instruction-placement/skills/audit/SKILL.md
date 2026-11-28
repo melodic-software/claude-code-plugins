@@ -1,5 +1,5 @@
 ---
-description: "Read-only sweep for instruction content on the wrong surface: demote always-loaded conventions that belong on one file type or subtree; promote stranded docs conventions. Safety rails are hard-denied from demotion. Use when: 'my CLAUDE.md is too long', 'convert this to rules', 'what should be a path-scoped rule', 'move conventions to .claude/rules', 'find conventions in our docs', 'nested CLAUDE.md candidates', 'audit instruction placement'. Sibling realign applies accepted findings."
+description: "Read-only sweep for misplaced instruction content: demote always-loaded conventions to file-type/subtree rules; promote stranded docs conventions (safety rails hard-denied). Use when: 'audit instruction placement', 'move conventions to .claude/rules', 'find conventions in our docs'. Not for applying findings: /instruction-placement:realign."
 argument-hint: "[core|expanded] [path ...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

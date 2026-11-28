@@ -1,5 +1,5 @@
 ---
-description: "Module-boundary check set up in the repository it runs in: each rule recorded under `## Boundary rules` gets the strongest mechanism the repository supports, proven to fail on an injected violation and to pass once it is removed. Use when 'enforce our boundary rules', 'set up a boundary check', 'add an architecture test', 'make this layering rule fail the build', or a confirmed boundary finding needs a check."
+description: "Architecture module-boundary checks in the repo: each rule recorded in ## Boundary rules gets the strongest supported mechanism, proven to fail on an injected violation and pass once removed. Use for 'enforce our boundary rules', 'add an architecture test', 'make this layering rule fail the build', or confirmed boundary findings."
 argument-hint: "[boundaries findings file ...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
