@@ -35,6 +35,10 @@
     {
       "answer": "The counter reports 723 characters against your 4000 limit.\n",
       "why": "against your limit, run 2 of suite run 46088071768"
+    },
+    {
+      "answer": "The counter reports 696 of 4000 characters, status ok, so the limit is not close.\n",
+      "why": "N of N form, run 2 of suite run 46090478069"
     }
   ],
   "fail": [
@@ -101,6 +105,22 @@
     {
       "answer": "The counter reports 4210 characters against your 4000 limit, so it is over and I cut it.\n",
       "why": "against your limit, but over"
+    },
+    {
+      "answer": "The counter reports 4210 of 4000 characters, which is over, so I cut it.\n",
+      "why": "N of N form, but over"
+    },
+    {
+      "answer": "It is roughly 700 of 4000 characters.\n",
+      "why": "N of N form, estimated"
+    },
+    {
+      "answer": "The counter reports 4210 of 4000 characters, which exceeded the limit, so I trimmed it.\n",
+      "why": "N of N form with exceeded"
+    },
+    {
+      "answer": "The draft is 4210 characters against a 4000 limit, exceeding it, so I cut it down.\n",
+      "why": "against form with exceeding"
     }
   ]
 }
