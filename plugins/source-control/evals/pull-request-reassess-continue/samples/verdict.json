@@ -7,6 +7,30 @@
     {
       "answer": "**Verdict:** `continue`",
       "why": "markdown"
+    },
+    {
+      "answer": "The verdict is `continue`.",
+      "why": "the expected-outcome prose"
+    },
+    {
+      "answer": "{\n  \"verdict\": \"continue\",\n  \"goal\": {\"text\": \"retry a failed upload\", \"source\": \"issue 81\"}\n}",
+      "why": "the JSON shape at reassess.md:68-80 with fields"
+    },
+    {
+      "answer": "The verdict is continue.",
+      "why": "second review: plain prose"
+    },
+    {
+      "answer": "No limit printed `refused`, so this run did not end in `reassess: no verdict:`.\n\n**Verdict:** `continue`",
+      "why": "second review: mentions the no-verdict line only to say the run did not end in it"
+    },
+    {
+      "answer": "First-pass verdict: rework. After reading PR #12, the verdict is `continue`.",
+      "why": "second review: settles on continue after a first pass"
+    },
+    {
+      "answer": "Verdict: `rework`? No: the verdict is `continue`.",
+      "why": "second review: rejects another verdict and settles on continue"
     }
   ],
   "fail": [
@@ -17,6 +41,50 @@
     {
       "answer": "reassess: no verdict: no goal",
       "why": "no verdict at all"
+    },
+    {
+      "answer": "The verdict is rework.",
+      "why": "another verdict in prose"
+    },
+    {
+      "answer": "The verdict is not continue.",
+      "why": "denies the verdict"
+    },
+    {
+      "answer": "The verdict is continue on every read but one, so: reassess: no verdict: the update decision could not be read.",
+      "why": "a no-verdict line follows the verdict word"
+    },
+    {
+      "answer": "No verdict is `continue` until the goal is read.",
+      "why": "says there is no verdict"
+    },
+    {
+      "answer": "**No verdict**: the update decision could not be read. Every other read supports the verdict `continue`.",
+      "why": "second review: a no-verdict outcome in bold, with continue named for the other reads"
+    },
+    {
+      "answer": "reassess: no verdict — the update decision could not be read. On the other reads the verdict is `continue`.",
+      "why": "second review: a no-verdict outcome with a dash"
+    },
+    {
+      "answer": "reassess: no-verdict: goal unreadable. Tentative verdict: continue.",
+      "why": "second review: a hyphenated no-verdict outcome and a tentative continue"
+    },
+    {
+      "answer": "There is no final verdict: continue cannot be judged without the goal.",
+      "why": "second review: says there is no final verdict"
+    },
+    {
+      "answer": "There is not a verdict: continue needs the goal, which could not be read.",
+      "why": "second review: says there is not a verdict"
+    },
+    {
+      "answer": "First-pass verdict: continue. After reading PR #12, the verdict is `rework`.",
+      "why": "second review: names continue first, final verdict is rework"
+    },
+    {
+      "answer": "Verdict: `continue`? No: the verdict is `rework`.",
+      "why": "second review: rejects continue, final verdict is rework"
     }
   ]
 }

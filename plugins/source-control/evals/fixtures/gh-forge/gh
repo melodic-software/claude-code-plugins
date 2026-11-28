@@ -8,6 +8,10 @@
 # exits 0 appends a "read" line, so a grader can tell a served call from one the real gh failed.
 # The forge's branch update (`PUT .../update-branch`) is refused on
 # purpose: a `merge` decision in the ready phase then takes its documented local-merge fallback, which the graders read.
+# A reply POSTed to a served thread's comment (`pulls/<n>/comments/<id>/replies`) is served and read back
+# by `pulls/<n>/comments`; it is still recorded as `api POST`, with its body, so a no-write grader sees it.
+# The reply carries review-reply.json's fields: a GitHub reply (schema pull-request-review-comment,
+# https://docs.github.com/rest/pulls/comments#create-a-reply-for-a-review-comment) with fixture values.
 # A refused write method is still recorded, as `api <METHOD>`, so a grader can see the attempt, as are
 # `pr close`, `pr update-branch`, `issue comment` and `issue edit`.
 # reassess-state.sh seeds what the reassess cases need: pr-overlay.json (merged over the first pull request),
@@ -25,6 +29,8 @@ overlay="$forge/pr-overlay.json"
 comments="$forge/comments.json"
 merged="$forge/merged-prs.json"
 reviews="$forge/reviews.json"
+replies="$forge/review-replies.json"
+reply_template="$forge/review-reply.json"
 [[ -f "$extra" ]] || extra=/dev/null
 # shellcheck source=/dev/null
 source "$state"
@@ -527,6 +533,25 @@ case "$cmd $sub" in
       emit "$(jq -nc --argjson id "$id" '{id: $id}')"
       exit 0
     fi
+    if [[ "$method" == POST && "$path" =~ ^repos/eval-fixture/app/pulls/([0-9]+)/comments/([0-9]+)/replies$ ]]; then
+      id="${BASH_REMATCH[2]}"
+      if ! pr_matches "${BASH_REMATCH[1]}" || ! jq -e --argjson id "$id" 'any(.[]; .comments.nodes[0].databaseId == $id)' "$forge/threads" >/dev/null; then
+        record "api POST" "$path"
+        refuse api --method POST "$path"
+      fi
+      if [[ "$body_field" == @* ]]; then body_text=$(cat -- "${body_field#@}") || exit 1; else body_text="$body_field"; fi
+      record "api POST" "$path" "$body_text"
+      [[ -f "$replies" ]] || echo '[]' >"$replies"
+      reply=$(jq -c --slurpfile t "$reply_template" --argjson to "$id" --arg body "$body_text" --arg pr "$PR_NUMBER" '(1001 + length) as $id
+        | "https://api.github.com/repos/eval-fixture/app/pulls" as $api
+        | $t[0] + {id: $id, in_reply_to_id: $to, body: $body, url: "\($api)/comments/\($id)",
+          html_url: "https://github.com/eval-fixture/app/pull/\($pr)#discussion_r\($id)", pull_request_url: "\($api)/\($pr)"}
+        | ._links = {self: {href: .url}, html: {href: .html_url}, pull_request: {href: .pull_request_url}}
+        | .reactions.url = "\(.url)/reactions"' "$replies")
+      jq -c --argjson r "$reply" '. + [$r]' "$replies" >"$replies.new" && mv "$replies.new" "$replies"
+      emit "$reply"
+      exit 0
+    fi
     if [[ "$method" != GET ]]; then
       record "api $method" "$path"
       refuse api --method "$method" "$path"
@@ -583,7 +608,7 @@ case "$cmd $sub" in
         ;;
       repos/eval-fixture/app/pulls/*/comments)
         pull_of
-        page '[]'
+        if [[ -f "$replies" && "$PR_NUMBER" == "$primary" ]]; then page "$(cat "$replies")"; else page '[]'; fi
         ;;
       repos/eval-fixture/app/pulls/*/files)
         pull_of

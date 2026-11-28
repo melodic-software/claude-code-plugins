@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# The PR adds a retry limit to src/retry.ts; main has moved on only in src/logger.ts.
+# The PR adds a retry limit to src/retry.ts; main has moved on only in src/logger.ts. The session
+# ends on the head branch, so the update decision reads its signals from this checkout rather than
+# from a worktree under `.git/worktrees`, which the eval sandbox mounts read-only.
 set -euo pipefail
 here="$(dirname "${BASH_SOURCE[0]}")"
 git init -q -b main
@@ -22,3 +24,4 @@ bash "$here/../fixtures/gh-forge/reassess-state.sh" 512 \
   --merged 620 "chore: log warnings and above" "Quietens the logger." "$landed" \
   --issue 81 "Retry failed requests three times" "A failed request is retried only once. It should retry three times." \
   --closes 81 --body $'Closes #81\n\nRaises the retry limit to three.' "$@"
+if git rev-parse -q --verify refs/heads/fix/retry-limit >/dev/null; then git checkout -q fix/retry-limit; fi

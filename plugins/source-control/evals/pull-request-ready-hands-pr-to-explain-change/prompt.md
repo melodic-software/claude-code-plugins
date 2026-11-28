@@ -11,4 +11,4 @@ expected_outcome: explain-change runs with --event ready and without --requested
 
 PR 512 is an open draft on this branch and its reviews and verification are done on the current head. Flip it to ready for review.
 
-I am here for this run. The code and security reviews already ran on this head, so skip them: pass `--skip code-review,security-review --reason "reviewed on this head before the flip"`.
+I am here for this run. The code and security reviews and the verify gate already ran on this head, so skip them: pass `--skip code-review,security-review,verify --reason "reviewed and verified on this head before the flip"`.

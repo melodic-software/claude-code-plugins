@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Seeds the eval workspace with a git repo: main and a feature branch one commit ahead of it, both
 # pushed to an offline origin where PR 482 is open and carries one unresolved review thread from a person
-# (fixtures/gh-forge).
+# on src/app.ts asking for the change the branch's last commit makes (fixtures/gh-forge).
 set -euo pipefail
 
 git init -q -b main
@@ -17,4 +17,5 @@ printf 'export const me = () => ({});\n' >src/app.ts
 git commit -q -am "fix: return an empty user"
 
 bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/gh-forge/install.sh" 482 fix/null-user main "fix: return an empty user" \
-  --open --thread PRRT_human1
+  --open --thread PRRT_human1 \
+  --thread-comment src/app.ts "me() returns null when there is no user, so callers crash reading its fields. Return an empty object instead."

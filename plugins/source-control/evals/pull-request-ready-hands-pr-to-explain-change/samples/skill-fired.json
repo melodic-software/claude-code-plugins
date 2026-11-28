@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "source-control:pull-request", "args": "ready 512"}}]}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "review:explain-change", "args": "512 --event ready"}}], "why": "only the hand-off fired"}
+  ]
+}

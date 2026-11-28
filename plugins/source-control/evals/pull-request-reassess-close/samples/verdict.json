@@ -7,6 +7,38 @@
     {
       "answer": "**Verdict:** `close`",
       "why": "markdown"
+    },
+    {
+      "answer": "The verdict is `close`.",
+      "why": "the expected-outcome prose"
+    },
+    {
+      "answer": "{\"verdict\": \"close\", \"replaced_by\": \"PR 501\"}",
+      "why": "second review: JSON with replaced_by"
+    },
+    {
+      "answer": "The verdict is close.",
+      "why": "plain prose"
+    },
+    {
+      "answer": "**Verdict:** `close` to mark it replaced",
+      "why": "second review: close followed by 'to' on the same line as a purpose clause"
+    },
+    {
+      "answer": "**Verdict:** close\n\nTo carry it out, re-run with `--act`.",
+      "why": "second review: a sentence starting 'To' on the next line"
+    },
+    {
+      "answer": "The verdict is close\nTo act on it, re-run with --act.",
+      "why": "second review: a sentence starting 'To' on the next line"
+    },
+    {
+      "answer": "No limit printed `refused`, so this run did not end in `reassess: no verdict:`.\n\n**Verdict:** `close`",
+      "why": "second review: mentions the no-verdict line only to say the run did not end in it"
+    },
+    {
+      "answer": "First-pass verdict: rework. After reading PR #12, the verdict is `close`.",
+      "why": "settles on close after a first pass"
     }
   ],
   "fail": [
@@ -17,6 +49,54 @@
     {
       "answer": "reassess: no verdict: no goal",
       "why": "no verdict at all"
+    },
+    {
+      "answer": "The verdict is continue.",
+      "why": "another verdict in prose"
+    },
+    {
+      "answer": "The verdict is not close.",
+      "why": "denies the verdict"
+    },
+    {
+      "answer": "The verdict is close to rework, but rework wins: the verdict is `rework`.",
+      "why": "close to is not the verdict, and the verdict is rework"
+    },
+    {
+      "answer": "The verdict is close to a call; reassess: no verdict: the goal could not be read.",
+      "why": "close to is not a verdict, and the reply states no verdict"
+    },
+    {
+      "answer": "**No verdict**: the update decision could not be read. Every other read supports the verdict `close`.",
+      "why": "second review: a no-verdict outcome in bold, with close named for the other reads"
+    },
+    {
+      "answer": "reassess: no verdict — the update decision could not be read. On the other reads the verdict is `close`.",
+      "why": "second review: a no-verdict outcome with a dash"
+    },
+    {
+      "answer": "reassess: no-verdict: goal unreadable. Tentative verdict: close.",
+      "why": "second review: a hyphenated no-verdict outcome and a tentative close"
+    },
+    {
+      "answer": "There is no final verdict: close cannot be judged without the goal.",
+      "why": "second review: says there is no final verdict"
+    },
+    {
+      "answer": "There is not a verdict: close needs the goal, which could not be read.",
+      "why": "second review: says there is not a verdict"
+    },
+    {
+      "answer": "The verdict is close\nto rework; on the last read the verdict is `rework`.",
+      "why": "second review: 'close to' across a line break, final verdict rework"
+    },
+    {
+      "answer": "First-pass verdict: close. After reading PR #12, the verdict is `rework`.",
+      "why": "names close first, final verdict is rework"
+    },
+    {
+      "answer": "Verdict: `close`? No: the verdict is `continue`.",
+      "why": "rejects close, final verdict is continue"
     }
   ]
 }

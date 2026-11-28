@@ -3,7 +3,8 @@
 # and a gh stand-in that serves one open draft pull request from them. Run it from a case's
 # scaffold.sh in the workspace, after the base and head branches exist:
 #   bash install.sh <number> <head-branch> <base-branch> <title> [--open] [--no-pr] [--failing-check <name>] [--thread <id>]...
-#     [--outdated-bot-thread <id>]... [--extra-pr <number> <head-branch> <title>]... [--dir <checkout>]
+#     [--outdated-bot-thread <id>]... [--thread-comment <path> <body>] [--extra-pr <number> <head-branch> <title>]...
+#     [--dir <checkout>]
 # --dir installs into that checkout instead of the current directory. Each --extra-pr serves one more
 # open pull request from that head branch into the same base, with the first one's draft state and checks.
 # The pull request is a draft unless --open is given. --no-pr serves no pull request until `gh pr create`
@@ -14,6 +15,7 @@
 # one unresolved review thread with that id, from a person on the current diff, to what
 # `gh api graphql` serves; each --outdated-bot-thread adds one from a bot (author __typename Bot)
 # that GitHub marks outdated (isOutdated true). Threads are served in the order given.
+# --thread-comment sets every thread's file path and comment body (default path `f`, a placeholder body).
 #
 # origin's URL is https://github.com/eval-fixture/app.git, so push-branch.sh, which compares the
 # push remote's URL with the PR's head repository, accepts it as eval-fixture/app on github.com.
@@ -41,7 +43,7 @@ set -euo pipefail
 
 number="$1" head="$2" base="$3" title="$4"
 shift 4
-draft=true failing="" threads=() no_pr=0 dir=. extra_prs=() extra_heads=()
+draft=true failing="" threads=() thread_path=f thread_body="eval fixture review comment" no_pr=0 dir=. extra_prs=() extra_heads=()
 while (($#)); do
   case "$1" in
     --open) draft=false ;;
@@ -62,6 +64,10 @@ while (($#)); do
     --outdated-bot-thread)
       threads+=("bot ${2:?--outdated-bot-thread needs a thread id}")
       shift
+      ;;
+    --thread-comment)
+      thread_path="${2:?--thread-comment needs a path}" thread_body="${3:?--thread-comment needs a body}"
+      shift 2
       ;;
     --failing-check)
       failing="${2:?--failing-check needs a check name}"
@@ -87,6 +93,7 @@ cp "$here/gh" "$forge/bin/gh"
 chmod +x "$forge/bin/gh"
 cp "$here/git-remote-evalforge" "$forge/bin/git-remote-evalforge"
 chmod +x "$forge/bin/git-remote-evalforge"
+cp "$here/review-reply.json" "$forge/review-reply.json"
 printf 'PR_NUMBER=%q\nPR_HEAD=%q\nPR_BASE=%q\nPR_TITLE=%q\n' "$number" "$head" "$base" "$title" >"$forge/state"
 printf '%s\n' "${extra_prs[@]+"${extra_prs[@]}"}" | sed '/^$/d' >"$forge/extra-prs"
 echo "$draft" >"$forge/draft"
@@ -98,11 +105,11 @@ else
   echo '[]' >"$forge/checks"
 fi
 
-printf '%s\n' "${threads[@]+"${threads[@]}"}" | jq -Rnc '[inputs | select(length > 0) | (.[:index(" ")] == "bot") as $bot | {
+printf '%s\n' "${threads[@]+"${threads[@]}"}" | jq -Rnc --arg path "$thread_path" --arg body "$thread_body" '[inputs | select(length > 0) | (.[:index(" ")] == "bot") as $bot | {
   id: .[index(" ") + 1:], isResolved: false, isOutdated: $bot, resolvedBy: null, originalStartLine: null, originalLine: 1,
   comments: {totalCount: 1, pageInfo: {hasNextPage: false}, nodes: [{
     author: (if $bot then {__typename: "Bot", login: "review-bot"} else {__typename: "User", login: "reviewer"} end),
-    body: "eval fixture review comment", path: "f",
+    body: $body, path: $path,
     url: "https://github.com/eval-fixture/app/pull/1#discussion_r1", createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z", databaseId: 1, diffHunk: "", originalCommit: {oid: "0"}}]}}]' >"$forge/threads"
 : >"$forge/calls.jsonl"
