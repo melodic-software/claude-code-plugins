@@ -477,7 +477,8 @@ MERGED_PR_QUERY='query($owner: String!, $name: String!, $base: String!, $first: 
 # shellcheck disable=SC2016 # GraphQL variables, not shell expansions
 MERGED_PR_BRANCH_QUERY='query($owner: String!, $name: String!, $base: String!, $head: String!) {
   repository(owner: $owner, name: $name) {
-    pullRequests(states: MERGED, baseRefName: $base, headRefName: $head, first: 20) {
+    pullRequests(states: MERGED, baseRefName: $base, headRefName: $head, first: 20,
+      orderBy: {field: UPDATED_AT, direction: DESC}) {
       pageInfo { hasNextPage endCursor }
       nodes { headRefName headRefOid baseRefName commits(first: 100) { nodes { commit { oid } } } }
     }
