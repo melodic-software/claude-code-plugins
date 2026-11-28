@@ -5,6 +5,12 @@ All notable changes to the `display-redaction` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-11-28
+
+### Added
+
+- Add `display_redaction_enabled` boolean on/off setting (default `true`) with security policy-floor semantics (repository `false` ignored) via shared `mod-hook-enabled.ts`, plus `schemas/display-redaction.schema.json`.
+
 ## [0.1.22] - 2026-11-26
 
 ### Changed
