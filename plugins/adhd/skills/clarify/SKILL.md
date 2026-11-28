@@ -1,5 +1,5 @@
 ---
-description: "Restructure a dense, decision-heavy message (or previous response): clear chunks, choices, jargon defined, verbatim terms, HTML decision table (no simplifying). Use when asked to digest, parse, or see what you're deciding: 'clarify this', 'break this down', 'wall of text'. Not for ELI5: /education:explain, /education:illustrate; style: /adhd:shape."
+description: "Restructure a dense, decision-heavy message or previous response: clear chunks, choices, jargon defined, verbatim terms, HTML decision table. Use when asked to digest, parse, or see what you're deciding: 'clarify this', 'break this down', 'wall of text'. Not for simpler prose: /education:explain; ELI5: /education:illustrate; style: /adhd:shape."
 argument-hint: "[--medium <medium>] [artifact to clarify]"
 user-invocable: true
 disable-model-invocation: false
