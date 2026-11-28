@@ -80,6 +80,7 @@ graphql)
 */status\?*) f=status.json ;;
 */pulls/[0-9]*/files*) f=files.json ;;
 */rules/branches/*) f=rules.json ;;
+*/actions/runs/[0-9]*/artifacts*) f="run_artifacts_$(cut -d/ -f6 <<<"$endpoint").json" ;;
 */actions/runs/[0-9]*) f="run_$(cut -d/ -f6 <<<"$endpoint").json" ;;
 */pulls\?*) f=pulls_list.json ;;
 */pulls/[0-9]*) f=pr.json ;;

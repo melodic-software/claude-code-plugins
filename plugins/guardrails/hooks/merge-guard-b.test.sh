@@ -35,7 +35,7 @@ run "pr-verify: --auto before any verdict" 'gh pr merge 42 --auto --squash' 2
 assert_contains "no verdict -> names the head" "$ERR" "at its head abc123"
 assert_contains "no verdict -> says to wait, then retry" "$ERR" "Wait for pr-verify's verdict on abc123, then retry"
 assert_contains "no verdict -> names the user's escape" "$ERR" "merge_guard_enabled"
-assert_eq "no verdict -> four artifact reads, one per pass name" 4 "$(grep -c actions/artifacts "$FIX/calls")"
+assert_eq "no verdict -> five artifact reads, the FAIL index and one per pass name" 5 "$(grep -c actions/artifacts "$FIX/calls")"
 for c in 'gh api graphql -f query="mutation{enqueuePullRequest(input:{pullRequestId:\"PR_x\"}){clientMutationId}}"' \
   'gh api -X PUT repos/acme/widgets/pulls/42/merge' \
   'gh pr merge 42 --squash'; do
@@ -58,6 +58,12 @@ pv_scenario
 pv_pass fail 7003
 run "pr-verify: FAIL at the head, label already removed" 'gh pr merge 42 --auto' 2
 assert_contains "FAIL at head -> refused" "$ERR" "no pr-verify PASS or PASS-NOTES verdict at its head abc123"
+pv_scenario
+pv_pass fail-i19599 7007 '{"conclusion":"failure"}'
+pv_artifact pr-verify-index-sha-abc123 7007
+echo '{"artifacts":[{"name":"pr-verify-index-sha-abc123","expired":false},{"name":"pr-verify-42-abc123-fail-i19599","expired":false}]}' >"$FIX/run_artifacts_7007.json"
+run "pr-verify: an indexed FAIL at the head, label already removed" 'gh pr merge 42 --auto' 2
+assert_contains "indexed FAIL at head -> refused as a FAIL, with no wait" "$ERR" "pr-verify FAIL at its head abc123"
 pv_scenario
 jq '.labels = [{name: "pr-verify-failed"}]' "$FIX/pr.json" >"$FIX/pr.next" && mv "$FIX/pr.next" "$FIX/pr.json"
 run "pr-verify: FAIL label on the PR" 'gh pr merge 42 --auto' 2

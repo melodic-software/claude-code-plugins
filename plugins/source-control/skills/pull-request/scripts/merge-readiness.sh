@@ -4,7 +4,7 @@
 # Exit codes:
 #   0  READY, then a NOTICE line per warning
 #   1  BLOCKED <kind>, then what blocks; kind is closed, head-moved,
-#      hold-label, not-ready or no-verify-pass
+#      hold-label, not-ready, no-verify-pass or verify-fail
 #   2  usage
 #   3  UNCHECKED: <why>, a read failed
 
@@ -359,6 +359,32 @@ _mg_verify() {
   if ! def="$(jq -cn --arg d "$default" '$d')"; then
     _mg_unchecked "jq could not quote the branch name" "its pr-verify verdict"
   fi
+  # A FAIL's name ends in the issues it links, so its run's index artifact finds it:
+  # https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/pr-verify/write-verdict.mjs
+  local fail_at="" created found
+  _mg_api_pages "repos/$MG_REPO/actions/artifacts?name=pr-verify-index-sha-$_mg_sha" .artifacts ||
+    _mg_unchecked "$MG_ERR" "its pr-verify verdict"
+  MG_OUT="$(jq -r "[.[] | select(.expired == false and .workflow_run.head_branch == $def) | .workflow_run.id] | unique | .[]" \
+    <<<"$MG_OUT")" || _mg_unchecked "the pr-verify artifacts could not be read" "its pr-verify verdict"
+  for run in $MG_OUT; do
+    [[ "$run" =~ ^[0-9]+$ ]] || continue
+    _mg_api_pages "repos/$MG_REPO/actions/runs/$run/artifacts" .artifacts || _mg_unchecked "$MG_ERR" "its pr-verify verdict"
+    # shellcheck disable=SC2016
+    found="$(jq -r --arg sha "$_mg_sha" 'any(.[]; .expired == false
+      and (.name | test("^pr-verify-[1-9][0-9]{0,9}-" + $sha + "-fail(-[0-9a-f]{16})?(-i[1-9][0-9]{0,9}(\\.[1-9][0-9]{0,9}){0,9})?$")))' \
+      <<<"$MG_OUT")" || _mg_unchecked "the pr-verify run $run's artifacts could not be read" "its pr-verify verdict"
+    [[ "$found" == true ]] || continue
+    _mg_api "repos/$MG_REPO/actions/runs/$run" || _mg_unchecked "$MG_ERR" "its pr-verify verdict"
+    # A FAIL counts from any pr-verify run, whatever its conclusion; a missing time makes it the newest.
+    # shellcheck disable=SC2016
+    created="$(jq -r --arg def "$default" --arg repo "$MG_REPO" '
+      if .path == ".github/workflows/pr-verify.yml" and .event == "workflow_run" and .head_branch == $def
+        and .repository.full_name == $repo and .head_repository.full_name == $repo
+      then ((.created_at // "") | fromdateiso8601? // 9999999999) else "-" end' <<<"$MG_OUT")" ||
+      _mg_unchecked "the pr-verify run $run could not be judged" "its pr-verify verdict"
+    [[ "$created" =~ ^[0-9]+$ ]] || continue
+    [[ -n "$fail_at" ]] && ((fail_at >= created)) || fail_at="$created"
+  done
   for suffix in pass "pass-$digest" pass-notes "pass-notes-$digest"; do
     _mg_api_pages "repos/$MG_REPO/actions/artifacts?name=pr-verify-$MG_NUM-$_mg_sha-$suffix" .artifacts ||
       _mg_unchecked "$MG_ERR" "its pr-verify verdict"
@@ -369,9 +395,31 @@ _mg_verify() {
       _mg_api "repos/$MG_REPO/actions/runs/$run" || _mg_unchecked "$MG_ERR" "its pr-verify verdict"
       counted="$(jq -r --arg def "$default" --arg repo "$MG_REPO" -f "$_MG_DIR/pr-verify-run.jq" <<<"$MG_OUT")" ||
         _mg_unchecked "the pr-verify run $run could not be judged" "its pr-verify verdict"
-      [[ "$counted" == true ]] && return 0
+      [[ "$counted" == true ]] || continue
+      [[ -z "$fail_at" ]] && return 0
+      created="$(jq -r '(.created_at // "") | fromdateiso8601? // 0' <<<"$MG_OUT")" || created=0
+      [[ "$created" =~ ^[0-9]+$ ]] && ((created > fail_at)) && return 0
     done
   done
+  if [[ -n "$fail_at" ]]; then
+    # The merge queue's own lift for a FAIL:
+    # https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/pr-merge/merge-holds.mjs
+    local approvers
+    # shellcheck disable=SC2016
+    approvers="$(jq -r --arg head "$_mg_sha" --argjson t "$conf" '
+      [($t.t | fromjson? // {}) | .actors[]? | select(.kind == "human" and (.id | type) == "number") | .id] as $humans
+      | [.[] | select(.user.type == "User" and (.user.id | IN($humans[])) and .commit_id == $head
+          and (.state | IN("APPROVED", "CHANGES_REQUESTED", "DISMISSED")))]
+      | group_by(.user.id) | map(max_by(.submitted_at // "") | select(.state == "APPROVED") | .user.login) | sort | join(", ")' \
+      <<<"${_mg_reviews:-[]}")" || approvers=""
+    if [[ -n "$approvers" ]]; then
+      _mg_notices+=("pr-verify failed ${_mg_sha}; $approvers approved this head from the trusted-actor list, which lifts the FAIL as the merge queue does.")
+      return 0
+    fi
+    _mg_refuse_merge verify-fail \
+      "BLOCKED: ${MG_REPO}#${MG_NUM} has a pr-verify FAIL at its head ${_mg_sha} and no PASS or PASS-NOTES judged after it, so this merge is refused (--auto and merge-queue requests included); push a new head or get an approving review from a trusted actor, then re-queue." \
+      "The merge queue removes a PR at a head pr-verify failed, and each removal rebuilds every entry behind it. A PR that leaves the queue unmerged is reported to the user, not re-enqueued."
+  fi
   local done_at="" now
   [[ -n "$_mg_running" ]] ||
     done_at="$(jq -r '[.[] | select(.status == "completed") | .completed_at // empty | fromdateiso8601] | max // empty' \
@@ -423,6 +471,7 @@ merge_readiness::check() {
   _mg_pv_wanted && _mg_spawn pvconf _mg_pv_conf
 
   _mg_join reviews _mg_api_pages "repos/$MG_REPO/pulls/$MG_NUM/reviews" . || _mg_unchecked "$MG_ERR"
+  _mg_reviews="$MG_OUT"
   # shellcheck disable=SC2016
   _mg_changes="$(jq -r '
     reduce .[] as $r ({}; if ($r.state | IN("APPROVED","CHANGES_REQUESTED","DISMISSED"))
