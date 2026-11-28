@@ -1347,6 +1347,10 @@ test("each leg copies the review criteria criteria.txt lists, REVIEW.md composed
       "docs/standards/testing.md": "listed",
       "docs/standards/unlisted.md": "not copied",
       "other/y.md": "not copied",
+      "docs/conventions/standards.yaml": "guidance_dir: guidance\n",
+      "guidance/README.md": "---\nstandards-contract: 2.0.0\n---\n\n| Surface | Applies when | File |\n|---|---|---|\n| design.coupling | splitting modules | design/coupling.md |\n",
+      "guidance/design/coupling.md": "advice",
+      "guidance/unlisted.md": "not copied",
     };
     for (const [file, body] of Object.entries(orgFiles)) {
       mkdirSync(path.dirname(path.join(org, file)), { recursive: true });
@@ -1359,8 +1363,10 @@ test("each leg copies the review criteria criteria.txt lists, REVIEW.md composed
     const result = copy();
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(readdirSync(data, { recursive: true }).filter((f) => f.endsWith(".md")).sort(), [
+      "org/docs/guidance/README.md",
       "org/docs/standards/README.md",
       "org/docs/standards/testing.md",
+      "org/guidance/design/coupling.md",
       "org/standards/review/x.md",
       "review/reference/ref.md",
       "review/skills/code-review/SKILL.md",
@@ -1375,6 +1381,11 @@ test("each leg copies the review criteria criteria.txt lists, REVIEW.md composed
       readFileSync(path.join(orgCopy, "docs", "standards", "README.md"), "utf8"),
       `---\nstandards-contract: 1.3.1\n---\n| Surface | Applies when | File |\n|---|---|---|\n| testing | writing tests | ${orgCopy}/docs/standards/testing.md |\n`,
       "the org index is the reader's printed index, each row's File the copy in the review data; the escaping row and the prose are gone",
+    );
+    assert.equal(
+      readFileSync(path.join(orgCopy, "docs", "guidance", "README.md"), "utf8"),
+      `---\nstandards-contract: 2.0.0\nkind: guidance\n---\n| Surface | Applies when | File |\n|---|---|---|\n| design.coupling | splitting modules | ${orgCopy}/guidance/design/coupling.md |\n`,
+      "the org guidance index is the reader's printed guidance index, marked kind: guidance, each row's File the copy in the review data",
     );
     assert.equal(
       readFileSync(path.join(orgCopy, "citations.tsv"), "utf8"),

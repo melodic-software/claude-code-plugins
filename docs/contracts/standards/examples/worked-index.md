@@ -2,7 +2,7 @@
 
 A repository with C# services, a docs lane, and a pre-existing
 engineering-philosophy document it did not want to relocate. Standards
-root is the default `docs/standards/` (no `.claude/standards.yaml`
+root is the default `docs/standards/` (no `docs/conventions/standards.yaml`
 needed).
 
 ## The index: `docs/standards/README.md`

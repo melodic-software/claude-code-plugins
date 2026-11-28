@@ -25,7 +25,9 @@ denied, and a denied read voids the review:
   holds the organization's checked standards: `citations.tsv`, the only `REVIEW.md` citations to
   open, the organization's and the repository's, each line naming its copied file, and, when present, `docs/standards/README.md`, the
   printed index of the org layer the repository's standards add to, whose rows name the copied
-  files. The review plugin's shared `reference/` sits two levels above
+  files, and, when present, `docs/guidance/README.md`, the org layer's printed guidance index
+  (`kind: guidance`), whose rows name copied advisory positions: cite one only as an advisory
+  finding, never a blocker, and below any standard it conflicts with. The review plugin's shared `reference/` sits two levels above
   `CRITERIA_DIR`, where the lane's relative links point.
 - The pull request's diff, from its base to the reviewed head, split into these parts in order.
   Read every part whole, each with one Read call and no `offset` or `limit`: a review that skips

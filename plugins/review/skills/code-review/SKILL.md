@@ -136,9 +136,12 @@ everything this skill says of `REVIEW.md` applies to it. A line starting
 citation, a tab, then `<path>#<heading>`; read the path as written, and treat
 a citation it lacks as unresolved), never from the criteria text, and read its
 `docs/standards/README.md` as the org layer's printed index, following each
-row's `File` as written. Without `citations.tsv` the folder is the raw org
+row's `File` as written. In that printed copy, `docs/guidance/README.md`,
+when present, is the org layer's advisory guidance index: cite a position it
+lists only as an advisory finding, never a blocker, below any standard it
+conflicts with. Without `citations.tsv` the folder is the raw org
 checkout: resolve an organization citation against it, and find its index
-through its `.claude/standards.yaml`, else `docs/standards/README.md`.
+through its `docs/conventions/standards.yaml`, else `docs/standards/README.md`.
 Without either line, read the repository's `REVIEW.md` as before.
 
 **Coding standards and contributing guides.** Read a root `CODING_STANDARDS.md`
@@ -163,10 +166,9 @@ entry. With
 no such row, report nothing about paved paths. A row whose file does not exist
 goes in the summary comment as an unresolved citation.
 
-**Adopted shipped concepts.** A standards file this lane reads that cites
-shipped concept ids follows the binding's "Adopted shipped concepts"
-paragraph, with `/engineering-concepts:lookup` (if enabled); otherwise apply
-each entry as written.
+**Guidance.** Read guidance through the binding's "Guidance layer (every
+rung)" paragraph. Cite a guidance position only as an advisory finding,
+never a blocker.
 
 **Closing issue.**
 
