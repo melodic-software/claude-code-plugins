@@ -1,5 +1,5 @@
 ---
-description: "Manage git worktrees for parallel sessions: create, enter, status, cleanup, audit, and review kept worktrees (use ExitWorktree with keep to leave when EnterWorktree/ExitWorktree resolves in this session). Use when on main before editing, or for 'create worktree', 'worktree status', 'clean up worktrees'. Not for PRs: /source-control:pull-request."
+description: "Manage git worktrees for parallel work: create, enter existing, status, cleanup, audit, review kept worktrees (use ExitWorktree with keep to leave when EnterWorktree/ExitWorktree resolves in this session). Use when on main before editing, or for 'create worktree', 'worktree status', 'clean up worktrees'. Not for PRs: /source-control:pull-request."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[create|status|cleanup|audit|review] [args]"
