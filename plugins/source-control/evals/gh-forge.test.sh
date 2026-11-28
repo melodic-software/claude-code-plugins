@@ -129,6 +129,13 @@ assert_eq "api POST replies: recorded as the write it is, with its body" \
   "$(tail -n 1 "$REPLIED/.git/eval-forge/calls.jsonl")"
 out=$(run_gh "$REPLIED" api repos/eval-fixture/app/pulls/7/comments --jq 'map(.body) | join(",")' 2>&1)
 assert_eq "api pulls/<n>/comments: the reply reads back" "Fixed in the last commit." "$out"
+SHAPE='[tostream | select(length == 2) | (.[0] | map(tostring) | join(".")) + ":" + (.[1] | type)] | sort | join(",")'
+out=$(run_gh "$REPLIED" api repos/eval-fixture/app/pulls/7/comments --jq ".[0] | $SHAPE" 2>&1)
+assert_eq "api POST replies: the reply has the captured GitHub reply's fields and types" \
+  "$(jq -r "$SHAPE" "$SCRIPT_DIR/fixtures/gh-forge/review-reply.json")" "$out"
+out=$(run_gh "$REPLIED" api repos/eval-fixture/app/pulls/7/comments --jq '.[0] | [.id, .html_url, ._links.self.href] | join(" ")' 2>&1)
+assert_eq "api POST replies: the reply's id and links name this pull request" \
+  "1001 https://github.com/eval-fixture/app/pull/7#discussion_r1001 https://api.github.com/repos/eval-fixture/app/pulls/comments/1001" "$out"
 run_gh "$REPLIED" api --method POST repos/eval-fixture/app/pulls/7/comments/9/replies -f body=x >/dev/null 2>&1
 assert_exit "api POST replies: a reply to a comment no thread holds is refused" 1 "$?"
 
