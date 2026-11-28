@@ -76,7 +76,7 @@ IMAGE_TYPES = {
 OPEN_SECONDS = 10
 PAGE_CSP = (
     "default-src 'self'; script-src 'self' 'unsafe-inline'; "
-    "style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; "
+    "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
     "connect-src 'self'; frame-src 'self' about:; frame-ancestors 'none'; "
     "form-action 'none'; base-uri 'none'"
 )
@@ -1229,6 +1229,7 @@ class Hub(LoopbackWatcher):
         self.layers = Settings(repo_root(self.dir))
         self._last_state = None
         self.opens = {}
+        self._branding = None
 
     def read_log(self):
         return load_json(self.responses, EMPTY_RESPONSES)
@@ -1270,22 +1271,22 @@ class Hub(LoopbackWatcher):
     def frontier_lock(self):
         return self._setting("frontierLock")
 
-    def branding_option(self):
-        try:
-            s = json.loads((self.dir / SESSION_JSON).read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return None
-        return s.get("brandingOption") if isinstance(s, dict) else None
-
-    def branding(self):
+    def _resolve_branding(self):
         if _BRANDING_MOD is None:
-            return {"css": "", "slot_html": "", "notices": []}
-        res = _BRANDING_MOD.resolve_branding(self.layers.root, option=self.branding_option())
+            return {"css": "", "slot_html": "", "fonts": {}, "notices": []}
+        res = _BRANDING_MOD.resolve_branding(self.layers.root)
         for n in res.get("notices") or ():
             text = n.get("text") if isinstance(n, dict) else str(n)
             if text:
                 self.layers.note(f"branding: {text}")
         return res
+
+    def branding(self):
+        if self._branding is None:
+            with self.cond:
+                if self._branding is None:
+                    self._branding = self._resolve_branding()
+        return self._branding
 
     def user_settings(self):
         """The user settings file `round.py ensure-running --user-settings` recorded, if any."""
@@ -1640,6 +1641,10 @@ class Handler(LoopbackHandler):
         if url.path in QUESTION_SHAPE:
             name, ctype = QUESTION_SHAPE[url.path]
             return self.send(200, (SHARED_WEB / name).read_bytes(), ctype)
+        font = hub.branding().get("fonts", {}).get(url.path)
+        if font is not None:
+            ctype, raw = font
+            return self.send(200, raw, ctype)
         if url.path == "/api/state":
             return self.send(200, hub.state())
         if url.path == "/api/visual-file":

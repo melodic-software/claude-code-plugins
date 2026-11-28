@@ -89,7 +89,7 @@ STATIC = {
     "/proto.js": ("proto.js", "text/javascript"),
     "/web-vitals.attribution.iife.js": ("web-vitals.attribution.iife.js", "text/javascript"),
 }
-PAGE_CSP = "default-src 'self'; img-src 'self' data:; font-src 'self' data:; frame-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+PAGE_CSP = "default-src 'self'; img-src 'self' data:; frame-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 TOKENS_FILE = HERE.parent / "reference" / "html-tokens.css"
 _BRANDING_PATH = HERE.parent / "lib" / "branding_helper.py"
 _BRANDING_SPEC = (
@@ -1058,6 +1058,10 @@ class GuestHandler(BaseHTTPRequestHandler):
                 return self.send(200, TOKENS_FILE.read_bytes() if TOKENS_FILE.is_file() else b"", "text/css")
             if url.path == "/branding.css":
                 return self.send(200, self.app.branding()["css"].encode("utf-8"), "text/css")
+            font = self.app.branding().get("fonts", {}).get(url.path)
+            if font is not None:
+                ctype, raw = font
+                return self.send(200, raw, ctype)
             if url.path in STATIC:
                 return self.static(*STATIC[url.path])
             m = ASSET.fullmatch(url.path)
@@ -1346,7 +1350,7 @@ class App:
 
     def _resolve_branding(self):
         if _BRANDING_MOD is None:
-            return {"css": "", "slot_html": "", "notices": []}
+            return {"css": "", "slot_html": "", "fonts": {}, "notices": []}
         res = _BRANDING_MOD.resolve_branding(self._repo_root)
         for n in res.get("notices") or ():
             text = n.get("text") if isinstance(n, dict) else str(n)

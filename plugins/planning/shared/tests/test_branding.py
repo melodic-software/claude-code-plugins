@@ -20,7 +20,7 @@ os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
 os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 
 
-def init_branded_repo(root: Path, yaml_body: str) -> Path:
+def init_branded_repo(root: Path, yaml_body: str, assets: dict[str, bytes] | None = None) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "-C", str(root), "init", "-q", "-b", "main"], check=True)
     subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.com"], check=True)
@@ -28,9 +28,16 @@ def init_branded_repo(root: Path, yaml_body: str) -> Path:
     conv = root / "docs" / "conventions"
     conv.mkdir(parents=True, exist_ok=True)
     (conv / "rendered-views.yaml").write_text(yaml_body, encoding="utf-8")
+    for rel, content in (assets or {}).items():
+        dst = root / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_bytes(content)
     subprocess.run(["git", "-C", str(root), "add", "."], check=True)
     subprocess.run(["git", "-C", str(root), "-c", "commit.gpgsign=false", "commit", "-q", "-m", "seed"], check=True)
     return root
+
+
+WOFF2_STUB = b"wOF2" + b"A" * 16
 
 
 class TestSharedServerBranding(unittest.TestCase):
@@ -42,8 +49,15 @@ class TestSharedServerBranding(unittest.TestCase):
             "  palette:\n"
             "    light:\n"
             '      accent: "#1A4D2E"\n'
+            "  type:\n"
+            "    serif: \"'Brand Serif', Georgia, serif\"\n"
+            "    fonts:\n"
+            "      - family: Brand Serif\n"
+            "        file: assets/brand.woff2\n"
+            "        weight: '600'\n"
             "  logo:\n"
             "    label: Northwind Shared\n",
+            {"assets/brand.woff2": WOFF2_STUB},
         )
         data_dir = repo / ".work" / "topic" / "shared" / "po"
         with mock.patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": str(repo)}):
@@ -60,10 +74,19 @@ class TestSharedServerBranding(unittest.TestCase):
             self.assertEqual(code, 200)
             self.assertIn(b"--accent: #1A4D2E;", brand_css)
             self.assertIn(b".rv-brand", brand_css)
+            self.assertIn(b"url('/branding-font/0.woff2') format('woff2')", brand_css)
+            self.assertNotIn(b"data:font/", brand_css)
+
+            code, font_headers, font_bytes = call(port, "GET", "/branding-font/0.woff2")
+            self.assertEqual(code, 200)
+            self.assertEqual(font_headers.get("Content-Type"), "font/woff2")
+            self.assertEqual(font_headers.get("X-Content-Type-Options"), "nosniff")
+            self.assertEqual(font_bytes, WOFF2_STUB)
 
             code, headers, index_html = call(port, "GET", "/")
             self.assertEqual(code, 200)
-            self.assertIn("font-src 'self' data:", headers.get("Content-Security-Policy", ""))
+            self.assertEqual(headers.get("Content-Security-Policy"), server.PAGE_CSP)
+            self.assertNotIn("font-src", headers.get("Content-Security-Policy", ""))
             self.assertIn(b'/html-tokens.css', index_html)
             self.assertIn(b'/branding.css', index_html)
             self.assertIn(b'class="rv-brand"', index_html)

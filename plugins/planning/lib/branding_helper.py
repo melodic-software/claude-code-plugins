@@ -6,9 +6,11 @@ the fixed `.rv-brand` slot HTML/CSS matching `lib/html-branding.mjs`.
 
 from __future__ import annotations
 
+import base64
 import html
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -21,6 +23,8 @@ MANAGED_DIRS = {
     "linux": Path("/etc/claude-code"),
     "win32": Path("C:/Program Files/ClaudeCode"),
 }
+FONT_DATA_URL_RE = re.compile(r"url\(data:(font/(?:woff2|woff|ttf|otf));base64,([A-Za-z0-9+/=]+)\)")
+FONT_EXT = {"font/woff2": "woff2", "font/woff": "woff", "font/ttf": "ttf", "font/otf": "otf"}
 
 LOGO_SLOT_CSS = "\n".join(
     (
@@ -31,7 +35,14 @@ LOGO_SLOT_CSS = "\n".join(
     )
 )
 
-EMPTY = {"css": "", "slot_html": "", "logo": {"kind": None, "label": None}, "notices": [], "has_overrides": False}
+EMPTY = {
+    "css": "",
+    "slot_html": "",
+    "logo": {"kind": None, "label": None},
+    "fonts": {},
+    "notices": [],
+    "has_overrides": False,
+}
 
 
 def logo_slot_html(logo: dict | None) -> str:
@@ -159,11 +170,22 @@ def resolve_branding(project_root: Path | str | None = None, *, option: str | No
     logo = data.get("logo") if isinstance(data.get("logo"), dict) else {"kind": None, "label": None}
     slot_css = logo_slot_css(logo)
     raw_css = str(data.get("css") or "")
+    fonts: dict[str, tuple[str, bytes]] = {}
+
+    def _rewrite_font(match: re.Match[str]) -> str:
+        media_type, b64 = match.group(1), match.group(2)
+        ext = FONT_EXT[media_type]
+        route = f"/branding-font/{len(fonts)}.{ext}"
+        fonts[route] = (media_type, base64.b64decode(b64))
+        return f"url('{route}')"
+
+    raw_css = FONT_DATA_URL_RE.sub(_rewrite_font, raw_css)
     combined_css = "\n".join(part for part in (slot_css, raw_css) if part)
     return {
         "css": combined_css,
         "slot_html": logo_slot_html(logo),
         "logo": logo,
+        "fonts": fonts,
         "notices": list(data.get("notices") or []),
         "has_overrides": bool(data.get("hasOverrides")),
     }

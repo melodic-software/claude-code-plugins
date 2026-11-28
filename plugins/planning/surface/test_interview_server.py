@@ -1,6 +1,6 @@
 # test-scope: plugins/planning/lib/resolve-convention-home.sh plugins/planning/shared/schema/*.schema.json
 # test-scope: plugins/planning/surface/tests/fixtures/*.json
-# test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/.claude-plugin/plugin.json
+# test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/.claude-plugin/plugin.json plugins/planning/lib/branding_helper.py plugins/planning/lib/view-settings.mjs
 
 from __future__ import annotations
 
@@ -3641,6 +3641,7 @@ class TestBrandingInjection(ServerCase):
     """GET / injects shared branding CSS and logo slot from docs/conventions/rendered-views.yaml."""
 
     env = settings_env()
+    WOFF2_STUB = b"wOF2" + b"B" * 16
 
     @classmethod
     def prepare(cls):
@@ -3649,25 +3650,61 @@ class TestBrandingInjection(ServerCase):
         cls.dir.mkdir(parents=True)
         conv = cls.repo / "docs" / "conventions"
         conv.mkdir(parents=True, exist_ok=True)
+        assets = cls.repo / "assets"
+        assets.mkdir(parents=True, exist_ok=True)
+        (assets / "brand.woff2").write_bytes(cls.WOFF2_STUB)
         (conv / "rendered-views.yaml").write_text(
             "branding:\n"
             "  palette:\n"
             "    light:\n"
             '      accent: "#1A4D2E"\n'
+            "  type:\n"
+            "    serif: \"'Brand Serif', Georgia, serif\"\n"
+            "    fonts:\n"
+            "      - family: Brand Serif\n"
+            "        file: assets/brand.woff2\n"
+            "        weight: '600'\n"
             "  logo:\n"
             "    label: Acme Studio\n",
             encoding="utf-8",
         )
 
     def test_index_contains_branding_css_and_slot(self):
+        import interview_server as srv
+
         code, html, headers = self.get("/")
         self.assertEqual(code, 200)
         self.assertIn("--accent: #1A4D2E;", html)
+        self.assertIn("url('/branding-font/0.woff2') format('woff2')", html)
+        self.assertNotIn("data:font/", html)
         self.assertIn('class="rv-brand"', html)
         self.assertIn("Acme Studio", html)
-        self.assertIn("font-src 'self' data:", headers.get("Content-Security-Policy", ""))
+        self.assertEqual(headers.get("Content-Security-Policy"), srv.PAGE_CSP)
+        self.assertNotIn("font-src", headers.get("Content-Security-Policy", ""))
         self.assertNotIn("%%BRANDING_CSS%%", html)
         self.assertNotIn("%%BRANDING_LOGO%%", html)
+
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        try:
+            conn.request("GET", "/branding-font/0.woff2")
+            resp = conn.getresponse()
+            body = resp.read()
+            self.assertEqual(resp.status, 200)
+            self.assertEqual(resp.getheader("Content-Type"), "font/woff2")
+            self.assertEqual(resp.getheader("X-Content-Type-Options"), "nosniff")
+            self.assertEqual(body, self.WOFF2_STUB)
+        finally:
+            conn.close()
+
+    def test_hub_caches_branding_at_startup_without_spawning_per_request(self):
+        import interview_server as srv
+
+        cached = {"css": ":root { --accent: #1A4D2E; }", "slot_html": '<div class="rv-brand"></div>', "fonts": {}, "notices": []}
+        with unittest.mock.patch.object(srv._BRANDING_MOD, "resolve_branding", return_value=cached) as resolve_mock:
+            hub = srv.Hub(0, self.dir)
+            self.assertEqual(hub.branding()["css"], cached["css"])
+            self.assertEqual(hub.branding()["slot_html"], cached["slot_html"])
+            self.assertEqual(resolve_mock.call_count, 1)
 
 
 @unittest.skipUnless(os.name == "posix", "file modes are advisory on Windows")
