@@ -27,10 +27,10 @@ is wrong even when every finding in it is right.
 | **knip** | TS/JS: unused files, exports, types, enum members. **Not** class members (Knip 6 rejects `--include classMembers`) | **60% precision / 100% recall** on trap fixtures | Unrestored, it **manufactures false positives** (a failed config load produced 2 phantom "unused files"); its `ERROR:` line goes to stderr, which the JSON reporter discards |
 | **vulture** | Python: unused function, class, method, variable, attribute, plus unreachable code | **16.7% precision / 100% recall**; all five trap classes false-positived at 100% | Low precision by construction. Its output is a worklist, never a verdict |
 | **gopls** | Go: **unexported symbols only** (`gopls check -severity=hint`), the analyzer's declared coverage | Correct on every measured symbol; 2.1s | An unresolved module graph **suppresses hints**: false **negatives**, the opposite of knip. Never describe the two degradations with one phrase |
-| **grep** | Shell and PowerShell functions; `function`/`class`/`const`/`let`/`var` declarations in JS/TS no `package.json` root owns (`ts-unreferenced-symbol`); C# type declarations and members with an access modifier, read as text and never built (`cs-unreferenced-private`, `cs-unreferenced-symbol`); unreferenced source files (`unreferenced-file`) | Shell symbols: **4/4 true positives, 0 false** over 546 `.sh` files (shellcheck found 0 of the 4). JS/TS symbols: **75% precision / 100% recall** (as recorded 2026-11-28). C# private: **66.7% / 66.7%**; other C#: **33.3% / 100%** (2026-10-29). `unreferenced-file` precision unmeasured | Low recall: `$`, `-`, `.` are non-word characters, so an adjacent hit reads as a reference and saves a possibly dead symbol. A JS/TS export only an entry point or outside consumer calls is a false candidate; a name in a comment saves a dead one. A C# member reached by a computed reflection name, assembly scanning or a serializer is a false candidate <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh grep analyzer --> |
+| **grep** | Shell and PowerShell functions; `function`/`class`/`const`/`let`/`var` declarations in JS/TS no `package.json` root owns (`ts-unreferenced-symbol`); C# type declarations and members with an access modifier, read as text and never built (`cs-unreferenced-private`, `cs-unreferenced-symbol`); unreferenced source files (`unreferenced-file`) | Shell symbols: **4/4 true positives, 0 false** over 546 `.sh` files (shellcheck found 0 of the 4). JS/TS symbols: **75% precision / 100% recall** (derived 2026-11-28 from the candidate set the scan test asserts, not a separate scan). C# private: **66.7% / 66.7%**; other C#: **33.3% / 100%** (2026-10-29). `unreferenced-file` precision unmeasured | Low recall: `$`, `-`, `.` are non-word characters, so an adjacent hit reads as a reference and saves a possibly dead symbol. A JS/TS export only an entry point or outside consumer calls is a false candidate; a name in a comment saves a dead one. A C# member reached by a computed reflection name, assembly scanning or a serializer is a false candidate <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh grep analyzer --> |
 
 Every figure comes from this plugin's trap fixtures under `evals/fixtures/`, as recorded on
-2026-08-23 (JS/TS symbol figures 2026-11-28, C# figures 2026-10-29). Recheck trigger: a major <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh grep analyzer -->
+2026-08-23 (JS/TS symbol figures derived 2026-11-28 from `scripts/dead-code-scan.test.sh`'s asserted candidates, C# figures 2026-10-29). Recheck trigger: a major <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh grep analyzer -->
 version bump in any analyzer's detector, or a change to the fixture corpus. Re-measure before quoting
 one to a user.
 
@@ -62,8 +62,8 @@ measured precision of the analyzer that produced it.
 | `unreferenced-file` | grep | 2 |
 | `detector-drift` | any | 3 |
 
-`ts-unreferenced-symbol` is tier 2, unlike the shell `unreferenced-symbol`, because its measured
-precision is 2 of 3 and an entry point or public export nothing in the repository calls reads as
+`ts-unreferenced-symbol` is tier 2, unlike the shell `unreferenced-symbol`, because its derived
+precision is 3 of 4 and an entry point or public export nothing in the repository calls reads as
 unreferenced. Both C# shapes are tier 2 because each yields a false dead on the trap fixtures. <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh grep analyzer -->
 A consumer's own `CLAUDE.md` or rules may refine these defaults.
 

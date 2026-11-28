@@ -157,10 +157,14 @@ non-source paths are not in the coverage total.
   which is acceptable for a read-only skill and the reason the analyzer ships as high-precision/low-recall.
 - **JS/TS symbols use the same referenced-anywhere rule** (a name whose only repository-wide hits
   are its own definition sites is a candidate) and emit `ts-unreferenced-symbol` at tier 2.
-  Over the trap corpus (`ts-entry.ts`, `ts-used.ts`, `ts-orphan.ts`, `dead-and-dynamic.ts`) plus
-  `standalone.mjs`, with no `package.json`, the analyzer reports 4 candidates: 3 true
-  (`parseLegacyManifest`, `renderLegacyRow`, `formatLegacyRow`) and 1 false (`main`, an
-  entry-point export nothing imports), so **75% precision**. It finds all 3 dead symbols only
+  The figures are derived, not a dated scan: they come from the candidate set
+  `scripts/dead-code-scan.test.sh` asserts. That test scans the trap corpus (`ts-entry.ts`,
+  `ts-used.ts`, `ts-orphan.ts`, `dead-and-dynamic.ts`) plus `standalone.mjs`, with no
+  `package.json`, and one extra test-only file, `computed.mjs`. It asserts exactly 5
+  candidates. The fifth, `handleAlpha`, is defined only in `computed.mjs`. Over the corpus
+  alone, that leaves 4 candidates: 3 true (`parseLegacyManifest`, `renderLegacyRow`,
+  `formatLegacyRow`) and 1 false (`main`, an entry-point export nothing imports), so **75%
+  precision**. Re-measure with a scan before quoting the figure as recorded. It finds all 3 dead symbols only
   because nothing else in the corpus spells their names: a name in a comment or a string literal
   (`renderPanel`) saves the symbol, so recall drops wherever prose names a dead symbol. A name
   assembled at run time is a candidate. Tier 2 follows from the figure. The precision is below the tier 1 shell symbols,
