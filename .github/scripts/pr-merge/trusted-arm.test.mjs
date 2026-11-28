@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-import { ARM_MUTATION, AUTO_MERGE_STATE_QUERY, DETAIL_QUERY, DISARM_MUTATION, PULLS_QUERY, WAKE_OUTPUT, decideTrusted, main, pinBody, pinMoved, pinned, pythonLaneSource, pythonVerify, unpinBody } from "./enable-auto-merge.mjs";
+import { ARM_MUTATION, AUTO_MERGE_STATE_QUERY, DETAIL_QUERY, DISARM_MUTATION, PULLS_QUERY, SKIP_STATE_PREFIX, WAKE_OUTPUT, decideTrusted, main, pinBody, pinMoved, pinned, pythonLaneSource, pythonVerify, unpinBody } from "./enable-auto-merge.mjs";
 import { COMMENT_EDITED_QUERY, LANES_APP_LOGIN, PULL_OPENED_QUERY, pinHold } from "./merge-holds.mjs";
 import { GitHubError } from "../lib/github-client.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -95,7 +95,7 @@ const refused = (head, refusal) => ({ ...pass(head), refusal, atHead: refusal ==
 
 const ROOM = { refusal: null, unreadable: null, count: 0, cap: 5, queued: [], rung: "C2" };
 
-async function run(pulls, { env = {}, verdicts = {}, laneSource, fail = {}, room = ROOM } = {}) {
+async function run(pulls, { env = {}, verdicts = {}, laneSource, fail = {}, room = ROOM, now = Date.parse("2026-11-27T15:00:00Z"), mainInputs } = {}) {
   const calls = [];
   const verified = [];
   const disarmed = new Set();
@@ -132,7 +132,16 @@ async function run(pulls, { env = {}, verdicts = {}, laneSource, fail = {}, room
       }
       const comments = found.comments ?? [];
       const totalCount = found.commentsTotal ?? comments.length;
-      return { data: { repository: { pullRequest: { ...DETAIL_PULL, comments: { ...DETAIL_PULL.comments, totalCount, nodes: comments } } } } };
+      const files = Array.isArray(found.files) ? { totalCount: found.files.length, nodes: found.files.slice(0, 100).map((path) => ({ path, changeType: "MODIFIED" })) } : { totalCount: 1, nodes: [] };
+      return { data: { repository: { pullRequest: { ...DETAIL_PULL, comments: { ...DETAIL_PULL.comments, totalCount, nodes: comments }, files } } } };
+    }
+    if (method === "POST" && path === "/graphql" && String(body.query).startsWith(SKIP_STATE_PREFIX)) {
+      const asked = [...body.query.matchAll(/p([0-9]+): pullRequest/g)].map((match) => Number(match[1]));
+      const state = (found) => {
+        const comments = found.comments ?? [];
+        return { number: found.number, headRefOid: found.headRefOid, updatedAt: found.updatedAt, comments: { totalCount: found.commentsTotal ?? comments.length, nodes: comments.slice(-50).map((c) => ({ databaseId: c.databaseId, updatedAt: c.updatedAt })) } };
+      };
+      return { data: { repository: Object.fromEntries(asked.map((number) => [`p${number}`, state(pulls.find((candidate) => candidate.number === number))])) } };
     }
     if (method === "POST" && /^\/repos\/melodic-software\/claude-code-plugins\/issues\/[0-9]+\/comments$/.test(path)) {
       if ((fail.pin && body.body.startsWith("<!-- babysit-merge-pin ")) || (fail.unpin && body.body.startsWith("<!-- babysit-merge-unpin "))) {
@@ -183,7 +192,8 @@ async function run(pulls, { env = {}, verdicts = {}, laneSource, fail = {}, room
       room: async () => room,
       whole,
       sleep: async () => {},
-      now: () => Date.parse("2026-11-27T15:00:00Z"),
+      now: () => now,
+      mainInputs,
     });
     const arms = calls.filter(({ query }) => query === ARM_MUTATION);
     const outcome = readFileSync(output, "utf8").split("\n").find((text) => text.startsWith(`${WAKE_OUTPUT}=`))?.slice(WAKE_OUTPUT.length + 1);
@@ -768,4 +778,99 @@ test("a label list cut at 100 is read again whole before the trusted arm: a hold
   assert.equal(armedHeads(unread), 0, unread.lines.join("\n"));
   assert.equal(pinPosts(unread).length, 0);
   assert.match(leftLine(unread, 500), /left: its labels could not all be read$/);
+});
+
+const SWEPT_AT = Date.parse("2026-11-27T15:00:00Z");
+const graphqlReads = (result, query) => result.calls.filter((call) => call.method === "POST" && call.path === "/graphql" && (typeof query === "string" ? call.query === query : String(call.query).startsWith(SKIP_STATE_PREFIX))).length;
+const restCalls = (result) => result.calls.filter((call) => call.path !== "/graphql").length;
+async function sweep(pulls, { from, minutes = 0, verdicts = UNVERIFIED, env = {}, main = "main-1" } = {}) {
+  const dir = tempDir("trusted-arm-skip-");
+  const out = join(dir, "eam-skip.json");
+  const result = await run(pulls, { env: { EAM_SKIP_IN: from ?? join(dir, "none.json"), EAM_SKIP_OUT: out, ...env }, verdicts, now: SWEPT_AT + minutes * 60_000, mainInputs: () => main });
+  const kept = JSON.parse(readFileSync(out, "utf8"));
+  return { ...result, from: out, kept, details: graphqlReads(result, DETAIL_QUERY), stateReads: graphqlReads(result), graphql: result.calls.filter((call) => call.path === "/graphql").length, rest: restCalls(result) };
+}
+const remark = (id, at = "2026-11-27T13:00:00Z") => ({ databaseId: id, author: { __typename: "User", login: "kyle-sexton" }, authorAssociation: "MEMBER", body: "Looks fine to me.", createdAt: at, updatedAt: at, lastEditedAt: null });
+const DO_NOT_MERGE = { labels: { totalCount: 1, nodes: [{ name: "do-not-merge" }] } };
+const refusedTrusted = (number, overrides = {}) => clean({ number, id: `PR_${number}`, updatedAt: "2026-11-27T14:00:00Z", comments: [remark(number * 10)], ...overrides });
+
+test("refused unarmed trusted pull requests unchanged since the last sweep read no discussion: three refused cost three detail reads, then one batched state read", async () => {
+  const pulls = [refusedTrusted(500), refusedTrusted(501), refusedTrusted(502, DO_NOT_MERGE)];
+  const verdicts = { 500: UNVERIFIED[500], 501: { ...pass(CLEAN_HEAD), atHead: [] } };
+  const first = await sweep(pulls, { verdicts });
+  assert.equal(first.details, 3, first.lines.join("\n"));
+  assert.equal(first.stateReads, 0, "no record yet, so no state read");
+  assert.deepEqual(Object.keys(first.kept.entries).sort(), ["500", "501", "502"]);
+  const second = await sweep(pulls, { from: first.from, minutes: 15, verdicts });
+  assert.equal(second.details, 0, second.lines.join("\n"));
+  assert.equal(second.stateReads, 1);
+  assert.deepEqual(second.verified.sort(), [500, 501], "the verdict is still read every sweep");
+  assert.equal(armedHeads(second), 0);
+  assert.equal(unpinPosts(second).length, 0);
+  assert.match(leftLine(second, 500), /left: pr-verify has no PASS or PASS-NOTES at its head$/);
+  assert.match(leftLine(second, 502), /left: it carries do-not-merge$/);
+  assert.deepEqual(Object.values(second.kept.entries).map(({ skips }) => skips), [1, 1, 1]);
+  assert.deepEqual([first.graphql, first.rest], [4, 0], "first sweep: the listing and three detail reads, files taken from the detail");
+  assert.deepEqual([second.graphql, second.rest], [2, 2], "second sweep: the listing and one state read, files by REST for the two past the label hold");
+});
+
+test("a changed head, update time, label set, new comment or edited comment reads the discussion again", async () => {
+  const first = await sweep([refusedTrusted(500)]);
+  assert.equal((await sweep([refusedTrusted(500)], { from: first.from, minutes: 15 })).details, 0);
+  const cases = {
+    head: refusedTrusted(500, { headRefOid: "e".repeat(40) }),
+    updatedAt: refusedTrusted(500, { updatedAt: "2026-11-27T14:10:00Z" }),
+    labels: refusedTrusted(500, { labels: { totalCount: 1, nodes: [{ name: "area-docs" }] } }),
+    comment: refusedTrusted(500, { comments: [remark(5000), remark(5001, "2026-11-27T14:05:00Z")] }),
+    edited: refusedTrusted(500, { comments: [{ ...remark(5000), updatedAt: "2026-11-27T14:05:00Z", lastEditedAt: "2026-11-27T14:05:00Z" }] }),
+  };
+  for (const [name, pull] of Object.entries(cases)) {
+    const head = pull.headRefOid;
+    const again = await sweep([pull], { from: first.from, minutes: 15, verdicts: { 500: { ...pass(head), atHead: [] } } });
+    assert.equal(again.details, 1, name);
+  }
+});
+
+test("a lanes pin that appears after the record, with the head moved or with the same head and update time, is read and unpinned on that first sweep", async () => {
+  const first = await sweep([refusedTrusted(500)]);
+  const pinA = { ...lanesComment(pinBody(OLD_HEAD), "2026-11-27T14:20:00Z"), databaseId: 9001 };
+  for (const [name, pull] of Object.entries({
+    moved: refusedTrusted(500, { headRefOid: "e".repeat(40), comments: [remark(5000), pinA] }),
+    same: refusedTrusted(500, { comments: [remark(5000), pinA] }),
+  })) {
+    const head = pull.headRefOid;
+    const next = await sweep([pull], { from: first.from, minutes: 15, verdicts: { 500: { ...pass(head), atHead: [] } } });
+    assert.equal(next.details, 1, name);
+    assert.deepEqual(unpinPosts(next).map(({ body }) => body.split("\n")[0]), [`<!-- babysit-merge-unpin sha=${head} -->`], name);
+    assert.deepEqual(next.kept.entries, {}, `${name}: an unpin keeps no record`);
+  }
+});
+
+test("a PASS landing on an unchanged refused trusted pull request arms it on the next sweep", async () => {
+  const first = await sweep([refusedTrusted(500)]);
+  assert.equal(first.kept.entries["500"]?.skips, 0);
+  const passed = await sweep([refusedTrusted(500)], { from: first.from, minutes: 15, verdicts: {} });
+  assert.equal(armedHeads(passed), 1, passed.lines.join("\n"));
+  assert.equal(pinPosts(passed).length, 1);
+  assert.equal(passed.details, 1, "the arm reads the discussion for vetoes and the pin");
+  assert.match(leftLine(passed, 500), new RegExp(`armed at ${CLEAN_HEAD}`));
+});
+
+test("a record past max-skips, or a run with skips off, reads the discussion again", async () => {
+  let from = (await sweep([refusedTrusted(500)])).from;
+  for (const minutes of [10, 20, 30]) {
+    const skipped = await sweep([refusedTrusted(500)], { from, minutes });
+    assert.equal(skipped.details, 0, `skip at ${minutes}`);
+    from = skipped.from;
+  }
+  assert.equal((await sweep([refusedTrusted(500)], { from, minutes: 40 })).details, 1);
+  const first = await sweep([refusedTrusted(500)]);
+  assert.equal((await sweep([refusedTrusted(500)], { from: first.from, minutes: 15, env: { REPORT_ONLY: "true" } })).details, 1);
+  assert.equal((await sweep([refusedTrusted(500)], { from: first.from, minutes: 15, main: "main-2" })).details, 1);
+});
+
+test("a trusted pull request with more comments than the state read returns keeps no record; one with exactly 50 keeps one", async () => {
+  const comments = (length) => Array.from({ length }, (_, i) => remark(7000 + i));
+  assert.deepEqual((await sweep([refusedTrusted(500, { comments: comments(51) })])).kept.entries, {});
+  assert.equal((await sweep([refusedTrusted(500, { comments: comments(50) })])).kept.entries["500"]?.reason, "trusted author: its comments held no stale lanes App pin");
 });
