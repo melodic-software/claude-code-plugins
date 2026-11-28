@@ -31,9 +31,8 @@ auto-locks a name.
 /naming:name-it-better tournament   # ~5 generators + elimination rounds for high-stakes names
 ```
 
-`tournament` is an honest adaptation of elimination brackets plus pairwise
-social-choice scoring, not a documented naming technique. The skill
-presents it as such.
+`tournament` adapts elimination brackets and pairwise social-choice scoring.
+It is not a documented naming technique, and the skill says so.
 
 ## Consumer conventions
 
