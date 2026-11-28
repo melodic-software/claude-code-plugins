@@ -224,13 +224,13 @@ async function safeStat($: EngineInterface, path: string, resolve = false) {
 async function readRootFile(
   $: EngineInterface,
   path: string,
-): Promise<{ readonly text: string; readonly resolved?: string } | null> {
+): Promise<{ readonly text: string; readonly realPath?: string } | null> {
   const st = await safeStat($, path, true)
   if (st === undefined) return null
   if (st !== 'unstubbed' && st.kind !== 'file') return null
   const text = await $.fs.read(path).catch(() => undefined)
   if (typeof text !== 'string') return null
-  return { text, resolved: st !== 'unstubbed' ? st.resolved : undefined }
+  return { text, realPath: st !== 'unstubbed' ? st.realPath : undefined }
 }
 
 export async function resolveConventionHome($: EngineInterface, root: string): Promise<string | null> {
@@ -244,9 +244,9 @@ export async function resolveConventionHome($: EngineInterface, root: string): P
   if (
     agentsFile !== null &&
     claudeFile !== null &&
-    agentsFile.resolved !== undefined &&
-    claudeFile.resolved !== undefined &&
-    toPosix(agentsFile.resolved) === toPosix(claudeFile.resolved)
+    agentsFile.realPath !== undefined &&
+    claudeFile.realPath !== undefined &&
+    toPosix(agentsFile.realPath) === toPosix(claudeFile.realPath)
   ) {
     claudeFile = null
   }
@@ -266,12 +266,13 @@ export async function resolveConventionHome($: EngineInterface, root: string): P
   ])
   if (targetStat === 'unstubbed') return homeDir
   if (targetStat === undefined || targetStat.kind !== 'dir' || targetStat.isLink) return null
-  if (rootStat && rootStat !== 'unstubbed' && rootStat.resolved && targetStat.resolved) {
-    const physRoot = toPosix(rootStat.resolved)
-    const physTarget = toPosix(targetStat.resolved)
-    const expected = physRoot === '/' ? `/${homeDir}` : `${physRoot}/${homeDir}`
-    if (physTarget !== expected) return null
+  if (!rootStat || rootStat === 'unstubbed' || !rootStat.realPath || !targetStat.realPath) {
+    return null
   }
+  const physRoot = toPosix(rootStat.realPath)
+  const physTarget = toPosix(targetStat.realPath)
+  const expected = physRoot === '/' ? `/${homeDir}` : `${physRoot}/${homeDir}`
+  if (physTarget !== expected) return null
   return homeDir
 }
 
