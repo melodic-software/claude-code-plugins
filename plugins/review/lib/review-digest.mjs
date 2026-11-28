@@ -17,16 +17,12 @@ export const DEFAULTS = Object.freeze({
 export const CONFIG_PATHS = Object.freeze([
   "docs/conventions/review-digest.yaml",
   "docs/conventions/review-digest.local.yaml",
-  ".claude/review-digest.local.json",
   "docs/conventions/rendered-views.yaml",
   "docs/conventions/rendered-views.local.yaml",
   ".gitmodules",
 ]);
 const TEAM_YAML = "docs/conventions/review-digest.yaml";
 export const PERSONAL_YAML = "docs/conventions/review-digest.local.yaml";
-export const RETIRED_USER = "review-digest.json";
-export const RETIRED_PERSONAL = ".claude/review-digest.local.json";
-export const SETUP_COMMAND = "/review:setup apply";
 export const OPTION_NAMES = Object.freeze({
   digest_policy: "digest_policy",
   max_files: "digest_max_files",
@@ -101,12 +97,10 @@ export function projectRootOf(root) {
 }
 
 function layerPaths(root) {
-  const retiredUser = join(real(homedir()), ".claude", RETIRED_USER);
   if (!projectRootOf(root)) {
-    return { retiredUser, root: null, retiredPersonal: null, personal: null };
+    return { root: null, personal: null };
   }
-  const notUser = (p) => (real(p) !== real(retiredUser) ? p : null);
-  return { retiredUser, root, retiredPersonal: notUser(join(root, RETIRED_PERSONAL)), personal: join(root, PERSONAL_YAML) };
+  return { root, personal: join(root, PERSONAL_YAML) };
 }
 
 /**
@@ -138,17 +132,6 @@ export function addSetting(options, arg) {
   if (!Object.values(OPTION_NAMES).includes(name)) return false;
   options[name] = arg.slice(eq + 1);
   return true;
-}
-
-function readJsonLayer(path, label, warnings) {
-  try {
-    const value = JSON.parse(readFileSync(path, "utf8"));
-    if (value && typeof value === "object" && !Array.isArray(value)) return value;
-    warnings.push(`${label} ${path}: not a JSON object; layer ignored`);
-  } catch (error) {
-    warnings.push(`${label} ${path}: ${error.message}; layer ignored`);
-  }
-  return null;
 }
 
 const COUNT_KEYS = ["max_files", "max_changed_lines"];
@@ -204,26 +187,13 @@ export function resolveDigestConfig(baseOid, options = {}) {
   for (const [key, value] of Object.entries(DEFAULTS)) config[key] = { value, source: "default" };
   const paths = layerPaths(findRoot());
   const layers = [];
-  const retired = [];
   const user = userConfigLayer(options);
-  if (existsSync(paths.retiredUser)) {
-    const value = readJsonLayer(paths.retiredUser, "user-global", warnings);
-    if (value) layers.push({ label: "user-global", path: paths.retiredUser, value });
-    const set = Object.keys(user).filter((key) => isValidSetting(key, user[key])).map((key) => OPTION_NAMES[key]);
-    retired.push(`user-global ${paths.retiredUser} is retired but still read: run ${SETUP_COMMAND} to move its settings to the review plugin's digest options${set.length ? `; the options already set (${set.join(", ")}) win over it` : ""}`);
-  }
   if (Object.keys(user).length) layers.push({ label: "userConfig", path: "", value: user });
   if (paths.root) {
     const base = baseReader(paths.root, baseOid, warnings);
     const team = readTeamDigest(base, TEAM_YAML, warnings);
     if (team) layers.push({ label: "team", path: `${base.ref}:${team.path}`, value: team.value });
-    const personal = existsSync(paths.personal) && personalOverrideApplies(paths.root, paths.personal, warnings);
-    if (paths.retiredPersonal && existsSync(paths.retiredPersonal) && personalOverrideApplies(paths.root, paths.retiredPersonal, warnings)) {
-      const value = readJsonLayer(paths.retiredPersonal, "personal-override", warnings);
-      if (value) layers.push({ label: "personal-override", path: paths.retiredPersonal, value });
-      retired.push(`personal-override ${paths.retiredPersonal} is retired but still read: run ${SETUP_COMMAND} to move its settings to ${PERSONAL_YAML}${personal ? ", which is present and wins over it on each key it sets" : ""}`);
-    }
-    if (personal) {
+    if (existsSync(paths.personal) && personalOverrideApplies(paths.root, paths.personal, warnings)) {
       const value = parseYamlLayer(readFileSync(paths.personal, "utf8"), "personal-override", paths.personal, warnings);
       if (value) layers.push({ label: "personal-override", path: paths.personal, value });
     }
@@ -241,7 +211,6 @@ export function resolveDigestConfig(baseOid, options = {}) {
       }
     }
   }
-  warnings.push(...retired);
   return { config, warnings };
 }
 

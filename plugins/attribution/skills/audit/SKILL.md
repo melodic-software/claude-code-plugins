@@ -321,14 +321,9 @@ reads empty or unsubstituted is unset:
 | `accuracy.review_agents` | `${user_config.accuracy_review_agents}` |
 | `accuracy.deep_research_on_exhaustion` | `${user_config.accuracy_deep_research_on_exhaustion}` |
 
-The old user-global `~/.claude/attribution.json` is still read, below `userConfig`, until
-`/attribution:setup apply` moves it; each detector that reads config names it on stderr while it
-exists. Report that
-line once in the run's limits section. For a key you read yourself, the order is the old file,
+Old `~/.claude/attribution.json` files are not read. For a key you read yourself, the order is
 `userConfig`, the team file, then the personal override, a later layer winning; `--show-config`
 lists the file layers.
-
-This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
 
 When `deep_research_on_exhaustion` is on and a research-capable skill is enabled, a
 budget-exhausted candidate may escalate to `/discovery:research` (if enabled).

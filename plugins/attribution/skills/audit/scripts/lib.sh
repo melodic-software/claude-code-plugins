@@ -34,11 +34,8 @@ cfg_user_config() {
 }
 
 cfg_layers_init() {
-  local config_root="$1" home="docs/conventions" resolved name moved_to="this plugin's userConfig (see How to set these in the attribution README) for budgets, judge_samples and accuracy, and"
-  local repo_files="a repository's <home>/attribution.yaml or attribution.local.yaml"
-  local old="${HOME:-/nonexistent}/.claude/attribution.json"
+  local config_root="$1" home="docs/conventions" resolved name
   CFG_LAYERS=()
-  cfg_layer_add "$old"
   [[ "${#CFG_USER_CONFIG[@]}" -eq 0 ]] || CFG_LAYERS+=(userConfig)
   if [[ "$(config_root_classify "$config_root")" == repo ]]; then
     if resolved="$(bash "$_CFG_LIB/resolve-convention-home.sh" --root "$config_root" 2>/dev/null)" && [[ -n "$resolved" ]]; then
@@ -47,10 +44,7 @@ cfg_layers_init() {
     for name in attribution attribution.local; do
       cfg_layer_add "$config_root/$home/$name.yaml"
     done
-    repo_files="$config_root/$home/attribution.yaml or attribution.local.yaml"
   fi
-  [[ -f "$old" ]] || return 0
-  echo "attribution: $old is a retired location, still read below every other layer until it is moved; run /attribution:setup apply to move its settings to $moved_to $repo_files for every other key" >&2
 }
 
 cfg_layer_add() {
