@@ -258,6 +258,26 @@ class PruneRunRootsTest(unittest.TestCase):
         )
         self.assertTrue((other / "mail").is_dir())
 
+    def test_undotted_user_directory_holding_a_sandbox_and_other_content_is_left(self):
+        evals = self.home / "evals"
+        (evals / "claude-eval-notes").mkdir(parents=True)
+        (evals / "other-project").mkdir()
+        self.age(evals, FOUR_DAYS)
+        result = self.cli()
+        self.assertIn(
+            "kept (holds entries other than claude-eval-* sandboxes, so not a run root; "
+            "remove it by hand only after checking its contents): %s" % evals,
+            result.stdout,
+        )
+        self.assertTrue((evals / "other-project").is_dir())
+
+    def test_dotted_legacy_root_with_other_content_is_still_removed(self):
+        root = self.run_root(self.home, ".ev-16626f-a")
+        (root / "stray").write_text("x\n", encoding="utf-8")
+        self.age(root, FOUR_DAYS)
+        result = self.cli()
+        self.assertIn("removed: %s\n" % root, result.stdout)
+
     def test_sandbox_nested_a_level_down_is_not_a_run_root(self):
         runs = self.home / "eval-runs"
         self.run_root(runs, "123")

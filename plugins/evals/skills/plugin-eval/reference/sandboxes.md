@@ -72,7 +72,8 @@ and removes one only when all of these hold:
 - it is a directory, not a symlink, and its `realpath` is a direct child of the `realpath` of
   `$HOME/.ev`, or a legacy run root: a direct child of the `realpath` of `$HOME` named `.ev?*`
   or `ev?*` that is not the `realpath` of `$HOME/.ev`;
-- it holds at least one `claude-eval-*` directory directly inside it;
+- it holds at least one `claude-eval-*` directory directly inside it, and an undotted (`ev?*`)
+  legacy root holds nothing else directly inside it, so a user folder such as `~/evals` is kept;
 - nothing in it changed for 3 days: neither the root nor any entry under it, read without
   following symlinks, has a newer mtime. A directory it cannot open, such as a mode-000 `sealed/`,
   counts by its own mtime. This is stricter than the age [Stale run roots](#stale-run-roots)
