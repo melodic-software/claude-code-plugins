@@ -78,7 +78,7 @@ non-source paths are not in the coverage total.
 - **Class members are absent from knip 6.** `--include classMembers` returns
   `ERROR: Invalid issue type`. The analyzer does not claim them.
 - **Measured JSON shape** (6.32.2): `{"issues":[{"file":"…","files":[{"name":"…"}],"exports":
-  [{"name":"…","line":13,"col":17,"pos":533}],"types":[],"enumMembers":[],…}]}`. The parser is
+  [{"name":"…","line":5,"col":17,"pos":84}],"types":[],"enumMembers":[],…}]}`. The parser is
   deliberately tolerant of a flattened future shape and routes anything it cannot recognize into
   T3 drift rather than dropping it.
 
@@ -133,7 +133,7 @@ non-source paths are not in the coverage total.
   the diagnostic spans one.
   - **Pointer**: when checking whether `gopls check` has gained a flag that relativizes paths, run
     `gopls check -h`, or fetch [gopls command line](https://go.dev/gopls/command-line) live.
-- **Measured output shape:** `/abs/path/dead-and-dynamic.go:17:6-17: function "deadHandler" is
+- **Measured output shape:** `/abs/path/dead-and-dynamic.go:11:6-17: function "deadHandler" is
   unused`. Exit **0** while carrying that finding, with the used and exported functions correctly
   left un-hinted.
 
@@ -157,13 +157,13 @@ non-source paths are not in the coverage total.
   which is acceptable for a read-only skill and the reason the analyzer ships as high-precision/low-recall.
 - **JS/TS symbols use the same referenced-anywhere rule** (a name whose only repository-wide hits
   are its own definition sites is a candidate) and emit `ts-unreferenced-symbol` at tier 2.
-  Measured on 2026-09-29 over the trap corpus (`ts-entry.ts`, `ts-used.ts`, `ts-orphan.ts`,
-  `dead-and-dynamic.ts`) plus `standalone.mjs`, with no `package.json`: 3 candidates, 2 true
-  (`parseLegacyManifest`, `renderLegacyRow`) and 1 false (`main`, an entry-point export nothing
-  imports), so **66.7% precision**. Of the 3 dead symbols in the corpus it found 2, so **66.7%
-  recall**: `formatLegacyRow` is saved because the fixture header comment spells its name. A name
-  in a string literal (`renderPanel`) is saved too, and a name assembled at run time is a
-  candidate. Tier 2 follows from the figure. The precision is below the tier 1 shell symbols,
+  Over the trap corpus (`ts-entry.ts`, `ts-used.ts`, `ts-orphan.ts`, `dead-and-dynamic.ts`) plus
+  `standalone.mjs`, with no `package.json`, the analyzer reports 4 candidates: 3 true
+  (`parseLegacyManifest`, `renderLegacyRow`, `formatLegacyRow`) and 1 false (`main`, an
+  entry-point export nothing imports), so **75% precision**. It finds all 3 dead symbols only
+  because nothing else in the corpus spells their names: a name in a comment or a string literal
+  (`renderPanel`) saves the symbol, so recall drops wherever prose names a dead symbol. A name
+  assembled at run time is a candidate. Tier 2 follows from the figure. The precision is below the tier 1 shell symbols,
   and an export used only by an outside consumer reads as unreferenced. A symbol used only inside
   its own file counts as referenced and stays unreported.
 - **C# is read as text and nothing is built.** No `dotnet`, MSBuild, restore or analyzer runs. The <!-- portability-ok: R6 kept-adapter operation - dead-code-scan.sh C# grep pass -->

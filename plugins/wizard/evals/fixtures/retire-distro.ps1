@@ -1,24 +1,10 @@
 #requires -Version 7.0
-<#
-  Unattended procedure library. The agent authors the stage block that follows it.
-  The human launches this script. The agent never launches the real run.
-  Secrets declared on Invoke-UnattendedRun resolve once before the first stage:
-  environment, then file, then the credential store (SecretManagement, then the
-  macOS Keychain or Linux pass), then one hidden
-  prompt per name still unresolved. An undeclared name resolves at first use.
-  -WhatIf narrates the plan and -Test reports what would change. Neither
-  invokes a helper's block, and both write only the result directory.
-  Result JSON is cutover.result/1, plus result-latest.json
-  (result-dry-latest.json for -WhatIf and -Test).
-#>
 [CmdletBinding(SupportsShouldProcess)]
 param([switch] $Test)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Helpers read $script:Mode, never $Test: Add-Preflight has its own -Test parameter.
 $script:Mode = if ($Test) { 'test' } elseif ($WhatIfPreference) { 'whatif' } else { 'run' }
-# -Test also skips any cmdlet outside a helper that honors -WhatIf.
 if ($script:Mode -eq 'test') { $WhatIfPreference = $true }
 
 $script:Steps = [System.Collections.Generic.List[object]]::new()
@@ -32,7 +18,6 @@ $script:SecretCache = @{}
 $script:ResultDirectory = $null
 $script:TranscriptPath = $null
 
-# -WhatIf:$false on the result writes: a dry run still writes its result directory.
 function Initialize-UnattendedResult {
     param([Parameter(Mandatory = $true)][string] $ResultDirectory)
     $script:ResultDirectory = $ResultDirectory
@@ -62,8 +47,7 @@ function Test-UnattendedElevated {
         return $principal.IsInRole(
             [Security.Principal.WindowsBuiltInRole]::Administrator)
     }
-    $id = (& id -u).Trim()
-    return $id -eq '0'
+    return (& id -u).Trim() -eq '0'
 }
 
 function Assert-Elevation {
@@ -83,20 +67,12 @@ function Assert-Elevation {
 
 function Assert-NotInside {
     param([Parameter(Mandatory = $true)][string] $Name)
-    $inside = $env:WSL_DISTRO_NAME
-    # WIZARD_INSIDE_MARKER replaces WSL_DISTRO_NAME: the test seam for template.test.sh.
-    if ($env:WIZARD_INSIDE_MARKER) {
-        $inside = $env:WIZARD_INSIDE_MARKER
-    }
-    if ($inside -and $inside -eq $Name) {
+    $inside = if ($env:WIZARD_INSIDE_MARKER) { $env:WIZARD_INSIDE_MARKER } else { $env:WSL_DISTRO_NAME }
+    if ($inside -eq $Name) {
         throw "refusing to run inside $Name"
     }
 }
 
-# The native store for the platform, asked by name only; the value never rides on argv.
-# WIZARD_PLATFORM (macos, linux) replaces platform detection: the test seam for template.test.sh.
-# An absent command, a nonzero exit or empty output is a miss, skipped silently. `pass show` lists a
-# directory instead of failing, so pass is asked only for a name that is an entry file in the store.
 function Get-UnattendedNativeSecret {
     param([Parameter(Mandatory = $true)][string] $Name)
     $PSNativeCommandUseErrorActionPreference = $false
@@ -126,11 +102,6 @@ function Get-UnattendedNativeSecret {
     return $null
 }
 
-# Microsoft.PowerShell.SecretManagement fronts whichever vaults are registered. Only a
-# string is used: -AsPlainText leaves a PSCredential, hashtable or byte[] as an object,
-# and redaction would record its type name instead of the secret.
-# Without the module, or without the name, the rung falls through to the native store
-# (macOS Keychain, Linux pass), then is skipped silently.
 function Get-UnattendedStoreSecret {
     param([Parameter(Mandatory = $true)][string] $Name)
     if (Get-Command Get-Secret -ErrorAction SilentlyContinue) {
@@ -149,7 +120,6 @@ function Get-UnattendedStoreSecret {
     return Get-UnattendedNativeSecret -Name $Name
 }
 
-# The ladder both paths share: environment, file, store. $null when nothing resolves.
 function Find-UnattendedSecret {
     param(
         [Parameter(Mandatory = $true)][string] $Name,
@@ -170,10 +140,14 @@ function Read-UnattendedSecretPrompt {
     $secure = Read-Host -Prompt "Secret $Name" -AsSecureString
     $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
     try {
-        [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer)
+        $value = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer)
     } finally {
         [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer)
     }
+    if (-not $value) {
+        throw "secret $Name was not resolved"
+    }
+    $value
 }
 
 function Add-UnattendedSecretPromptStep {
@@ -190,22 +164,17 @@ function Resolve-UnattendedSecret {
         return $script:SecretCache[$Name]
     }
     $value = Find-UnattendedSecret -Name $Name -FilePath $FilePath
-    if (-not $value -and $script:Mode -ne 'run') {
-        Add-UnattendedSecretPromptStep -Name $Name
-        return "<$Name>"
-    }
     if (-not $value) {
+        if ($script:Mode -ne 'run') {
+            Add-UnattendedSecretPromptStep -Name $Name
+            return "<$Name>"
+        }
         $value = Read-UnattendedSecretPrompt -Name $Name
-    }
-    if (-not $value) {
-        throw "secret $Name was not resolved"
     }
     $script:Secrets.Add($value) | Out-Null
     return $value
 }
 
-# Every declared name resolves before the first stage. In run mode the unresolved
-# ones are prompted together; a dry run records the prompt and caches a placeholder.
 function Initialize-UnattendedSecrets {
     param([hashtable[]] $Secrets = @())
     $script:DeclaredSecrets = @()
@@ -220,8 +189,7 @@ function Initialize-UnattendedSecrets {
             throw "secret $name is declared twice"
         }
         $script:DeclaredSecrets += $name
-        $filePath = if ($entry.ContainsKey('FilePath')) { [string] $entry['FilePath'] } else { '' }
-        $value = Find-UnattendedSecret -Name $name -FilePath $filePath
+        $value = Find-UnattendedSecret -Name $name -FilePath ([string] $entry['FilePath'])
         if ($value) {
             $script:SecretCache[$name] = $value
             $script:Secrets.Add($value) | Out-Null
@@ -234,9 +202,6 @@ function Initialize-UnattendedSecrets {
     }
     foreach ($name in $unresolved) {
         $value = Read-UnattendedSecretPrompt -Name $name
-        if (-not $value) {
-            throw "secret $name was not resolved"
-        }
         $script:SecretCache[$name] = $value
         $script:Secrets.Add($value) | Out-Null
     }
@@ -266,8 +231,6 @@ function Add-Preflight {
     Add-UnattendedStep $Name 'ok' 'preflight'
 }
 
-# A native command's nonzero exit is not a terminating error under
-# $ErrorActionPreference = 'Stop', so every authored block is checked.
 function Invoke-Checked {
     param(
         [Parameter(Mandatory = $true)][string] $Label,
@@ -298,8 +261,6 @@ function Invoke-IdempotentStep {
     Add-UnattendedStep $Name 'ok'
 }
 
-# A guard that skips a destructive step when a name is absent from a parsed
-# listing must not read an empty parse as absent: the read may have failed.
 function Assert-ParsedState {
     param(
         [Parameter(Mandatory = $true)][string] $Name,
@@ -314,14 +275,11 @@ function Assert-ParsedState {
     }
 }
 
-# wsl.exe writes UTF-16 unless WSL_UTF8=1, and a PowerShell capture decodes that
-# as text with embedded NULs. Prefer a CLI's --json over parsing human output.
 function Invoke-NativeUtf8 {
     param([Parameter(Mandatory = $true)][scriptblock] $Block)
     $priorVariable = $env:WSL_UTF8
     $priorEncoding = [Console]::OutputEncoding
     $env:WSL_UTF8 = '1'
-    # A host with no attached console throws on the setter; the pin then rests on WSL_UTF8.
     try { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false) } catch { }
     try {
         & $Block
@@ -331,9 +289,6 @@ function Invoke-NativeUtf8 {
     }
 }
 
-# Polls an outcome instead of trusting the exit code of the request that caused
-# it. The predicate must assert a non-empty observation first: an empty set
-# satisfies "all of them are done".
 function Wait-ForState {
     param(
         [Parameter(Mandatory = $true)][string] $Name,
@@ -341,7 +296,6 @@ function Wait-ForState {
         [int] $TimeoutSeconds = 300,
         [double] $IntervalSeconds = 5
     )
-    # The state it waits for follows a mutation a dry run skipped, so polling would only time out.
     if ($script:Mode -ne 'run') {
         Add-UnattendedStep "wait $Name" 'would-run' "would poll for up to ${TimeoutSeconds}s"
         return $true
@@ -367,7 +321,6 @@ function Wait-ForState {
         Start-Sleep -Seconds ([Math]::Min($IntervalSeconds, $TimeoutSeconds - $elapsed))
     }
     Add-UnattendedStep "wait $Name" 'ok' ('reached after {0:N1}s' -f $clock.Elapsed.TotalSeconds)
-    # Emitting $true lets Wait-ForState stand alone as a Use-GuardedResource Prove block.
     $true
 }
 
@@ -384,10 +337,8 @@ function Use-GuardedResource {
         Add-UnattendedStep "guard $Name" 'would-run' 'would take it out of service, prove the state, then release it'
         return
     }
-    # Listed before Take runs: a Take that fails partway may already hold the resource.
     $script:Held.Add($Name) | Out-Null
     if ($TolerateTakeExit) {
-        # A thrown exception still fails; only the native exit code is deferred to Prove.
         $global:LASTEXITCODE = 0
         & $Take
         if ($LASTEXITCODE -ne 0) {
@@ -408,8 +359,6 @@ function Use-GuardedResource {
     $script:Held.Remove($Name) | Out-Null
 }
 
-# Refuses before prompting, so no irreversible action precedes proof and release
-# of every guarded resource.
 function Confirm-Irreversible {
     param([Parameter(Mandatory = $true)][string] $Name)
     if ($Name -notin $script:Irreversible) {
@@ -479,13 +428,11 @@ function Complete-UnattendedResult {
     }
     if ($dry) {
         $payload['planned'] = $planned
-        # The synthetic 'run' step records the throw; a failed preflight is the finding.
         $payload['delta'] = @($script:Steps | Where-Object { $_.status -eq 'would-run' -or ($_.status -eq 'failed' -and $_.name -ne 'run') })
     }
     $json = $payload | ConvertTo-Json -Depth 6
     foreach ($secret in $script:Secrets) {
         if ($secret) {
-            # A step detail or error message can carry a secret too; escape it as JSON does.
             $escaped = ($secret | ConvertTo-Json).Trim('"')
             $json = $json.Replace($escaped, '***')
         }

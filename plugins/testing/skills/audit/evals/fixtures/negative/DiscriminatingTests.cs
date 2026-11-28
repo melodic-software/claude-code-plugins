@@ -1,4 +1,3 @@
-// Negative fixture (C#): genuinely discriminating tests — zero findings.
 using Moq;
 using Xunit;
 

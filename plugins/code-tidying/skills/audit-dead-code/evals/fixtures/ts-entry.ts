@@ -1,9 +1,3 @@
-// Entry point for the knip fixture project.
-//
-// The dynamic import is a template literal on purpose: it is the reference
-// shape a static resolver cannot follow, and it is what makes renderPanel a
-// trap rather than a true finding.
-
 import { mountPanel } from "./dead-and-dynamic.js";
 import { formatBytes } from "./ts-used.js";
 

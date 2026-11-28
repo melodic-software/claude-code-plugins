@@ -1,4 +1,3 @@
-# Negative fixture (Python): genuinely discriminating tests — zero findings.
 import pytest
 
 from subject import add, cumsum, divide, notify

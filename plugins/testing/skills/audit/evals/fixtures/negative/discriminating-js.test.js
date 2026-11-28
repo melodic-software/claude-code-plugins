@@ -1,6 +1,3 @@
-// Negative fixture (JS/TS): genuinely discriminating tests. The detector must
-// produce ZERO findings here — the false-positive guard that decides whether
-// anyone keeps the detector on. Each case names the heuristic it guards.
 const { add, mailAndRecord, renderGreeting } = require('./subject');
 
 describe('add', () => {

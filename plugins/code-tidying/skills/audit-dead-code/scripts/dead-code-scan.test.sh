@@ -175,8 +175,8 @@ assert_contains "orphan-file excerpt names the module" "$knip_out" "Finding exce
 assert_contains "unused export formatLegacyRow" "$knip_out" "Finding excerpt: formatLegacyRow"
 assert_contains "unused export renderPanel" "$knip_out" "Finding excerpt: renderPanel"
 assert_contains "unused-export shape" "$knip_out" "Finding shape: ts-unused-export"
-assert_contains "formatLegacyRow line number is 13" "$knip_out" "Finding line: 13"
-assert_contains "renderPanel line number is 17" "$knip_out" "Finding line: 17"
+assert_contains "formatLegacyRow line number is 5" "$knip_out" "Finding line: 5"
+assert_contains "renderPanel line number is 9" "$knip_out" "Finding line: 9"
 assert_contains "both exports attributed to their file" "$knip_out" "Summary file: dead-and-dynamic.ts | T1=0 T2=2 T3=0"
 assert_contains "orphan file carries one T2" "$knip_out" "Summary file: ts-orphan.ts | T1=0 T2=1 T3=0"
 assert_not_contains "used-export control file not reported" "$knip_out" "File: ts-used.ts"
@@ -314,10 +314,10 @@ assert_contains "degraded vulture covers nothing" "$vdeg_out" "Summary coverage:
 assert_not_contains "degraded vulture never prints the clean-result note" "$vdeg_out" "Note: no candidates from the analyzers that ran"
 
 vul_out="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$FIXTURES/vulture-report.txt" FAKE_VULTURE_EXIT=3 bash "$SCAN" --analyzer vulture 2>/dev/null)"
-assert_contains "vulture finding at line 13" "$vul_out" "Finding line: 13"
-assert_contains "vulture finding at line 18" "$vul_out" "Finding line: 18"
-assert_contains "vulture finding at line 23" "$vul_out" "Finding line: 23"
+assert_contains "vulture finding at line 6" "$vul_out" "Finding line: 6"
 assert_contains "vulture finding at line 10" "$vul_out" "Finding line: 10"
+assert_contains "vulture finding at line 14" "$vul_out" "Finding line: 14"
+assert_contains "vulture finding at line 4" "$vul_out" "Finding line: 4"
 assert_contains "vulture findings carry the py-unused-symbol shape" "$vul_out" "Finding shape: py-unused-symbol"
 assert_contains "the dynamic-dispatch trap is a candidate, not a verdict" "$vul_out" "Finding excerpt: unused function 'handle_alpha' (60% confidence)"
 assert_contains "entry-point file attributed separately" "$vul_out" "Summary file: py-entry.py | T1=0 T2=1 T3=0"
@@ -345,13 +345,13 @@ assert_not_contains "no absolute path leaks anywhere in the record" "$go_out" "$
 assert_contains "unexported dead symbol reported" "$go_out" 'Finding excerpt: function "deadHandler" is unused'
 assert_contains "gopls shape is go-unused-unexported" "$go_out" "Finding shape: go-unused-unexported"
 assert_contains "go-unused-unexported is tier 1" "$go_out" "Finding tier: 1"
-assert_contains "gopls line number preserved" "$go_out" "Finding line: 17"
+assert_contains "gopls line number preserved" "$go_out" "Finding line: 11"
 assert_contains "one unexported candidate, no drift" "$go_out" "1 unexported candidate(s), 0 unrecognized line(s)"
 assert_not_contains "exported symbol absent from the capture stays absent" "$go_out" "ExportedEntry"
 
 GO_EXPORTED="$TEST_TMPDIR/gopls-hints-exported.txt"
 cp "$FIXTURES/gopls-hints.txt" "$GO_EXPORTED"
-printf '%s\n' '/gopls-fixture/dead-and-dynamic.go:9:6-19: function "ExportedEntry" is unused' >>"$GO_EXPORTED"
+printf '%s\n' '/gopls-fixture/dead-and-dynamic.go:3:6-19: function "ExportedEntry" is unused' >>"$GO_EXPORTED"
 goexp_out="$(cd "$GO_REPO" && FAKE_GOPLS_OUT="$GO_EXPORTED" bash "$SCAN" --analyzer gopls 2>/dev/null)"
 assert_contains "unexported symbol still reported alongside the control" "$goexp_out" 'Finding excerpt: function "deadHandler" is unused'
 assert_not_contains "exported symbol is not reported" "$goexp_out" "ExportedEntry"
@@ -388,8 +388,8 @@ assert_contains "grep shape is unreferenced-symbol" "$grep_out" "Finding shape: 
 assert_contains "unreferenced-symbol is tier 1" "$grep_out" "Finding tier: 1"
 assert_contains "the genuinely dead function is a candidate" "$grep_out" "Finding excerpt: format_legacy_row() {"
 assert_contains "the indirect-dispatch trap is also a candidate" "$grep_out" "Finding excerpt: handle_alpha() {"
-assert_contains "dead function line number" "$grep_out" "Finding line: 22"
-assert_contains "trap function line number" "$grep_out" "Finding line: 26"
+assert_contains "dead function line number" "$grep_out" "Finding line: 4"
+assert_contains "trap function line number" "$grep_out" "Finding line: 8"
 assert_contains "both symbol candidates attributed to the one file" "$grep_out" "Summary file: dead-and-dynamic.sh | T1=2 T2=1 T3=0"
 assert_contains "the shell file itself is an unreferenced-file candidate" "$grep_out" "Finding shape: unreferenced-file"
 assert_contains "unreferenced-file is tier 2" "$grep_out" "Finding tier: 2"
@@ -414,7 +414,7 @@ assert_not_contains "--root target narrows the candidates to that file" "$root_t
 assert_contains "File: prefix" "$knip_out" "File: dead-and-dynamic.ts"
 assert_contains "Finding tier: prefix" "$knip_out" "Finding tier: 2"
 assert_contains "Finding shape: prefix" "$knip_out" "Finding shape: ts-unused-export"
-assert_contains "Finding line: prefix" "$knip_out" "Finding line: 13"
+assert_contains "Finding line: prefix" "$knip_out" "Finding line: 5"
 assert_contains "Finding excerpt: prefix" "$knip_out" "Finding excerpt: formatLegacyRow"
 assert_contains "record separator" "$knip_out" "---"
 assert_contains "Analyzer: prefix" "$knip_out" "Analyzer: knip |"
@@ -813,8 +813,10 @@ sa_exit=0
 sa_out="$(cd "$SA_REPO" && bash "$SCAN" --analyzer grep 2>/dev/null)" || sa_exit=$?
 assert_exit "standalone js scan exits 0" 0 "$sa_exit"
 assert_contains "the grep analyzer takes the standalone js files as symbol input" "$sa_out" \
-  "Analyzer: grep | root=. | state=ran | files=6 | detail=4 symbol candidate(s) from"
-assert_equal "four ts-unreferenced-symbol candidates" "4" "$(count_shape "$sa_out" "Finding shape: ts-unreferenced-symbol")"
+  "Analyzer: grep | root=. | state=ran | files=6 | detail=5 symbol candidate(s) from"
+assert_equal "five ts-unreferenced-symbol candidates" "5" "$(count_shape "$sa_out" "Finding shape: ts-unreferenced-symbol")"
+assert_contains "the export nothing names is a candidate" "$sa_out" \
+  "Finding excerpt: export function formatLegacyRow(cells: string[]): string {"
 assert_not_contains "no standalone js candidate uses the shell symbol shape" "$sa_out" \
   "Finding shape: unreferenced-symbol"
 assert_not_contains "no standalone js symbol is tier 1" "$sa_out" "Finding tier: 1"
