@@ -1,5 +1,5 @@
 ---
-description: "Write human-facing prose: READMEs, RFCs, design docs, release notes, changelog entries, tutorials, how-tos, reference, explanations, per the project style guide. Use when: 'write the README', 'draft an RFC', 'write the release notes', 'write a how-to for X', 'document this for users', 'write this up for humans', 'what kind of doc is this', 'is this the right kind of doc', 'make this doc readable', 'this doc reads like a machine wrote it'. Agent-loaded markdown: /docs-hygiene:write-for-agents."
+description: "Write human-facing prose: READMEs, RFCs, design docs, release notes, changelog entries, tutorials, how-tos, reference, explanations, per the project style guide. Use when: 'write the README', 'draft an RFC', 'write the release notes', 'write a how-to for X', 'document this for users', 'write this up for humans', 'what kind of doc is this', 'is this the right kind of doc', 'make this doc readable', 'this doc reads like a machine wrote it'. Load it before drafting or reworking any such doc, even a short one written from pasted notes, commits or an existing page. Agent-loaded markdown: /docs-hygiene:write-for-agents."
 argument-hint: "[<doc or section being written>]"
 user-invocable: true
 disable-model-invocation: false
@@ -59,6 +59,12 @@ Two cases the third rule's test misses:
   fail the search test. Write what the thing is in plain words: "a limit that can only go down",
   "the goal", "the base", "add". A document may name a pattern, as long as the sentence where the
   name first appears says what it means.
+
+Check the fourth rule on the finished draft, term by term: find the first sentence that uses the
+term and put its gloss right after the term in that sentence ("ships every line to a collector,
+the server that receives your logs"), not in the sentence after it ("ships every line to a
+collector. The collector is the server…"). The opening summary line is where a term most often
+slips in first.
 
 ## Pick the mode first
 
