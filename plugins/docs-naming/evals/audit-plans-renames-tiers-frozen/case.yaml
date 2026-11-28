@@ -39,7 +39,7 @@ graders:
     arm: both
   - name: says-unchanged
     type: regex
-    pattern: '\b(?:nothing\s+(?:was|has\s+been|got)\s+(?:renamed|edited|changed|touched)|(?:renamed|edited|changed|touched|modified)\s+(?:and\s+(?:edited|changed)\s+)?nothing|no\s+files?\s+(?:was|were|has\s+been|have\s+been)\s+(?:renamed|edited|changed))\b'
+    pattern: '\b(?:nothing\s+(?:was|has\s+been|got)\s+(?:renamed|edited|changed|touched|modified)|(?:renamed|edited|changed|touched|modified)\s+(?:and\s+(?:renamed|edited|changed|touched|modified)\s+)?nothing|no\s+files?\s+(?:was|were|has\s+been|have\s+been)\s+(?:renamed|edited|changed|touched|modified))\b'
     flags: 'i'
     target: last_message
     arm: both
@@ -88,7 +88,7 @@ graders:
     arm: both
   - name: no-generated
     type: regex
-    pattern: '\b(?:no|none|not)\b[^\n.]{0,40}\bgenerated\b|\bgenerated\b[^\n]{0,20}\b(?:none|no)\b'
+    pattern: '\b(?:no|none|not)\b[^\n.]{0,40}\bgenerated\b|\bgenerated\b[^\n.]{0,20}\b(?:none|no)\b'
     flags: 'i'
     target: last_message
     arm: both

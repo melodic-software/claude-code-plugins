@@ -2,7 +2,9 @@
   "pass": [
     { "answer": "Three files in `docs/` break the lower-kebab rule. I renamed and edited nothing, and the plan is written." },
     { "answer": "Nothing was renamed or edited. The only thing written is the plan file." },
-    { "answer": "I renamed nothing and edited no tracked file, and the plan is written." }
+    { "answer": "I renamed nothing and edited no tracked file, and the plan is written." },
+    { "answer": "No files were modified." },
+    { "answer": "Nothing was modified, and no files were touched." }
   ],
   "fail": [
     { "answer": "The plan is written to `.work/docs-hygiene/main/file-names.md`." },
