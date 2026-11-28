@@ -1,5 +1,5 @@
 ---
-description: "When bundled simplify resolves, prefer it for single-file cleanup; this skill for batch sweeps. Runs simplification over a time window, branch, directory, or repository, grouped by ecosystem in dependency order. Use when asked to 'batch simplify', 'simplify recent changes', or catch up after a multi-session sprint. Not for single-file: /simplify."
+description: "When bundled simplify resolves in this session, prefer it for single-file cleanup; this skill for batch sweeps. Runs simplification over a time window, branch, directory, or repository, grouped by ecosystem in dependency order. Use when: 'batch simplify', 'simplify recent changes', or catch up after a multi-session sprint."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[time-window|branch|repo] [--unattended] [path...] [in-place[=commit]] [--repo <repo> ...]"
