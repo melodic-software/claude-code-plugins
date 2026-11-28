@@ -150,11 +150,8 @@ the merge gate refuses it absent `--allow-dependency`, passed only on an explici
 blocks on that label unconditionally (an `--unattended` run or the autopilot merge tier also on the
 human-gated label, `needs-human` by default), and `--block-labels` adds further labels in the
 autopilot merge tier. The PR is reported and left unmerged. No wording in a PR body or comment is
-a hold. Two comment readers remain, and neither is a hold: a member's comment that reports a
-blocking defect (`blocking`, `regression`, `must fix`, a `CRITICAL` or `IMPORTANT` marker) still
-refuses the autopilot tier, the Dependabot gate and a queued entry off the pr-merge lane as
-unaddressed review feedback, and "do not merge" in a maintainer's comment still revokes a
-decision-default ratification.
+a hold. Two comment readers remain, neither a hold: a member's blocking-defect comment (`blocking`,
+`regression`, `CRITICAL`, and the like) refuses the autopilot tier, the Dependabot gate and a queued entry off pr-merge as review feedback; "do not merge" from a maintainer revokes a decision-default ratification.
 
 **Draft policy (per tier).** Drafts enter evaluation scope in every tier. There is no blanket
 draft skip. Safe: evaluate and report draft status, never flip a draft ready. Worker and
