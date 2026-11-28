@@ -26,13 +26,6 @@ plugins/harness-ops/skills/observability/scripts/build-dashboard.mjs 3
 plugins/knowledge/skills/video-digest/scripts/build-menu-view.mjs 3
 plugins/review/skills/explain-change/templates/digest.html 4
 
-# Wave 3
-plugins/debugging/skills/debug/templates/post-mortem-view.html 14
-plugins/discovery/skills/blindspot/templates/blindspot-view.html 14
-plugins/machine-health/skills/audit/templates/checkup.html 10
-plugins/work-items/skills/morning-brief/templates/brief.html 14
-plugins/work-items/skills/triage/templates/board.html 14
-
 # Outside the ADR 0133 inventory (no --clay or prefers-color-scheme): a later
 # slice migrates each or records in the rendered-views contract why it stays apart.
 plugins/ai-briefing/skills/generate/output/build/build-css.js 2
