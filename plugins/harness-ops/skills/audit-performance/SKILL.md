@@ -23,7 +23,7 @@ out (see the boundary table). The engine's own phase timings are first-class evi
 walk that takes minutes is the cost the product's retention sweep pays on that tree; a
 `claude --version` probe that takes ten seconds is itself a finding.
 
-## Scope boundary
+## What this skill does not do
 
 | Question | Owner |
 |---|---|

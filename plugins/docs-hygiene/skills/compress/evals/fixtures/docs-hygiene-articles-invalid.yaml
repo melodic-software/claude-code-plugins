@@ -1,2 +1,1 @@
-# Eval fixture: a docs-hygiene.yaml whose compress_articles is outside the key's values.
 compress_articles: drop

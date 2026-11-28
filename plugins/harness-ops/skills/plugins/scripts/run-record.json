@@ -1,0 +1,29 @@
+{
+  "run": {
+    "allow_downgrade": {"var": "ALLOW_DOWNGRADE", "kind": "flag"},
+    "install_new": {"var": "INSTALL_NEW", "kind": "string"},
+    "install_new_invalid": {"var": "INSTALL_NEW_INVALID", "kind": "string"},
+    "source_pull": {"var": "SOURCE_PULL", "kind": "string"},
+    "source_pull_invalid": {"var": "SOURCE_PULL_INVALID", "kind": "string"},
+    "source_pull_off": {"var": "SOURCE_PULL_OFF", "kind": "string"},
+    "quiet_auto_update": {"var": "QUIET_AUTO_UPDATE", "kind": "string"},
+    "update_other_paths": {"var": "UPDATE_OTHER_PATHS", "kind": "flag"},
+    "first_pass_timings": {"var": "FIRST_PASS_TIMINGS", "kind": "json"}
+  },
+  "marketplace": {
+    "errors": {"var": "MP_ERRORS", "kind": "strings"},
+    "in_repo_failed": {"var": "IR_FAILED", "kind": "rows"},
+    "user_sweep_failed": {"var": "US_FAILED", "kind": "rows"},
+    "withheld_downgrades": {"var": "WITHHELD", "kind": "rows"},
+    "source_pull": {"var": "SOURCE_PULL_JSON", "kind": "json"},
+    "refresh_rc": {"var": "REFRESH_RC", "kind": "json"},
+    "refresh_output": {"var": "REFRESH_OUT", "kind": "string"},
+    "refresh_reason": {"var": "REFRESH_REASON", "kind": "string"},
+    "refresh_label": {"var": "REFRESH_LABEL", "kind": "string"},
+    "refresh_skipped": {"var": "REFRESH_SKIP_JSON", "kind": "json"},
+    "catalog_last_updated": {"var": "CATALOG_LAST_UPDATED", "kind": "string"},
+    "project_root": {"var": "PROJECT_ROOT_JSON", "kind": "json"},
+    "install_held": {"var": "INSTALL_HELD", "kind": "json"},
+    "other_paths": {"var": "OTHER_PATHS_JSON", "kind": "json"}
+  }
+}

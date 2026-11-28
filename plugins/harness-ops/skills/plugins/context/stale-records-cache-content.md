@@ -59,7 +59,10 @@ record or per path, because a hundred records naming a dozen directories is a re
 directories, and thousands of scratch directories under one temp root are a report about that root.
 `K` is `stale_project_records.total` and `P` is `stale_project_records.paths`, the distinct paths.
 Each `by_parent` entry is the `{parent, count, paths}` one row renders, largest record count first,
-capped at `sync-run.sh`'s `STALE_PARENT_ROWS`; `more_parents` counts the parents past that cap and renders as a `+N more parent director(ies)` line.
+capped at `sync-run.sh`'s `STALE_PARENT_ROWS`. Before the cap, parent directories that are siblings,
+more of them than the cap, fold into their own parent with summed counts (one pass), so ten worktree
+scratch directories under one root take one row. `more_parents` counts the parents past the cap and
+renders as a `+N more parent director(ies):` line naming the full list.
 The full `{path, count}` list is written to `stale-project-records.<marketplace>.json` in the run
 directory, `list_file` names it, and the render prints that path, so the digest line and the report
 stay the same size however many paths there are. Read that file to answer a question about a single
@@ -75,7 +78,7 @@ appear there. For the rest the command would fail rather than run, and Step 5 ex
 
 When a project root resolved, the render gives *this* project's actionable count on its own line
 under the machine-wide total, which includes it: `2 here` under the `actionable` line of
-`Divergences: 29 in all`. Per-row detail (naming exact `<old> -> <new>`
+`divergences: 29 in all`. Per-row detail (naming exact `<old> -> <new>`
 versions per repo) is reserved for genuine conflicts: a delisted or delisted_settings_only plugin id, or a CLI call
 that failed, never for the routine bulk case. (Enable-state mismatches, a plugin `true` in one
 scope's `enabledPlugins` and `false` in another, are a known blind spot, not a reportable category:
@@ -95,7 +98,7 @@ while `gitCommitSha` moves" for the observation this rests on.
 Step 5b runs `cache-content-check.sh --scope user`, which byte-compares every file in each
 user-scope install's cache directory against the recorded commit in the marketplace clone.
 Project- and local-scope records are not compared, so the digest's `cache_content.scope` reads
-`user` and the rendered row counts `user-scope install(s)`. The render omits the `Cache content:`
+`user` and the rendered row counts `user-scope install(s)`. The render omits the `cache content:`
 row when it finds nothing. When it finds something, the render names the ids and gives the remediation
 that was actually proved to work, rather than a suggestion: remove that version's directory under
 the plugin cache, then re-run `claude plugin update <id>@<marketplace>`, which recreates it from
@@ -134,7 +137,7 @@ hold.
 other verdicts where the audit looked and could not decide, such as no clone, no source at the
 recorded commit, or a broken hash batch. Neither is folded into either side. The render gives each
 its own line beside the match count rather than leading with the match count alone: when nothing is
-stale, `Cache content: 2 of 86 user-scope install(s) compared, no disagreement found` with `84 not
+stale, `cache content: 2 of 86 user-scope install(s) compared, no disagreement found` with `84 not
 checked (recorded at an older commit)` under it, and when something is, a `<checked> user-scope
 install(s) checked` line under the finding with the match, unverifiable and not-checked counts each
 on a line under that.

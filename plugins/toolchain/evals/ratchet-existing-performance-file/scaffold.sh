@@ -28,7 +28,6 @@ printf 'ignores=%s\n' "$count"
 EOF
 chmod +x count-ignores.sh
 
-# The vendored script is the skill's copy without its two generated header lines.
 tail -n +3 "$skill_script" >.performance/ratchet.py
 
 cat >.performance/ratchets.json <<'EOF'

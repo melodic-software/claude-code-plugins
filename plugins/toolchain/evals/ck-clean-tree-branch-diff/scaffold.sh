@@ -6,7 +6,6 @@ git symbolic-ref HEAD refs/heads/trunk
 git config user.name eval
 git config user.email eval@example.invalid
 git config commit.gpgsign false
-# The eval workspace holds harness dotfiles; hide untracked files so the tree reads clean.
 git config status.showUntrackedFiles no
 mkdir -p .claude/ecosystems tools
 cat >.claude/ecosystems/bash.yaml <<'EOF'
@@ -50,7 +49,6 @@ printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'echo "hi"' >greet.sh
 git add .
 git commit -q -m "add greet and tools"
 
-# Bare remote inside the workspace, hidden from status through the local exclude file.
 printf '.remote.git/\n' >>.git/info/exclude
 git init -q --bare .remote.git
 git -C .remote.git symbolic-ref HEAD refs/heads/trunk

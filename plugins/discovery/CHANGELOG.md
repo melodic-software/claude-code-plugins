@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [3.3.1] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
 ## [3.3.0] - 2026-11-27
 
 ### Changed

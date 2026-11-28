@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # test-scope: plugins/*/scripts/check-hook-registration.sh
 # test-scope: plugins/discovery/hooks/hooks.json plugins/multi-agent/hooks/hooks.json
-# test-scope: plugins/discovery/hooks/webfetch-truncation.mjs plugins/multi-agent/hooks/drift-checker-fetch-gate.mjs
+# test-scope: plugins/discovery/hooks/webfetch-truncation.mjs plugins/discovery/lib/hook-enabled.mjs plugins/multi-agent/hooks/drift-checker-fetch-gate.mjs
 set -uo pipefail
+unset CLAUDE_PLUGIN_OPTION_WEBFETCH_TRUNCATION_ENABLED CLAUDE_PROJECT_DIR
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
@@ -55,6 +56,10 @@ for script in "${carriers[@]}"; do
     mkdir -p "$dir/scripts" "$dir/lib" "$dir/hooks"
     cp "$root/hooks/hooks.json" "$root/hooks/$hook_file" "$dir/hooks/"
     cp "$script" "$dir/scripts/"
+    local mod
+    while IFS= read -r mod; do
+      cp "$root/lib/$mod" "$dir/lib/"
+    done < <(sed -n "s#.*from ['\"]\.\./lib/\([^'\"/]*\)['\"].*#\1#p" "$root/hooks/$hook_file")
     cp "$HERE/hook-registration-check.sh" "$dir/lib/"
     [[ $# -lt 2 ]] || printf '%s\n' "$2" >"$dir/hooks/hooks.json"
     CHECK="$dir/scripts/check-hook-registration.sh"

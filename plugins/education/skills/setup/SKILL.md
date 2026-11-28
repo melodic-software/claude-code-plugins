@@ -179,7 +179,7 @@ rerun observes it.
 
 `/education:explain`
 
-## Boundaries
+## What this skill does not do
 
 - Do not start a teach, explain, or quiz session; use `/education:teach`, `/education:explain`,
   or `/education:quiz-me`.

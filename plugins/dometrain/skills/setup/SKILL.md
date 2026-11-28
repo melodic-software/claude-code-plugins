@@ -124,7 +124,7 @@ collision warning instead.
 - **Pointer**: for that plugin's manifest `name`, read `.claude-plugin/plugin.json` in
   [Dometrain's repository](https://github.com/Dometrain/mcp) live.
 
-## Boundaries
+## What this skill does not do
 
 - Do not read, echo, log, copy, or persist any API key.
 - Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform

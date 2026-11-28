@@ -927,6 +927,9 @@ export function decideTrusted(pull, humanGated, facts = {}, bot = undefined) {
   if (judged.action !== "none") {
     return judged;
   }
+  if (facts.pinUnchanged === true) {
+    return { ...judged, pinUnchanged: true };
+  }
   if (!("comments" in facts)) {
     return { action: "comments", reason: `${judged.reason}; its comments are not read yet, so a stale pin is not checked` };
   }
@@ -1163,7 +1166,8 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
 }
 
 export const SKIP_VERSION = 1;
-export const SKIPPABLE = Object.freeze([READER_HOLDS.risk, "a pr-unblock lane stopped its head (", `${EJECTION_HOLD}queue-ejected:`]);
+export const TRUSTED_PIN_READ = "trusted author: its comments held no stale lanes App pin";
+export const SKIPPABLE = Object.freeze([READER_HOLDS.risk, "a pr-unblock lane stopped its head (", `${EJECTION_HOLD}queue-ejected:`, TRUSTED_PIN_READ]);
 export const SKIP_MAX_MINUTES = 60;
 export const SKIP_MAX_SKIPS = 3;
 const SKIP_CHUNK = 20;
@@ -1207,6 +1211,15 @@ export function rollupOf(node, head) {
     comments: [node.comments.totalCount, ...node.comments.nodes.map((c) => [c?.databaseId ?? null, c?.updatedAt ?? null])],
     threads: node.reviewThreads.nodes.map((t) => JSON.stringify([Boolean(t?.isResolved), Boolean(t?.isOutdated)])).sort(),
   };
+}
+
+const SKIP_STATE_COMMENTS = 50;
+
+export function commentMark(comments) {
+  const nodes = comments?.nodes;
+  return Array.isArray(nodes) && comments.totalCount === nodes.length && nodes.length <= SKIP_STATE_COMMENTS
+    ? [nodes.length, ...nodes.map((c) => JSON.stringify([c?.databaseId ?? null, c?.updatedAt ?? null])).sort()]
+    : null;
 }
 
 export const skipKey = (pull, rollup, main) =>
@@ -1608,7 +1621,8 @@ export async function main({ env = process.env, github, actions, laneReads, veri
       }
       if (skipMain !== null) {
         skipStore = loadSkips(env.EAM_SKIP_IN ?? "", repo[0], now(), skips);
-        const numbers = pulls.filter((pull) => lanes(pull) && pull.autoMergeRequest == null && pull.isDraft === false && holdReason(pull, humanGated) === null).map((pull) => pull.number);
+        const pinRecorded = (pull) => skipStore[pull.number]?.reason === TRUSTED_PIN_READ && pull.autoMergeRequest == null && pull.isInMergeQueue === false && trustedAuthor(pull);
+        const numbers = pulls.filter((pull) => (lanes(pull) && pull.autoMergeRequest == null && pull.isDraft === false && holdReason(pull, humanGated) === null) || pinRecorded(pull)).map((pull) => pull.number);
         keyable = numbers.length;
         for (let start = 0; start < numbers.length; start += SKIP_CHUNK) {
           try {
@@ -1616,7 +1630,8 @@ export async function main({ env = process.env, github, actions, laneReads, veri
             for (const number of numbers.slice(start, start + SKIP_CHUNK)) {
               const node = read?.[`p${number}`];
               const listed = pulls.find((pull) => pull.number === number);
-              const rollup = node?.number === number && node.headRefOid === listed.headRefOid && node.updatedAt === listed.updatedAt ? rollupOf(node, listed.headRefOid) : null;
+              const same = node?.number === number && node.headRefOid === listed.headRefOid && node.updatedAt === listed.updatedAt;
+              const rollup = same ? (lanes(listed) ? rollupOf(node, listed.headRefOid) : commentMark(node.comments)) : null;
               if (rollup !== null) rollups.set(number, rollup);
             }
           } catch (error) {
@@ -1626,6 +1641,11 @@ export async function main({ env = process.env, github, actions, laneReads, veri
       }
     }
     const humans = trustedHumans(env);
+    const filesOf = async (pull, detail) => {
+      const graphed = listedFiles(detail?.files);
+      return graphed !== null ? { paths: graphed, capped: false } : changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
+    };
+    const costOf = (pull, paths) => (costHold(paths, null) ? costDecision(github, repo[0], pull.number, pull.body, humans, pull.headRefOid, actions) : null);
     const judging = { bot: slug, humanGated, holdPaths, pathHolds };
     trustedVerify ??= pythonVerify(env, { lane: false });
     laneSource ??= pythonLaneSource(env);
@@ -1650,7 +1670,12 @@ export async function main({ env = process.env, github, actions, laneReads, veri
     };
     const armTrusted = async (pull) => {
       const facts = {};
-      let { action, reason, pin } = decideTrusted(pull, humanGated, facts, slug);
+      const pinKey = skipMain !== null && pull.autoMergeRequest == null && pull.isInMergeQueue === false ? (mark) => skipKey(pull, { pinComments: mark, bot: slug }, skipMain) : null;
+      const prior = skipStore[pull.number];
+      if (pinKey !== null && rollups.has(pull.number) && prior?.reason === TRUSTED_PIN_READ && prior.head === pull.headRefOid && prior.key === pinKey(rollups.get(pull.number))) {
+        facts.pinUnchanged = true;
+      }
+      let { action, reason, pin, pinUnchanged } = decideTrusted(pull, humanGated, facts, slug);
       while (TRUSTED_READS.includes(action)) {
         if (!reads) {
           ({ action, reason } = { action: "none", reason: READER_RUNS_ARM });
@@ -1673,7 +1698,7 @@ export async function main({ env = process.env, github, actions, laneReads, veri
             action === "files"
               ? await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number)
               : action === "cost"
-                ? await costDecision(github, repo[0], pull.number, pull.body, humans, pull.headRefOid, actions)
+                ? await costOf(pull, facts.files.paths)
                 : action === "lane-source"
                   ? laneSource(facts.files.paths)
                   : action === "verify"
@@ -1685,7 +1710,19 @@ export async function main({ env = process.env, github, actions, laneReads, veri
             console.log(`enable-auto-merge: #${pull.number} trusted author: its ${action} read failed: ${describe(error)}`);
           }
         }
-        ({ action, reason, pin } = decideTrusted(pull, humanGated, facts, slug));
+        ({ action, reason, pin, pinUnchanged } = decideTrusted(pull, humanGated, facts, slug));
+      }
+      if (action === "none" && pinKey !== null && stopped === null) {
+        const mark = pinUnchanged ? null : Array.isArray(facts.comments) ? commentMark(facts.discussion?.comments) : null;
+        if (pinUnchanged) {
+          skipped += 1;
+          kept[pull.number] = { ...prior, skips: prior.skips + 1 };
+          console.log(`enable-auto-merge: #${pull.number} trusted author: comments unchanged since ${prior.at} (skip ${prior.skips + 1} of ${skips.maxSkips}), so its pin is not read again`);
+        } else if (mark !== null) {
+          const at = now();
+          recorded += 1;
+          kept[pull.number] = { at: new Date(at).toISOString(), until: new Date(at + skips.maxMinutes * 60_000).toISOString(), key: pinKey(mark), head: pull.headRefOid, reason: TRUSTED_PIN_READ, skips: 0 };
+        }
       }
       if (action === "arm") {
         const full = lane === null ? { reason: "the lane's room was not read" } : roomHold(pull);
@@ -1841,9 +1878,8 @@ export async function main({ env = process.env, github, actions, laneReads, veri
             unmarked = widen && !isPartial(standing, pull.headRefOid) && !((approvedBy || pathHolds === false) && holdPathOnly(standing, pull.headRefOid, humanGated, pathHolds));
           }
           if (detail !== null && !unmarked) {
-            const graphed = listedFiles(detail.files);
-            const { paths: files, capped } = graphed !== null ? { paths: graphed, capped: false } : await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
-            const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, humans, pull.headRefOid, actions) : null;
+            const { paths: files, capped } = await filesOf(pull, detail);
+            const decision = await costOf(pull, files);
             let lifters = headLifters(detail, humans, pull.headRefOid);
             const skipped = pathHolds === false ? pathHoldKind(files, holdPaths) : null;
             if (skipped?.kind === "hold-path") {

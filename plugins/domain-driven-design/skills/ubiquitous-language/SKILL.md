@@ -71,7 +71,7 @@ is `prune`; anything else asks which action.
   wrap-up) invoke `curate` when a discussion resolves vocabulary, then resume. This skill does not
   take ownership of the caller's Brief or design artifacts.
 
-## Boundaries
+## What this skill does not do
 
 - **Loaded on demand only.** The glossary reaches a session through `lookup`, never through an
   `@` import in `CLAUDE.md` or an always-loaded rule: a session that names nothing pays nothing.

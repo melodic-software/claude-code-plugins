@@ -26,7 +26,9 @@ lib/install-python-deps.sh plugins/explainer-video/hooks/install-python-deps.sh
 lib/install-python-deps.sh plugins/speech/hooks/install-python-deps.sh
 lib/hook-enabled.sh plugins/animation/hooks/hook-enabled.sh
 lib/hook-enabled.sh plugins/explainer-video/hooks/hook-enabled.sh
+lib/hook-enabled.sh plugins/plugin-profiles/hooks/hook-enabled.sh
 lib/hook-enabled.sh plugins/speech/hooks/hook-enabled.sh
+lib/hook-enabled.sh plugins/toolchain/hooks/hook-enabled.sh
 lib/fetch-docs.sh plugins/harness-config/scripts/fetch-docs.sh
 lib/fetch-docs.sh plugins/harness-ops/scripts/fetch-docs.sh
 lib/fetch-docs.sh plugins/discovery/scripts/fetch-docs.sh
@@ -1129,3 +1131,4 @@ lib/resolve-convention-home.sh plugins/engineering-concepts/lib/resolve-conventi
 lib/prerequisites.mjs plugins/engineering-concepts/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/engineering-concepts/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/engineering-concepts/lib/prerequisites.ps1
+lib/hook-enabled.mjs plugins/discovery/lib/hook-enabled.mjs

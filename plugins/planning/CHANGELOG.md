@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.2.1] - 2026-11-27
+
+### Fixed
+
+- `/planning:draft-goal-condition` puts a clock-time end inside the drafted condition, never leaving it out or offering it as a clause the user may append.
+
 ## [6.2.0] - 2026-11-27
 
 ### Added

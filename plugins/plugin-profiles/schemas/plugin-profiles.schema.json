@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Plugin-profiles team config",
+  "description": "Schema for plugin-profiles.yaml in a repository's convention home (default docs/conventions): the team layer of the plugin-profiles plugin's per-hook on/off settings. Repository profiles live in the plugin-profiles/ directory beside it, not in this file. Keys are listed in plugins/plugin-profiles/README.md, Configuration. Contract: docs/contracts/hook-enablement/README.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "session_start_profile_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether the SessionStart hook names the folder's plugin profile and records the profile each session runs in. A user-layer value wins when set; otherwise this repository value overrides the plugin default (true)."
+    },
+    "plugin_profile_module_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether the mod registers the /plugin-profile command and runs its /reload-plugins when the turn ends. A user-layer value in pluginConfigs wins when set; otherwise this repository value overrides the plugin default (true)."
+    }
+  }
+}

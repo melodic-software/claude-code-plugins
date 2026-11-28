@@ -424,7 +424,7 @@ the settings file that did), and says so when there is nothing to fix.
   [reference/listing-scorer.md](reference/listing-scorer.md) before changing that
   ordering or quoting it to a user.
 
-## Scope boundary
+## What this skill does not do
 
 | Question | Owner |
 |---|---|

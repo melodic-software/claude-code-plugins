@@ -3,6 +3,12 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.4.0] - 2026-11-28
+
+### Added
+
+- **`result_gate_enabled` turns the turn-end Stop hook on or off.** The boolean option (default `true`, so existing installs keep the hook) is resolved by `hooks/result-gate.mjs` through `lib/hook-enabled.sh` with `--security` across the plugin default, the user layer and the repository layer (`docs/conventions/toolchain.yaml`, checked against the new `schemas/toolchain.schema.json`). A repository can turn the hook on but not off; only the user's or managed settings turn it off. The hook runs only while `result_gate_enabled` is on and `turn_end_result_gate` is not `off`.
+
 ## [3.3.2] - 2026-11-26
 
 ### Changed

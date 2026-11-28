@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/toolchain/schemas/toolchain.schema.json",
+  "title": "Toolchain team config",
+  "description": "Schema for toolchain.yaml in a repository's convention home (default docs/conventions): the team layer of the toolchain plugin's settings. Keys are read by the result-gate Stop hook and listed in plugins/toolchain/README.md, Configuration. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "result_gate_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether the turn-end Stop hook checks the tree's recorded check or lint result. Only true takes effect: a repository can turn the hook on for contributors who have not set their own value, but a false here is ignored, and only a user's or managed pluginConfigs value turns it off."
+    }
+  }
+}

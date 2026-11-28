@@ -187,7 +187,7 @@ what changed (the tracked file's path and the keys written), plus whether the us
 `output_dir` through Claude Code's own flow. Claim a change only once observed: for the tracked file
 by re-reading it, for `output_dir` by a rerun in a fresh session.
 
-## Boundaries
+## What this skill does not do
 
 - Do not produce or file a bug report; invoke `/bugs:write` via the Skill tool.
 - Do not run a hunt; that is `/bugs:scan`.

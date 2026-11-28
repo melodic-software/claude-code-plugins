@@ -12,12 +12,9 @@ SCRIPT="$SELF_DIR/list-hook-enablement-gaps.sh"
 
 PENDING=(
   context-budget
-  discovery
   display-redaction
   fleet
-  plugin-profiles
   themes
-  toolchain
 )
 
 f=""

@@ -1,2 +1,1 @@
-# Eval fixture: a review.yaml that asks for the downstream probe to run.
 downstream_probe: run

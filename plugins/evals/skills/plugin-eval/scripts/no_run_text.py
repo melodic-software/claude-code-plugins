@@ -59,7 +59,6 @@ MEANING_FLIP_WORDS = frozenset(
     ["not", "never", "no", "don't", "only", "except", "unless", "cannot", "can't", "won't"]
 )
 SWAP_CONTEXT = 6
-SHELL_UNSURE = object()
 MAX_DECIDED_TERM_WORDS = 3
 
 
@@ -207,8 +206,8 @@ def is_routing_only_change(old, new, pairs, plugins=frozenset()):
 
 
 def _shell_quote_after(line, quote):
-    """The quote still open at the end of `line`, given the one open at its start, or
-    `SHELL_UNSURE` for a `$'...'` string this reading does not follow."""
+    """The quote still open at the end of `line`, given the one open at its start (`$'` for an
+    ANSI-C string, which a backslash escapes inside and the next unescaped `'` closes)."""
     index = 0
     while index < len(line):
         char = line[index]
@@ -216,10 +215,11 @@ def _shell_quote_after(line, quote):
             quote = None if char == "'" else quote
         elif char == "\\":
             index += 1
-        elif quote == '"':
-            quote = None if char == '"' else quote
+        elif quote in ('"', "$'"):
+            quote = None if char == quote[-1] else quote
         elif char == "$" and line[index + 1 : index + 2] == "'":
-            return SHELL_UNSURE
+            quote = "$'"
+            index += 1
         elif char in "'\"":
             quote = char
         elif char == "#" and (index == 0 or line[index - 1] in " \t;|&("):
@@ -242,8 +242,6 @@ def _string_block_lines(ext, text):
             if quote is not None:
                 inside.add(number)
             quote = _shell_quote_after(line, quote)
-            if quote is SHELL_UNSURE:
-                return None
             if quote is not None:
                 continue
         if isinstance(closer, int):
@@ -275,21 +273,139 @@ def _string_block_lines(ext, text):
     return None if quote is not None else frozenset(inside)
 
 
-def comment_style(path, text="", hidden=False):
-    """(`hash` or `slash`, the lines of `text` inside a heredoc, block scalar or multi-line
-    string) for a code, YAML or shell file; None for markdown and any other type, whose comments
-    a model may read as instructions, for an eval file unless `hidden` (the agent under test
-    never sees it), and for a cgo file, whose preamble comment is C code."""
+def shell_comment_start(line):
+    """Index of the `#` that starts a comment after code on a shell `line` (unquoted, after an
+    unescaped blank, outside every quote, `$(`, `${`, `$[`, `[[`, `(`, `((` and backtick), or None when the
+    line has none or this reading is unsure (a comment-shaped `#` inside one of those, or a quote
+    left open)."""
+    stack = []
+    blank = False
+    index = 0
+    while index < len(line):
+        char, top = line[index], stack[-1] if stack else None
+        pair = line[index : index + 2]
+        if top == "'" or top == "`" and char != "\\":
+            if char == top:
+                stack.pop()
+        elif char == "\\":
+            index += 2
+            blank = False
+            continue
+        elif top == "$'":
+            if char == "'":
+                stack.pop()
+        elif top == '"':
+            if char == '"':
+                stack.pop()
+            elif pair in ("$(", "${") or char == "`":
+                stack.append(pair if char == "$" else char)
+                index += 1 if char == "$" else 0
+        elif char == "#" and blank:
+            return index if not stack else None
+        elif pair in ("$(", "${", "$'", "$[", "[["):
+            stack.append(pair)
+            index += 1
+        elif pair == "]]" and top == "[[":
+            stack.pop()
+            index += 1
+        elif char == "]" and top == "$[":
+            stack.pop()
+        elif char in "\"'`(":
+            stack.append(char)
+        elif char == ")" and top in ("$(", "("):
+            stack.pop()
+        elif char == "}" and top == "${":
+            stack.pop()
+        blank = char in " \t"
+        index += 1
+    return None
+
+
+def yaml_comment_scan(line):
+    """(index of the `#` that starts a comment after a value on a YAML `line`, or None; whether a
+    quoted scalar is still open at its end). A quote opens a scalar only where one can start (the
+    line start, or after `: `, `- `, `[`, `{` or `,`), `''` escapes inside single quotes and `\\`
+    inside double quotes, so an apostrophe in a plain scalar opens nothing."""
+    quote, start_ok, index = None, True, 0
+    while index < len(line):
+        char = line[index]
+        if quote == "'":
+            if char == "'" and line[index + 1 : index + 2] == "'":
+                index += 1
+            elif char == "'":
+                quote = None
+        elif quote == '"':
+            if char == "\\":
+                index += 1
+            elif char == '"':
+                quote = None
+        elif char in "'\"" and start_ok:
+            quote = char
+        elif char == "#" and index and line[index - 1] in " \t":
+            return (index if line[:index].strip() else None), False
+        elif not char.isspace():
+            start_ok = char in "[{," or char in "-:" and line[index + 1 : index + 2] in (" ", "")
+        index += 1
+    return None, quote is not None
+
+
+def _yaml_comment_start(line):
+    """Index of the `#` that starts a comment after a value on `line`, else None."""
+    return yaml_comment_scan(line)[0]
+
+
+def _trailing_comments(path, text, inside, parse):
+    """{line number: the line with its trailing comment and the blanks before it cut} for each
+    shell or `case.yaml` line outside `inside` that ends in a comment after code; a `case.yaml`
+    line counts only when `parse` reads the file the same without that comment."""
+    ext = os.path.splitext(path)[1].lower()
+    is_yaml = os.path.basename(path) == "case.yaml" and parse is not None
+    if ext not in (".sh", ".bash", ".zsh") and not is_yaml:
+        return {}
+    lines = text.splitlines()
+    found = {}
+    for number, line in enumerate(lines, 1):
+        start = None if number in inside else (
+            _yaml_comment_start(line) if is_yaml else shell_comment_start(line)
+        )
+        if start is None or DIRECTIVE_RE.match(line[start:]):
+            continue
+        code = line[:start].rstrip(" \t")
+        if (len(code) - len(code.rstrip("\\"))) % 2:
+            continue
+        if is_yaml:
+            try:
+                same = parse(text) == parse("\n".join(lines[: number - 1] + [code] + lines[number:]))
+            except Exception:
+                same = False
+            if not same:
+                continue
+        found[number] = code
+    return found
+
+
+def comment_style(path, text="", hidden=False, parse=None):
+    """(`hash`, `slash` or `ini`, the lines of `text` inside a heredoc, block scalar or multi-line
+    string, the trailing comments `_trailing_comments` finds) for a code, YAML, shell or
+    `.editorconfig` file; None for markdown and any other type, whose comments a model may read as
+    instructions, for an eval file unless `hidden` (the agent under test never sees it), and for a
+    cgo file, whose preamble comment is C code. An `.editorconfig` comment holds editor settings,
+    never instructions, so its style holds under `evals/` too."""
     ext = os.path.splitext(path)[1].lower()
     kind = "hash" if ext in HASH_COMMENT_EXTS else "slash" if ext in SLASH_COMMENT_EXTS else None
+    if os.path.basename(path) == ".editorconfig":
+        return "ini", frozenset(), {}
     if "/evals/" in "/" + path and not hidden or ext == ".go" and 'import "C"' in text:
         return None
     inside = _string_block_lines(ext, text) if kind else None
-    return (kind, inside) if inside is not None else None
+    if inside is None:
+        return None
+    return kind, inside, _trailing_comments(path, text, inside, parse)
 
 
 def _comment_line_mask(lines, style):
-    """Per line, whether a comment (or nothing) fills it. A `/*` line that does not close opens a
+    """Per line, whether a comment (or nothing) fills it; an `ini` comment starts its line with
+    `#` or `;`, and a `#` after a value is part of it. A `/*` line that does not close opens a
     block whose lines count only when a later line in `lines` ends it with `*/`; code after a
     comment never counts."""
     mask = []
@@ -297,7 +413,9 @@ def _comment_line_mask(lines, style):
     opened = 0
     for line in lines:
         stripped = line.strip()
-        if style == "hash":
+        if style == "ini":
+            mask.append(not stripped or stripped.startswith(("#", ";")))
+        elif style == "hash":
             mask.append(
                 not stripped
                 or stripped.startswith("#")
@@ -326,19 +444,25 @@ def _comment_line_mask(lines, style):
 
 
 def _hunk_is_no_run(old_lines, new_lines, pairs, style, old_start=1):
-    """The hunk only deletes whole comment lines, none inside a string block, and swaps decided
-    terms in the rest."""
+    """The hunk only deletes whole comment lines, none inside a string block, and trailing
+    comments that leave the code before them byte for byte, and swaps decided terms in the
+    rest."""
     if style is not None:
-        kind, inside = style
+        kind, inside, trailing = style
         mask = _comment_line_mask(old_lines, kind)
         kept = [
-            line
+            (line, trailing.get(number))
             for number, (line, comment) in enumerate(zip(old_lines, mask), old_start)
             if not comment or number in inside
         ]
-        if len(kept) < len(old_lines) and kept == new_lines:
+        pairs_kept = list(zip(kept, new_lines))
+        if (
+            len(kept) == len(new_lines)
+            and all(new in (line, code) for (line, code), new in pairs_kept)
+            and (len(kept) < len(old_lines) or any(new != line for (line, _), new in pairs_kept))
+        ):
             return True
-        old_lines = kept
+        old_lines = [line for line, _ in kept]
     return is_term_swap_only("\n".join(old_lines), "\n".join(new_lines), pairs)
 
 

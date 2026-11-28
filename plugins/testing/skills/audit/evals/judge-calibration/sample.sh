@@ -1,41 +1,4 @@
 #!/usr/bin/env bash
-# sample.sh: build the unlabeled calibration set. Draws the in-use stratum from
-# the git histories of three repositories, then assigns every case file of
-# labels.tsv a split. Reads labels.tsv's columns by header name, and refuses
-# once any label cell (a *_label or judge_verdict column) is filled. Reads the
-# repositories only (git log, git show, git ls-tree, git grep); writes cases/u*/
-# and labels.tsv here.
-#
-#   sample.sh [<directory holding the three clones>]
-#
-# Population (design DT13): every test block a commit created or changed, in a
-# file an adapter claims, outside fixtures and testdata directories, up to the
-# commits pinned below; "changed" is the scanner's --blocks --lines over the
-# lines the commit added, as the hooks scope a write. Draw, in two phases:
-# shuffle the (commit, test file) pairs whose commit added lines to the file
-# and take the first PAIRS, list every block each one changed, then shuffle
-# that pool and take TARGET blocks. Each phase is uniform, but the draw is not
-# exactly uniform over blocks: a block's chance in phase 2 falls as its pool
-# grows, and its own pair's other blocks are in that pool, so a block from a
-# pair that changed many blocks is slightly less likely than one from a pair
-# that changed one. The stratum's FLAG prevalence is near, not equal to, the
-# population's.
-#
-# A case is the test file plus the code it tests, at the same commit, each
-# copied verbatim to cases/<id>/<repository path>.fixture. The code under test
-# is found from the test's text (resolve below). A pair whose code cannot be
-# resolved, whose file the scanner cannot read, or whose lexer lost sync, is
-# dropped in phase 1 and counted, before any block is drawn.
-#
-# Split: within each stratum, case files are shuffled with SEED and taken as
-# holdout until holdout holds at least a third of the stratum's rows, so no file
-# has rows on both sides. Every shuffle is Fisher-Yates over Park-Miller
-# (16807 * x mod 2^31-1), exact in any awk, so the draw does not depend on the
-# platform's RNG.
-#
-# Prints the draw's counts, including how many drawn blocks carry a finding
-# from the scanner's provenance-shaped rules (rule-recomputed-expectation,
-# rule-constant-restatement, rule-recomputed-derived; design DT7).
 set -uo pipefail
 
 SEED=20260930
@@ -64,7 +27,6 @@ shuffle() {
     }'
 }
 
-# ponytail: one level only (what the test names, not what that code imports); text heuristics, so a path built at run time is missed.
 resolve() {
   local r="$1" c="$2" p="$3" f="$4" d stem ids
   d="$(dirname "$p")"

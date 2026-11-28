@@ -276,7 +276,7 @@ names it and the globs it lifts. `apply install-git-hooks` writes only the entry
 its hook-manager wiring, and reports `verify`'s lines. `apply install-ci` writes one CI step, in a
 file the user confirmed, and reports the scan's caller for it.
 
-## Boundaries
+## What this skill does not do
 
 - Never runs a tidy sweep (`/code-tidying:tidy`); `check` only inspects config.
 - Never writes the plugin cache, Claude Code user settings, `pluginConfigs`, or machine-local

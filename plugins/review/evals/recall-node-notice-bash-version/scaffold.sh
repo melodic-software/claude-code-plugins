@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Rebuilds, offline, one of the 25 hooks.json files the pull request case.yaml
-# names changed: main holds plugins/eol-normalizer/hooks/hooks.json at its base,
+# Rebuilds, offline, one of the 25 hooks.json files the reviewed pull request
+# changed: main holds plugins/eol-normalizer/hooks/hooks.json at its base,
 # the branch at its merge. The other 24 hooks.json files carry the same
 # node-notice line; they and its remaining files are not rebuilt.
 set -euo pipefail

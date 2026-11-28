@@ -21,22 +21,88 @@ def _load_module(name, path):
 
 
 select_mapping = _load_module("evals_select_mapping", os.path.join(HERE, "select_mapping.py"))
+suite_refs = select_mapping.suite_refs
+no_run_text = select_mapping.no_run_text
 
 WILD_PATH_RE = re.compile(r"[*?[$`{]")
 QUOTED_TOKEN_RE = re.compile(r"""(['"])([^'"\n]+)\1""")
 SELF_REF_RE = re.compile(r"BASH_SOURCE|\$\{?0(?![0-9])")
+SELF_LOCATE_RE = re.compile(
+    r"__file__|__dirname|__filename|import\.meta|PSScriptRoot|PSCommandPath|MyInvocation"
+    r"|\$0|BASH_SOURCE|os\.Executable|runtime\.Caller"
+)
+TEXT_TOOL_RE = re.compile(r"\b(?:awk|gawk|mawk|sed|grep|jq)\b(?:[^;&|()`$]|\$(?!\())*$")
+
+
+def _code_lines(text):
+    """Per line of a shell `text`: the line with each single-quoted program of a text tool (`awk`,
+    `sed`, `grep`, `jq`) blanked, since `$0` there is that tool's record, never the script. The
+    whole text reads unblanked when it runs code from a string (`suite_refs.runs_strings`) or its
+    quoting does not read cleanly."""
+    lines = text.splitlines()
+    inside = no_run_text._string_block_lines(".sh", text)
+    if inside is None or suite_refs.runs_strings(lines, inside):
+        return list(lines)
+    out, quote = [], None
+    for number, line in enumerate(lines):
+        if quote is None and number + 1 in inside:
+            out.append(line)
+            continue
+        kept = []
+        index = 0
+        while index < len(line):
+            char = line[index]
+            if quote in ("'", "'kept"):
+                kept.append(char if quote == "'kept" or char == "'" else " ")
+                quote = None if char == "'" else quote
+            elif char == "'" and quote is None:
+                quote = "'" if TEXT_TOOL_RE.search("".join(kept)) else "'kept"
+                kept.append(char)
+            elif char == "\\":
+                kept.append(line[index : index + 2])
+                index += 1
+            elif quote in ('"', "$'"):
+                quote = None if char == quote[-1] else quote
+                kept.append(char)
+            elif char == "#" and (index == 0 or line[index - 1] in " \t"):
+                break
+            elif line.startswith("$'", index):
+                quote = "$'"
+                kept.append("$'")
+                index += 1
+            else:
+                quote = '"' if char == '"' else None
+                kept.append(char)
+            index += 1
+        out.append("".join(kept))
+    return out
+
+
+def _names_in_code(text, name_re=None):
+    """Some code line of a shell `text` uses `$0` or `BASH_SOURCE` outside `$(dirname ...)`, a
+    text tool's program and a print-only line, or matches `name_re` outside a print-only line."""
+    for raw, code in zip(text.splitlines(), _code_lines(text)):
+        if code is None or not raw.strip() or raw.strip().startswith("#"):
+            continue
+        if SELF_REF_RE.search(select_mapping.DIRNAME_INNER_RE.sub("", code).strip()):
+            return True
+        if name_re is not None and name_re.search(raw.strip()):
+            return True
+    return False
 
 
 def _reads_own_source(path, text):
-    name_re = _name_re(os.path.basename(path))
-    for line in text.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        rest = select_mapping.DIRNAME_INNER_RE.sub("", stripped)
-        if SELF_REF_RE.search(rest) or name_re.search(rest):
-            return True
-    return False
+    return _names_in_code(text, _name_re(os.path.basename(path)))
+
+
+def _locates_itself(fpath, text):
+    """A case file that finds its own folder in a form the reference reading does not resolve:
+    a shell `$0` or `BASH_SOURCE` other than `$(dirname ...)`, or another script's own-path
+    variable."""
+    ext = os.path.splitext(fpath)[1].lower()
+    if ext in select_mapping.HIDDEN_SCRIPT_EXTS:
+        return _names_in_code(text)
+    return ext in select_mapping.SCRIPT_EXTENSIONS and bool(SELF_LOCATE_RE.search(text))
 
 
 def _name_re(name):
@@ -78,9 +144,11 @@ def _comment_reader_texts(eval_norm, files):
 
 def _reads_deleted_comment(texts, deleted):
     """Some text naming `case.yaml` holds a deleted comment's words, or a quoted pattern that
-    matches the deleted line."""
-    comments = [line.strip() for line in deleted if line.strip().startswith("#")]
-    bodies = [line.lstrip("#").strip() for line in comments]
+    matches a deleted line; a comment after code counts from its first blank-led `#`."""
+    bodies = []
+    for line in deleted:
+        mark = re.search(r"(?:^|[ \t])#", line)
+        bodies.append(line[mark.end() :].lstrip("#").strip() if mark else "")
     for text in texts:
         if "case.yaml" not in text:
             continue
@@ -93,9 +161,13 @@ def _reads_deleted_comment(texts, deleted):
                 pattern = re.compile(token)
             except re.error:
                 continue
-            if any(pattern.search(line) for line in comments):
+            if any(pattern.search(line) or pattern.search(line.strip()) for line in deleted):
                 return True
     return False
+
+
+def _case_files(case, eval_norm):
+    return select_mapping._case_suite_files(case, eval_norm, visibility=True)
 
 
 def _case_yaml_hidden(target, cases, eval_norm, deleted):
@@ -103,11 +175,20 @@ def _case_yaml_hidden(target, cases, eval_norm, deleted):
         return False
     files = {}
     for case in cases:
-        files.update(select_mapping._case_suite_files(case, eval_norm))
-    for _, sites in files.values():
+        files.update(_case_files(case, eval_norm))
+    case_yaml_re = _name_re("case.yaml")
+    for fpath, (text, sites) in files.items():
         for _, refs, _, _, _, wide in sites:
             if wide or any(_covers(ref, target) for ref in refs):
                 return False
+        if fpath != target and _locates_itself(fpath, text or ""):
+            return False
+        if os.path.splitext(fpath)[1].lower() in select_mapping.SCRIPT_EXTENSIONS and any(
+            case_yaml_re.search(line.strip())
+            for line in (text or "").splitlines()
+            if not line.lstrip().startswith("#")
+        ):
+            return False
     return not _reads_deleted_comment(_comment_reader_texts(eval_norm, files.values()), deleted)
 
 
@@ -116,7 +197,8 @@ def hidden_from_agent(eval_abs, target_abs, cases, owning_case=None, deleted=())
     is hidden when no case file names its folder, the evals folder or one above, and no script
     naming `case.yaml` reads a `deleted` comment. A shell script is hidden when some case's
     scaffold runs it, no case's files copy, print, read, pass on or name it, or a folder holding
-    it, in any other form, and it never reads its own source. Unsure is visible."""
+    it, in any other form, and it never reads its own source. A print-only line, a binding of a variable to the script's exact path, and a `plugins` entry
+    naming the suite's own plugin are not such forms. Unsure is visible."""
     target = os.path.normpath(target_abs)
     eval_norm = os.path.normpath(eval_abs)
     if owning_case is not None and target == os.path.normpath(
@@ -131,7 +213,10 @@ def hidden_from_agent(eval_abs, target_abs, cases, owning_case=None, deleted=())
     name_re = _name_re(os.path.basename(target))
     run = False
     for case in cases:
-        for fpath, (text, sites) in select_mapping._case_suite_files(case, eval_norm).items():
+        files = _case_files(case, eval_norm)
+        for fpath, (text, sites) in files.items():
+            if fpath != target and _locates_itself(fpath, text or ""):
+                return False
             run_lines = set()
             for line, refs, runs, rest, rest_refs, wide in sites:
                 if wide:
@@ -153,6 +238,6 @@ def hidden_from_agent(eval_abs, target_abs, cases, owning_case=None, deleted=())
                 stripped = line.strip()
                 if line in run_lines or not stripped or stripped.startswith("#"):
                     continue
-                if name_re.search(line):
+                if name_re.search(line.strip()):
                     return False
     return run
