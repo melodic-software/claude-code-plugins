@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [3.5.0] - 2026-11-28
+
+### Added
+
+- Adopt the shared rendered-views token layer (`reference/html-tokens.css`), chrome theme toggle, and branding overrides (palette, type stacks, logo slot, and `branding` `userConfig` option) in the blindspot HTML view.
+
 ## [3.4.0] - 2026-11-28
 
 ### Added

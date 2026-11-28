@@ -3,6 +3,12 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.0] - 2026-11-28
+
+### Removed
+
+- **Dropped legacy `.claude/` and `~/.claude/` dual-reads.** `/overengineering:audit`, `/overengineering:delta`, and `/overengineering:realign` now read only `<home>/overengineering.yaml` and `<home>/overengineering.local.yaml` and no longer read `~/.claude/overengineering.md`, `.claude/overengineering.md`, or `.claude/overengineering.local.md`.
+
 ## [1.0.3] - 2026-11-28
 
 ### Changed

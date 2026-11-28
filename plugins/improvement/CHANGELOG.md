@@ -3,6 +3,16 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0] - 2026-11-28
+
+### Changed
+
+- **Demoted `improvement-r001` and `improvement-r002` to `report-only`.** `retirements.yaml` keeps both records as history reported at INFO without failing checks or offering cleanup.
+
+### Removed
+
+- **Dropped legacy `.claude/` and `~/.claude/` dual-reads.** `/improvement:find` and `/improvement:setup` now read only the canonical config-cascade layers (`userConfig` options, `<home>/improvement.yaml`, and `<home>/improvement.local.yaml`) and no longer read or migrate `~/.claude/improvement.md`, `.claude/improvement.md`, or `.claude/improvement.local.md`.
+
 ## [0.12.2] - 2026-11-28
 
 ### Changed

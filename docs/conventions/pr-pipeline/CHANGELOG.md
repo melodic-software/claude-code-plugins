@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [13.6.4] - 2026-11-28
+
+### Fixed
+
+- Check review upstream runs against the broker actor and attempt rule in `feedback-dispatch.mjs` (`trustedReviewRun` and `reviewRunAt`): when a review run was re-run by `github-actions[bot]`, fall back to a broker-accepted sibling review run on the same head, or skip with a logged reason naming the attempt and triggering actor when none exists.
+
 ## [13.6.3] - 2026-11-28
 
 ### Fixed
