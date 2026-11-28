@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // GENERATED from lib/html-branding.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { brandingReportLines, findRoot, resolveBranding } from "./view-settings.mjs";
@@ -92,8 +92,13 @@ export function applyBranding(html, { tokensCss = "", branding = null } = {}) {
 
 const USAGE = "usage: html-branding.mjs --in <page.html> --out <page.html> [--tokens <html-tokens.css>] [--option <user_config.branding>] [--team-ref <ref>]\n";
 
+const defaultTokensPath = () => {
+  const pluginPath = join(HERE, "..", "reference", "html-tokens.css");
+  return existsSync(pluginPath) ? pluginPath : join(HERE, "html-tokens.css");
+};
+
 export function main(argv) {
-  const args = { in: null, out: null, tokens: join(HERE, "..", "reference", "html-tokens.css"), option: null, teamRef: null };
+  const args = { in: null, out: null, tokens: defaultTokensPath(), option: null, teamRef: null };
   const flags = { "--in": "in", "--out": "out", "--tokens": "tokens", "--option": "option", "--team-ref": "teamRef" };
   for (let i = 0; i < argv.length; i += 2) {
     const key = flags[argv[i]];

@@ -125,4 +125,21 @@ describe("visualization branded page rendering", () => {
     assert.ok(html.includes(TOGGLE));
     assert.ok(html.includes(COMMENT));
   });
+
+  test("canonical lib/html-branding.mjs CLI resolves lib/html-tokens.css when --tokens is omitted", () => {
+    const dir = makeTemp("viz-canon-");
+    const home = makeTemp("viz-canon-home-");
+    const canonicalCli = join(PLUGIN, "..", "..", "lib", "html-branding.mjs");
+    const pageIn = join(dir, "in.html");
+    const pageOut = join(dir, "out.html");
+    writeFileSync(pageIn, basePage());
+    const run = spawnSync(process.execPath, [canonicalCli, "--in", pageIn, "--out", pageOut], {
+      encoding: "utf8",
+      env: { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_PROJECT_DIR: dir },
+    });
+    assert.equal(run.status, 0, run.stderr);
+    const html = readFileSync(pageOut, "utf8");
+    assert.ok(html.includes("--bg: var(--ivory);"));
+    assert.ok(html.includes(TOGGLE));
+  });
 });
