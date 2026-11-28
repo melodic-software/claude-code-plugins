@@ -145,6 +145,31 @@ else
   fail "recipe links mismatch (disk vs areas.md):"$'\n'"$link_diff"
 fi
 
+require_checklist_token() {
+  local recipe="$1" token="$2"
+  local checklist
+  checklist=$(awk '/^## Audit-question checklist$/{flag=1; next} /^## /{flag=0} flag' "$RECIPES_DIR/$recipe")
+  if grep -qF -- "$token" <<<"$checklist"; then
+    ok "$recipe checklist covers '$token'"
+  else
+    fail "$recipe checklist missing '$token'"
+  fi
+}
+
+require_checklist_token actions-policy.md 'actions.lock'
+require_checklist_token actions-policy.md '$/'
+require_checklist_token actions-policy.md 'parallel:'
+require_checklist_token actions-policy.md 'archive: false'
+require_checklist_token actions-policy.md 'event/actor policies'
+require_checklist_token actions-policy.md 'repo_property_*'
+require_checklist_token billing.md 'metered usage summaries'
+require_checklist_token rulesets-repo-drift.md 'immutable releases'
+require_checklist_token projects-and-issues.md 'planning-statuses'
+require_checklist_token projects-and-issues.md 'Repository Boards'
+require_checklist_token projects-and-issues.md 'Issue Artifacts'
+require_checklist_token projects-and-issues.md 'Relates to'
+require_checklist_token projects-and-issues.md 'archived'
+
 for s in audit advise setup; do
   e="$PLUGIN_DIR/skills/$s/evals/evals.json"
   if [[ -f "$e" ]] && grep -q '"skill_name"' "$e"; then
