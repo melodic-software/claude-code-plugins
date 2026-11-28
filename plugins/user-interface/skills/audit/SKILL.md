@@ -1,5 +1,5 @@
 ---
-description: "Review interface code in any stack, read-only, one concern at a time: the working diff (default), the whole tree, or every concern before a launch, with severity and evidence for each finding. The motion concern also finds where animation would help or must not go, which animations to remove, and why one drops frames. --fix applies one finding at a time after a yes. Use when: 'review the UI in my changes', 'review the animations', 'audit our motion', 'where should we animate', 'too much animation', 'this app feels slow, what motion can go', 'why is this animation janky', 'audit the interface before we ship'."
+description: "Review/audit interface code in any stack, read-only, by concern (diff default, tree, launch before ship), severity/evidence; motion checks animations (where to animate, too much animation to remove, janky drops); --fix per yes. Use when: 'review the UI in my changes', 'this app feels slow, what motion can go', 'why is this animation janky'."
 argument-hint: "[diff|tree|launch] [<concern>] [opportunities|performance|removal|cleanup] [--fix] [<target>]"
 user-invocable: true
 disable-model-invocation: false
