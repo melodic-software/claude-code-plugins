@@ -1,5 +1,5 @@
 ---
-description: "Emit a standalone bash file-name gate checker and test suite with inlined rule, roots, and exemptions (optional --rule; refuses overwrite without --force; lists unwired steps). Use when: 'generate the file-name gate', 'add a CI check for doc filenames', 'enforce the naming rule'. Not for auditing/renaming: /docs-naming:audit-file-names."
+description: "Emit a standalone bash file-name gate checker and test suite with inlined rule, roots, and exemptions (optional --rule; refuses overwrite without --force; lists unwired steps). Use when: 'generate the file-name gate', 'add a CI check for doc filenames', 'enforce the naming rule'. Not for auditing: /docs-naming:audit-file-names; not for renaming: /docs-naming:realign-file-names."
 argument-hint: "[--out-dir <dir>] [--rule] [--force]"
 user-invocable: true
 disable-model-invocation: false
