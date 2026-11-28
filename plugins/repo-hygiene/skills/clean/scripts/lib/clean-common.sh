@@ -162,12 +162,21 @@ clean_pr_map() {
 }
 
 clean_path_key() {
-  local value="${1//\\//}"
-  while [[ "$value" == */ && "$value" != "/" ]]; do value="${value%/}"; done
+  local value="${1//\\//}" windows=0 native
   case "$_CLEAN_OS" in
-  MINGW* | MSYS* | CYGWIN*) printf '%s' "$value" | tr '[:upper:]' '[:lower:]' ;;
-  *) printf '%s' "$value" ;;
+  MINGW* | MSYS* | CYGWIN*) windows=1 ;;
+  *) ;;
   esac
+  if ((windows)) && [[ "$value" == /* ]] && command -v cygpath >/dev/null 2>&1 &&
+    native="$(cygpath -m -- "$value" 2>/dev/null)" && [[ -n "$native" ]]; then
+    value="$native"
+  fi
+  while [[ "$value" == */ && "$value" != "/" ]]; do value="${value%/}"; done
+  if ((windows)); then
+    printf '%s' "$value" | tr '[:upper:]' '[:lower:]'
+  else
+    printf '%s' "$value"
+  fi
 }
 
 clean_skip_matches() {

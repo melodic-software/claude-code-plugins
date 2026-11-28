@@ -6,7 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/test-helpers.sh"
 
 BATCH="$SCRIPT_DIR/clean-batch.sh"
-TEST_TMPDIR="$(mktemp -d)"
+PATH_TMPDIR="$(mktemp -d)"
+TEST_TMPDIR="$(test_native_path "$PATH_TMPDIR")"
 export CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/repo-hygiene-test"
 export HOME="$TEST_TMPDIR/home"
 mkdir -p "$HOME"
@@ -419,7 +420,7 @@ git_out="$(bash "$BATCH" --tier git --repo "$PROG_REPO" 2>/dev/null)" || rc=$?
 assert_exit "git dry-run exits 0" 0 "$rc"
 assert_not_contains "git tier does not pay preflight" "$git_out" "PreflightScope:"
 
-SHIM="$TEST_TMPDIR/shim"
+SHIM="$PATH_TMPDIR/shim"
 mkdir -p "$SHIM"
 FL_A="$(mkrepo fleet-a)"
 FL_B="$(mkrepo fleet-b)"
@@ -522,7 +523,7 @@ out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier caches --fleet --skip "$FL_A" --s
 assert_contains "--fleet: the chezmoi source runs when its ghq clones are skipped" "$out" "Repo: $FL_CZ"$'\n'"Outcome: would-clean"
 git -C "$FL_CZ" remote set-url origin https://github.com/owner/dotfiles.git
 
-NOTOOLS="$TEST_TMPDIR/notools"
+NOTOOLS="$PATH_TMPDIR/notools"
 mkdir -p "$NOTOOLS"
 for t in git bash sed awk grep tr head dirname mktemp mkdir cat rm find sort date uname basename wc du cut; do
   p="$(command -v "$t" 2>/dev/null)" && ln -sf "$p" "$NOTOOLS/$t"

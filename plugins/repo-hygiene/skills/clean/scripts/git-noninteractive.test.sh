@@ -8,7 +8,7 @@ source "$SCRIPT_DIR/lib/test-helpers.sh"
 PRUNE="$SCRIPT_DIR/git-prune.sh"
 RESET="$SCRIPT_DIR/git-tree-reset.sh"
 AUDIT="$SCRIPT_DIR/git-branch-audit.sh"
-TEST_TMPDIR="$(mktemp -d)"
+TEST_TMPDIR="$(test_native_path "$(mktemp -d)")"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 

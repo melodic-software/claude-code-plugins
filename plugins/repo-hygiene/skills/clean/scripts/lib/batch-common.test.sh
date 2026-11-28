@@ -7,7 +7,8 @@ source "$SCRIPT_DIR/test-helpers.sh"
 # shellcheck source=batch-common.sh
 source "$SCRIPT_DIR/batch-common.sh"
 
-TEST_TMPDIR="$(mktemp -d)"
+PATH_TMPDIR="$(mktemp -d)"
+TEST_TMPDIR="$(test_native_path "$PATH_TMPDIR")"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 
@@ -254,6 +255,46 @@ else
   fail "dedupe with the first clone skip-listed keeps the next clone" "tops ca cb; cc dup of cb" "tops ${BATCH_TOPS[*]}; dups ${BATCH_DUPS[*]} of ${BATCH_DUP_OF[*]}"
 fi
 BATCH_SKIP_INPUTS=()
+
+STUB_BIN="$PATH_TMPDIR/stub-bin"
+mkdir -p "$STUB_BIN"
+cat >"$STUB_BIN/cygpath" <<'STUB'
+#!/usr/bin/env bash
+p="${!#}"
+case "$p" in
+/tmp/*) printf 'D:/Work/Temp/%s\n' "${p#/tmp/}" ;;
+*) printf '%s\n' "$p" ;;
+esac
+STUB
+chmod +x "$STUB_BIN/cygpath"
+stubbed_skip_matches() {
+  (
+    _CLEAN_OS="$1"
+    PATH="$STUB_BIN:$PATH"
+    clean_skip_matches "$(clean_path_key 'D:/Work/Temp/x')" "$2"
+  )
+}
+windows_skip_matches() { stubbed_skip_matches MINGW64_NT-10.0 "$1"; }
+if windows_skip_matches /tmp/x; then
+  pass "Windows: an MSYS-form skip entry matches the drive-form repo key"
+else
+  fail "Windows: an MSYS-form skip entry matches the drive-form repo key" "match" "no-match"
+fi
+if windows_skip_matches /tmp/y; then
+  fail "Windows: an MSYS-form skip entry for another path does not match" "no-match" "match"
+else
+  pass "Windows: an MSYS-form skip entry for another path does not match"
+fi
+if windows_skip_matches x; then
+  pass "Windows: a bare repo-name skip entry still matches"
+else
+  fail "Windows: a bare repo-name skip entry still matches" "match" "no-match"
+fi
+if stubbed_skip_matches Linux /tmp/x; then
+  fail "Linux: a cygpath on PATH does not convert the skip entry" "no-match" "match"
+else
+  pass "Linux: a cygpath on PATH does not convert the skip entry"
+fi
 
 batch_resolve_repos "$TEST_TMPDIR/clone-ca" "$TEST_TMPDIR/clone-cb" "$TEST_TMPDIR/fleet-good"
 batch_dedupe_clones
