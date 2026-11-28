@@ -1,8 +1,4 @@
-"""Baseline policy, ADR 0075 standing cascade, and policy overlay validation.
-
-Shared by ``hygiene.py`` and ``policy_migration.py`` so policy migration never
-imports the deletion engine.
-"""
+"""Baseline policy, ADR 0075 standing cascade, and policy overlay validation."""
 
 from __future__ import annotations
 
@@ -24,11 +20,9 @@ SCHEMA_VERSION = 1
 OVERLAY_VERSIONS = (1, 2)
 RULE_MIN_AGE_BASES = ("mtime", "atime", "ctime")
 ELEVATION_VALUES = ("never", "uac-prompt")
-POLICY_FILE_NAME = "disk-hygiene.json"
 TEAM_POLICY_NAME = "disk-hygiene.yaml"
 PERSONAL_POLICY_NAME = "disk-hygiene.local.yaml"
 POLICY_FILE_OPTION = "policy_file"
-POLICY_SETUP_COMMAND = "/disk-hygiene:setup apply"
 DEFAULT_CONVENTION_HOME = ("docs", "conventions")
 CONVENTION_HOME_MARKERS = (
     "<!-- BEGIN GENERATED: convention-home -->",
@@ -356,40 +350,6 @@ def same_file(first: Path, second: Path) -> bool:
         return False
 
 
-def _dual_read(
-    layer: str, new: Path | None, old: Path, destination: str, warnings: list[str]
-) -> list[Path]:
-    has_new = new is not None and new.is_file()
-    has_old = old.is_file() and not (
-        has_new and new is not None and same_file(old, new)
-    )
-    if has_new and has_old:
-        warnings.append(
-            f"{old} is the old {layer} policy and is not read because {new} "
-            f"supplies that layer; move any setting it still holds to {new} and "
-            f"delete it ({POLICY_SETUP_COMMAND})"
-        )
-    if has_new and new is not None:
-        return [new]
-    if has_old:
-        warnings.append(
-            f"{old} is the old {layer} policy, still read as that layer; move it "
-            f"to {destination} ({POLICY_SETUP_COMMAND})"
-        )
-        return [old]
-    return []
-
-
-def old_policy_paths(
-    project_dir: Path | None, *, home: Path | None = None
-) -> dict[str, Path]:
-    resolved_home = Path.home() if home is None else home
-    paths = {"userConfig": resolved_home / ".claude" / POLICY_FILE_NAME}
-    if project_dir is not None:
-        paths["team"] = project_dir / ".claude" / POLICY_FILE_NAME
-    return paths
-
-
 def standing_policy_paths(
     project_dir: Path | None,
     user_policy: str | None = None,
@@ -398,27 +358,17 @@ def standing_policy_paths(
     home: Path | None = None,
 ) -> list[Path]:
     warnings = [] if warnings is None else warnings
-    old = old_policy_paths(project_dir, home=home)
+    _ = home
+    layers: list[Path] = []
     user = user_policy_path(user_policy, warnings)
-    layers = _dual_read(
-        "userConfig",
-        user,
-        old["userConfig"],
-        str(user)
-        if user is not None
-        else f"the file the {POLICY_FILE_OPTION} userConfig option names",
-        warnings,
-    )
+    if user is not None and user.is_file():
+        layers.append(user)
     if project_dir is not None:
         conv_home = convention_home(project_dir)
-        team = conv_home / TEAM_POLICY_NAME
-        if same_file(old["team"], old["userConfig"]):
-            layers.append(team)
-        else:
-            layers += _dual_read("team", team, old["team"], str(team), warnings)
-        personal = conv_home / PERSONAL_POLICY_NAME
-        if personal.is_file():
-            layers.append(personal)
+        for name in (TEAM_POLICY_NAME, PERSONAL_POLICY_NAME):
+            candidate = conv_home / name
+            if candidate.is_file():
+                layers.append(candidate)
     unique: dict[Path, Path] = {}
     for path in layers:
         if path.is_file():
@@ -433,7 +383,6 @@ def repository_policy_paths(project_dir: Path | None) -> set[Path]:
     return {
         path.resolve()
         for path in (
-            project_dir / ".claude" / POLICY_FILE_NAME,
             home / TEAM_POLICY_NAME,
             home / PERSONAL_POLICY_NAME,
         )

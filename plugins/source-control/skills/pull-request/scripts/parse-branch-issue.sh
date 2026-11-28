@@ -24,81 +24,6 @@ source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/convention-key.sh" || exit 1
 
 STOP="resolution stopped, no issue id emitted"
 
-FENCE_OPEN='^(```+|~~~+)'
-FENCE_CLOSE='^(```+|~~~+)$'
-
-section_value() {
-  local file="$1" line state=0 fence="" value="" first=1
-  [[ -f "$file" ]] || return 0
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    if ((first)); then
-      line="${line#$'\xef\xbb\xbf'}"
-      first=0
-    fi
-    line="${line%$'\r'}"
-    line="${line#"${line%%[![:space:]]*}"}"
-    line="${line%"${line##*[![:space:]]}"}"
-    if [[ -n "$fence" ]]; then
-      if [[ "$line" =~ $FENCE_CLOSE && "${line:0:1}" == "${fence:0:1}" && ${#line} -ge ${#fence} ]]; then
-        if [[ "$state" -eq 1 ]]; then
-          if [[ -z "$value" ]]; then
-            note "${file}: ## ${KEY} holds an empty code fence; ${STOP}"
-            return 1
-          fi
-          state=2
-        fi
-        fence=""
-      elif [[ "$state" -eq 1 && -z "$value" && -n "$line" ]]; then
-        value="$line"
-      fi
-      continue
-    fi
-    if [[ "$line" =~ ^##[[:space:]] ]]; then
-      if [[ "$line" =~ ^##[[:space:]]+${KEY}([[:space:]]+#+)?$ ]]; then
-        [[ "$state" -eq 0 ]] && state=1
-      elif [[ "${line,,}" == *"$KEY"* ]]; then
-        note "${file}: near-miss heading for ## ${KEY}; ${STOP}"
-        return 1
-      elif [[ "$state" -eq 1 ]]; then
-        note "${file}: ## ${KEY} holds no value; ${STOP}"
-        return 1
-      fi
-      continue
-    fi
-    if [[ "$line" =~ $FENCE_OPEN ]]; then
-      fence="${BASH_REMATCH[1]}"
-      continue
-    fi
-    [[ "$state" -eq 1 && -n "$line" ]] || continue
-    if [[ "$line" =~ ^#{1,6}([[:space:]]|$) ]]; then
-      note "${file}: ## ${KEY} starts with a heading, not a pattern; ${STOP}"
-      return 1
-    fi
-    if [[ "$line" == '<!--'* ]]; then
-      note "${file}: ## ${KEY} starts with an HTML comment, not a pattern; ${STOP}"
-      return 1
-    fi
-    while [[ "$line" == \`* ]]; do line="${line#\`}"; done
-    while [[ "$line" == *\` ]]; do line="${line%\`}"; done
-    if [[ -z "$line" ]]; then
-      note "${file}: ## ${KEY} holds no value; ${STOP}"
-      return 1
-    fi
-    value="$line"
-    state=2
-  done <"$file"
-  if [[ "$state" -eq 1 ]]; then
-    if [[ -n "$fence" ]]; then
-      note "${file}: ## ${KEY} holds an unterminated code fence; ${STOP}"
-    else
-      note "${file}: ## ${KEY} holds no value; ${STOP}"
-    fi
-    return 1
-  fi
-  [[ -z "$value" ]] || printf '%s\n' "$value"
-  return 0
-}
-
 pattern_limit() {
   local p="$1" i j c d b depth=0 inner rest
   local n=${#p}
@@ -181,28 +106,15 @@ usable_pattern() {
 
 REPO_ROOT="$(config_root_resolve)"
 
-SETUP_HINT="run /source-control:setup apply to move it, which deletes the old file"
-old_location() { note "old location ${1}: $2; move its keys to ${3}; ${SETUP_HINT}"; }
-
 LAYERS=()
-USER_LAYER="${HOME:-}/.claude/source-control.md"
 if [[ -n "$REPO_ROOT" ]]; then
   case "$(config_root_classify "$REPO_ROOT")" in
     home) note "team and personal override not applicable: project root is the home directory (or an ancestor of it)" ;;
     non-repo) note "team and personal override not applicable: project root is not inside a git repository" ;;
     *)
       PERSONAL_YAML="${REPO_ROOT}/${CONVENTION_KEY_LOCAL_REL}"
-      personal_override="${REPO_ROOT}/${CONVENTION_KEY_OLD_LOCAL_REL}"
       TEAM_YAML="${REPO_ROOT}/${CONVENTION_KEY_YAML_REL}"
       [[ -f "$PERSONAL_YAML" ]] && LAYERS+=("$PERSONAL_YAML")
-      if [[ -f "$personal_override" ]] && ! config_root_paths_same "$personal_override" "$USER_LAYER"; then
-        if [[ -f "$PERSONAL_YAML" ]]; then
-          old_location "$personal_override" "not read, since ${CONVENTION_KEY_LOCAL_REL} supplies the personal override" "$PERSONAL_YAML"
-        else
-          LAYERS+=("$personal_override")
-          old_location "$personal_override" "still read as the personal override" "$PERSONAL_YAML"
-        fi
-      fi
       if convention_key_tracked "$REPO_ROOT" "$CONVENTION_KEY_YAML_REL"; then
         LAYERS+=("$TEAM_YAML")
       elif [[ -e "$TEAM_YAML" ]]; then
@@ -211,35 +123,24 @@ if [[ -n "$REPO_ROOT" ]]; then
       ;;
   esac
 fi
-if [[ -n "${HOME:-}" && -f "$USER_LAYER" ]]; then
-  LAYERS+=("$USER_LAYER")
-  old_location "$USER_LAYER" "still read as the lowest layer" \
-    "${CONVENTION_KEY_YAML_REL} (team) or ${CONVENTION_KEY_LOCAL_REL} (personal) in each repository that needs it"
-fi
 
 layer_label() {
   case "$1" in
     "${TEAM_YAML:-}") echo "$CONVENTION_KEY_YAML_REL" ;;
     "${PERSONAL_YAML:-}") echo "$CONVENTION_KEY_LOCAL_REL" ;;
-    "${personal_override:-}") echo "old personal override ${CONVENTION_KEY_OLD_LOCAL_REL}" ;;
-    "$USER_LAYER") echo "old user-global .claude/source-control.md in the home directory" ;;
     *) echo "$1" ;;
   esac
 }
 
 PATTERN="" SOURCE="" LABEL=""
 for layer in ${LAYERS[@]+"${LAYERS[@]}"}; do
-  if [[ "$layer" == "${TEAM_YAML:-}" || "$layer" == "${PERSONAL_YAML:-}" ]]; then
-    rel="$CONVENTION_KEY_YAML_REL"
-    [[ "$layer" == "${PERSONAL_YAML:-}" ]] && rel="$CONVENTION_KEY_LOCAL_REL"
-    value="$(convention_key_yaml_value "$REPO_ROOT" "$KEY" "$rel")"
-    rc=$?
-    if [[ "$rc" -ne 0 ]]; then
-      note "${rel} could not be parsed; ${STOP}"
-      exit 1
-    fi
-  else
-    value="$(section_value "$layer")" || exit 1
+  rel="$CONVENTION_KEY_YAML_REL"
+  [[ "$layer" == "${PERSONAL_YAML:-}" ]] && rel="$CONVENTION_KEY_LOCAL_REL"
+  value="$(convention_key_yaml_value "$REPO_ROOT" "$KEY" "$rel")"
+  rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    note "${rel} could not be parsed; ${STOP}"
+    exit 1
   fi
   [[ -n "$value" ]] || continue
   usable_pattern "$layer" "$value" "$STOP" || exit 1

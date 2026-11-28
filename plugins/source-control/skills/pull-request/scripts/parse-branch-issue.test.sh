@@ -69,7 +69,7 @@ run_no_default() {
 run_no_default "--no-default with no consumer pattern exits 3, prints nothing" "" "" 3
 run_no_default "--no-default still applies a consumer pattern" '^[^/]+/([0-9]+)-' "42" 0
 
-layer() {
+retired_md_layer() {
   mkdir -p "$(dirname "$1")"
   # shellcheck disable=SC2016  # the backticks are literal Markdown, not a command substitution
   printf '# Source control\n\n## subject_pattern\n\nConventional Commits\n\n## branch_issue_pattern\n\n`%s`\n\n## trailer_policy\n\nnone\n' "$2" >"$1"
@@ -82,9 +82,13 @@ yaml_layer() {
   track "$1"
 }
 
+write_personal_yaml() {
+  mkdir -p "$(dirname "$1")"
+  printf '%s\n' "branch_issue_pattern: '$2'" >"$1"
+}
+
 TEAM_YAML_REL="docs/conventions/source-control.yaml"
 PERSONAL_YAML_REL="docs/conventions/source-control.local.yaml"
-OLD_LOCATION_NOTE='^parse-branch-issue: old location '
 
 track() {
   git -C "$CASE_REPO" add -f -- "$1" >/dev/null 2>&1 || true
@@ -94,12 +98,6 @@ new_case() {
   CASE_HOME="$(mktemp -d "${FIXTURES}/home.XXXXXX")"
   CASE_REPO="$(mktemp -d "${FIXTURES}/repo.XXXXXX")"
   git init -q "$CASE_REPO"
-}
-
-layer_raw() {
-  mkdir -p "$(dirname "$1")"
-  printf '%s' "$2" >"$1"
-  track "$1"
 }
 
 run_cfg() {
@@ -113,9 +111,6 @@ run_cfg() {
   fi
   rc=$?
   err=$(<"$errfile")
-  if [[ -f "${CASE_HOME}/.claude/source-control.md" || -f "${CASE_REPO}/.claude/source-control.local.md" ]]; then
-    err=$(grep -v -- "$OLD_LOCATION_NOTE" "$errfile")
-  fi
   local err_ok=1
   if [[ "$err_check" == "empty" ]]; then
     [[ -z "$err" ]] || err_ok=0
@@ -149,63 +144,48 @@ run_cfg "userConfig env var only: resolves with a deprecation note" \
   "alice.b/1234-fix" "" '^[^/]+/([0-9]+)-' "1234" 0 "$DEPRECATION"
 
 new_case
-layer "${CASE_REPO}/.claude/source-control.local.md" '-([0-9]+)$'
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '-([0-9]+)$'
 run_cfg "cascade beats a userConfig positional, no deprecation note" \
   "feat/12-add-widget-1234" '^[a-z]+/([0-9]+)-' - "1234" 0 empty
 
 new_case
-layer "${CASE_REPO}/.claude/source-control.local.md" '-([0-9]+)$'
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '-([0-9]+)$'
 run_cfg "cascade beats the userConfig env var, no deprecation note" \
   "feat/12-add-widget-1234" "" '^[a-z]+/([0-9]+)-' "1234" 0 empty
 
 new_case
-layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/[^/]+/([0-9]+)-'
-run_cfg "user-global layer alone resolves" "a/b/77-x" "" - "77" 0 empty
-
-new_case
-layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/[^/]+/([0-9]+)-'
 yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
-run_cfg "team beats user-global" "a/5/77-x-9" "" - "9" 0 empty
-
-new_case
-layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/[^/]+/([0-9]+)-'
-yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
-layer "${CASE_REPO}/.claude/source-control.local.md" '^[a-z]+/([0-9]+)/'
-run_cfg "personal override beats team and user-global" "a/5/77-x-9" "" - "5" 0 empty
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '^[a-z]+/([0-9]+)/'
+run_cfg "personal override beats team" "a/5/77-x-9" "" - "5" 0 empty
 
 STOPPED='resolution stopped, no issue id emitted'
 
 new_case
 yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
-layer "${CASE_REPO}/.claude/source-control.local.md" '(['
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '(['
 run_cfg "invalid local layer stops resolution, team never applies" \
-  "feat/12-add-widget-1234" "" - "" 1 "source-control\.local\.md.*invalid ERE.*${STOPPED}"
+  "feat/12-add-widget-1234" "" - "" 1 "source-control\.local\.yaml.*invalid ERE.*${STOPPED}"
 
 new_case
-layer "${CASE_REPO}/.claude/source-control.local.md" '-([0-9]+)$'
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '-([0-9]+)$'
 yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '(['
 run_cfg "valid local layer wins before an invalid team layer is read" \
   "feat/12-add-widget-1234" "" - "1234" 0 empty
 
 new_case
-layer "${CASE_REPO}/.claude/source-control.local.md" '(['
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '(['
 run_cfg "invalid only layer stops resolution, never reaches the userConfig" \
   "alice.b/1234-fix" '^[^/]+/([0-9]+)-' - "" 1 "invalid ERE.*${STOPPED}" 'deprecated'
 
 new_case
-layer "${CASE_REPO}/.claude/source-control.local.md" '(['
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '(['
 run_cfg "invalid only layer stops resolution, never reaches the userConfig env var" \
   "alice.b/1234-fix" "" '^[^/]+/([0-9]+)-' "" 1 "invalid ERE.*${STOPPED}" 'deprecated'
 
 new_case
-layer "${CASE_REPO}/.claude/source-control.local.md" '(['
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '(['
 run_cfg "invalid only layer stops resolution, never reaches the built-in default" \
   "feat/42-x" "" - "" 1 "invalid ERE.*${STOPPED}"
-
-new_case
-layer "${CASE_HOME}/.claude/source-control.md" '(['
-run_cfg "invalid user-global layer stops resolution, never reaches the default" \
-  "feat/42-x" "" - "" 1 "home\.[^ ]*/\.claude/source-control\.md.*${STOPPED}"
 
 new_case
 # shellcheck disable=SC2016  # the placeholder is a literal test input, not an expansion
@@ -219,48 +199,23 @@ new_case
 run_cfg "no config anywhere, no match: exit 1, no note" "main" "" - "" 1 empty
 
 new_case
-layer_raw "${CASE_REPO}/.claude/source-control.local.md" $'## branch_issue_pattern\n\n```\n-([0-9]+)$\n```\n'
-run_cfg "fenced value resolves" "feat/12-add-widget-1234" "" - "1234" 0 empty
-
-new_case
-layer_raw "${CASE_REPO}/.claude/source-control.local.md" $'## branch_issue_pattern\n\n~~~regex\n\n-([0-9]+)$\n~~~\n'
-run_cfg "fenced value with an info string resolves" "feat/12-add-widget-1234" "" - "1234" 0 empty
-
-new_case
-layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
-layer_raw "${CASE_REPO}/.claude/source-control.local.md" $'## branch_issue_pattern\n\n```\n\n```\n'
-run_cfg "empty fence stops resolution, note names its path" \
-  "feat/12-add-widget-1234" "" - "" 1 "repo\.[^ ]*/\.claude/source-control\.local\.md.*empty.*${STOPPED}"
-
-new_case
-layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
-layer_raw "${CASE_REPO}/.claude/source-control.local.md" $'## branch_issue_pattern\n\n```\n'
-run_cfg "unterminated fence stops resolution, note names its path" \
-  "feat/12-add-widget-1234" "" - "" 1 "repo\.[^ ]*/\.claude/source-control\.local\.md.*unterminated.*${STOPPED}"
-
-new_case
-layer_raw "${CASE_REPO}/.claude/source-control.local.md" \
-  $'## notes\n\n```md\n## branch_issue_pattern\n\n`^[a-z]+/([0-9]+)-`\n```\n\n## branch_issue_pattern\n\n`-([0-9]+)$`\n'
-run_cfg "heading inside an earlier fence is ignored" "feat/12-add-widget-1234" "" - "1234" 0 empty
-
-new_case
-layer "${CASE_REPO}/.claude/source-control.local.md" '[0-9]+$'
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '[0-9]+$'
 run_cfg "pattern with no capture group: no output, note names the layer" \
-  "feat/x-1234" "" - "" 1 'source-control\.local\.md.*no capture group' '[0-9]+$'
+  "feat/x-1234" "" - "" 1 'source-control\.local\.yaml.*no capture group' '[0-9]+$'
 
 new_case
-layer "${CASE_REPO}/.claude/source-control.local.md" '^([a-z]+)/'
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '^([a-z]+)/'
 run_cfg "non-numeric capture: no output, note names the layer" \
-  "feat/12-x" "" - "" 1 'source-control\.local\.md.*non-numeric' '^([a-z]+)/'
+  "feat/12-x" "" - "" 1 'source-control\.local\.yaml.*non-numeric' '^([a-z]+)/'
 
 new_case
 run_cfg "non-numeric userConfig capture: no output, note names userConfig" \
   "feat/12-x" '^([a-z]+)/' - "" 1 'userConfig.*non-numeric'
 
 new_case
-layer "${CASE_REPO}/.claude/source-control.local.md" '^([a-z]+)/\1([0-9]+)'
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '^([a-z]+)/\1([0-9]+)'
 run_cfg "backreference layer stops resolution, never the default" \
-  "feat/42-x" "" - "" 1 "source-control\.local\.md.*backreference.*${STOPPED}" '\1'
+  "feat/42-x" "" - "" 1 "source-control\.local\.yaml.*backreference.*${STOPPED}" '\1'
 
 new_case
 run_cfg "backreference userConfig ignored, default applies" \
@@ -271,162 +226,84 @@ run_cfg "invalid-ERE userConfig env var ignored, default applies" \
   "feat/42-x" "" '([' "42" 0 'userConfig.*invalid ERE.*ignored' 'stopped'
 
 new_case
-layer "${CASE_REPO}/.claude/source-control.local.md" 'ZQXMARK(['
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" 'ZQXMARK(['
 run_cfg "invalid-ERE note omits the raw pattern" \
-  "feat/42-x" "" - "" 1 'source-control\.local\.md.*stopped' 'ZQXMARK'
+  "feat/42-x" "" - "" 1 'source-control\.local\.yaml.*stopped' 'ZQXMARK'
 
 WN="feat/12-widget-34"
 
 new_case
-layer_raw "${CASE_REPO}/.claude/source-control.local.md" $'\xef\xbb\xbf## branch_issue_pattern\n\n`-([0-9]+)$`\n'
-run_cfg "UTF-8 BOM before the heading resolves" "$WN" "" - "34" 0 empty
-
-new_case
-layer_raw "${CASE_REPO}/.claude/source-control.local.md" $'## branch_issue_pattern ##  \n\n`-([0-9]+)$`\n'
-run_cfg "closing hash sequence on the heading resolves" "$WN" "" - "34" 0 empty
-
-new_case
-layer_raw "${CASE_REPO}/.claude/source-control.local.md" $'## branch_issue_pattern:\n\n`-([0-9]+)$`\n'
-run_cfg "near-miss heading stops resolution: no output, never the default" \
-  "$WN" "" - "" 1 'source-control\.local\.md.*near-miss heading'
-
-new_case
-layer_raw "${CASE_REPO}/.claude/source-control.local.md" $'## Branch_Issue_Pattern\n\n`-([0-9]+)$`\n'
-run_cfg "near-miss heading in other case stops resolution" "$WN" "" - "" 1 'near-miss heading'
-
-new_case
-layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
-layer_raw "${CASE_REPO}/.claude/source-control.local.md" $'## branch_issue_pattern (ERE)\n\n`^feat/([0-9]+)-`\n'
-run_cfg "near-miss local layer stops resolution over a valid user-global layer" \
-  "$WN" "" - "" 1 'source-control\.local\.md.*near-miss heading'
-
-new_case
-layer "${CASE_REPO}/.claude/source-control.local.md" '-([0-9]+)$'
-layer_raw "${CASE_HOME}/.claude/source-control.md" $'## branch_issue_pattern:\n\n`^feat/([0-9]+)-`\n'
-run_cfg "valid local layer wins before a near-miss user-global layer is read" "$WN" "" - "34" 0 empty
-
-new_case
-layer_raw "${CASE_REPO}/.claude/source-control.local.md" $'## notes\n\n```\n## branch_issue_pattern:\n```\n\n## branch_issue_pattern\n\n`-([0-9]+)$`\n'
-run_cfg "near-miss heading inside a fence is ignored" "$WN" "" - "34" 0 empty
-
-new_case
-layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
-layer_raw "${CASE_REPO}/.claude/source-control.local.md" $'## branch_issue_pattern\n\n### note\n`^feat/([0-9]+)-`\n'
-run_cfg "heading as the first value line stops resolution over a valid user-global layer" \
-  "$WN" "" - "" 1 "source-control\.local\.md.*heading.*${STOPPED}"
-
-new_case
-layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
-layer_raw "${CASE_REPO}/.claude/source-control.local.md" $'## branch_issue_pattern\n\n<!-- first number -->\n`^feat/([0-9]+)-`\n'
-run_cfg "HTML comment as the first value line stops resolution over a valid user-global layer" \
-  "$WN" "" - "" 1 "source-control\.local\.md.*comment.*${STOPPED}"
-
-new_case
-layer_raw "${CASE_REPO}/.claude/source-control.local.md" $'## branch_issue_pattern\n\n<!-- first number -->\n'
-run_cfg "HTML comment first line alone: no output, never the default 12" \
-  "$WN" "" - "" 1 "source-control\.local\.md.*comment.*${STOPPED}"
-
-new_case
-layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
-layer_raw "${CASE_REPO}/.claude/source-control.local.md" $'## branch_issue_pattern\n\n```\n^feat/([0-9]+)-\n'
-run_cfg "unterminated fence with content stops resolution" \
-  "$WN" "" - "" 1 "source-control\.local\.md.*unterminated.*${STOPPED}"
-
-new_case
-layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
-layer_raw "${CASE_REPO}/.claude/source-control.local.md" $'## branch_issue_pattern\n\n## trailer_policy\n\nnone\n'
-run_cfg "section with no value before the next heading stops resolution" \
-  "$WN" "" - "" 1 "source-control\.local\.md.*no value.*${STOPPED}"
-
-new_case
-layer_raw "${CASE_REPO}/.claude/source-control.local.md" $'## branch_issue_pattern\n\n'
-run_cfg "section with no value at end of file stops resolution, never the default" \
-  "$WN" "" - "" 1 "source-control\.local\.md.*no value.*${STOPPED}"
-
-new_case
-layer_raw "${CASE_REPO}/.claude/source-control.local.md" $'## branch_issue_pattern\n\n``\n'
-run_cfg "value of only backticks stops resolution, never the default" \
-  "$WN" "" - "" 1 "source-control\.local\.md.*no value.*${STOPPED}"
-
-new_case
-layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
-layer "${CASE_REPO}/.claude/source-control.local.md" "^feat/([0-9]+)-|$(printf 'z%.0s' {1..190})"
+yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" "^feat/([0-9]+)-|$(printf 'z%.0s' {1..190})"
 run_cfg "pattern over 200 characters stops resolution" \
-  "$WN" "" - "" 1 "source-control\.local\.md.*too long.*${STOPPED}" 'zzzzzzzz'
+  "$WN" "" - "" 1 "source-control\.local\.yaml.*too long.*${STOPPED}" 'zzzzzzzz'
 
 new_case
-layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
-layer "${CASE_REPO}/.claude/source-control.local.md" '^feat/x{0,17}([0-9]+)-'
+yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '^feat/x{0,17}([0-9]+)-'
 run_cfg "repetition bound over 16 stops resolution" \
-  "$WN" "" - "" 1 "source-control\.local\.md.*repetition bound.*${STOPPED}" 'x{0,17}'
+  "$WN" "" - "" 1 "source-control\.local\.yaml.*repetition bound.*${STOPPED}" 'x{0,17}'
 
 new_case
-layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
-layer "${CASE_REPO}/.claude/source-control.local.md" '^feat/((1+)+)[0-9]*-'
+yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '^feat/((1+)+)[0-9]*-'
 run_cfg "quantifier on a group holding a quantifier stops resolution" \
-  "$WN" "" - "" 1 "source-control\.local\.md.*nested quantifier.*${STOPPED}" '(1+)+'
+  "$WN" "" - "" 1 "source-control\.local\.yaml.*nested quantifier.*${STOPPED}" '(1+)+'
 
 new_case
-layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
-layer "${CASE_REPO}/.claude/source-control.local.md" '^[a-z]+/((x{0,255}){0,255})([0-9]+)-'
+yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '^[a-z]+/((x{0,255}){0,255})([0-9]+)-'
 run_cfg "large nested bounded repetition stops resolution before it is compiled" \
-  "$WN" "" - "" 1 "source-control\.local\.md.*repetition bound.*${STOPPED}" 'x{0,255}'
+  "$WN" "" - "" 1 "source-control\.local\.yaml.*repetition bound.*${STOPPED}" 'x{0,255}'
 
 new_case
-layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
-layer "${CASE_REPO}/.claude/source-control.local.md" '^feat/([0-9]+)-\1'
-run_cfg "backreference local layer stops resolution over a valid user-global layer" \
-  "$WN" "" - "" 1 "source-control\.local\.md.*backreference.*${STOPPED}" '\1'
+yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '^feat/([0-9]+)-\1'
+run_cfg "backreference local layer stops resolution over a valid team layer" \
+  "$WN" "" - "" 1 "source-control\.local\.yaml.*backreference.*${STOPPED}" '\1'
 
 new_case
 run_cfg "nested-quantifier userConfig ignored, default applies" \
   "$WN" '^feat/((1+)+)[0-9]*-' - "12" 0 'userConfig.*nested quantifier'
 
 new_case
-layer "${CASE_REPO}/.claude/source-control.local.md" '^[^/]+/([0-9]+)-'
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '^[^/]+/([0-9]+)-'
 run_cfg "documented username-scoped example allowed" "alice/1234-fix" "" - "1234" 0 empty
 
 new_case
-layer "${CASE_REPO}/.claude/source-control.local.md" '-([0-9]+)$'
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '-([0-9]+)$'
 run_cfg "documented trailing-number example allowed" "$WN" "" - "34" 0 empty
 
 new_case
-layer "${CASE_REPO}/.claude/source-control.local.md" '^[a-z]+/(routine-issue-)?([0-9]+)-'
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '^[a-z]+/(routine-issue-)?([0-9]+)-'
 run_cfg "built-in default as a layer value allowed" "chore/routine-issue-555-tidy" "" - "555" 0 empty
 
 new_case
-layer "${CASE_REPO}/.claude/source-control.local.md" '^[a-z]+/([{]x{2}|[0-9]{1,16})-'
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '^[a-z]+/([{]x{2}|[0-9]{1,16})-'
 run_cfg "bounds up to 16 and a literal brace in brackets allowed" "feat/42-x" "" - "42" 0 empty
 
 HOME_NOTE='team and personal override not applicable: project root is the home directory'
 
 new_case
-layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/[^/]+/([0-9]+)-'
-layer "${CASE_HOME}/.claude/source-control.local.md" '^[a-z]+/([0-9]+)/'
+git init -q "$CASE_HOME"
+yaml_layer "${CASE_HOME}/$TEAM_YAML_REL" '-([0-9]+)$'
+write_personal_yaml "${CASE_HOME}/$PERSONAL_YAML_REL" '-([0-9]+)$'
 CASE_REPO="$CASE_HOME"
-run_cfg "home project root reads user-global once, never personal override as team" \
-  "a/5/77-x-9" "" - "77" 0 "$HOME_NOTE"
+run_cfg "home project root skips team and personal override" \
+  "$WN" "" - "12" 0 "$HOME_NOTE"
 
 new_case
-layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/[^/]+/([0-9]+)-'
-layer "${CASE_HOME}/.claude/source-control.local.md" '^[a-z]+/([0-9]+)/'
+write_personal_yaml "${CASE_HOME}/$PERSONAL_YAML_REL" '-([0-9]+)$'
 CASE_REPO="$(dirname "$CASE_HOME")"
 run_cfg "an ancestor of home also skips team and personal override" \
-  "a/5/77-x-9" "" - "77" 0 "$HOME_NOTE"
+  "$WN" "" - "12" 0 "$HOME_NOTE"
 
 new_case
-layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/([0-9]+)-'
-yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
-run_cfg "a repo root that is not home still lets team beat user-global" \
-  "a/5/77-x-9" "" - "9" 0 empty
-
-new_case
-layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/([0-9]+)-'
 CASE_REPO="$(mktemp -d "${FIXTURES}/norepo.XXXXXX")"
 yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
-layer "${CASE_REPO}/.claude/source-control.local.md" '-([0-9]+)$'
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '-([0-9]+)$'
 run_cfg "a root outside any git repository skips team and personal override" \
-  "a/5-x-9" "" - "5" 0 "project root is not inside a git repository"
+  "$WN" "" - "12" 0 "project root is not inside a git repository"
 
 mklink() {
   MSYS=winsymlinks:nativestrict ln -s "$1" "$2" 2>/dev/null && [[ -L "$2" ]] && return 0
@@ -435,21 +312,11 @@ mklink() {
 }
 
 new_case
-layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/[^/]+/([0-9]+)-'
-layer "${CASE_HOME}/.claude/source-control.local.md" '^[a-z]+/([0-9]+)/'
+write_personal_yaml "${CASE_HOME}/$PERSONAL_YAML_REL" '-([0-9]+)$'
 CASE_REPO="${FIXTURES}/home-alias.$$"
 if mklink "$CASE_HOME" "$CASE_REPO" "a symlink alias of home skips team and personal override"; then
   run_cfg "a symlink alias of home also skips team and personal override" \
-    "a/5/77-x-9" "" - "77" 0 "$HOME_NOTE"
-fi
-
-new_case
-layer "${CASE_HOME}/.claude/source-control.md" '(['
-mkdir -p "${CASE_REPO}/.claude"
-if mklink "${CASE_HOME}/.claude/source-control.md" "${CASE_REPO}/.claude/source-control.local.md" "a personal override file that is the user-global file is skipped"; then
-  run_cfg "a personal override file that physically is the user-global file is read once, as user-global" \
-    "$WN" "" - "" 1 "home\.[^ ]*/\.claude/source-control\.md.*invalid ERE.*${STOPPED}" \
-    "${CASE_REPO}/.claude/source-control.local.md"
+    "$WN" "" - "12" 0 "$HOME_NOTE"
 fi
 
 run_explain() {
@@ -475,7 +342,7 @@ run_explain "the resolver names the YAML as the supplying layer" "alice.b/1234-f
 
 new_case
 yaml_layer "${CASE_REPO}/docs/conventions/source-control.yaml" '-([0-9]+)$'
-layer "${CASE_REPO}/.claude/source-control.md" '^[^/]+/([0-9]+)-'
+retired_md_layer "${CASE_REPO}/.claude/source-control.md" '^[^/]+/([0-9]+)-'
 run_cfg "the YAML value applies beside a retired markdown file" "feat/12-add-widget-1234" "" - "1234" 0 empty
 run_explain "the layer is the YAML when the retired file also carries the key" "feat/12-add-widget-1234" "1234" \
   'docs/conventions/source-control\.yaml$'
@@ -484,20 +351,14 @@ new_case
 mkdir -p "${CASE_REPO}/docs/conventions"
 printf '%s\n' 'pr_open_state: ready' >"${CASE_REPO}/docs/conventions/source-control.yaml"
 track "${CASE_REPO}/docs/conventions/source-control.yaml"
-layer "${CASE_REPO}/.claude/source-control.md" '-([0-9]+)$'
+retired_md_layer "${CASE_REPO}/.claude/source-control.md" '-([0-9]+)$'
 run_cfg "the retired markdown is not read when the YAML lacks the key" "feat/12-add-widget-1234" "" - "12" 0 empty
 run_explain "the default supplies the pattern when the YAML lacks the key" "feat/12-add-widget-1234" "12" 'default$'
 
 new_case
-layer "${CASE_REPO}/.claude/source-control.md" '-([0-9]+)$'
-run_explain "no YAML file: the retired markdown is not read, the default applies" "feat/12-add-widget-1234" "12" \
+retired_md_layer "${CASE_REPO}/.claude/source-control.md" '-([0-9]+)$'
+run_explain "no YAML file: the retired team markdown is not read, the default applies" "feat/12-add-widget-1234" "12" \
   'default$'
-
-new_case
-yaml_layer "${CASE_REPO}/docs/conventions/source-control.yaml" '-([0-9]+)$'
-layer "${CASE_REPO}/.claude/source-control.local.md" '^[^/]+/([0-9]+)-'
-run_explain "the personal override still beats the team YAML" "feat/12-add-widget-1234" "12" \
-  'old personal override \.claude/source-control\.local\.md$'
 
 new_case
 yaml_layer "${CASE_REPO}/docs/conventions/source-control.yaml" '(['
@@ -506,7 +367,7 @@ run_cfg "an invalid YAML pattern stops resolution" "alice.b/1234-fix" "" - "" 1 
 new_case
 yaml_layer "${CASE_REPO}/docs/conventions/source-control.yaml" '^[^/]+/([0-9]+)-'
 printf '%s\n' 'branch_issue_pattern: a' >>"${CASE_REPO}/docs/conventions/source-control.yaml"
-layer "${CASE_REPO}/.claude/source-control.md" '^[^/]+/([0-9]+)-'
+retired_md_layer "${CASE_REPO}/.claude/source-control.md" '^[^/]+/([0-9]+)-'
 run_cfg "a YAML the shared reader rejects stops resolution" \
   "alice.b/1234-fix" "" - "" 1 "could not be parsed.*${STOPPED}"
 
@@ -518,49 +379,18 @@ run_cfg "the YAML beats a userConfig positional, no deprecation note" \
 new_case
 yaml_layer "${CASE_REPO}/docs/conventions/source-control.yaml" '-([0-9]+)$'
 git -C "$CASE_REPO" rm -q --cached -- docs/conventions/source-control.yaml
-layer "${CASE_REPO}/.claude/source-control.md" '-([0-9]+)$'
+retired_md_layer "${CASE_REPO}/.claude/source-control.md" '-([0-9]+)$'
 run_cfg "an untracked team YAML is ignored, and a tracked retired file is not read" \
   "feat/12-add-widget-1234" "" - "12" 0 "source-control\.yaml is not tracked by git"
 
 new_case
 run_explain "the default is the named layer when nothing is configured" "feat/42-x" "42" 'default$'
 
-SETUP_NOTE='/source-control:setup apply'
-
-write_personal_yaml() {
-  mkdir -p "$(dirname "$1")"
-  printf '%s\n' "branch_issue_pattern: '$2'" >"$1"
-}
-
-old_note_count_is() {
-  local desc="$1" want="$2" got
-  got=$(grep -c -- "$OLD_LOCATION_NOTE" "${FIXTURES}/stderr")
-  if [[ "$got" -eq "$want" ]]; then
-    echo "PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: $desc (got $got old-location notes, wanted $want)"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-old_note_matches() {
-  local desc="$1" ere="$2"
-  if grep -Eq -- "${OLD_LOCATION_NOTE}.*${ere}" "${FIXTURES}/stderr"; then
-    echo "PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: $desc (no old-location note matches '${ere}': $(<"${FIXTURES}/stderr"))"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
 new_case
 yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
 write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '^[^/]+/([0-9]+)-'
 run_cfg "new layers only: the personal YAML beats the team YAML" \
   "feat/12-add-widget-1234" "" - "12" 0 empty
-old_note_count_is "new layers only: no old-location note" 0
 run_explain "the personal YAML is the named layer" "feat/12-add-widget-1234" "12" \
   'docs/conventions/source-control\.local\.yaml$'
 
@@ -583,43 +413,19 @@ run_cfg "a personal YAML the shared reader rejects stops resolution" \
   "feat/12-add-widget-1234" "" - "" 1 "source-control\.local\.yaml could not be parsed.*${STOPPED}"
 
 new_case
-yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
-layer "${CASE_REPO}/.claude/source-control.local.md" '^[^/]+/([0-9]+)-'
-run_cfg "old personal override only: its value applies" "feat/12-add-widget-1234" "" - "12" 0 empty
-old_note_count_is "old personal override only: one note per run" 1
-old_note_matches "old personal override only: the note names the file, its new location and setup" \
-  "\.claude/source-control\.local\.md: still read.*source-control\.local\.yaml.*${SETUP_NOTE}"
-
-new_case
-yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
-write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '^[a-z]+/([0-9]+)-add'
-layer "${CASE_REPO}/.claude/source-control.local.md" '^[a-z]+/[0-9]+-add-widget-([0-9]+)$'
-run_cfg "both personal files: the YAML wins" "feat/7-add-widget-1234" "" - "7" 0 empty
-old_note_count_is "both personal files: one note per run" 1
-old_note_matches "both personal files: the note names both files and setup" \
-  "\.claude/source-control\.local\.md: not read, since docs/conventions/source-control\.local\.yaml.*${SETUP_NOTE}"
-
-new_case
-layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
-run_cfg "old user-global only: its value applies" "feat/12-add-widget-1234" "" - "1234" 0 empty
-old_note_count_is "old user-global only: one note per run" 1
-old_note_matches "old user-global only: the note names the file, both new locations and setup" \
-  "home\.[^ ]*/\.claude/source-control\.md: still read.*source-control\.yaml \(team\) or .*source-control\.local\.yaml \(personal\).*${SETUP_NOTE}"
-run_explain "the old user-global file is the named layer" "feat/12-add-widget-1234" "1234" \
-  'old user-global'
-
-new_case
-layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
-yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '^[^/]+/([0-9]+)-'
-run_cfg "old user-global beside the team YAML: the team wins" "feat/12-add-widget-1234" "" - "12" 0 empty
-old_note_count_is "old user-global beside the team YAML: the note still prints once" 1
-
-new_case
-layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
-layer "${CASE_REPO}/.claude/source-control.local.md" '^[^/]+/([0-9]+)-'
-run_cfg "both old files: the old personal override wins over the old user-global" \
+retired_md_layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
+retired_md_layer "${CASE_REPO}/.claude/source-control.local.md" '-([0-9]+)$'
+run_cfg "retired ~/.claude/source-control.md and .claude/source-control.local.md are ignored cleanly" \
   "feat/12-add-widget-1234" "" - "12" 0 empty
-old_note_count_is "both old files: one note for each" 2
+run_explain "default supplies the pattern when only retired .claude files exist" \
+  "feat/12-add-widget-1234" "12" 'default$'
+
+new_case
+retired_md_layer "${CASE_HOME}/.claude/source-control.md" '(['
+retired_md_layer "${CASE_REPO}/.claude/source-control.local.md" '(['
+yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
+run_cfg "retired .claude files (even malformed) are ignored beside the team YAML" \
+  "feat/12-add-widget-1234" "" - "1234" 0 empty
 
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"

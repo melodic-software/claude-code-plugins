@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Unit tests for ``lib/policy_cascade.py`` and migration decoupling."""
+"""Unit tests for ``lib/policy_cascade.py``."""
 
 from __future__ import annotations
 
-import ast
 import json
 import sys
 import tempfile
@@ -12,7 +11,6 @@ from pathlib import Path
 from unittest import mock
 
 LIB_DIR = Path(__file__).resolve().parent
-PLUGIN_ROOT = LIB_DIR.parent
 if str(LIB_DIR) not in sys.path:
     sys.path.insert(0, str(LIB_DIR))
 
@@ -118,16 +116,24 @@ class PolicyCascadeTests(unittest.TestCase):
             ):
                 policy_cascade.load_policy(None, project, None)
 
-    def test_policy_migration_does_not_import_hygiene(self) -> None:
-        migration = PLUGIN_ROOT / "skills" / "setup" / "scripts" / "policy_migration.py"
-        tree = ast.parse(migration.read_text(encoding="utf-8"), filename=str(migration))
-        imported: set[str] = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                imported.update(alias.name for alias in node.names)
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                imported.add(node.module)
-        self.assertNotIn("hygiene", imported)
+    def test_retired_claude_policy_files_are_ignored_quietly(self) -> None:
+        home = self.base / "home"
+        project = self.base / "project"
+        (home / ".claude").mkdir(parents=True)
+        (project / ".claude").mkdir(parents=True)
+        (home / ".claude" / "disk-hygiene.json").write_text(
+            json.dumps({"version": 1, "additional_protected_path_globs": ["old-u/**"]}),
+            encoding="utf-8",
+        )
+        (project / ".claude" / "disk-hygiene.json").write_text(
+            json.dumps({"version": 1, "additional_protected_path_globs": ["old-p/**"]}),
+            encoding="utf-8",
+        )
+        with mock.patch.object(Path, "home", return_value=home):
+            policy = policy_cascade.load_policy(None, project, None)
+        self.assertEqual(["baseline"], policy["policy_sources"])
+        self.assertEqual([], policy["policy_warnings"])
+        self.assertEqual([], policy["additional_protected_path_globs"])
 
 
 if __name__ == "__main__":
