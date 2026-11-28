@@ -3,6 +3,12 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.11] - 2026-11-28
+
+### Changed
+
+- References to the standards concern file name `docs/conventions/standards.yaml` (standards contract 2.0.0), in place of `.claude/standards.yaml`.
+
 ## [0.48.10] - 2026-11-28
 
 ### Changed
