@@ -1,5 +1,5 @@
 ---
-description: "Control skill /app-control:drive reads to run Claude Code's terminal UI with a plugin loaded and record screenshots, video and stream-json logs of its mods, skills, hooks and commands."
+description: "Control skill for /app-control:drive: run Claude Code TUI with a plugin and record screenshots, video, stream-json (mods, skills, hooks, commands)."
 disable-model-invocation: true
 ---
 

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | Blocking | The 'measured no-loss' claim for shortening `curate-language`'s description is unproven: every trigger score is at ceiling (24/24, 27/27) with only this plugin loaded and no negative/detection control to show the probes distinguish this description from a generic one-liner. | plugins/domain-driven-design/skills/curate-language/SKILL.md:2 |\n\nSummary: run a detection control or competitor-loaded routing check before shipping this cut.",
+      "why": "blocking finding naming ceiling saturation and missing negative control"
+    },
+    {
+      "answer": "Blocking: the PR claims measured no-loss, but all trigger scores are saturated at 100% in single-plugin isolation with no negative control. Without proving the eval fails on a degraded description, a 0 delta does not validate the text cut.",
+      "why": "high-signal finding naming the unmeasured cut without a line number"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Findings: none. No blocking or advisory findings. The trimmed description preserves all trigger phrases and the verification table shows zero delta.",
+      "why": "accepts the ceiling-saturated no-loss claim with no findings"
+    },
+    {
+      "answer": "| 1 | Advisory | `SKILL.md:2` drops the colon after 'Use when'; keep the colon for consistency with sibling skills. | plugins/domain-driven-design/skills/curate-language/SKILL.md:2 |\n\nSummary: minor punctuation suggestion only.",
+      "why": "cites line 2 for a punctuation nit while missing the unmeasured-cut defect"
+    }
+  ]
+}

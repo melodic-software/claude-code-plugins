@@ -1,11 +1,11 @@
 ---
-description: "Revert case from PR #12201, reverted by #12228 fce50a4b9276: CI code review of the original change posts a finding on a line the revert later changed"
+description: "Revert case from PR #12201, reverted by #12228 fce50a4b9276: high-signal CI code review names that the ai-slop audit body cut rests on ceiling-saturated cases with one broken case and no negative/detection control"
 tags: [review, code-review, revert]
-runs: 1
+runs: 3
 max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Agent]
-expected_outcome: "The review reports a finding at a line the revert later changed: plugins/ai-slop/skills/audit/SKILL.md lines 42-43,45,48-49,96-112,128-135,274-288. Its other findings are recorded, not graded"
+expected_outcome: "A high-signal code review names the reverted problem: PR #12201 trims plugins/ai-slop/skills/audit/SKILL.md claiming measured no-loss while 7 of 9 read cases sit at ceiling 1.000, audit-over-compression-boundary failed to load (0 runs), and no negative/detection control proves the suite detects a degraded body. Citing a specific line number is optional; other findings are recorded, not graded"
 ---
 
 /review:code-review

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | Blocking | `DOCS_ONLY_GLOBS` plus the `INSTRUCTIONS_RE` denylist still treats `docs/plugin-philosophy.md`, `docs/upstream/**`, and `docs/architecture/**` as docs-only, letting security-relevant and instruction-cited docs bypass the security review gate. Use an explicit narrow allowlist instead of a denylist. | plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py:74 |\n\nSummary: the docs-only bypass is too broad for a security merge gate.",
+      "why": "blocking finding naming the broad docs denylist bypass"
+    },
+    {
+      "answer": "Blocking finding: counting `skip=docs-only` as security review evidence is unsafe if an earlier reviewing run was deleted from workflow run history, because `_resolve()` only checks listed runs and can still bind the skip even when the lane previously reviewed the PR.",
+      "why": "names the deleted-run bypass without a line number"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Findings: none. No blocking or advisory findings. The globs and instruction regex match the security lane and tests cover the edge cases.",
+      "why": "approves with no findings"
+    },
+    {
+      "answer": "| 1 | Advisory | `babysit_review_evidence.py:74` could be split onto multiple lines with comments explaining each glob for maintainability. | plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py:74 |\n\nSummary: style suggestion only.",
+      "why": "cites line 74 for style while missing the security-gate bypasses"
+    }
+  ]
+}

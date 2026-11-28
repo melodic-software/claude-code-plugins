@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | Blocking | The 'measured no-loss' claim for trimming `ai-slop/skills/audit/SKILL.md` is unproven: 7 of 9 read cases sit at ceiling 1.000 with no negative/detection control showing the suite detects a broken body, and `audit-over-compression-boundary` failed to load (0 runs). | plugins/ai-slop/skills/audit/SKILL.md:41 |\n\nSummary: run a detection control and fix the unloaded case before shipping body cuts.",
+      "why": "blocking finding naming ceiling saturation, missing negative control, and broken case"
+    },
+    {
+      "answer": "Blocking: with 7 of 9 cases at 1.000 on both versions and no detection control, this suite has no demonstrated power to catch a regression from trimming the audit body; additionally, `audit-over-compression-boundary` did not load at all.",
+      "why": "names the unmeasured cut without a line number"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Findings: none. No blocking or advisory findings. Mean scores held steady on Opus and Sonnet and the untrusted-content spine is byte-identical.",
+      "why": "approves with no findings"
+    },
+    {
+      "answer": "| 1 | Advisory | `SKILL.md:43` drops the comma before 'and interface copy'; consider keeping the Oxford comma. | plugins/ai-slop/skills/audit/SKILL.md:43 |\n\nSummary: minor punctuation nit.",
+      "why": "cites a reverted line for punctuation while missing the unmeasured-cut defect"
+    }
+  ]
+}
