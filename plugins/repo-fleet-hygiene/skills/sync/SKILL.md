@@ -1,5 +1,5 @@
 ---
-description: "Move every canonical checkout in a fleet onto the remote default branch and fast-forward it. Divergent dirty work is parked in a linked worktree. Bare invocation prints a dry-run plan. Mutation requires --apply and one confirmation. Use when: 'sync the fleet', 'update all repos to main', 'fast-forward canonical checkouts', 'park my dirty branches and pull'."
+description: "Fast-forward canonical fleet checkouts on their default branch, parking dirty work in worktrees (dry-run default; --apply mutates after confirm)."
 user-invocable: true
 disable-model-invocation: true
 argument-hint: "[<dir>...] [--root <dir>] [--repo <dir>] [--skip <name>] [--config <file>] [--apply] [--yes]"
