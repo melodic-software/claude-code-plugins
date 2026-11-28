@@ -147,6 +147,10 @@ The table follows the Before text from its first word to its last:
 - **Check for AI-writing tells.** Invoke `/ai-slop:audit` (if enabled) on the files you wrote via the Skill tool in the session; it reports filler, stacked hedging, negative parallelism,
   and promotional tone by line. When it is not available, report that the AI-tell check did not
   run.
+- **No AI-tell check available?** Reread the draft yourself before replying, and rewrite each of
+  these as a plain statement: an opener that announces a point ("Here's the thing:"), an "isn't X,
+  it's Y" contrast, a run of two- or three-word fragment sentences, and a "from X to Y" range used
+  as a sweep. Notes and marketing copy carry these shapes: keep their facts, not their slogans.
 - **Swapped out a figurative noun that ai-slop's catalog lacks?** With `/ai-slop:audit` (if enabled) among the
   available skills, end the reply with a candidate line for `rule-abstract-metaphor-jargon` giving
   the noun, its sentence, and your literal replacement. Only a person who accepts the candidate
