@@ -1,5 +1,5 @@
 ---
-description: "Inventory or manage songwriting template overrides under songwriting/templates/pat-pattison/ and artifact layout: check (read-only) or apply."
+description: "Check (read-only) or apply (scaffold/remove) template overrides under songwriting/templates/pat-pattison/, and confirm artifact layout."
 argument-hint: "[check|apply] [scaffold <name>...] [remove <name>...]"
 user-invocable: true
 disable-model-invocation: true
