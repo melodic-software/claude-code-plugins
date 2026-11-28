@@ -1,10 +1,61 @@
 #!/usr/bin/env node
 import { chmodSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { applyBranding } from "../lib/html-branding.mjs";
+import { escapeHtml } from "../lib/html-escape.mjs";
+import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall } from "../lib/plugin-options.mjs";
 import { buildView, ViewBuildError } from "../lib/view-builder.mjs";
+import { brandingReportLines, findRoot, resolveBranding } from "../lib/view-settings.mjs";
 import { DeepeningRecordError, parseDeepening, renderDeepening, validateDeepeningPage } from "./deepening-report.mjs";
+
+const PLUGIN_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
+
+const breakSlots = (text, sep) => {
+  let out = text;
+  while (out.includes("{{")) out = out.replaceAll("{{", `{${sep}{`);
+  return out;
+};
+
+const applyTemplateBranding = (template, { tokensCss, branding }) => {
+  const logo = branding?.logo;
+  if (!logo || (!logo.label?.includes("{{") && !logo.svg?.includes("{{"))) {
+    return applyBranding(template, { tokensCss, branding });
+  }
+  const safeLabel = logo.label ? breakSlots(logo.label, " ") : logo.label;
+  const safeSvg = logo.svg ? breakSlots(logo.svg, " ") : logo.svg;
+  let branded = applyBranding(template, {
+    tokensCss,
+    branding: { ...branding, logo: { ...logo, label: safeLabel, svg: safeSvg } },
+  });
+  if (logo.label?.includes("{{")) {
+    const from = `<span class="rv-brand-label">${escapeHtml(safeLabel)}</span>`;
+    const to = `<span class="rv-brand-label">${breakSlots(escapeHtml(logo.label), "<span></span>")}</span>`;
+    branded = branded.replace(from, () => to);
+  }
+  return branded;
+};
+
+const readBrandingOption = (flagValue, env = process.env) => {
+  if (typeof flagValue === "string" && flagValue !== "" && !/^\$\{user_config\./.test(flagValue)) {
+    return flagValue;
+  }
+  if (env.CLAUDE_PLUGIN_OPTION_BRANDING) {
+    return env.CLAUDE_PLUGIN_OPTION_BRANDING;
+  }
+  try {
+    const install = resolveInstall(PLUGIN_ROOT);
+    const userSettings = install.userSettings ?? (env.CLAUDE_CONFIG_DIR ? join(env.CLAUDE_CONFIG_DIR, "settings.json") : null);
+    return readOperatorOptions({ ...install, userSettings }, managedSettingsFiles(), ["branding"]).branding?.value ?? null;
+  } catch (err) {
+    if (err instanceof OptionsError) {
+      console.error(`notice: branding userConfig: ${err.message}`);
+      return null;
+    }
+    throw err;
+  }
+};
 
 const TITLES = {
   landscape: "Landscape",
@@ -80,18 +131,23 @@ const viewData = (kind, record, from) => {
   return { title: `${TITLES[kind]} view`, facts, rows };
 };
 
-const deepeningPage = (record) => {
-  const page = renderDeepening(parseDeepening(record));
+const deepeningPage = (record, branding) => {
+  const page = renderDeepening(parseDeepening(record), { branding });
   const checked = validateDeepeningPage(page);
   if (!checked.ok) throw new ViewBuildError(checked.failures);
   return page;
 };
 
+const ALLOWED_FLAGS = ["--record", "--from", "--branding-option", "--team-ref"];
 const [kind, ...rest] = process.argv.slice(2);
 const flags = {};
-for (let i = 0; i < rest.length; i += 2) flags[rest[i]] = rest[i + 1];
-if (!Object.hasOwn(TITLES, kind) || !flags["--record"] || Object.keys(flags).some((flag) => !["--record", "--from"].includes(flag))) {
-  console.error(`usage: build-view.mjs ${Object.keys(TITLES).join("|")} --record <record.json> [--from <node-id>]`);
+let flagError = rest.length % 2 !== 0;
+for (let i = 0; i < rest.length; i += 2) {
+  flags[rest[i]] = rest[i + 1];
+  if (typeof rest[i + 1] !== "string") flagError = true;
+}
+if (flagError || !Object.hasOwn(TITLES, kind) || !flags["--record"] || Object.keys(flags).some((flag) => !ALLOWED_FLAGS.includes(flag))) {
+  console.error(`usage: build-view.mjs ${Object.keys(TITLES).join("|")} --record <record.json> [--from <node-id>] [--branding-option <json>] [--team-ref <ref>]`);
   process.exit(2);
 }
 
@@ -104,11 +160,25 @@ try {
   }
   if (kind === "deepening" && flags["--from"]) throw new RecordError("--from does not apply to the deepening record");
   if (kind !== "deepening" && (!isObject(record) || record.schema_version !== 1)) throw new RecordError("the record is not a schema_version 1 record");
-  const page = kind === "deepening" ? deepeningPage(record) : buildView({
+  const branding = resolveBranding({
+    userConfig: readBrandingOption(flags["--branding-option"]),
+    projectRoot: findRoot(),
+    teamRef: flags["--team-ref"] ?? null,
+  });
+  const tokensCss = readFileSync(fileURLToPath(new URL("../reference/html-tokens.css", import.meta.url)), "utf8");
+  const page = kind === "deepening" ? deepeningPage(record, branding) : buildView({
     profile: "interactive",
-    template: readFileSync(fileURLToPath(new URL("../templates/map-view.html", import.meta.url)), "utf8"),
+    template: applyTemplateBranding(
+      readFileSync(fileURLToPath(new URL("../templates/map-view.html", import.meta.url)), "utf8"),
+      { tokensCss, branding },
+    ),
     data: viewData(kind, record, flags["--from"]),
   });
+  if (branding.notices.length) {
+    for (const line of brandingReportLines(branding)) {
+      if (line.startsWith("notice:")) console.error(line);
+    }
+  }
   const dir = join(tmpdir(), "architecture-views");
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   if (!lstatSync(dir).isDirectory())

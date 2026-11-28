@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "check-is-read-only-and-reports-info-not-fail",
-      "prompt": "/planning:setup check\n\nThis repo has no docs/standards directory and no .claude/standards.yaml.",
+      "prompt": "/planning:setup check\n\nThis repo has no docs/standards directory and no docs/conventions/standards.yaml.",
       "expected_output": "Runs the read-only check: reports the standards index as absent with an INFO line pointing at apply (a missing index is never a FAIL), reports the effective use_ask_user_question value as INFO, and gives one remediation line per FAIL (none here). It modifies nothing and runs no planning stage.",
       "files": [],
       "expectations": [
@@ -17,13 +17,13 @@
       "id": 2,
       "name": "apply-interviews-before-any-bootstrap-write",
       "prompt": "/planning:setup apply\n\nSet up the standards concern. This repo has no docs/standards directory.",
-      "expected_output": "Reads state in the binding's order (.claude/standards.yaml, the index presence test at the default root, inference sources), proposes the skeleton index and the personal override .gitignore, and writes nothing until the user accepts. After accepted writes it runs the tracked-file pair (git check-ignore -v reports no match, git ls-files --error-unmatch exits 0) on each written team file and reports the actual results. It writes .claude/standards.yaml only if the user relocates the root.",
+      "expected_output": "Reads state in the binding's order (docs/conventions/standards.yaml, the index presence test at the default root, inference sources), proposes the skeleton index and the personal override .gitignore, and writes nothing until the user accepts. After accepted writes it runs the tracked-file pair (git check-ignore -v reports no match, git ls-files --error-unmatch exits 0) on each written team file and reports the actual results. It writes docs/conventions/standards.yaml only if the user relocates the root.",
       "files": [],
       "expectations": [
-        "Reads state in the order: .claude/standards.yaml, index presence test, inference sources",
+        "Reads state in the order: docs/conventions/standards.yaml, index presence test, inference sources",
         "Writes nothing until the user accepts the proposed bootstrap",
         "Runs the tracked-file pair on each written team file and reports real results, not success on the write alone",
-        "Writes .claude/standards.yaml only when the user relocates the standards root"
+        "Writes docs/conventions/standards.yaml only when the user relocates the standards root"
       ]
     },
     {
