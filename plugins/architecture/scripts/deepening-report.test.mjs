@@ -204,6 +204,29 @@ test("the validator takes the reader's attributes only with the values the reade
   }
 });
 
+test("with no branding the report's style is the chrome's own, and a branded report validates", () => {
+  const chrome = readFileSync(new URL("../reference/html-chrome.html", import.meta.url), "utf8").replace(/\r\n?/g, "\n");
+  const chromeStyle = /<style>\n([\s\S]*?)<\/style>/.exec(chrome)[1];
+  const plain = renderDeepening(parseDeepening(record()));
+  assert.ok(plain.includes(`<style>\n${chromeStyle}`));
+  assert.ok(!plain.includes("rv-brand"));
+  const dataUrl = "data:image/png;base64,iVBORw0KGgo=";
+  const branded = renderDeepening(parseDeepening(record()), { css: `:root { --accent: #1F4E79; }\n.rv-logo { background-image: url(${dataUrl}); }`, logo: { kind: "image", svg: null, dataUrl, label: null } });
+  assert.ok(branded.includes('<div class="rv-bar"><span class="rv-brand"><span class="rv-logo" role="img" aria-label="Logo"></span></span><div class="rv-theme"'));
+  assert.ok(branded.indexOf("--accent: #1F4E79;") > branded.indexOf(".reader {"));
+  assert.deepEqual(validateDeepeningPage(branded), { ok: true, failures: [] });
+});
+
+test("the validator refuses a logo outside the SVG allowlist, a second brand slot or a data URL outside the logo slot", () => {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1"/></svg>';
+  const page = renderDeepening(parseDeepening(record()), { css: "", logo: { kind: "svg", svg, dataUrl: null, label: "Acme" } });
+  assert.deepEqual(validateDeepeningPage(page), { ok: true, failures: [] });
+  assert.equal(validateDeepeningPage(page.replace("<rect", '<rect onload="x"')).ok, false);
+  assert.equal(validateDeepeningPage(page.replace("<rect", "<image")).ok, false);
+  assert.equal(validateDeepeningPage(page.replace("<main>", '<main><span class="rv-brand"></span>')).ok, false);
+  assert.equal(validateDeepeningPage(page.replace("</style>", ".x { background-image: url(data:image/png;base64,AAAA); }\n</style>")).ok, false);
+});
+
 test("scope and commit are required, and the commit must be a hex SHA", () => {
   const { scope, ...noScope } = record();
   assert.match(failure(noScope), /record: scope is missing/);

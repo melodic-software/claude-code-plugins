@@ -33,7 +33,7 @@ import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 const [dir, work, chrome] = process.argv.slice(2);
-const env = { ...process.env, TMPDIR: work, TEMP: work, TMP: work };
+const env = { ...process.env, TMPDIR: work, TEMP: work, TMP: work, CLAUDE_PROJECT_DIR: work };
 
 let failed = 0;
 const check = (name, cond, detail) => {
@@ -189,6 +189,56 @@ const noSizeBuilt = build("deepening", write("no-size", noSize));
 check("deepening: a candidate without a size exits 1 naming the candidate", noSizeBuilt.status === 1 && /candidate s2: size is missing/.test(noSizeBuilt.stderr), noSizeBuilt.stderr);
 check("deepening: every card and sidebar item carries a size badge", deepeningPage.split('<span class="badge">Size ').length === 1 + 23 * 2);
 check("deepening: --from exits 1", build("deepening", write("deepening-from", deepening), "--from", "s1").status === 1);
+
+// Branding: both pages take the token layer and a consumer's overrides, and keep the chrome's
+// toggle, its toggle and comment box rules, and the contrast floor.
+const chromeCopy = readFileSync(`${dir}/../reference/html-chrome.html`, "utf8");
+const tokens = readFileSync(`${dir}/../reference/html-tokens.css`, "utf8");
+const flat = (text) => (text ?? "").replace(/^[ \t]+/gm, "");
+const blocks = {
+  toggle: /<div class="rv-theme"[^\n]*?<\/div>/,
+  "toggle and comment box rules": /\/\* rv-chrome:begin \*\/.*?\/\* rv-chrome:end \*\//s,
+};
+const styleOf = (html) => /<style>\n([^]*?)<\/style>/.exec(html)?.[1] ?? "";
+const logo = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#1F4E79"/></svg>';
+const brandingOption = JSON.stringify({
+  palette: { light: { link: "#1F4E79", fg: "#FAFAFA" }, dark: { link: "#9CC3E6" } },
+  type: { sans: "Inter, sans-serif" },
+  logo: { svg: logo, label: "Acme <Maps>" },
+});
+const brandedPages = {
+  map: build("dependencies", good, "--branding-option", brandingOption),
+  deepening: build("deepening", write("deepening-branded", deepening), "--branding-option", brandingOption),
+};
+for (const [name, built] of Object.entries(brandedPages)) {
+  check(`${name}: a branded page builds`, built.status === 0, built.stderr);
+  if (built.status !== 0) continue;
+  const html = readFileSync(built.stdout.trim(), "utf8");
+  const style = styleOf(html);
+  check(`${name}: the page opens its style with the token layer`, flat(style).startsWith(flat(tokens.slice(tokens.indexOf(":root {")).trim())));
+  check(`${name}: the overrides follow the page's own rules`, style.lastIndexOf("--link: #1F4E79;") > style.lastIndexOf("--link: var(--clay-deep);") && style.includes("--sans: Inter, sans-serif;") && style.includes(":root[data-theme=dark] { --link: #9CC3E6; }"));
+  check(`${name}: the logo and its escaped label sit in the bar's first slot`, html.includes(`<div class="rv-bar"><span class="rv-brand"><span class="rv-logo rv-logo-svg" aria-hidden="true">${logo}</span><span class="rv-brand-label">Acme &lt;Maps&gt;</span></span><div class="rv-theme"`));
+  for (const [part, re] of Object.entries(blocks)) {
+    check(`${name}: the page keeps the chrome's ${part} verbatim`, flat(re.exec(html)?.[0]) === flat(re.exec(chromeCopy)?.[0]) && re.test(chromeCopy));
+  }
+  check(`${name}: an override below the contrast floor is dropped`, !style.includes("#FAFAFA") && /notice: light fg: pair fg on bg .*keeping shipped value/.test(built.stderr), built.stderr);
+}
+if (brandedPages.map.status === 0) {
+  const mapCopy = `${work}/map-branded.html`;
+  copyFileSync(brandedPages.map.stdout.trim(), mapCopy);
+  check("map: the branded page passes the interactive profile", verify(mapCopy).status === 0, verify(mapCopy).stdout);
+}
+check("map: a label holding {{ leaves the brand slot out and the page still builds", (() => {
+  const built = build("flow", good, "--branding-option", JSON.stringify({ logo: { label: "Acme {{Labs}}" } }));
+  return built.status === 0 && !readFileSync(built.stdout.trim(), "utf8").includes("rv-brand-label") && /notice: the map view leaves out a logo or label holding/.test(built.stderr);
+})());
+const plain = readFileSync(`${work}/dependencies-good.html`, "utf8");
+check("map: with no branding the page carries no brand slot and no override rules", !plain.includes("rv-brand"));
+check("map: the template defines no palette role or type stack of its own", !/--(?:bg|fg|panel|muted|accent|link|focus|serif|sans|mono)[ \t]*:/.test(template) && !/prefers-color-scheme/.test(template));
+check("an invalid branding option is reported and the page still builds", (() => {
+  const built = build("flow", good, "--branding-option", "{not json");
+  return built.status === 0 && /notice: userConfig branding: invalid JSON/.test(built.stderr);
+})());
 
 process.exit(failed ? 1 : 0);
 NODE

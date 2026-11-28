@@ -5,6 +5,7 @@ import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildView, ViewBuildError } from "../lib/view-builder.mjs";
 import { DeepeningRecordError, parseDeepening, renderDeepening, validateDeepeningPage } from "./deepening-report.mjs";
+import { TOKEN_CSS, pageBranding, resolvePageBranding, withBrand } from "./page-branding.mjs";
 
 const TITLES = {
   landscape: "Landscape",
@@ -80,18 +81,28 @@ const viewData = (kind, record, from) => {
   return { title: `${TITLES[kind]} view`, facts, rows };
 };
 
-const deepeningPage = (record) => {
-  const page = renderDeepening(parseDeepening(record));
+const deepeningPage = (record, branding) => {
+  const page = renderDeepening(parseDeepening(record), branding);
   const checked = validateDeepeningPage(page);
   if (!checked.ok) throw new ViewBuildError(checked.failures);
   return page;
 };
 
+const mapTemplate = (branding) => {
+  const { css, brand } = pageBranding(branding);
+  const slotted = brand.includes("{{") ? "" : brand;
+  if (slotted !== brand) console.error("notice: the map view leaves out a logo or label holding {{, which its builder refuses");
+  const template = readFileSync(fileURLToPath(new URL("../templates/map-view.html", import.meta.url)), "utf8").replace(/\r\n?/g, "\n");
+  return withBrand(template, slotted)
+    .replace("<style>\n", () => `<style>\n${TOKEN_CSS}\n`)
+    .replace("</style>", () => (css ? `${css}\n</style>` : "</style>"));
+};
+
 const [kind, ...rest] = process.argv.slice(2);
 const flags = {};
 for (let i = 0; i < rest.length; i += 2) flags[rest[i]] = rest[i + 1];
-if (!Object.hasOwn(TITLES, kind) || !flags["--record"] || Object.keys(flags).some((flag) => !["--record", "--from"].includes(flag))) {
-  console.error(`usage: build-view.mjs ${Object.keys(TITLES).join("|")} --record <record.json> [--from <node-id>]`);
+if (!Object.hasOwn(TITLES, kind) || !flags["--record"] || Object.keys(flags).some((flag) => !["--record", "--from", "--branding-option"].includes(flag))) {
+  console.error(`usage: build-view.mjs ${Object.keys(TITLES).join("|")} --record <record.json> [--from <node-id>] [--branding-option <user_config.branding>]`);
   process.exit(2);
 }
 
@@ -104,9 +115,11 @@ try {
   }
   if (kind === "deepening" && flags["--from"]) throw new RecordError("--from does not apply to the deepening record");
   if (kind !== "deepening" && (!isObject(record) || record.schema_version !== 1)) throw new RecordError("the record is not a schema_version 1 record");
-  const page = kind === "deepening" ? deepeningPage(record) : buildView({
+  const branding = resolvePageBranding(flags["--branding-option"] ?? null);
+  for (const notice of branding.notices) console.error(`notice: ${notice.text}`);
+  const page = kind === "deepening" ? deepeningPage(record, branding) : buildView({
     profile: "interactive",
-    template: readFileSync(fileURLToPath(new URL("../templates/map-view.html", import.meta.url)), "utf8"),
+    template: mapTemplate(branding),
     data: viewData(kind, record, flags["--from"]),
   });
   const dir = join(tmpdir(), "architecture-views");

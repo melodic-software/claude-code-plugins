@@ -1,11 +1,12 @@
 import { readFileSync } from "node:fs";
-import { escapeHtml } from "../lib/html-escape.mjs";
+import { escapeHtml, styleRefused } from "../lib/html-escape.mjs";
+import { NO_BRANDING, TOKEN_CSS, pageBranding, takeBrandSlot, withBrand } from "./page-branding.mjs";
 
 const TAILWIND = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.5/dist/index.global.js";
 const MERMAID = "https://cdn.jsdelivr.net/npm/mermaid@12.3.0/dist/mermaid.min.js";
 const TAILWIND_SRI = "sha256-LQdTYZ03u0RSdhuHT/xq5kKengUesm9ExayDxzYvx7E=";
 const MERMAID_SRI = "sha256-M234A9h6OLcKAec25mbI92AdLOQvXkfI+v5dchB0uaM=";
-export const CSP = `default-src 'none'; script-src 'unsafe-inline' ${TAILWIND} ${MERMAID}; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'`;
+export const CSP = `default-src 'none'; script-src 'unsafe-inline' ${TAILWIND} ${MERMAID}; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'`;
 
 export const BANDS = [
   ["Strong", "strong", "badge-strong"],
@@ -225,6 +226,9 @@ export function mermaidSource({ direction, nodes, edges }) {
 const CHROME = readFileSync(new URL("../reference/html-chrome.html", import.meta.url), "utf8").replace(/\r\n?/g, "\n");
 const chromePart = (re, name) => re.exec(CHROME)?.[1] ?? fail("html-chrome.html", `has no ${name}`);
 const CHROME_STYLE = chromePart(/<style>\n([\s\S]*?)<\/style>/, "style block");
+const TOKENS_END = /\n {2}:root\[data-theme=dark\] \{[^}]*\}\n/.exec(CHROME_STYLE) ?? fail("html-chrome.html", "has no token rules");
+const CHROME_RULES = CHROME_STYLE.slice(TOKENS_END.index + TOKENS_END[0].length);
+const PAGE_TOKENS = `${TOKEN_CSS.replace(/^/gm, "  ")}\n`;
 const CHROME_BAR = chromePart(/^(<div class="rv-bar">.*<\/div>)$/m, "theme toggle");
 const CHROME_SCRIPT = chromePart(/<script>\n([\s\S]*?)<\/script>/, "toggle script");
 const INLINE_SCRIPT = `${CHROME_SCRIPT}  if (window.mermaid) {
@@ -499,8 +503,9 @@ export function legendLines(report) {
   ];
 }
 
-/** The report page for a record parseDeepening read. */
-export function renderDeepening(report) {
+/** The report page for a record parseDeepening read, carrying a resolved `branding` when one is given. */
+export function renderDeepening(report, branding = NO_BRANDING) {
+  const { css, brand } = pageBranding(branding);
   const titles = new Map(report.candidates.map((candidate) => [candidate.id, candidate.title]));
   const top = report.candidates.find((candidate) => candidate.id === report.top);
   const tally = BANDS.map(([word]) => `${report.candidates.filter((candidate) => candidate.recommendation === word).length} ${word}`).join(", ");
@@ -527,12 +532,12 @@ export function renderDeepening(report) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deepening review: ${esc(report.repo)}</title>
 <style>
-${CHROME_STYLE}${REPORT_STYLE}</style>
+${PAGE_TOKENS}${CHROME_RULES}${REPORT_STYLE}${css ? `${css}\n` : ""}</style>
 ${SCRIPTS[0]}
 ${SCRIPTS[1]}
 </head>
 <body>
-${CHROME_BAR}
+${withBrand(CHROME_BAR, brand)}
 <main>
 <header>
 <h1>Deepening review: ${esc(report.repo)}</h1>
@@ -612,8 +617,11 @@ export function validateDeepeningPage(html) {
   }
   if (/<script|<\/script/i.test(rest)) failures.push("script-extra");
   const styles = [...rest.matchAll(/<style\b[^>]*>([\s\S]*?)(?:<\/style[\s/>]|$)/gi)];
-  if (styles.length !== 1 || /url\(|@import|expression\(|\\/i.test(styles[0][1])) failures.push("style");
+  if (styles.length !== 1 || styleRefused(styles[0][1])) failures.push("style");
   rest = rest.replace(/<style>[\s\S]*?<\/style>/, "");
+  const slot = takeBrandSlot(rest);
+  failures.push(...slot.failures);
+  rest = slot.rest;
   for (const [, body] of rest.matchAll(/<pre class="mermaid">([^<]*)<\/pre>/g)) {
     if (!MERMAID_TEXT.test(unescape(body)) || !/^flowchart (LR|TB)\n/.test(unescape(body))) failures.push("mermaid-source");
   }
