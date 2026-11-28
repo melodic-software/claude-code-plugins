@@ -4098,6 +4098,136 @@ class OneRunSharesItsFailRunReads(unittest.TestCase):
         self.assertEqual(self.run_reads(fake, 2), 1)
 
 
+class RunArtifactsGitHub(FakeGitHub):
+    """The fake GitHub, also answering one run's artifacts and a run still
+    in progress."""
+
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self.running: set[int] = set()
+
+    def rest(self, args, ok, missing, kwargs):  # type: ignore[no-untyped-def]
+        path = next(a for a in args if a.startswith("repos/"))
+        of_run = re.fullmatch(
+            rf"repos/{REPO}/actions/runs/([0-9]+)/artifacts\?per_page=100", path
+        )
+        if of_run:
+            held = [
+                a for a in self.artifacts if a["workflow_run"]["id"] == int(of_run[1])
+            ]
+            return ok({"total_count": len(held), "artifacts": held})
+        ran = re.fullmatch(rf"repos/{REPO}/actions/runs/([0-9]+)", path)
+        if ran and int(ran[1]) in self.running:
+            return ok(run(int(ran[1]), status="in_progress", conclusion=None))
+        return super().rest(args, ok, missing, kwargs)
+
+
+class OneRunSharesARunsFinalArtifacts(unittest.TestCase):
+    """With `BABYSIT_RUN_CACHE` named, the gate processes of one run share,
+    for `run_cache.MAX_AGE`, the artifacts of an index's run that hold a
+    FAIL. A set with no FAIL, completed or still uploading, is read again by
+    every process, since a re-run keeps the run's id."""
+
+    FAILED, DONE = 3, 4
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.fake = RunArtifactsGitHub(
+            [
+                artifact(named(HEAD, "fail", 90), self.FAILED),
+                artifact(f"{ve.INDEX_PREFIX}pr-90", self.FAILED) | {"id": 31},
+                artifact(f"{ve.INDEX_PREFIX}pr-{PR}", self.DONE),
+            ],
+            {self.FAILED: run(self.FAILED), self.DONE: run(self.DONE)},
+        )
+
+    def process(self, run_id: int) -> list[str]:
+        """One gate process's reader asked for the run's artifacts."""
+        with (
+            mock.patch.object(postmerge, "gh_capture", side_effect=self.fake),
+            mock.patch.object(ve.merge_policy, "gh_capture", side_effect=self.fake),
+            mock.patch.object(ve, "gh_api_with_headers", side_effect=_page_with_date),
+        ):
+            reader = ve.Reader(REPO, "main", now=NOW)
+            found = reader._run_artifacts(
+                run_id, ve._listing_clock() + ve.listing_cap()[0]
+            )
+        return sorted(a["name"] for a in found)
+
+    def reads(self, run_id: int) -> tuple[int, int]:
+        """The run's artifact listings and run-record reads so far."""
+        listings = f"repos/{REPO}/actions/runs/{run_id}/artifacts?per_page=100"
+        record = f"repos/{REPO}/actions/runs/{run_id}"
+        return (
+            sum(listings in c for c in self.fake.calls),
+            sum(record in c for c in self.fake.calls),
+        )
+
+    def test_a_run_holding_a_fail_is_listed_once_per_run(self) -> None:
+        first = self.process(self.FAILED)
+        self.assertEqual(self.reads(self.FAILED), (1, 0), "first process reads it")
+        self.assertEqual(self.process(self.FAILED), first)
+        self.assertEqual(self.reads(self.FAILED), (1, 0), "second process reads none")
+        self.assertIn(named(HEAD, "fail", 90), first)
+
+    def test_a_completed_run_without_a_fail_is_read_by_every_process(self) -> None:
+        first = self.process(self.DONE)
+        self.assertEqual(self.reads(self.DONE), (2, 1), "read, run record, re-read")
+        self.assertEqual(self.process(self.DONE), first)
+        self.assertEqual(self.reads(self.DONE), (4, 2), "second process reads again")
+        self.assertEqual(first, [f"{ve.INDEX_PREFIX}pr-{PR}"])
+
+    def test_a_fail_a_re_run_uploads_reaches_the_next_process(self) -> None:
+        self.process(self.DONE)
+        late = named(HEAD, "fail", 91)
+        self.fake.artifacts.append(artifact(late, self.DONE) | {"id": 41})
+        self.assertIn(late, self.process(self.DONE), "same run id, new FAIL")
+
+    def test_a_judgment_notes_when_its_run_artifacts_were_read(self) -> None:
+        read_at = datetime(2026, 10, 18, 11, 58, 30, tzinfo=UTC)
+        clock = [read_at]
+        with mock.patch.object(ve.run_cache, "now", side_effect=lambda: clock[0]):
+            with ve.run_cache.track() as fresh:
+                self.process(self.FAILED)
+            clock[0] += timedelta(seconds=90)
+            with ve.run_cache.track() as shared:
+                self.process(self.FAILED)
+        self.assertEqual(self.reads(self.FAILED), (1, 0), "second process reads none")
+        self.assertEqual(fresh, [read_at], "a fresh read notes when it began")
+        self.assertEqual(shared, [read_at], "a shared read notes when it was read")
+
+    def test_a_run_still_uploading_is_read_again_by_the_next_process(self) -> None:
+        self.fake.running.add(self.DONE)
+        with self.assertRaises(ve._Unreadable):
+            self.process(self.DONE)
+        self.assertEqual(self.reads(self.DONE), (1, 1), "no re-read while running")
+        self.fake.running.clear()
+        self.process(self.DONE)
+        self.assertEqual(self.reads(self.DONE), (3, 2), "nothing was shared")
+
+    def test_a_listing_older_than_the_bound_is_read_again(self) -> None:
+        clock = [datetime(2026, 10, 18, 12, 0, tzinfo=UTC)]
+        with mock.patch.object(ve.run_cache, "now", side_effect=lambda: clock[0]):
+            self.process(self.FAILED)
+            clock[0] += ve.run_cache.MAX_AGE + timedelta(seconds=1)
+            self.process(self.FAILED)
+        self.assertEqual(self.reads(self.FAILED), (2, 0))
+
+    def test_no_run_cache_reads_in_every_process(self) -> None:
+        with mock.patch.dict("os.environ"):
+            os.environ.pop(ve.run_cache.ENV)
+            for _ in range(2):
+                self.process(self.FAILED)
+                self.process(self.DONE)
+        self.assertEqual(self.reads(self.FAILED), (2, 0))
+        self.assertEqual(self.reads(self.DONE), (4, 2))
+
+
 class ACarriedHeadServesOnlyAFail(unittest.TestCase):
     """A run head an earlier pr-merge run found on main reaches this run's
     cache as `carried-on-branch` (carry-run-cache.mjs). Only a FAIL's run may
@@ -8567,6 +8697,104 @@ class AFailJudgedFromADraftRunCountsAsNone(unittest.TestCase):
                 self.assertEqual(read(fake).refusal, "verify:fail")
 
 
+class OneRunSharesADraftJudgmentReadWhole(unittest.TestCase):
+    """Two gate processes of one pr-merge run judging the same FAIL at the
+    head: the second lists no checks runs, reads no jobs and no verifier run
+    when the first judged it from whole reads. A judgment cut short by a
+    failed read is judged again by the next process, and with no run cache
+    named every process reads as before."""
+
+    def setUp(self) -> None:
+        self.dir = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(mock.patch.dict(os.environ, {}))
+        self.runs = 0
+
+    def new_run(self) -> None:
+        self.runs += 1
+        os.environ[run_cache.ENV] = str(self.dir / f"run-{self.runs}.json")
+
+    @staticmethod
+    def reads(fake: FakeGitHub) -> tuple[int, int, int]:
+        joined = [" ".join(c) for c in fake.calls]
+        return (
+            sum("/pr-require-checks.yml/runs?head_sha=" in c for c in joined),
+            sum("/jobs?filter=latest" in c for c in joined),
+            sum(c.endswith(f"repos/{REPO}/actions/runs/2") for c in joined),
+        )
+
+    def two_processes(
+        self, fake: FakeGitHub, refusal: str | None
+    ) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+        self.assertEqual(read(fake).refusal, refusal, "first process")
+        first = self.reads(fake)
+        fake.calls.clear()
+        self.assertEqual(read(fake).refusal, refusal, "second process")
+        return first, self.reads(fake)
+
+    def test_a_draft_judgment_is_read_once_per_run(self) -> None:
+        fail_at = AFailJudgedFromADraftRunCountsAsNone.fail_at
+        for label, jobs, refusal in (
+            ("judged a draft", DRAFT_JOBS, None),
+            ("judged a ready run", READY_JOBS, "verify:fail"),
+        ):
+            with self.subTest(label):
+                self.new_run()
+                fake = draft_race(fail_at(HEAD), HEAD, jobs)
+                first, second = self.two_processes(fake, refusal)
+                self.assertEqual(first, (1, 1, 1), "first process reads")
+                self.assertEqual(second, (0, 0, 0), "second process reads")
+
+    def test_a_judgment_cut_short_is_judged_again(self) -> None:
+        fail_at = AFailJudgedFromADraftRunCountsAsNone.fail_at
+        def listed_short(fake: FakeGitHub) -> None:
+            fake.checks_total[HEAD] = 3
+
+        def verifier_creation_unreadable(fake: FakeGitHub) -> None:
+            fake.runs[2]["created_at"] = "not a time"
+
+        def checks_creation_unreadable(fake: FakeGitHub) -> None:
+            fake.checks_runs[HEAD].append(
+                {"id": 41273000002, "created_at": "not a time"}
+            )
+
+        def checks_id_not_an_integer(fake: FakeGitHub) -> None:
+            fake.checks_runs[HEAD].append(
+                {"id": "41273000003", "created_at": "2026-11-01T04:25:00Z"}
+            )
+
+        def unchanged(fake: FakeGitHub) -> None:
+            pass
+
+        cases = [
+            (label, jobs, unchanged) for label, jobs in UNREADABLE_DRAFT_STATE.items()
+        ]
+        cases += [
+            (change.__name__, DRAFT_JOBS, change)
+            for change in (
+                listed_short,
+                verifier_creation_unreadable,
+                checks_creation_unreadable,
+                checks_id_not_an_integer,
+            )
+        ]
+        for label, jobs, change in cases:
+            with self.subTest(label):
+                self.new_run()
+                fake = draft_race(fail_at(HEAD), HEAD, jobs)
+                change(fake)
+                first, second = self.two_processes(fake, "verify:fail")
+                self.assertEqual(second[0], 1, "second process lists again")
+                self.assertEqual(second[:2], first[:2], "jobs read again")
+
+    def test_with_no_run_cache_every_process_reads(self) -> None:
+        os.environ.pop(run_cache.ENV, None)
+        fail_at = AFailJudgedFromADraftRunCountsAsNone.fail_at
+        fake = draft_race(fail_at(HEAD), HEAD)
+        first, second = self.two_processes(fake, None)
+        self.assertEqual(first, (1, 1, 1), "first process reads")
+        self.assertEqual(second, (1, 1, 1), "second process reads")
+
+
 class EvidenceCommandTakesWhatTheQueueJobHolds(unittest.TestCase):
     """ci-status's merge-queue step runs `evidence --base-sha` with the
     default branch from the event (`merge_policy.DEFAULT_BRANCH_ENV`) and the
@@ -8740,6 +8968,26 @@ class TheTrustedListMustBeTheJudgedOne(unittest.TestCase):
             self.refusal(LIST_V1, copy=None, changed="2026-10-20T00:00:00Z"), ve.SPEC_CHANGED
         )
         self.assertEqual(self.refusal(LIST_V1, copy=None, changed=RUN_STARTED), ve.SPEC_CHANGED)
+
+    def test_a_copy_the_tip_checkout_lacks_reads_no_contents_for_it(self) -> None:
+        copy_reads = (
+            f"repos/{REPO}/contents/{ve.TRUSTED_ACTORS_PATH}?ref={MAIN_SHA}",
+            f"repos/{REPO}/contents?ref={MAIN_SHA}",
+        )
+        for lacks, expected_reads in ((True, []), (False, list(copy_reads))):
+            with self.subTest(lacks=lacks):
+                fake = passing()
+                fake.records[named(HEAD, "pass")] = record()
+                fake.team_yaml, fake.actors, fake.standards_actors = OPTED_IN, None, LIST_V1
+                fake.standards_list_changed = "2026-10-20T00:00:00Z"
+                with (
+                    mock.patch.object(policy, "_STANDARDS_SHA", {}),
+                    mock.patch.object(policy, "_STANDARDS_TEXT", {}),
+                    mock.patch.object(policy, "checkout_lacks", return_value=lacks),
+                ):
+                    self.assertEqual(read(fake).refusal, ve.SPEC_CHANGED)
+                reads = [c[-1] for c in fake.calls if c[-1] in copy_reads]
+                self.assertEqual(reads, expected_reads)
 
     def test_a_repository_that_does_not_opt_in_compares_no_blob(self) -> None:
         stale = ve.git_blob(json.dumps(LIST_V2).encode())

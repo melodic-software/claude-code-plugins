@@ -5798,8 +5798,10 @@ jobs:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
-          REVIEW_WAIT_SECONDS: ${{ (steps.draft_rerun.outputs.ready != 'true' && github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && '0' || '480' }}
+          REVIEW_WAIT_SECONDS: ${{ (steps.draft_rerun.outputs.ready != 'true' && github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && '0' || '900' }}
           REVIEW_POLL_SECONDS: 60
+          REVIEW_JOB_SECONDS: 1800
+          REVIEW_STOP_MARGIN_SECONDS: 240
           FORMATTER_PROOF: ${{ needs.prove-formatting.outputs.proof }}
           PROOF_HEAD: ${{ needs.prove-formatting.outputs.head }}
         run: |
@@ -6235,7 +6237,9 @@ jobs:
           # pr-dispatch-feedback's rerun-ci-status (2 to 6 minutes later, #12447),
           # the step polls each lane whose run on the head has not completed,
           # every REVIEW_POLL_SECONDS for at most REVIEW_WAIT_SECONDS, ending
-          # 120 s before gh_read's deadline, reading that run once a poll. A
+          # REVIEW_STOP_MARGIN_SECONDS before the job's timeout
+          # (REVIEW_JOB_SECONDS from the job's start, which the gh_read
+          # deadline file fixes), reading that run once a poll. A
           # lane with no run is not waited for: the push that made the head
           # creates its review runs before this job starts, so one missing now
           # rarely comes. The wait decides nothing: the loop after it reads
@@ -6247,8 +6251,9 @@ jobs:
           # Each read after a lane's first sends If-None-Match with the ETag
           # of its last 200; a 304 is that same unfinished run, which GitHub
           # does not count against the rate limit.
-          poll=${REVIEW_POLL_SECONDS:-60} polls=$((${REVIEW_WAIT_SECONDS:-480} / ${REVIEW_POLL_SECONDS:-60}))
-          stop_at=$(($(cat "$RUNNER_TEMP/gh-read.deadline" 2>/dev/null || echo 120) - 120))
+          poll=${REVIEW_POLL_SECONDS:-60} polls=$((${REVIEW_WAIT_SECONDS:-900} / ${REVIEW_POLL_SECONDS:-60}))
+          started=$(($(cat "$RUNNER_TEMP/gh-read.deadline" 2>/dev/null || echo 0) - GH_READ_JOB_SECONDS + GH_READ_MARGIN_SECONDS))
+          stop_at=$((started + REVIEW_JOB_SECONDS - REVIEW_STOP_MARGIN_SECONDS))
           declare -A waiting=() etags=()
           while [ "$polls" -gt 0 ] && read -r file lane checks; do
             run=$(lane_run "$HEAD_SHA") || { waiting=(); break; }

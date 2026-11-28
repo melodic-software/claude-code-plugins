@@ -1,5 +1,5 @@
 ---
-description: "Recheck bundled multi-agent role defaults against upstream pointers (`defaults`), sweep repository model/effort/subagent/workflow prose (`repo`), or recheck benchmark registry rows for reachability, dates, coverage and current-model testing (`registry`) with a proposed diff to the shipped benchmark registry. Proposes only; never edits a file in its default modes (an explicit apply request in registry mode opens a PR in the marketplace repository only). Use when: 'are the routing defaults current', 'audit the role map', 'recheck model defaults', 'recheck the benchmark registry', 'audit benchmark sources', 'did the workflow guidance change', or 'new model released, check the defaults'."
+description: "Audit bundled multi-agent role defaults vs upstream pointers (`defaults`), repo workflow guidance (`repo`), or benchmark registry sources (`registry`); proposes only, never edits in default modes (explicit `registry` apply opens a marketplace PR only). Use when: 'audit the role map', 'are the routing defaults current', 'recheck model defaults'."
 argument-hint: "[<role>|fanout|repo|registry]"
 user-invocable: true
 disable-model-invocation: false

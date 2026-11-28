@@ -3,6 +3,32 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.3.5] - 2026-11-28
+
+### Changed
+
+- The babysit-prs verdict reader reads the standards trusted-actor list from the job's standards checkout when that checkout holds the same commit the API read would use, and skips the contents probe for a `.github/standards/` copy the tip checkout shows absent.
+
+## [15.3.4] - 2026-11-28
+
+### Changed
+
+- babysit-prs: the gate processes of one pr-merge run share a draft-run judgment of a FAIL (the checks-run listing, verifier run and jobs reads) through the run cache, so only the first process reads them; an answer cut short by a failed read is not shared.
+
+## [15.3.3] - 2026-11-28
+
+### Changed
+
+- `worktree-include.sh diff` compares carried files against the main checkout with two batched `git hash-object` calls in place of one `cmp` per file, in the default diff and in the `--worktree-only` check of a worktree with no carried manifest. Rows and exit codes are unchanged; it falls back to `cmp` when the two repositories use different object formats or a file changes during the run.
+
+- The babysit-prs verdict reader shares a FAIL index's run artifacts across one pr-merge run's gate processes (`BABYSIT_RUN_CACHE`, section `run-artifacts`, for `run_cache.MAX_AGE`) when the set holds a FAIL, noting when it was read. A set with no FAIL is read by every process, since a re-run keeps the run's id. One Merge job made 40 `runs/{id}/artifacts` reads, none shared.
+
+## [15.3.2] - 2026-11-28
+
+### Changed
+
+- The shared hook library's physical-path cache answers a lookup in the order its paths were primed from the next slot, and rules out an uncached path with one string match, so a plugins sync read no longer rescans the cache for every catalog entry; results are unchanged.
+
 ## [15.3.1] - 2026-11-28
 
 ### Changed

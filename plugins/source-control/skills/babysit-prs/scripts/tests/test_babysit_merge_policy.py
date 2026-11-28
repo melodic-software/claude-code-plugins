@@ -11728,6 +11728,114 @@ class ConfigFromTheBaseCheckout(unittest.TestCase):
         self.assertIsNone(policy.checkout_file_at(policy.CONFIG_PATH, SHA))
         self.assertIsNone(policy.checkout_file_at(policy.CONFIG_PATH, "main"))
 
+    def test_a_checkout_lacks_only_a_path_absent_from_its_head_tree(self) -> None:
+        sha = self.commit({policy.CONFIG_PATH: PIPELINE})
+        self.assertTrue(policy.checkout_lacks("absent.json", sha))
+        self.assertFalse(policy.checkout_lacks(policy.CONFIG_PATH, sha))
+        self.assertFalse(policy.checkout_lacks("absent.json", SHA))
+        with mock.patch.dict(os.environ, {policy.CONFIG_CHECKOUT_ENV: ""}):
+            self.assertFalse(policy.checkout_lacks("absent.json", sha))
+
+    def test_a_sparse_partial_clone_lacks_only_what_its_tree_lacks(self) -> None:
+        sha = self.commit({policy.CONFIG_PATH: PIPELINE, TEAM_YAML: SOURCE_CONTROL})
+        self.git(self.checkout, "config", "uploadpack.allowFilter", "true")
+        clone = self.checkout.parent / "sparse"
+        self.git(
+            self.checkout.parent, "clone", "-q", "--depth", "1", "--filter=blob:none",
+            "--sparse", f"file://{self.checkout}", str(clone),
+        )  # fmt: skip
+        self.git(clone, "sparse-checkout", "set", "--no-cone", f"/{policy.CONFIG_PATH}")
+        with mock.patch.dict(os.environ, {policy.CONFIG_CHECKOUT_ENV: str(clone)}):
+            self.assertFalse(policy.checkout_lacks(TEAM_YAML, sha))
+            self.assertTrue(policy.checkout_lacks(policy.TRUSTED_ACTORS_PATH, sha))
+
+
+class StandardsFromTheJobCheckout(unittest.TestCase):
+    """`standards_file` reads the standards file from the job's standards
+    checkout (`STANDARDS_CHECKOUT_ENV`) only when its HEAD is the commit the
+    API read would use (`standards_sha`); a file the checkout lacks, another
+    commit or no checkout reads through the contents API as before."""
+
+    LISTED = '{"version": 1, "actors": [{"id": 7, "login": "octo", "kind": "user"}]}\n'
+    CRLF_PATH = "crlf.json"
+    CRLF = '{"version": 1,\r\n "actors": []}\r\n'
+
+    def setUp(self) -> None:
+        standards_cleared(self)
+        tmp = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.checkout = tmp / "standards"
+        listed = self.checkout / policy.STANDARDS_TRUSTED_ACTORS
+        listed.parent.mkdir(parents=True)
+        listed.write_text(self.LISTED)
+        (self.checkout / self.CRLF_PATH).write_bytes(self.CRLF.encode())
+        env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+        for args in (["init", "-q"], ["add", "-A"],
+                     ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false",
+                      "commit", "-q", "-m", "standards"]):  # fmt: skip
+            subprocess.run(["git", "-C", str(self.checkout), *args], check=True, env=env)
+        self.sha = subprocess.run(
+            ["git", "-C", str(self.checkout), "rev-parse", "HEAD"],
+            check=True, capture_output=True, text=True, env=env,
+        ).stdout.strip()  # fmt: skip
+        self.enterContext(
+            mock.patch.dict(
+                os.environ,
+                {policy.STANDARDS_CHECKOUT_ENV: str(self.checkout), policy.CONFIG_CHECKOUT_ENV: ""},
+            )
+        )
+        self.gh = GhFake().install(self)
+
+    def contents(self, path: str, sha: str) -> str:
+        return f"repos/{STANDARDS_REPO}/contents/{path}?ref={sha}"
+
+    def test_the_list_at_the_checkout_head_reads_no_contents(self) -> None:
+        policy._STANDARDS_SHA[STANDARDS_REPO] = self.sha
+        text = policy.standards_file(STANDARDS_REPO, policy.STANDARDS_TRUSTED_ACTORS)
+        self.assertEqual(text, self.LISTED)
+        self.assertEqual(self.gh.calls, [])
+
+    def test_a_crlf_file_reads_byte_for_byte_as_the_contents_api_reads_it(self) -> None:
+        policy._STANDARDS_SHA[STANDARDS_REPO] = self.sha
+        local = policy.standards_file(STANDARDS_REPO, self.CRLF_PATH)
+        self.assertEqual(self.gh.calls, [])
+        endpoint = self.contents(self.CRLF_PATH, self.sha)
+        self.gh.rest[endpoint] = file_payload(self.CRLF)
+        api = policy._file_at(*STANDARDS_REPO.split("/"), self.CRLF_PATH, self.sha)
+        self.assertEqual((local, api), (self.CRLF, self.CRLF))
+        blob = subprocess.run(
+            ["git", "-C", str(self.checkout), "hash-object", "--stdin"],
+            input=local.encode(), check=True, capture_output=True,
+        ).stdout.decode().strip()  # fmt: skip
+        committed = subprocess.run(
+            ["git", "-C", str(self.checkout), "rev-parse", f"HEAD:{self.CRLF_PATH}"],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()  # fmt: skip
+        self.assertEqual(blob, committed)
+
+    def test_a_file_the_checkout_lacks_reads_the_contents_api(self) -> None:
+        policy._STANDARDS_SHA[STANDARDS_REPO] = self.sha
+        endpoint = self.contents("components/other.json", self.sha)
+        self.gh.rest[endpoint] = file_payload("{}\n")
+        self.assertEqual(policy.standards_file(STANDARDS_REPO, "components/other.json"), "{}\n")
+        self.assertEqual(self.gh.calls, [["api", endpoint]])
+
+    def test_another_standards_commit_reads_the_contents_api(self) -> None:
+        policy._STANDARDS_SHA[STANDARDS_REPO] = STANDARDS_SHA
+        endpoint = self.contents(policy.STANDARDS_TRUSTED_ACTORS, STANDARDS_SHA)
+        self.gh.rest[endpoint] = file_payload('{"version": 1, "actors": []}\n')
+        text = policy.standards_file(STANDARDS_REPO, policy.STANDARDS_TRUSTED_ACTORS)
+        self.assertEqual(text, '{"version": 1, "actors": []}\n')
+        self.assertEqual(self.gh.calls, [["api", endpoint]])
+
+    def test_no_standards_checkout_reads_the_contents_api(self) -> None:
+        policy._STANDARDS_SHA[STANDARDS_REPO] = self.sha
+        endpoint = self.contents(policy.STANDARDS_TRUSTED_ACTORS, self.sha)
+        self.gh.rest[endpoint] = file_payload(self.LISTED)
+        with mock.patch.dict(os.environ, {policy.STANDARDS_CHECKOUT_ENV: ""}):
+            text = policy.standards_file(STANDARDS_REPO, policy.STANDARDS_TRUSTED_ACTORS)
+        self.assertEqual(text, self.LISTED)
+        self.assertEqual(self.gh.calls, [["api", endpoint]])
+
 
 class DefaultBranchFromTheEvent(unittest.TestCase):
     """`DEFAULT_BRANCH_ENV` answers `_default_branch` for the run's own
