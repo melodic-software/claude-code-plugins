@@ -1,5 +1,5 @@
 ---
-description: "Plain-language explanation of a concept, code, error, architecture or the previous assistant response: a concrete analogy and no jargon first, higher altitude (high-school, then peer level) only on request. Use when the user says 'I don't understand this', 'I don't get it', 'what does this actually do', 'what does this mean', 'explain simply' or 'rephrase that'; with no argument it explains the previous assistant response. A faithful restructure is /adhd:clarify (if installed), a diagram or ELI5 is /education:illustrate, multi-session coaching is /education:teach."
+description: "Plain-language explanation/rephrase (concept, code, error, architecture, or last reply; no arg): analogy, no jargon first; high-school/peer on request. Use when: 'I don't understand this', 'what does this actually do', 'explain simply'. Not for restructures: /adhd:clarify (if installed), diagrams: /education:illustrate, coaching: /education:teach."
 argument-hint: "[thing to explain]"
 user-invocable: true
 disable-model-invocation: false

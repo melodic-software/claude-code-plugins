@@ -40,7 +40,7 @@ usage() {
 Usage: work-item-tracker.sh <verb> [args]
 Verbs:
   create-item --title <t> [--body <b> | --body-file <path>] [--labels a,b]
-              [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <owner>/<repo>]
+              [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--native-status <name>] [--repo <owner>/<repo>]
   get-item <id> [--history]
   claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>] [--holder <h>] [--lease-only]
         [--phase triage|discovery|implementation]
@@ -57,6 +57,7 @@ Verbs:
   list-frontier [--autonomous] [--parent <container-id>] [--repo <owner>/<repo>] [--label <name>]
   label-provenance <id> --label <name> [--label <name> ...]
   set-fields <id> --field <field-id>=<option-id> [--field <field-id>=<option-id> ...]
+  set-native-status <id> --status <name>
   get-field-options --field <name-or-id> [--repo <owner>/<repo>]
   get-statuses --field <name> <id>...
   status-storage [--repo <owner>/<repo>]
@@ -226,7 +227,7 @@ main() {
 
   local adapter_verb="$verb"
   case "$verb" in
-  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | label-provenance | set-fields | get-field-options | get-statuses | change-link | add-recurrence | put-artifact | list-artifacts | get-artifact | link-relates | unlink-relates | list-relates | capabilities) ;;
+  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | label-provenance | set-fields | set-native-status | get-field-options | get-statuses | change-link | add-recurrence | put-artifact | list-artifacts | get-artifact | link-relates | unlink-relates | list-relates | capabilities) ;;
   list-items | status-storage) ;;
   list-frontier)
     adapter_verb="list-items"
@@ -408,7 +409,7 @@ main() {
         body_file="$2"
         shift 2
         ;;
-      --title | --body | --labels | --type | --parent | --blocked-by | --repo)
+      --title | --body | --labels | --type | --parent | --blocked-by | --native-status | --repo)
         [[ "$1" == "--body" ]] && has_body="true"
         ci_args+=("$1")
         shift

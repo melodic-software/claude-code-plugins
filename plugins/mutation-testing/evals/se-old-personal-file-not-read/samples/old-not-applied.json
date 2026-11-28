@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| Config presence | INFO | No canonical config layers (`docs/conventions/mutation-testing.yaml` or `.local.yaml`) found; fallback defaults apply (old `.claude/mutation-testing.local.md` is not read). |",
+      "why": "ignores old file, keeps defaults, no dual-read warning"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "WARN: old personal override .claude/mutation-testing.local.md; move it to docs/conventions/mutation-testing.local.yaml with /mutation-testing:setup apply local\nOperators: narrow (from .claude/mutation-testing.local.md)",
+      "why": "still reads old file and prints dual-read WARN"
+    }
+  ]
+}

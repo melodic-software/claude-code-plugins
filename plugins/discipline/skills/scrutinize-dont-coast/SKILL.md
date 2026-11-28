@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor adversarial self-scrutiny: stop coasting on recent output, re-examine whether it is sound (not merely confident) in a fresh-context pass blind to its reasoning, and remediate with the user. Use when: 'scrutinize don't coast', 'wait, stop', 'are you sure about this', 'second-guess this', 'poke holes in what you just did', \"you're steamrolling\", 'push back on yourself', with an optional focus, or at conversation start to set the posture."
+description: "Re-anchor adversarial self-scrutiny: stop coasting on recent output, re-examine soundness in a fresh-context blind pass, and remediate with user (optional focus). Use when 'scrutinize don't coast', 'are you sure about this', 'poke holes in what you just did', second-guess, or at conversation start."
 user-invocable: true
 disable-model-invocation: false
 metadata:

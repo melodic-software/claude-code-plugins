@@ -368,8 +368,8 @@ reads the file itself, through a script where the key names one below.
   [stuck-checks.md](../skills/babysit-prs/reference/stuck-checks.md#routing-never-auto-fix) and
   [safety.md](../skills/babysit-prs/reference/safety.md) say.
 - `trusted_actors_source` and `standards_repository`: where `/source-control:babysit-prs`, the pr-merge lane gate
-  (`babysit_merge_policy.py`, `babysit_verify_evidence.py`, `babysit_merge_skip.py`) and the
-  `ready` hold check (`check-ready-holds.sh`) read the trusted-actors list and the Dependabot
+  (`babysit_merge_policy.py`, `babysit_verify_evidence.py`, `babysit_merge_skip.py`) read the
+  trusted-actors list and the Dependabot
   policy. `trusted_actors_source: standards` reads
   `components/trusted-actors/trusted-actors.json` from the `owner/repo` that
   `standards_repository` names, through the contents API, at the one commit its `main` names when

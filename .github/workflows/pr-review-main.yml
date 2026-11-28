@@ -10,7 +10,10 @@ on:
 permissions: {}
 
 concurrency:
-  group: pr-review-main-${{ github.event.workflow_run.pull_requests[0].number || 'none' }}-${{ github.event.workflow_run.head_sha }}
+  group: >-
+    ${{ github.event.workflow_run.conclusion == 'cancelled'
+    && format('pr-review-main-upstream-cancelled-{0}', github.run_id)
+    || format('pr-review-main-{0}-{1}', github.event.workflow_run.pull_requests[0].number || 'none', github.event.workflow_run.head_sha) }}
   cancel-in-progress: false
 
 defaults:

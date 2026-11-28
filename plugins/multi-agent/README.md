@@ -157,9 +157,7 @@ refused). Keys, values, team rows and layering:
 [`reference/config.md`](reference/config.md); where each file lives:
 [config locations](reference/config-locations.md).
 
-An old `~/.claude/multi-agent.yaml` or `.claude/multi-agent.local.yaml` is still read while its new
-file is absent, and each run warns about it; `/multi-agent:setup apply --migrate` moves it and
-deletes the old file.
+Old `~/.claude/multi-agent.yaml` and `.claude/multi-agent.local.yaml` files are not read.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -170,7 +168,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `role_map_file` | file | *(none)* | Path to your own role map file, the layer that applies in every repository, under the team file and your personal override. Same keys as the team file. Unset: no user layer. /multi-agent:setup apply --layer user writes it; apply --migrate moves an old ~/.claude/multi-agent.yaml into it. |
+| `role_map_file` | file | *(none)* | Path to your own role map file, the layer that applies in every repository, under the team file and your personal override. Same keys as the team file. Unset: no user layer. /multi-agent:setup apply --layer user writes it. |
 
 ### How to set these
 

@@ -78,11 +78,11 @@ function searchApi({ open = [], merged = 0, admitted = 0, queued = [], incomplet
 const read = (answers, extra = {}) => readLaneWip(searchApi(answers).github, { repo: REPO, now: NOW, windowHours: 24, ...extra });
 const status = (reads, wip = {}, limits = LIMITS) => wipStatus(reads, { limits, wip: { ...WIP, ...wip }, now: NOW });
 
-test("each hold signal holds a PR: needs-human, do-not-merge, or the exact hold line in the body", () => {
+test("each hold label holds a PR: needs-human or do-not-merge; the body holds nothing", () => {
   assert.equal(isHeld(pr({ labels: ["needs-human"] })), true);
   assert.equal(isHeld(pr({ labels: ["do-not-merge"] })), true);
-  assert.equal(isHeld(pr({ body: "Refs: #8211\nHold: a human merges this\n\n## Summary" })), true);
-  assert.equal(isHeld(pr({ body: "Refs: #8211\r\nHold: a human merges this\r\n" })), true);
+  assert.equal(isHeld(pr({ body: "Refs: #8211\nHold: a human merges this\n\n## Summary" })), false);
+  assert.equal(isHeld(pr({ labels: ["do-not-merge"], body: "Refs: #8211\r\n" })), true);
 });
 
 test("a hold label holds a PR in any case", () => {
@@ -336,7 +336,7 @@ test("no read is made once the rate limit has nothing left; those reads are unkn
 });
 
 test("countable PRs are the open ones not held; held ones are counted apart", async () => {
-  const open = [pr(), pr(), pr({ labels: ["needs-human"] }), pr({ labels: ["do-not-merge"] }), pr({ body: "Hold: a human merges this" })];
+  const open = [pr(), pr(), pr({ labels: ["needs-human"] }), pr({ labels: ["do-not-merge"] }), pr({ labels: ["do-not-merge"], body: "Refs: #1" })];
   const result = status(await read({ open, merged: 24 }));
   assert.equal(result.countable_lane_prs, 2);
   assert.equal(result.held_lane_prs, 3);
@@ -440,7 +440,7 @@ test("blocker reads skip issues a lane PR names, stop at BLOCKER_READS, and a fa
 test("queued work is the agent-ready issues no open lane PR names first, plus the held lane PRs", async () => {
   const open = [
     pr({ body: "Closes #1\n\n## Summary" }),
-    pr({ body: "Refs: #2\r\nHold: a human merges this" }),
+    pr({ labels: ["do-not-merge"], body: "Refs: #2\r\n" }),
     pr({ body: "Closes #99" }),
     pr({ body: "## Summary\nCloses #3" }),
     pr({ labels: ["needs-human"], body: "Closes #4x" }),
@@ -558,7 +558,7 @@ test("a held PR older than the alarm age raises the alarm; the oldest age is rep
   assert.equal(young.held_over_alarm_count, 0);
   assert.equal(young.held_alarm, false);
   assert.equal(young.held_oldest_age_hours, 23.5);
-  const old = status(await read({ open: [pr({ labels: ["needs-human"], ageHours: 30 }), pr({ body: "Hold: a human merges this", ageHours: 25 }), pr({ ageHours: 99 })], merged: 100 }));
+  const old = status(await read({ open: [pr({ labels: ["needs-human"], ageHours: 30 }), pr({ labels: ["do-not-merge"], ageHours: 25 }), pr({ ageHours: 99 })], merged: 100 }));
   assert.equal(old.held_over_alarm_count, 2);
   assert.equal(old.held_oldest_age_hours, 30);
   assert.equal(old.held_alarm, true);
@@ -919,7 +919,7 @@ test("pause reads decide capped, the pause reason and its basis as full reads do
     { open: [pr()], merged: 24 },
     { open: Array.from({ length: 25 }, () => pr()), merged: 24 },
     { open: Array.from({ length: 10 }, () => pr({ labels: ["needs-human"], ageHours: 30 })), merged: 24 },
-    { open: [...Array.from({ length: 25 }, () => pr()), ...Array.from({ length: 10 }, () => pr({ body: "Hold: a human merges this" }))], merged: 24 },
+    { open: [...Array.from({ length: 25 }, () => pr()), ...Array.from({ length: 10 }, () => pr({ labels: ["do-not-merge"] }))], merged: 24 },
     { open: Array.from({ length: 25 }, () => pr()), merged: failed },
     { open: failed, merged: 24 },
     { open: [pr()], merged: 24, incomplete: true },

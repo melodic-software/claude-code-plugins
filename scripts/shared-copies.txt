@@ -683,6 +683,10 @@ lib/html-tokens.css plugins/event-storming/reference/html-tokens.css
 lib/html-tokens.css plugins/harness-ops/reference/html-tokens.css
 lib/html-tokens.css plugins/knowledge/reference/html-tokens.css
 lib/html-tokens.css plugins/review/reference/html-tokens.css
+lib/html-tokens.css plugins/visualization/reference/html-tokens.css
+lib/html-tokens.css plugins/adhd/reference/html-tokens.css
+lib/html-branding.mjs plugins/visualization/lib/html-branding.mjs
+lib/html-branding.mjs plugins/adhd/lib/html-branding.mjs
 lib/html-tokens.css plugins/debugging/reference/html-tokens.css
 lib/html-tokens.css plugins/discovery/reference/html-tokens.css
 lib/html-tokens.css plugins/machine-health/reference/html-tokens.css

@@ -134,8 +134,16 @@ if [[ "$lease_only" == false ]]; then
 fi
 
 trap - EXIT
+native_status=""
+if [[ -z "$phase" || "$phase" == "implementation" ]]; then
+  if wit_gh_try_set_native_status "$owner" "$repo" "$number" "In progress"; then
+    native_status="$WIT_GH_NATIVE_STATUS_WRITTEN"
+  fi
+fi
 jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg id "$id" --arg holder "$login" \
   --arg now "$now" --arg ttl "$ttl" --arg cid "$our_comment_id" --arg sid "$session_id" \
+  --arg ns "$native_status" \
   '{schema_version: $sv, id: $id, holder: $holder, acquired_at: $now, renewed_at: $now,
     ttl_hours: ($ttl | tonumber), lease_comment_id: ($cid | tonumber),
-    session_id: (if $sid != "" then $sid else null end)}'
+    session_id: (if $sid != "" then $sid else null end),
+    native_status: (if $ns != "" then $ns else null end)}'

@@ -1,5 +1,5 @@
 ---
-description: "Verify and configure the codebase-health plugin for this repository. check inspects the audit-dimension config read-only across its layers (the dimensions_file userConfig option, the tracked team codebase-health.md in the convention home, the personal override), and reports presence, dimension source lists and tracked-not-ignored; apply interviews the user, infers audit targets from the repo layout, and writes the team file. Use when: 'set up codebase-health', 'is codebase-health configured', 'configure the audit', 'codebase-health setup', the audit skill reports missing or thin config, or audit dimensions need tuning. Re-runnable. Safe to invoke again to reconfigure."
+description: "Check (read-only) or apply codebase-health audit-dimension config across userConfig, convention-home codebase-health.md, and personal override."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true

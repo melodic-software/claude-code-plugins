@@ -1,0 +1,37 @@
+[
+  {
+    "id": 2,
+    "name": "Backlog",
+    "category": "backlog"
+  },
+  {
+    "id": 3,
+    "name": "Todo",
+    "category": "planned"
+  },
+  {
+    "id": 4,
+    "name": "In progress",
+    "category": "started"
+  },
+  {
+    "id": 8,
+    "name": "In review",
+    "category": "started"
+  },
+  {
+    "id": 5,
+    "name": "Done",
+    "category": "completed"
+  },
+  {
+    "id": 6,
+    "name": "Not planned",
+    "category": "not_planned"
+  },
+  {
+    "id": 7,
+    "name": "Duplicate",
+    "category": "duplicate"
+  }
+]

@@ -1,0 +1,31 @@
+{
+  "skill": "source-control:worktree",
+  "plugin": "source-control",
+  "skill_dir": "plugins/source-control/skills/worktree",
+  "competitors": [
+    "source-control:pull-request",
+    "source-control:commit"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "create a new worktree so I can edit off main"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "show my worktree status and which branches are stale"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "clean up finished worktrees safely without breaking open locks"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "find orphaned worktrees and remove them"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "audit my git worktree setup for broken links or stale refs"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "enter an existing worktree after checking nobody else owns it"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "set up an isolated worktree before I start changing files on main"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "inventory all worktrees and check their linked PR states"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "review my kept worktrees and prune the merged ones"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "I am on main and need a parallel checkout for this feature"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "commit my staged changes on this branch"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "open a pull request for this feature branch"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "mark PR #408 ready for review"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "babysit all my open pull requests"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "fix CI failures and address review comments on PR #210"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "merge this pull request now"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "make a conventional commit for the refactor"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "check CI logs on my PR"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "run the merge lane loop for acme/api"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "set up source-control plugin configuration"}
+  ]
+}

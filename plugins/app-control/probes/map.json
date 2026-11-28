@@ -1,0 +1,34 @@
+{
+  "skill": "app-control:map",
+  "plugin": "app-control",
+  "skill_dir": "plugins/app-control/skills/map",
+  "competitors": [
+    "app-control:drive",
+    "playbooks:skill-authoring",
+    "skill-quality:check",
+    "testing:run-e2e",
+    "corrections:codify"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "scaffold a new control-storefront skill and driver CLI for this repository"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "audit .claude/skills/control-billing for app-control contract violations"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "sync our control skill with recent route changes and open an upkeep PR"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "migrate our legacy testing feature map into a control-* skill layout"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "propose which apps and user journeys this repo should seed in a control skill"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "record a driving gotcha into the checkout feature folder via map refresh"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "build a project control skill from repo discovery and prove one journey"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "verify our control skill structure without modifying any files"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "update the mapped login feature after our UI selector changed"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "initialize the hub, defaults config, and feature directories for this repo"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "launch the storefront app and drive the checkout journey"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "capture a CPU trace and screenshot from the running app"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "check this SKILL.md frontmatter before I publish the plugin"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "author a new general-purpose skill following the Anthropic playbook"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "codify this repo convention so future agents stop repeating the mistake"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "check which features my git diff touches using affected"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "check whether the running app is ready to drive"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "clean up background processes started by the last drive run"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "lint my skill description length and evals.json"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "run an end-to-end smoke test against the local API"}
+  ]
+}

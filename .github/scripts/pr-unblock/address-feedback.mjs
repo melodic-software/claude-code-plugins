@@ -4,13 +4,13 @@ import { appendFileSync, lstatSync, readdirSync, readFileSync, writeFileSync } f
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { ACTIONS_BOT_ID } from "../lib/lane-vocabulary.mjs";
+import { ACTIONS_BOT_ID, FEEDBACK_HOLDS } from "../lib/lane-vocabulary.mjs";
 import { runAsScript } from "../lib/run-main.mjs";
 import { bindingOf, FOOTER as LANE_FOOTER, laneChecker, laneFooter, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
 import { commentItems, FAILING, gateSource, laneHold, latestRuns, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "../lib/retry-fetch.mjs";
 import { loadTrustedList, readRawTrustedActors, trustedListPath } from "../lib/trusted-actors.mjs";
-import { BODY_HOLD, DIFF, LANE_HOLD, refsIssue, trackerBindingText, wholeCompare } from "../pr-merge/merge-holds.mjs";
+import { DIFF, refsIssue, trackerBindingText, wholeCompare } from "../pr-merge/merge-holds.mjs";
 import { copyPathsOf, isProtectedPath, namedInScope, prPathsOf, sharedCopyPairs } from "./thread-scope.mjs";
 import { retryRung, ROUTES, stopSkip } from "./escalation-routes.mjs";
 
@@ -877,7 +877,7 @@ export async function select({
   const reviewComments = await api.listReviewComments(pr);
   const threads = await api.listThreads(pr);
   const owner = ownerAuthored(pull, adoption);
-  if (owner && HOLD_LINE.test(String(pull.body ?? ""))) {
+  if (owner && (pull.labels ?? []).some((label) => FEEDBACK_HOLDS.includes(label.name))) {
     return { decision: "skip", skipReason: "awaiting-human", threads: [] };
   }
   const labeled = (pull.labels ?? []).some((label) => label.name === humanGatedLabel);
@@ -1060,10 +1060,8 @@ export const FORBIDDEN = /<!--|-->|gh[opsur]_[A-Za-z0-9]{20}|ghs_[0-9]+_|github_
 export const BODY_LIMITS = { text: 4000, sections: 8, record: 16384 };
 
 const asciiLower = (text) => text.replace(/[A-Z]/g, (c) => c.toLowerCase());
-const GATE_LEAD = /^[ \t>]*(?:(?:hold|draft|siblings|merge-risk|refs|relates[ \t]+to):|no[ \t]+(?:linked|related)[ \t]+issue)/;
-const HOLD_WORDING = /do(?:n[^ \t\n\v\f\r]{0,3}t|[ \t\n\v\f\r]+not)[ \t\n\v\f\r]+merge/g;
+const GATE_LEAD = /^[ \t>]*(?:(?:draft|siblings|merge-risk|refs|relates[ \t]+to):|no[ \t]+(?:linked|related)[ \t]+issue)/;
 const GATE_ANYWHERE = [
-  new RegExp(HOLD_WORDING.source),
   /(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?)[ \t]*:?[ \t]*(?:[a-z0-9_.-]+\/[a-z0-9_.-]+)?#[0-9]+/,
   /(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?):?[ \t]*https?:\/\/github\.com\/[a-z0-9_.-]+\/[a-z0-9_.-]+\/issues\/[0-9]+/,
 ];
@@ -1081,11 +1079,6 @@ export function gateLines(body) {
     }
     if (followUps ? /[^ \t]/.test(line) : GATE_LEAD.test(lower) || GATE_ANYWHERE.some((re) => re.test(lower))) {
       found.push(line);
-    }
-  }
-  for (const [match] of asciiLower(String(body ?? "").replace(/\r/g, "")).matchAll(HOLD_WORDING)) {
-    if (match.includes("\n")) {
-      found.push(`hold wording across lines: ${match.replace(/[ \t\n\v\f\r]+/g, " ")}`);
     }
   }
   return found.sort();
@@ -1111,7 +1104,7 @@ export function sectionRefusal(text) {
   if (BAD_CHARS.test(value) || FORBIDDEN.test(value)) {
     return "a control character, an HTML comment or a token";
   }
-  if (gateLines(value).length > 0 || BODY_HOLD.test(value) || LANE_HOLD.test(value) || refsIssue(value) !== null) {
+  if (gateLines(value).length > 0 || refsIssue(value) !== null) {
     return "a line a gate reads";
   }
   return SECTION_REFUSALS.find(([shape]) => shape.test(value))?.[1] ?? null;
@@ -1674,8 +1667,6 @@ export const NO_ADOPTION = Object.freeze({ ownerIds: Object.freeze(new Set()), i
 
 export const ownerAuthored = (pull, adoption = NO_ADOPTION) =>
   adoption.idleHours !== undefined && pull.user?.type === "User" && adoption.ownerIds.has(pull.user?.id);
-
-export const HOLD_LINE = /(?:^|(?<=[\r\n]))[^\S\r\n]*hold:/i;
 
 export async function ownerAdoption(env, log = () => {}) {
   try {

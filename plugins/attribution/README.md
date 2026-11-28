@@ -94,12 +94,10 @@ call and routes to its finding-suppression convention, not to a marker this plug
 
 The audit detectors read `<home>/attribution.yaml` and `<home>/attribution.local.yaml`, `<home>`
 being the bound convention home, else `docs/conventions`, over this plugin's `userConfig` options
-([config locations](reference/config-locations.md) lists where plugin config belongs). The
-user-global `~/.claude/attribution.json` is retired: while it exists it is still read, below
-`userConfig`, and every detector that reads config names it on stderr with the move to make.
-`/attribution:setup apply` moves its settings and then deletes it. The old JSON files
-of the same names under `.claude/` are not read;
-`/attribution:setup` reports them and carries their keys into the YAML, which it writes. In YAML,
+([config locations](reference/config-locations.md) lists where plugin config belongs). Old
+`~/.claude/attribution.json`, `.claude/attribution.json`, and `.claude/attribution.local.json`
+files are not read;
+`/attribution:setup` reports retired repository JSON files and carries their keys into the YAML, which it writes. In YAML,
 quote a glob that starts with `*` (`- "**/vendor/**"`); a file that does not parse is named on
 stderr and not read. The keys, layered over the shipped defaults, with their schema in
 `schemas/attribution.schema.json`:

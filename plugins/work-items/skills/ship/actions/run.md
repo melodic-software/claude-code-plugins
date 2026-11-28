@@ -103,8 +103,8 @@ is not enabled, stop before any claim and tell the user to enable it (installing
    - **`per-item PRs`.** Each accepted item has a pull request against the default branch; open a
      missing one with `/source-control:pull-request create --pushed --worktree <path>`, reading
      the item's human-merge hold with `${CLAUDE_PLUGIN_ROOT}/scripts/merge-hold.sh` before it, as
-     `/work-items:work`'s open-the-PR step does: exit `0` passes the printed line as `--hold`, so
-     the PR opens with it before any flip; any exit other than `0` or `1` passes
+     `/work-items:work`'s open-the-PR step does: exit `0` passes the `--hold` flag, so the PR
+     opens with the `do-not-merge` label; any exit other than `0` or `1` passes
      `--draft 'merge hold unread'`. Pass `--draft 'ready flip reserved for a person'` when the
      consuming project's instructions reserve the ready flip for a person. When the open state
      resolves `ready`, `create --pushed` runs

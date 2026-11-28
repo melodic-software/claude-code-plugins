@@ -833,7 +833,6 @@ test("owner drafts, holds, unlisted or spoofed users and unreadable dates are le
     [ownerPr(1, { isDraft: true }), "not a ready same-repository PR into the base"],
     [ownerPr(2, { labels: { nodes: [{ name: "do-not-merge" }] } }), "held"],
     [ownerPr(3, { labels: { nodes: [{ name: "needs-human" }] } }), "held"],
-    [ownerPr(4, { body: "Closes #1\n\nHold: until the demo\n" }), "held by a Hold: line"],
     [ownerPr(5, { author: { login: "octocat", databaseId: 4242 } }), unlisted],
     [ownerPr(6, { author: { login: "kyle-sexton", databaseId: 4242 } }), unlisted],
     [ownerPr(7, { author: null }), unlisted],
@@ -861,14 +860,12 @@ test("a listed owner id is adopted whatever its login", async () => {
   assert.deepEqual(result.dispatched.map((d) => d.number), [11]);
 });
 
-test("a Hold: line holds an owner PR in any case, after any whitespace, and after a bare CR", () => {
+test("body hold phrases hold no owner PR; only a hold label does", () => {
   const options = { base: "main", appSenderId: APP, actionsAppId: ACTIONS, checkName: "pr-unblock / fix-ci", holdLabels: ["do-not-merge", "needs-human"], restarts: 1, adoption: ADOPTION, now: NOW };
-  for (const body of ["  Hold: demo", "hold: demo", "x\rHold: y", " Hold: z", "\u00a0Hold: nbsp", "Closes #1\r\n\tHOLD: tab"]) {
-    assert.equal(skipReason(ownerPr(12, { body }), options), "held by a Hold: line", JSON.stringify(body));
-  }
-  for (const body of ["Closes #1. Hold: not at a line start", "Holding: no colon after hold", "x\n\nThe word hold: mid-line"]) {
+  for (const body of ["  Hold: demo", "Closes #1\r\n\tHOLD: tab", "Please do not merge."]) {
     assert.equal(skipReason(ownerPr(12, { body }), options), "", JSON.stringify(body));
   }
+  assert.equal(skipReason(ownerPr(12, { body: "Closes #1", labels: { nodes: [{ name: "do-not-merge" }] } }), options), "held");
 });
 
 test("the human-gated label comes from the tracker config, else needs-human", () => {

@@ -361,11 +361,11 @@ jobs:
               exit 1
             fi
           fi
-          # A dimension skip is one of the issue-dimension reasons, or the check-admission
-          # job's outside-author stop, only in issue mode.
+          # A dimension skip is one of the issue-dimension reasons, the check-admission
+          # job's outside-author stop, or a pre-model stop of the read run, only in issue mode.
           if [ -n "$DIMENSION_SKIP" ] && { [ -z "$ISSUE_NUMBER" ] ||
-            ! [[ $DIMENSION_SKIP =~ ^(split-required|research-first|probe-first|outside-author|workflow-stale)$ ]]; }; then
-            echo "::error::dimension-skip must be an issue-dimension skip reason, outside-author or workflow-stale, in issue mode"
+            ! [[ $DIMENSION_SKIP =~ ^(split-required|research-first|probe-first|outside-author|workflow-stale|closed-by-open-pr)$ ]]; }; then
+            echo "::error::dimension-skip must be an issue-dimension skip reason, outside-author, workflow-stale or closed-by-open-pr, in issue mode"
             exit 1
           fi
           # A finished parent's sub-issues are issue numbers, only in issue mode.

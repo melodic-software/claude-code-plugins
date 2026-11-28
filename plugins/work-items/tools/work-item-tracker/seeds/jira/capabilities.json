@@ -13,6 +13,7 @@
     "list-items": true,
     "label-provenance": false,
     "set-fields": false,
+    "set-native-status": false,
     "get-field-options": false,
     "get-statuses": false,
     "list-sub-items": false,

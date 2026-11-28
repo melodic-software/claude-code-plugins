@@ -92,10 +92,6 @@ CONFIG_ROOT="${CLAUDE_PROJECT_DIR:-$ROOT}"
 
 cfg_layers_init "$CONFIG_ROOT"
 
-if cfg_have_unread_layer; then
-  echo "list-corpus.sh: jq not found; JSON config layers present but unread, using defaults" >&2
-fi
-
 DEFAULT_EXCLUDED=('**/fixtures/**' '**/__fixtures__/**' '**/testdata/**')
 EXCLUDED_GLOBS=("${DEFAULT_EXCLUDED[@]}")
 cfg_list EXCLUDED_GLOBS excluded_paths
