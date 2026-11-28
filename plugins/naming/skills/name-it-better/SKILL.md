@@ -1,5 +1,5 @@
 ---
-description: "Generate and evaluate fresh name candidates from blind lenses (human picks, never auto-locks; optional 'tournament') for any variable, function, file, module, skill, repo, or domain term. Use when a name is undecided or wrong ('suggest names', 'what should I call this', 'name it better'). Not for decided renames: /docs-hygiene:rename-references."
+description: "Generate and evaluate fresh name candidates from blind lenses for any variable, function, file, module, skill, repo, or domain term (human picks, never auto-locks; optional 'tournament' for high-stakes names). Use when a name is undecided, rejected, or wrong ('suggest names', 'what should I call this', 'name it better'). Not for decided renames: /docs-hygiene:rename-references."
 argument-hint: "[tournament]"
 user-invocable: true
 disable-model-invocation: false
