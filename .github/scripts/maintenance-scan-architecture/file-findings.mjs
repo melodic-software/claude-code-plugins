@@ -46,12 +46,13 @@ export function withoutTrustedShapes(items) {
 
 export async function fileFindings({ items, cap, call, repository }) {
   if (items.length === 0) return { filed: [], skipped: [], room: null };
-  if (!(await call("GET", `/repos/${repository}/labels/${encodeURIComponent(SOURCE_LABEL)}`))) {
+  const labelExists = Boolean(await call("GET", `/repos/${repository}/labels/${encodeURIComponent(SOURCE_LABEL)}`));
+  const open = labelExists ? await countOpen(call, repository, SOURCE_LABEL, cap) : 0;
+  const existingTitles = labelExists ? (await pages(call, `/repos/${repository}/issues?state=all&labels=${encodeURIComponent(SOURCE_LABEL)}`, { max: 10 })).map((issue) => issue.title) : [];
+  const plan = planFiling({ label: SOURCE_LABEL, labelExists, cap, open, existingTitles, candidates: items.map((item) => item.title) });
+  if (plan.stop === "label-missing") {
     throw new Error(`label ${SOURCE_LABEL} does not exist; the lane never creates a label, so it files nothing`);
   }
-  const open = await countOpen(call, repository, SOURCE_LABEL, cap);
-  const existingTitles = (await pages(call, `/repos/${repository}/issues?state=all&labels=${encodeURIComponent(SOURCE_LABEL)}`, { max: 10 })).map((issue) => issue.title);
-  const plan = planFiling({ label: SOURCE_LABEL, labelExists: true, cap, open, existingTitles, candidates: items.map((item) => item.title) });
   const filed = [];
   for (const item of plan.file.map((index) => items[index])) {
     const issue = await call("POST", `/repos/${repository}/issues`, { title: item.title, body: item.body, labels: [SOURCE_LABEL], type: ISSUE_TYPE });

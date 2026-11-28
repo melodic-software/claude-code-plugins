@@ -80,6 +80,17 @@ test("the lane and /improvement:find's filing-plan command make the same filing 
   }
 });
 
+test("with the label missing, the lane and the filing-plan command both file nothing from the same label-missing stop", async () => {
+  const lane = forge({ label: false });
+  const items = [item(1), item(2)];
+  await assert.rejects(fileFindings({ items, cap: 5, call: lane.call, repository: "o/r" }), /never creates a label/);
+  assert.equal(lane.posts.length, 0);
+  const request = { label: SOURCE_LABEL, labelExists: false, team: 5, open: 0, existingTitles: [], candidates: items.map((entry) => entry.title) };
+  const find = JSON.parse(execFileSync(process.execPath, [FILING_PLAN], { input: JSON.stringify(request), encoding: "utf8" }));
+  assert.equal(find.stop, "label-missing");
+  assert.deepEqual(find.file, []);
+});
+
 test("no items reads nothing and files nothing", async () => {
   const { call, calls } = forge();
   assert.deepEqual((await fileFindings({ items: [], cap: 5, call, repository: "o/r" })).filed, []);

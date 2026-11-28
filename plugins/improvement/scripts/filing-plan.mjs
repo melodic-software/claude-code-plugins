@@ -23,7 +23,7 @@ export function openCap({ team, user, personal, names = { team: "team layer", us
     const v = valid(value, names[layer] ?? layer);
     if (v === undefined) continue;
     if (v < cap) [cap, source] = [v, layer];
-    else if (v > cap) warnings.push(`${names[layer] ?? layer} find_open_item_cap ${v} is above the ${source} cap ${cap}; a personal layer only lowers it`);
+    else if (v > cap) warnings.push(`${names[layer] ?? layer} find_open_item_cap ${v} is above the ${source} cap ${cap}; that layer only lowers it`);
   }
   return { cap, source, warnings };
 }
