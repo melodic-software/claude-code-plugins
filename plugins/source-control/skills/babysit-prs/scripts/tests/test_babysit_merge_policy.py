@@ -4564,20 +4564,20 @@ class Assess(unittest.TestCase):
     def test_a_rung_off_outranks_an_in_flight_refusal_off_the_queue(self) -> None:
         self.readable()
         flight = policy.InFlight(False, "x", frozenset({3}))
-        ineligible = policy.Eligibility(False, "fork")
+        later = mock.Mock(side_effect=AssertionError("read after the rung refusal"))
         with (
-            mock.patch.object(policy, "in_flight", return_value=flight),
+            mock.patch.object(policy, "in_flight", return_value=flight) as counted,
             mock.patch.object(
                 policy, "rung_cap", return_value=policy.RungCap("off", "cap-set")
             ),
-            mock.patch.object(policy, "eligibility", return_value=ineligible) as read,
+            mock.patch.object(policy, "eligibility", later),
         ):
-            result = self.assess(
-                post_merge=lambda floor, who: gate(), promotion=lambda s: PROMOTED
-            )
-        self.assertTrue(result.reason.startswith("rung-off:"), result.reason)
-        self.assertTrue(read.called)
-        self.assertEqual(result.inputs["own_refusal"], "ineligible:fork")
+            result = self.assess(post_merge=lambda floor, who: gate(), promotion=later)
+        self.assertEqual(result.reason, "rung-off:rungCap")
+        self.assertIs(result.enabled, True)
+        counted.assert_not_called()
+        later.assert_not_called()
+        self.assertNotIn("eligibility", result.inputs)
 
     def test_the_in_flight_refusal_matches_the_full_judgment(self) -> None:
         self.readable()
