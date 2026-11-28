@@ -342,6 +342,21 @@ describe("architecture branded page builds", () => {
       assert.deepEqual(validateView(mapHtml), { ok: true, failures: [] });
       const labelHtml = /<span class="rv-brand-label">([\s\S]*?)<\/span>(?=<\/div>)/.exec(mapHtml)?.[1] ?? "";
       assert.equal(labelHtml.replace(/<[^>]+>/g, ""), "{{ Acme }}");
+
+      const envBuilt = spawnSync(
+        "node",
+        [BUILD_VIEW, "dependencies", "--record", mapRecord, "--branding-option", "${user_config.branding}"],
+        {
+          cwd: work,
+          encoding: "utf8",
+          env: { ...env, CLAUDE_PLUGIN_OPTION_BRANDING: JSON.stringify({ logo: { label: "Env Brand" } }) },
+        },
+      );
+      assert.equal(envBuilt.status, 0, envBuilt.stderr);
+      const envHtml = readFileSync(envBuilt.stdout.trim(), "utf8");
+      assert.deepEqual(validateView(envHtml), { ok: true, failures: [] });
+      assert.match(envHtml, /Env Brand/);
+      assert.equal(envBuilt.stderr, "");
     } finally {
       rmSync(work, { recursive: true, force: true });
     }
