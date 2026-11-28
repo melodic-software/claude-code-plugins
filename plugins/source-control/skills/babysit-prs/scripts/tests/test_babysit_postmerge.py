@@ -5184,6 +5184,104 @@ class RoleLabelRead(unittest.TestCase):
                 self.assertEqual(self._read(proc), pm.DEFAULT_ROLE_LABEL)
 
 
+class DefaultBranchFilesFromTheBaseCheckout(unittest.TestCase):
+    """`_default_branch_text` takes a file from the checkout
+    `CONFIG_CHECKOUT_ENV` names when its HEAD is main's tip the workflow step
+    resolved (`MAIN_TIP_SHA`); any other commit, and a file the checkout lacks,
+    read through the contents API."""
+
+    PIPELINE = "merge:\n  rung: C2\n"
+
+    def setUp(self) -> None:
+        tmp = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.checkout = tmp / ".base"
+        self.git("init", "-q", str(self.checkout))
+        self.enterContext(
+            mock.patch.dict(
+                os.environ,
+                {
+                    pm.policy.CONFIG_CHECKOUT_ENV: str(self.checkout),
+                    "GITHUB_REPOSITORY": "o/r",
+                },
+            )
+        )
+        self.api_paths: list[str] = []
+
+    def git(self, *args: str) -> str:
+        return subprocess.run(
+            ["git", "-c", "user.name=t", "-c", "user.email=t@t",
+             "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", *args],
+            check=True, capture_output=True, text=True,
+            env={**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"},
+        ).stdout.strip()  # fmt: skip
+
+    def commit(self, files: dict[str, str]) -> str:
+        for path, text in files.items():
+            (self.checkout / path).parent.mkdir(parents=True, exist_ok=True)
+            (self.checkout / path).write_text(text)
+        self.git("-C", str(self.checkout), "add", "-A")
+        self.git("-C", str(self.checkout), "commit", "-q", "-m", "config")
+        return self.git("-C", str(self.checkout), "rev-parse", "HEAD")
+
+    def answer(self, args: list[str]) -> subprocess.CompletedProcess[str]:
+        """The contents API: the tracker binding maps `from-api`, and every
+        other path is absent."""
+        path = args[-1].removeprefix("repos/o/r/contents/")
+        self.api_paths.append(path)
+        if path == pm.tracker_binding.YAML_PATH:
+            return subprocess.CompletedProcess(["gh"], 0, binding("from-api"), "")
+        return completed(returncode=1, stderr="gh: Not Found (HTTP 404)")
+
+    def read(self, tip: str) -> tuple[str, str | None]:
+        with (
+            mock.patch.dict(os.environ, {"MAIN_TIP_SHA": tip}),
+            mock.patch.object(pm, "gh_capture", side_effect=self.answer),
+        ):
+            return (
+                pm._role_label("o", "r", strict=True),
+                pm._default_branch_text("o", "r", pm.policy.CONFIG_PATH),
+            )
+
+    def test_a_checkout_at_mains_tip_answers_with_no_contents_read(self) -> None:
+        sha = self.commit(
+            {
+                pm.tracker_binding.YAML_PATH: binding("from-checkout"),
+                pm.policy.CONFIG_PATH: self.PIPELINE,
+            }
+        )
+        self.assertEqual(self.read(sha), ("from-checkout", self.PIPELINE))
+        self.assertEqual(
+            self.api_paths, [], "no contents read while the checkout answers"
+        )
+
+    def test_a_checkout_at_another_commit_reads_the_contents_api(self) -> None:
+        self.commit(
+            {
+                pm.tracker_binding.YAML_PATH: binding("from-checkout"),
+                pm.policy.CONFIG_PATH: self.PIPELINE,
+            }
+        )
+        self.assertEqual(self.read("a" * 40), ("from-api", None))
+        self.assertEqual(
+            self.api_paths,
+            [pm.tracker_binding.YAML_PATH, pm.policy.CONFIG_PATH],
+            "both files read through the API when main's tip is another commit",
+        )
+
+    def test_a_file_the_checkout_lacks_reads_the_contents_api(self) -> None:
+        sha = self.commit({pm.policy.CONFIG_PATH: self.PIPELINE})
+        self.assertEqual(self.read(sha), ("from-api", self.PIPELINE))
+        self.assertEqual(
+            self.api_paths,
+            [pm.tracker_binding.YAML_PATH],
+            "only the file absent from the checkout is read through the API",
+        )
+
+
+def binding(label: str) -> str:
+    return f"tracker:\n  config:\n    role_labels:\n      human-gated: {label}\n"
+
+
 class SeveralInFlight(CheckCase):
     """`merge.max-in-flight` above 1: several lane merges land unverified, and
     one red full run on a head containing them all charges every one."""
