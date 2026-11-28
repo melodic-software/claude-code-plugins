@@ -141,6 +141,18 @@
     {
       "answer": "I drafted the condition from the notes you pasted instead, well under 4000 characters.\n",
       "why": "under the limit with no count, the without-plugin shape of suite run 46092986142"
+    },
+    {
+      "answer": "A condition can be at most **4000 characters**.\n",
+      "why": "bold limit echo, no count"
+    },
+    {
+      "answer": "The maximum length is 4000 characters.\n",
+      "why": "limit description, no count"
+    },
+    {
+      "answer": "ProposeGoal's own cap is 500 characters, lower than /goal's.\n",
+      "why": "tool cap description, no count"
     }
   ]
 }
