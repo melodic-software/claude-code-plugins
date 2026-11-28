@@ -48,6 +48,17 @@ test-windows-worktree plugins/source-control/scripts/landed-work.test.sh
 test-windows-worktree plugins/playbooks/skills/repo-sweep/scripts/tick.test.sh
 test-windows-worktree plugins/playbooks/skills/repo-sweep/scripts/state.test.sh
 test-windows-worktree plugins/planning/shared/tests/test_server.py plugins/planning/shared/tests/test_s*.py plugins/planning/shared/tests/test_tunnel.py plugins/planning/shared/*.py plugins/planning/shared/tests/support.py
+test-windows-hygiene plugins/repo-hygiene/skills/clean/scripts/clean-build.test.sh
+test-windows-hygiene plugins/repo-hygiene/skills/clean/scripts/clean-caches.test.sh
+test-windows-hygiene plugins/repo-hygiene/skills/clean/scripts/git-prune.test.sh
+test-windows-hygiene plugins/repo-hygiene/skills/clean/scripts/git-branch-delete.test.sh
+test-windows-hygiene plugins/repo-hygiene/skills/clean/scripts/git-tree-reset.test.sh
+test-windows-hygiene plugins/repo-hygiene/skills/clean/scripts/git-tree-reset-batch.test.sh
+test-windows-hygiene plugins/repo-hygiene/skills/clean/scripts/preflight.test.sh
+test-windows-hygiene plugins/repo-hygiene/skills/clean/scripts/remove-path.test.sh
+test-windows-hygiene plugins/repo-hygiene/skills/clean/scripts/resolve-clean-action.test.sh
+test-windows-hygiene plugins/repo-hygiene/skills/clean/scripts/scan.test.sh
+test-windows-hygiene plugins/repo-hygiene/skills/clean/scripts/lib/cleanup-paths.test.sh
 test-macos-planning-shared plugins/planning/shared/tests/test_cfdns.py
 test-macos-planning-shared plugins/planning/shared/tests/test_load.py
 test-macos-planning-shared plugins/planning/shared/tests/test_owner_ops.py
