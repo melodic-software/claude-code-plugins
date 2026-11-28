@@ -9,7 +9,6 @@ import { isDeepStrictEqual } from "node:util";
 
 import { laneBranch, laneBranchPattern } from "../lib/lane-branch.mjs";
 import { runAsScript } from "../lib/run-main.mjs";
-import { BODY_HOLD, LANES_APP_LOGIN } from "../pr-merge/merge-holds.mjs";
 import { CDN_MANIFEST, CDN_RECORD, CDN_SCRIPT, cdnPaths } from "./cdn-paths.mjs";
 import { fixRefusal, installScriptPinRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
 import { stopSkip } from "../pr-unblock/escalation-routes.mjs";
@@ -443,8 +442,7 @@ export const TARGETS = {
       if (pull.head?.repo?.full_name !== repository) {
         throw new Error(`the PR head is ${pull.head?.repo?.full_name ?? "unreadable"}, not ${repository}; the patch is not pushed`);
       }
-      const lanesApp = pull.user?.type === "Bot" && pull.user?.login === LANES_APP_LOGIN;
-      return pull.draft !== false || labels.some((label) => holds.has(label.name)) || (!lanesApp && BODY_HOLD.test(String(pull.body ?? "")));
+      return pull.draft !== false || labels.some((label) => holds.has(label.name));
     },
     async ready(api, ref, head) {
       const tip = await api.readBranch(ref);

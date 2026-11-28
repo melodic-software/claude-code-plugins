@@ -4,6 +4,7 @@
 # test-scope: plugins/work-items/tools/work-item-tracker/lib/id.sh plugins/work-items/tools/work-item-tracker/lib/lease.sh
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/get-field-options.sh plugins/work-items/tools/work-item-tracker/adapters/github/common.sh
 set -uo pipefail
+unset RUNNER_TEMP GITHUB_ACTIONS
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DISPATCHER="$SCRIPT_DIR/work-item-tracker.sh"
@@ -158,7 +159,7 @@ RC_CAPTURE=$?
 assert_eq "undeclared add-recurrence verb → exit 6" "6" "$RC_CAPTURE"
 assert_contains "exit-6 stderr names the add-recurrence verb" "$ERR" "add-recurrence"
 
-for v in put-artifact list-artifacts get-artifact link-relates unlink-relates list-relates; do
+for v in set-native-status put-artifact list-artifacts get-artifact link-relates unlink-relates list-relates; do
   ERR="$(run_dispatcher "$v" "fake:o/r#1" 2>&1 >/dev/null)"
   RC_CAPTURE=$?
   assert_eq "undeclared $v verb → exit 6" "6" "$RC_CAPTURE"

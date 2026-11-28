@@ -109,8 +109,10 @@ Two entries, each resolved per file to the adapter where a markdownlint config g
 
 - **`format`** (`git-hooks/format.sh`) refuses a partly staged Markdown file untouched, with
   `<path>: partly staged; format it or stage it fully, then commit`, then runs
-  `markdownlint-cli2 --fix` over the staged `.md` and `.mdc` files and re-stages the files it
-  rewrote. It reports no finding.
+  `markdownlint-cli2 --fix` over a copy of the staged `.md` and `.mdc` files, applies only the
+  diff hunks whose lines overlap the staged changes, and re-stages the files it rewrote. Untouched
+  lines stay byte-identical; when `--fix` would have rewritten untouched lines, it notes the
+  skipped drift on stderr and exits 0. It reports no lint finding.
 - **`lint`** (`git-hooks/lint.sh`) runs `markdownlint-cli2` without `--fix` over a copy of the
   staged content, beside links to the repository's markdownlint configs, so a config whose
   `fix` property is true cannot make it rewrite your files, and a partly staged file is checked

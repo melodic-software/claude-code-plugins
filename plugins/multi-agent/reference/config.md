@@ -19,13 +19,7 @@ The user layer is a nested map of the same keys as the team file, which no
 scalar `userConfig` option can hold, so the plugin's one `role_map_file`
 option (type `file`) names a file that keeps it, and `/config` sets it.
 
-**Old paths, read during the migration window.** While no new file supplies
-the user layer, `~/.claude/multi-agent.yaml` still does, named `user-global`
-in `source`; while `<home>/multi-agent.local.yaml` is absent,
-`.claude/multi-agent.local.yaml` still supplies the personal override. Every
-run names each old file it finds, read or not, in `notes`, with its new
-location and `/multi-agent:setup apply --migrate`, which moves the file after a
-preview and a yes and then deletes it. A later change removes these reads.
+Old `~/.claude/multi-agent.yaml` and `.claude/multi-agent.local.yaml` files are not read.
 
 Later layers win per key. Team and personal override are read only when the root is a
 repository that is neither `$HOME` nor an ancestor of it
@@ -36,8 +30,7 @@ resolver no longer reads the old team locations, the config block in
 `/multi-agent:setup check` names each one it finds. While the team YAML is
 absent, the first `/multi-agent:setup apply --layer team` write copies the keys
 of one of them, the block when there is one, into the new YAML and leaves the
-old file in place; `/multi-agent:setup apply --migrate` moves
-`.claude/multi-agent.yaml` into the YAML and deletes it. Every layer declares `schema: 1`; a layer that does not
+old file in place. Every layer declares `schema: 1`; a layer that does not
 parse or names another schema is skipped and named in `notes`, and the layers
 around it still apply. The format is a YAML subset: nested mappings, block or
 flow sequences, scalars, comments. `/multi-agent:setup apply` writes a layer

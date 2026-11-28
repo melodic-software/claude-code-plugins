@@ -1,5 +1,5 @@
 ---
-description: "Apply a prior /repo-fleet-hygiene:audit action-plan JSON behind one fleet confirmation: default dry-run re-derives branch/worktree tips and prints the ordered batch; --apply mutates only after interactive confirmation or --yes. Owns batched merged-local-branch deletion with fail-closed OID refresh; cleans merged/prunable/missing worktrees in plan order (branches before worktrees). Opt-in --remote-branches adds per-branch gated deletion of never-PR and closed-unmerged remote branches. Use when: 'apply fleet plan', 'execute fleet cleanup', 'batch delete merged branches', 'one confirmation for fleet cleanup', 'delete stale remote branches'."
+description: "Execute a /repo-fleet-hygiene:audit plan: dry-run default; --apply cleans merged branches then worktrees after confirm; --remote-branches opt-in."
 user-invocable: true
 disable-model-invocation: true
 argument-hint: "--plan-file <path> [--apply] [--yes] [--remote-branches]"

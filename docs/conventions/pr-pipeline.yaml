@@ -861,6 +861,8 @@ merge:
         class: gate
       - glob: ".github/scripts/pr-merge/post-unarmed-status.mjs"
         class: gate
+      - glob: ".github/scripts/pr-merge/cancel-orphaned-runs.mjs"
+        class: gate
       - glob: ".github/scripts/pr-merge/verify-answers.mjs"
         class: gate
       - glob: ".github/scripts/lib/run-title.mjs"
@@ -952,6 +954,8 @@ merge:
       - glob: ".github/scripts/maintenance-scan-architecture/prompt.md"
         class: enforcement
       - glob: "plugins/improvement/lib/state-key.sh"
+        class: enforcement
+      - glob: "plugins/improvement/scripts/filing-plan.mjs"
         class: enforcement
       - glob: "plugins/architecture/lib/resolve-convention-home.sh"
         class: enforcement

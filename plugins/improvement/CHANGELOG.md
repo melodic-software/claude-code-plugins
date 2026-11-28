@@ -3,6 +3,12 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.1] - 2026-11-28
+
+### Changed
+
+- Trimmed `improvement` skill frontmatter descriptions (`find` 518 -> 345 chars, `improve` 750 -> 349 chars, `setup` 764 -> 136 chars; total 2032 -> 830 chars, -1202 chars) while preserving evidence-cited ranking, read-only/unattended behavior, single-PR improvement scope, and `/improvement:find` <-> `/improvement:improve` boundaries.
+
 ## [0.13.0] - 2026-11-28
 
 ### Changed

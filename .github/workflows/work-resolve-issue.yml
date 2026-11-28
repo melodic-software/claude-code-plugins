@@ -1075,7 +1075,9 @@ jobs:
       ${{ !cancelled() && (((needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
       || (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') != '')
       && needs.apply-issue-patch.outputs.skip-reason != 'kill-switch'
-      || needs.resolve-issue-stale.outputs.stale == 'true') }}
+      || needs.resolve-issue-stale.outputs.stale == 'true'
+      || (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-skip-reason || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-skip-reason || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-skip-reason || '') == 'closed-by-open-pr'
+      && needs.apply-issue-patch.outputs.skip-reason != 'kill-switch') }}
     permissions:
       actions: read
       contents: read
@@ -1094,7 +1096,10 @@ jobs:
       trusted-base: default-tip
       app-field-id: "48484079"
       app-field-option: "84879220"
-      dimension-skip: ${{ needs.resolve-issue-stale.outputs.stale == 'true' && 'workflow-stale' || '' }}
+      dimension-skip: >-
+        ${{ needs.resolve-issue-stale.outputs.stale == 'true' && 'workflow-stale'
+        || (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-skip-reason || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-skip-reason || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-skip-reason || '') == 'closed-by-open-pr' && 'closed-by-open-pr'
+        || '' }}
       reuse-branch: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '' }}
       runner-checks: ${{ needs.run-checks.result == 'success' && needs.run-checks.outputs.checks || '' }}
       verify-close: ${{ needs.check-admission.outputs.verify-close }}
@@ -1104,4 +1109,4 @@ jobs:
         ${{ needs.apply-issue-patch.outputs.escalation-reason
         || (needs.apply-issue-patch.result == 'failure' || needs.check-human-pull.result == 'failure') && 'patch-apply-failed' || '' }}
       human-pull: ${{ needs.check-human-pull.outputs.pull }}
-      lease-comment-id: ${{ needs.resolve-issue-stale.outputs.stale != 'true' && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.lease-comment-id || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.lease-comment-id || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.lease-comment-id) || '' }}
+      lease-comment-id: ${{ needs.resolve-issue-stale.outputs.stale != 'true' && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-skip-reason || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-skip-reason || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-skip-reason || '') != 'closed-by-open-pr' && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.lease-comment-id || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.lease-comment-id || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.lease-comment-id) || '' }}

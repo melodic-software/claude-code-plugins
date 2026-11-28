@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Themes team config",
+  "description": "Schema for docs/conventions/themes.yaml, the repository layer of themes settings. Hook enablement follows docs/contracts/hook-enablement/README.md: an explicit userConfig value wins over this file.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "themes_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Repository default for the backdrop themes module. An explicit userConfig value wins over this setting."
+    }
+  }
+}

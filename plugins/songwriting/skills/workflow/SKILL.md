@@ -1,5 +1,5 @@
 ---
-description: "Start-here situation router for songwriting with Pat Pattison's methods: blank page, idea/seed, stuck fragment, co-write, diagnose-only pass or daily habit, with step-by-step coaching, Pat's response filter applied to AI-generated material, and going-deeper resources (Coursera / Berklee / columns / podcasts). Use when: 'I want to write a new song', 'I have nothing, just want to write', 'I have an image but no title', 'this fragment is stuck', 'walk me through writing this', 'guide me', 'where do I start', 'review the rhyme list this AI gave me', 'how do I go deeper'. Craft-specific requests route to the concern skills."
+description: "Start-here router for songwriting with Pat Pattison's methods: blank page, idea/seed, stuck fragment, co-write, diagnose-only pass, daily habit, step-by-step coaching, AI response filter, and deeper resources. Use when: 'I want to write a new song', 'this fragment is stuck', 'where do I start'. Craft-specific requests route to concern skills."
 argument-hint: "[workflow|coach|brainstorm|idea|fragment|filter|beyond-books] [args]"
 user-invocable: true
 disable-model-invocation: false

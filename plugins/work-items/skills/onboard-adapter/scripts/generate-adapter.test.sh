@@ -2,6 +2,7 @@
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/* docs/conventions/source-control.yaml plugins/work-items/tools/work-item-tracker/seeds/*/capabilities.json plugins/work-items/tools/work-item-tracker/seeds/*/adapter-spec.json
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 set -uo pipefail
+unset RUNNER_TEMP GITHUB_ACTIONS
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 S="$SCRIPT_DIR/generate-adapter.sh"
@@ -32,7 +33,7 @@ BASE_SPEC='{
     "release": false,
     "reclaim": false, "link-blocks": false, "add-sub-item": false,
     "list-items": true, "list-sub-items": false, "label-provenance": false,
-    "set-fields": false, "get-field-options": false, "get-statuses": false,
+    "set-fields": false, "set-native-status": false, "get-field-options": false, "get-statuses": false,
     "change-link": true, "add-recurrence": false,
     "put-artifact": false, "list-artifacts": false, "get-artifact": false,
     "link-relates": false, "unlink-relates": false, "list-relates": false,

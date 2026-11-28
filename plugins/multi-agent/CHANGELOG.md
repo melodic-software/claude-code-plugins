@@ -3,6 +3,18 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.0.0] - 2026-11-28
+
+### Removed
+
+- Drop legacy `~/.claude/multi-agent.yaml` and `.claude/multi-agent.local.yaml` dual-reads, warnings, and `/multi-agent:setup apply --migrate` from role resolution and setup.
+
+## [5.2.5] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across all four `multi-agent` skills (`assess` 417 -> 287 chars, `audit-defaults` 692 -> 346 chars, `route` 822 -> 350 chars, `setup` 167 -> 124 chars; total 2098 -> 1107 chars, -991 chars) while preserving all modes, read-only/propose-only safety posture, and sibling exclusions. The `assess` description names its verdict values as `workflow`, `subagent` and `single`, the values its output emits.
+
 ## [5.2.4] - 2026-11-26
 
 ### Changed

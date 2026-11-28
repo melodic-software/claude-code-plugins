@@ -668,6 +668,10 @@ lib/html-chrome.html plugins/visualization/reference/html-chrome.html
 lib/html-chrome.html plugins/adhd/reference/html-chrome.html
 lib/html-chrome.html plugins/planning/reference/html-chrome.html
 lib/html-chrome.html plugins/architecture/reference/html-chrome.html
+lib/html-tokens.css plugins/visualization/reference/html-tokens.css
+lib/html-tokens.css plugins/adhd/reference/html-tokens.css
+lib/html-branding.mjs plugins/visualization/lib/html-branding.mjs
+lib/html-branding.mjs plugins/adhd/lib/html-branding.mjs
 lib/html-tokens.css plugins/debugging/reference/html-tokens.css
 lib/html-tokens.css plugins/discovery/reference/html-tokens.css
 lib/html-tokens.css plugins/machine-health/reference/html-tokens.css
@@ -1142,6 +1146,9 @@ lib/resolve-convention-home.sh plugins/engineering-concepts/lib/resolve-conventi
 lib/prerequisites.mjs plugins/engineering-concepts/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/engineering-concepts/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/engineering-concepts/lib/prerequisites.ps1
+lib/mod-hook-enabled.ts plugins/context-budget/hooks/mod-hook-enabled.ts
+lib/mod-hook-enabled.ts plugins/display-redaction/hooks/mod-hook-enabled.ts
+lib/mod-hook-enabled.ts plugins/themes/hooks/mod-hook-enabled.ts
 lib/hook-enabled.mjs plugins/discovery/lib/hook-enabled.mjs
 lib/hook-enabled.mjs plugins/fleet/lib/hook-enabled.mjs
 lib/hook-enabled.mjs plugins/toolchain/lib/hook-enabled.mjs

@@ -188,6 +188,7 @@ jobs:
         .github/scripts/pr-merge/sweep-summary.mjs
         .github/scripts/pr-merge/who.mjs
         .github/scripts/pr-merge/post-unarmed-status.mjs
+        .github/scripts/pr-merge/cancel-orphaned-runs.mjs
         .github/scripts/pr-merge/verify-answers.mjs
         .github/scripts/lib/run-title.mjs
         .github/scripts/lib/lane-branch.mjs
@@ -234,6 +235,7 @@ jobs:
         .github/scripts/maintenance-scan-architecture/prepare-working-tree.sh
         .github/scripts/maintenance-scan-architecture/prompt.md
         plugins/improvement/lib/state-key.sh
+        plugins/improvement/scripts/filing-plan.mjs
         plugins/architecture/lib/resolve-convention-home.sh
         plugins/architecture/lib/read-verification.sh
         plugins/architecture/lib/default-branch-file.sh

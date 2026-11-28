@@ -1,5 +1,5 @@
 ---
-description: "Re-anchors anti-fragmentation: given an established way, new work REUSES it or openly REPLACES it (migrate, record why), never a SILENT second way. Use when: 'reuse or replace', 'we already have a way of doing this', 'don't invent a second way', 'keep it one way', 'follow the existing pattern or replace it', 'be consistent', 'you added a parallel way', 'this diverges from how we do it elsewhere', or at conversation start on work that extends an established codebase, structure, or process."
+description: "Re-anchor anti-fragmentation: follow existing pattern or established way we already have (consistent, keep it one way, reuse or openly replace pattern, migrate, record why), never diverge from how we do it elsewhere with parallel second way (--repo). Use when 'reuse or replace', 'don't invent a second way', 'you added a parallel way', codebase."
 argument-hint: "[--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

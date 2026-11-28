@@ -41,6 +41,16 @@ tokens, share of the window and theme color. It needs Claude Code 2.1.287 or lat
 unsupported below that, and the plugin ships no shim
 ([ADR 0052](../../docs/adr/0052-adopt-claude-code-mods.md)).
 
+The `context_budget_enabled` on/off setting (boolean, default `true`) turns the whole module on or
+off across the user layer (`userConfig`) and repository layer
+(`docs/conventions/context-budget.yaml`, schema in
+[`schemas/context-budget.schema.json`](schemas/context-budget.schema.json)). An explicit user value
+wins over the repository file (`docs/contracts/hook-enablement/README.md`). When
+`context_budget_enabled` is `false`, nothing draws, measures, or registers `/context-budget`,
+whatever `live_display` says. When `context_budget_enabled` is `true`, `live_display` chooses the
+initial view (`pane`, `band`, or `off`; under `live_display: off`, `/context-budget` stays
+registered so `/context-budget live pane` or `band` can turn the display on for the session).
+
 The `live_display` option picks where it shows:
 
 - `pane` (default). `/context-budget live` opens or closes a pane. Its header reads
@@ -161,6 +171,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
+| `context_budget_enabled` | boolean | `true` | Runs the live context breakdown module (pane, above-prompt band, and /context-budget command). Default true. Set false to turn the module off; overrides docs/conventions/context-budget.yaml for this user. When off, nothing draws or measures regardless of live_display. |
 | `live_display` | string | `"pane"` | Where the live context breakdown shows. pane opens it in a pane when you run /context-budget live; band keeps it above the prompt; off shows nothing and measures nothing. /context-budget live pane, band or off changes it for the session. |
 
 ### How to set these

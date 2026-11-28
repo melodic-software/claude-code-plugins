@@ -3,6 +3,12 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.2.1] - 2026-11-28
+
+### Changed
+
+- Trimmed `/debugging:debug` frontmatter description (413 -> 348 chars) below the 350-char target while preserving all failure shapes, input surfaces, `diagnose` no-edit semantics, sibling routes, and probe recall (train FP improved 0.33 -> 0.17).
+
 ## [3.2.0] - 2026-11-28
 
 ### Added

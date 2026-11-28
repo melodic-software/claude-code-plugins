@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.23.0] - 2026-11-28
+
+### Removed
+
+- Drop legacy `~/.claude/attribution.json` dual-read, warning, and migration section from audit config resolution and `/attribution:setup`.
+
+## [0.22.13] - 2026-11-28
+
+### Changed
+
+- Trimmed skill frontmatter descriptions (`audit`: 981 -> 346 chars, `setup`: 343 -> 148 chars; total 1,324 -> 494 chars, saving 830 chars) while preserving breadcrumb-first read-only default, guarded fix/sweep, copy/restated-fact rubrics, and expired stamp checks.
+
 ## [0.22.12] - 2026-11-27
 
 ### Changed

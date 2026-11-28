@@ -47,7 +47,8 @@ so ask for it only for the items that need it.
    an empty history.
 
 1. **Print one fenced JSON block**: `{"id", "title", "state", "url", "labels", "body"}`, `labels` as
-   an array of names. With `--comments` the block adds `"comments"`, oldest first, each
+   an array of names, plus `"native_status"` (string name) when the read returned a non-null native
+   lifecycle status. With `--comments` the block adds `"comments"`, oldest first, each
    `{"id", "author", "created_at", "body"}`. With `--history` it adds `"state_history"`:
    `{"available", "events", "reopen_count", "reason"}`, `events` oldest first, each
    `{"state": "closed" | "reopened", "at", "actor"}`; `events: []` means the item was never

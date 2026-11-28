@@ -1,0 +1,17 @@
+{
+  "request": "GET /repos/melodic-software/claude-code-plugins/commits?sha=main&per_page=100",
+  "captured_at": "2026-11-28T06:25Z",
+  "kept": "the first 10 of the 100 commits returned",
+  "response": [
+    {"sha": "b77809650f6feeaf54ecf6e5e09fbaad584647ed", "commit": {"message": "refactor(skill-quality): trim check skill frontmatter description (#19563)"}},
+    {"sha": "06747563ad4243b07a2fc0e4b02ef933c6a43b91", "commit": {"message": "refactor(plugins): trim setup skill descriptions (batch 2) (#19561)"}},
+    {"sha": "bb2a31c48cf990fac234f717581909b6c79a758a", "commit": {"message": "refactor(plugins): trim setup skill descriptions (batch 1) (#19559)"}},
+    {"sha": "bb75068434d5a6d3687eb6b29bfb1c6eedfe5a41", "commit": {"message": "feat(fleet,toolchain): add fleet peer_list_enabled and move toolchain onto lib/hook-enabled.mjs (#19552)"}},
+    {"sha": "c29457207e5a85f1b75e3e07e86667f8484170b4", "commit": {"message": "fix(docs-hygiene): require the lint run in the run-changes eval cases (#19540)"}},
+    {"sha": "7dc17fa1275f1374a67d2c8f49f8c33a719bc59f", "commit": {"message": "docs: repair dead links reported by online link check run 46065503183 (#19486)"}},
+    {"sha": "9533b2d27f1ce8b0c7d003c967a0898c7925dc96", "commit": {"message": "refactor(domain-driven-design): trim ubiquitous-language description (#19542)"}},
+    {"sha": "6e55cf83e762d64340fe112cd45d208c6226df75", "commit": {"message": "feat(github): update audit recipes for native GitHub platform features (#19548)"}},
+    {"sha": "df02bbf69211d6e508ec0443a58018fbd4bac7b2", "commit": {"message": "refactor(naming): trim name-it-better description (#19543)"}},
+    {"sha": "f121f3c7494d641d37d3bbd494e532160bdb37ed", "commit": {"message": "feat(rendered-views): add branding resolver, schema, validation and contract (#19476)"}}
+  ]
+}

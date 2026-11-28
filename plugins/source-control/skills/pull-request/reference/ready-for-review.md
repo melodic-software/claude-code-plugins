@@ -29,14 +29,10 @@ flip is done, so run 2.5.2, 2.5.3 and 2.5.5 and skip 2.5.4 and 2.5.6.
 
 Still a draft: refuse a held or superseded one before touching the branch
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#check-for-a-hold)).
-Held means a `do-not-merge` label, a body that says "do not merge", or a WIP marker in the title;
-superseded means an issue the PR closes is already closed. A body line starting `Hold:` holds the
-merge only, so it does not stop the flip. Neither does a `do-not-merge` label whose only stated
-reason is an eval hold: each `<!-- pr-hold reason=... -->` line posted since the label's newest
-labeled event reads `reason=eval`, and a human on the trusted-actors list or the lanes App posted
-it (the loop-lane contract's "Record the reason"). Flip with the label on, and leave it for the
-pr-merge release step to take off once the eval-pair record posts: removing and re-adding it voids
-the eval reason line, so the release step keeps the hold. An unattended
+Held means a WIP marker in the title; superseded means an issue the PR closes is already closed.
+The `do-not-merge` label holds the merge only, never the flip: flip a labeled draft with the label
+on, and leave the label for whoever set it to take off, except an eval-only hold, which pr-merge's
+release step (`release-eval-hold.mjs`) takes off once a no-loss eval record for the current head is posted. An unattended
 run (invoked as `ready --unattended`, or no person drives it: a loop lane, a CI lane, a `dontAsk`
 session, a dispatched worker) passes `--unattended`, which also holds a draft whose body has a
 line starting `Draft:` (any case, such as create's `Draft: requested early look` or

@@ -1,0 +1,31 @@
+{
+  "skill": "external-agents:antigravity",
+  "plugin": "external-agents",
+  "skill_dir": "plugins/external-agents/skills/antigravity",
+  "competitors": [
+    "external-agents:codex",
+    "review:council"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "delegate this refactor investigation to Gemini through the agy CLI"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "have Antigravity review my feature branch against main in the background"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "check the status of our running Gemini background job"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "fetch the result output from the finished agy job"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "stop and kill the stuck Antigravity process tree"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "verify whether agy is installed, logged in, and up to date"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "get a Gemini second look on this database migration via Antigravity"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "kick off a background task for agy to analyze these log files"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "refresh agy CLI facts and close the unavailable breaker"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "read back what Gemini returned from job agy-123"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "ask OpenAI Codex to review this branch against main"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "have Codex investigate the test failure in the background"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "check if the Codex job finished and read its result"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "run a multi-reviewer council panel on this pull request"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "cancel the running Codex task and update codex CLI"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "resume my earlier Codex thread for the parser refactor"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "get a ranked multi-reviewer panel verdict across reviewers"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "ask Codex for a second opinion on our API design"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "check whether the Codex CLI is ready to run"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "convene the review council with multiple models on this diff"}
+  ]
+}

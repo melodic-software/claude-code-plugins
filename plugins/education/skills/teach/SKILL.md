@@ -1,5 +1,5 @@
 ---
-description: "Multi-session learning coach for general topics or repo-grounded concepts, with persistent per-topic learning state and a single-session domain primer."
+description: "Multi-session learning coach for general topics or repo-grounded concepts, with persistent per-topic state and a single-session primer."
 argument-hint: "<topic|codebase|mission|glossary|resources|explain|primer|exercise|assess|resume|status> [args]"
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/build-lesson.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/build-lesson.mjs\":*)"]
 user-invocable: true

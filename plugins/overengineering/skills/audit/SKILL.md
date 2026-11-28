@@ -1,5 +1,5 @@
 ---
-description: "Audits a repository's existing enforcement surface (hooks, agent instructions, CI lanes, gate scripts, branch protection, forge apps, integrations) and reports which mechanisms no longer earn their keep; security-class items cap at flag-for-human. Read-only. Use when the user asks whether their CI, hooks or gates are overengineered or still earn their keep. Not for proposing new automation."
+description: "Read-only: audits existing enforcement surface (hooks, agent instructions, CI lanes, gate scripts, branch protection, forge apps, integrations) for mechanisms not earning their keep; security-class items cap at flag-for-human. Use when asking whether CI, hooks or gates are overengineered or 'still earn their keep'. Not for proposing new automation."
 argument-hint: "[--unattended] [--medium <value>] [layer ...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
