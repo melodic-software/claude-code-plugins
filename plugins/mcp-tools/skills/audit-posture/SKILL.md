@@ -1,5 +1,5 @@
 ---
-description: "Audit configured MCP servers statically for supply-chain posture (P1-P5: floating/unpinned, npx @latest, stdio/remote, provenance, OCI); never runs/connects or prints env/headers. Use when: 'mcp supply chain', 'MCP server inventory', 'is it safe to run my MCP servers'. Not for tool design (/mcp-tools:audit) or MCP config (/harness-config:audit)."
+description: "Audit configured MCP servers statically for supply-chain posture (P1 floating/unpinned incl. npx @latest, P2 stdio vs remote, P3 provenance, P4 OCI; P5 inventory); never runs/connects or prints env/headers. Use when: 'mcp supply chain', 'MCP server inventory', 'is it safe to run my MCP servers'. Not for tool design (/mcp-tools:audit) or MCP config (/harness-config:audit)."
 argument-hint: "[--config <file> ...]"
 user-invocable: true
 disable-model-invocation: false
