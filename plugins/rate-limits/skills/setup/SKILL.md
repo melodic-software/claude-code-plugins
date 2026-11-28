@@ -1,5 +1,5 @@
 ---
-description: "Verify the rate-limits plugin on this machine: node, whether its mod runs in this session, the snapshot file's freshness, the StopFailure hook, every option's effective value, and a directory left by the plugin's earlier name. Use when: 'set up rate-limits', 'is rate-limits working', the snapshot file is stale, a consuming loop lane reports guard mode unknown, or after a plugin update. Actions: check (read-only, default; prints every remediation and never edits settings, scripts or files), apply (on explicit request, migrates only the directory left by the earlier plugin name: merges its stop record into ~/.claude/rate-limits/stop-events.jsonl, old records first, and removes the directory)."
+description: "Verify rate-limits prerequisites, mod, snapshot, StopFailure hook, and options (check, read-only), or migrate an earlier-name directory (apply)."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
