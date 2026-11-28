@@ -15,7 +15,6 @@ import {
   DISARM_MUTATION,
   DISCUSSION_PAGE_QUERIES,
   MERGE_QUEUE_QUERY,
-  rotated,
   oldestFirst,
   HUMAN_VETO,
   PULLS_QUERY,
@@ -31,24 +30,12 @@ import {
   READER_EVENTS,
   personReason,
   holdPathOnly,
-  isPartial,
-  refusalBody,
-  refusalReasons,
   refusalWrites,
   main,
   pythonClose,
   pythonRoom,
-  pythonVerify,
   pythonWholeReview,
-  recordLines,
-  WHOLE_REVIEW_RECORD,
-  ReaderRateLimited,
-  costLine,
-  ghCalls,
-  ghCallsLine,
-  listingMissLines,
   LANE_ROOM_TIMEOUT_MS,
-  VERIFY_TIMEOUT_MS,
   VERIFY_BUDGET_MS,
   readRoom,
   TRUST_REFUSALS,
@@ -59,7 +46,6 @@ import {
   UNARMED_OUTPUT,
   WAKE_OUTPUT,
   verifyClears,
-  verifyHold,
   SKIP_STATE_PREFIX,
   pinBody,
   pinMoved,
@@ -67,7 +53,13 @@ import {
   VETO_MARKER,
   vetoLabelOwned,
   vetoNote,
+  isPartial,
+  recordLines,
+  refusalBody,
+  refusalReasons,
+  WHOLE_REVIEW_RECORD,
 } from "./enable-auto-merge.mjs";
+import { rotated, pythonVerify, ReaderRateLimited, costLine, ghCalls, ghCallsLine, listingMissLines, VERIFY_TIMEOUT_MS, verifyHold } from "./verifier.mjs";
 import { GitHubError } from "../lib/github-client.mjs";
 import { DEQUEUE_MUTATION, QUEUE_ENTRY_QUERY } from "../pr-unblock/address-feedback.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
@@ -647,6 +639,7 @@ test("a floor path no configured glob names is commented on and labeled human-ga
     ".github/scripts/pr-merge/enable-auto-merge.mjs",
     ".github/scripts/pr-merge/superseded.mjs",
     ".github/scripts/pr-merge/clear-escalations.mjs",
+    ".github/scripts/pr-merge/verifier.mjs",
     ".github/scripts/pr-merge/gate-check.mjs",
     ".github/scripts/pr-merge/who.mjs",
     "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
@@ -2407,11 +2400,6 @@ test("verifyHold allows only the reader's null refusal at the head read", () => 
   assert.match(verifyHold({ refusal: null, head: HEAD, ineligible: null }, HEAD), /risk score could not be read/);
 });
 
-// The gate's cap on a head the merge queue keeps removing for failed checks
-// (babysit_merge.unattended_enqueue, merge.max-queue-ejections, default 2):
-// the count, the limit and the gate's own comment come from `evidence
-// --lane-queue`, and a push resets the count, so the lanes clear it. #8051 and
-// #7897 were each re-armed after an ejection and ejected again.
 const EJECTION_COMMENT = [
   "<!-- babysit-merge-queue-ejections -->",
   `Unattended merge: the merge queue removed head \`${HEAD}\` 2 times for failed checks, so the pr-merge lane will not enqueue it again. A push resets the count.`,

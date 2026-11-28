@@ -701,7 +701,12 @@ test('entry: writes one SessionStart additionalContext document, or nothing, and
     writeFileSync(stub, `#!/usr/bin/env node\nprocess.stdout.write(${JSON.stringify(fixture('agents-background.json'))})\n`)
     chmodSync(stub, 0o755)
     const input = JSON.stringify({ ...payload, cwd: dir })
-    const env = { PATH: process.env.PATH, HOME: dir, CLAUDE_CODE_SESSION_ATTENDED: '1' }
+    const env = {
+      PATH: process.env.PATH,
+      HOME: dir,
+      CLAUDE_CODE_SESSION_ATTENDED: '1',
+      CLAUDE_PLUGIN_OPTION_PEER_LIST_ENABLED: 'true',
+    }
     const quiet = spawnSync(process.execPath, [join(here, 'peer-list.mjs')], { input, env, encoding: 'utf8', timeout: 20000 })
     assert.deepEqual([quiet.status, quiet.stdout], [0, ''])
     const listed = spawnSync(process.execPath, [join(here, 'peer-list.mjs')], { input, env: { ...env, CLAUDE_CODE_EXECPATH: stub }, encoding: 'utf8', timeout: 20000 })

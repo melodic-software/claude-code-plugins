@@ -1,5 +1,5 @@
 ---
-description: "Model and effort per agent role (orchestrator, worker, verifier, retrieval) for a multi-agent run, resolved through the bundled defaults and the user, team and personal override config layers into fenced JSON with single-agent and fan-out variants and the layer behind each value; fan-out stays off frontier models unless config opts in; `vendors` with a task picks vendor (Claude, Codex, Gemini), model and effort for one delegated task by work type using the benchmark trust model, defaults first. Use when asked 'which model for the subagents', 'route the roles', 'what effort should the workers use', 'roles for the workflow args', 'model routing', 'is fan-out on a frontier model', 'Codex or Gemini for this', 'which vendor and effort for this delegation', or before a skill launches a workflow that takes args.roles."
+description: "Resolve model/effort routing by agent role in a run (defaults/override config, single-agent/fan-out JSON; fan-out stays off frontier models unless config opts in); `vendors` picks Claude/Codex/Gemini model/effort by work type, defaults first. Use when 'model routing', 'which model for subagents', 'what effort for workers', or `args.roles` workflow."
 argument-hint: "<<role>|all|vendors <task>> [workload] [session=<alias>]"
 user-invocable: true
 disable-model-invocation: false

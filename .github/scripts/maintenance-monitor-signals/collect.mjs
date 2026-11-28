@@ -3,6 +3,7 @@ import { escalationActivity, escalationRoute, STOP_RESOLVED } from "../pr-unbloc
 import { HOLD_LANES, holdJob, parseBudget, parseHold, POST_MERGE_UNREADABLE_SWEEPS, STALLED_HOURS, SWEEP_MAX_AGE_MINUTES } from "./signals.mjs";
 import { stepsKnown } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { CHECK_RUN_ANNOTATIONS, isObject, jobsKey, readNodes, restAnnotations, restJobs, RUN_CHECK_RUNS, slimJob } from "../lib/run-jobs.mjs";
+import { BODY_HOLD, labelHolds, LANE_HOLD } from "../pr-merge/merge-holds.mjs";
 
 export const LIMITS = {
   prMergeRuns: 12,
@@ -650,88 +651,105 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
   });
   data.heldCarry = { runs: data.laneHolds, from: heldThrough ? heldFrom : null, through: heldThrough, scanned };
 
-  await source("stalled stops", async () => {
-    data.stalledStops = [];
-    const cutoff = now.getTime() - STALLED_HOURS * 3600_000;
-    let checks = 0;
+  let openPulls = null;
+  await source("open pull requests", async () => {
     const listed = await queryRepo(
       graphql,
       repo,
-      `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { pullRequests(states: OPEN, baseRefName: "main", first: ${LIMITS.stalledPulls}, orderBy: { field: UPDATED_AT, direction: DESC }) { totalCount nodes { number headRefOid comments(last: 100) { ${COMMENT_PAGE} } } } } }`,
+      `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { pullRequests(states: OPEN, baseRefName: "main", first: ${LIMITS.stalledPulls}, orderBy: { field: UPDATED_AT, direction: DESC }) { totalCount nodes { number isDraft headRefOid author { __typename login } labels(first: 100) { nodes { name } } body comments(last: 100) { ${COMMENT_PAGE} } } } } }`,
     );
     if (!listed.pullRequests) throw new Error("GraphQL: no open pull request list");
-    const total = listed.pullRequests.totalCount ?? 0;
-    if (total > LIMITS.stalledPulls) {
-      gaps.push(`stalled stops: ${total} open pull requests, only the ${LIMITS.stalledPulls} most recently updated read`);
-    }
-    const pulls = (listed.pullRequests.nodes ?? []).map((node) => ({
-      number: node.number,
-      head: node.headRefOid,
-      comments: (node.comments?.nodes ?? []).map(restComment),
-      older: node.comments?.pageInfo?.hasPreviousPage ? node.comments.pageInfo.startCursor : null,
-    }));
-    const marks = (pull) =>
-      pull.comments.some((c) => {
-        if (c.user?.login !== agentIdentity) return false;
-        const body = String(c.body ?? "").replaceAll("\r\n", "\n");
-        const first = body.split("\n")[0];
-        return (LANE_STOPPED.test(first) && STOP_FIELD("Head").exec(body)?.[1] === pull.head) || CLEARED.exec(first)?.[2] === pull.head;
-      });
-    for (let round = 0; round < LIMITS.stalledCommentRounds; round += 1) {
-      const deeper = pulls.filter((pull) => pull.older !== null && !marks(pull));
-      if (deeper.length === 0) break;
-      const older = await queryRepo(
-        graphql,
-        repo,
-        batchQuery(deeper.map((pull) => `pullRequest(number: ${pull.number}) { comments(last: 100, before: ${JSON.stringify(pull.older)}) { ${COMMENT_PAGE} } }`)),
-      );
-      for (const [i, pull] of deeper.entries()) {
-        const page = older[`a${i}`]?.comments;
-        pull.comments = [...(page?.nodes ?? []).map(restComment), ...pull.comments];
-        pull.older = page?.pageInfo?.hasPreviousPage ? page.pageInfo.startCursor : null;
+    openPulls = listed.pullRequests;
+    const total = openPulls.totalCount ?? 0;
+    const openLaneCount = (openPulls.nodes ?? []).filter((node) => {
+      const login = node.author?.__typename === "Bot" ? `${node.author.login}[bot]` : node.author?.login;
+      if (node.isDraft === true || login !== agentIdentity) return false;
+      const labels = (node.labels?.nodes ?? []).map((l) => l?.name).filter(Boolean);
+      if (labelHolds(labels, null, 0).length > 0) return false;
+      const body = String(node.body ?? "");
+      return !LANE_HOLD.test(body) && !BODY_HOLD.test(body);
+    }).length;
+    data.openLanePrs = total <= LIMITS.stalledPulls || openLaneCount > 0 ? openLaneCount : null;
+  });
+
+  data.stalledStops = [];
+  if (openPulls) {
+    await source("stalled stops", async () => {
+      const cutoff = now.getTime() - STALLED_HOURS * 3600_000;
+      let checks = 0;
+      const total = openPulls.totalCount ?? 0;
+      if (total > LIMITS.stalledPulls) {
+        gaps.push(`stalled stops: ${total} open pull requests, only the ${LIMITS.stalledPulls} most recently updated read`);
       }
-    }
-    for (const pull of pulls) {
-      const { head, comments } = pull;
-      const stops = new Map();
-      for (const c of comments) {
-        if (c.user?.login !== agentIdentity) continue;
-        const lines = String(c.body ?? "").split("\n").map((line) => line.replace(/\r$/, ""));
-        const body = lines.join("\n");
-        const activity = LANE_STOPPED.exec(lines[0])?.[1];
-        if (activity) {
-          if (STOP_FIELD("Head").exec(body)?.[1] === head) {
-            stops.set(activity, { activity, reason: STOP_FIELD("Reason").exec(body)?.[1] ?? "unknown", stoppedAt: c.updated_at ?? c.created_at, url: c.html_url });
-          }
-          continue;
+      const pulls = (openPulls.nodes ?? []).map((node) => ({
+        number: node.number,
+        head: node.headRefOid,
+        comments: (node.comments?.nodes ?? []).map(restComment),
+        older: node.comments?.pageInfo?.hasPreviousPage ? node.comments.pageInfo.startCursor : null,
+      }));
+      const marks = (pull) =>
+        pull.comments.some((c) => {
+          if (c.user?.login !== agentIdentity) return false;
+          const body = String(c.body ?? "").replaceAll("\r\n", "\n");
+          const first = body.split("\n")[0];
+          return (LANE_STOPPED.test(first) && STOP_FIELD("Head").exec(body)?.[1] === pull.head) || CLEARED.exec(first)?.[2] === pull.head;
+        });
+      for (let round = 0; round < LIMITS.stalledCommentRounds; round += 1) {
+        const deeper = pulls.filter((pull) => pull.older !== null && !marks(pull));
+        if (deeper.length === 0) break;
+        const older = await queryRepo(
+          graphql,
+          repo,
+          batchQuery(deeper.map((pull) => `pullRequest(number: ${pull.number}) { comments(last: 100, before: ${JSON.stringify(pull.older)}) { ${COMMENT_PAGE} } }`)),
+        );
+        for (const [i, pull] of deeper.entries()) {
+          const page = older[`a${i}`]?.comments;
+          pull.comments = [...(page?.nodes ?? []).map(restComment), ...pull.comments];
+          pull.older = page?.pageInfo?.hasPreviousPage ? page.pageInfo.startCursor : null;
         }
-        const cleared = CLEARED.exec(lines[0]);
-        if (cleared && cleared[2] === head) {
-          for (const reason of cleared[1].split(",")) {
-            const of = escalationActivity(reason);
-            if (escalationRoute(reason) === "fail" && reason !== "feedback-not-landed" && !stops.has(of)) {
-              stops.set(of, { activity: of, reason, stoppedAt: c.created_at, url: c.html_url });
+      }
+      for (const pull of pulls) {
+        const { head, comments } = pull;
+        const stops = new Map();
+        for (const c of comments) {
+          if (c.user?.login !== agentIdentity) continue;
+          const lines = String(c.body ?? "").split("\n").map((line) => line.replace(/\r$/, ""));
+          const body = lines.join("\n");
+          const activity = LANE_STOPPED.exec(lines[0])?.[1];
+          if (activity) {
+            if (STOP_FIELD("Head").exec(body)?.[1] === head) {
+              stops.set(activity, { activity, reason: STOP_FIELD("Reason").exec(body)?.[1] ?? "unknown", stoppedAt: c.updated_at ?? c.created_at, url: c.html_url });
+            }
+            continue;
+          }
+          const cleared = CLEARED.exec(lines[0]);
+          if (cleared && cleared[2] === head) {
+            for (const reason of cleared[1].split(",")) {
+              const of = escalationActivity(reason);
+              if (escalationRoute(reason) === "fail" && reason !== "feedback-not-landed" && !stops.has(of)) {
+                stops.set(of, { activity: of, reason, stoppedAt: c.created_at, url: c.html_url });
+              }
             }
           }
         }
-      }
-      if (pull.older !== null && !marks(pull)) {
-        gaps.push(`stalled stops: #${pull.number} has over ${comments.length} comments and none names a stop on its head; older ones not read`);
-      }
-      for (const stop of stops.values()) {
-        if (!(Date.parse(stop.stoppedAt) < cutoff)) continue;
-        if (checks >= LIMITS.stalledChecks) {
-          gaps.push(`stalled stops: over ${LIMITS.stalledChecks} candidate stops; #${pull.number} and later not judged`);
-          return;
+        if (pull.older !== null && !marks(pull)) {
+          gaps.push(`stalled stops: #${pull.number} has over ${comments.length} comments and none names a stop on its head; older ones not read`);
         }
-        checks += 1;
-        const runs = (await get(`/repos/${repo}/commits/${head}/check-runs?check_name=${encodeURIComponent(`pr-unblock / ${stop.activity}`)}&filter=all&per_page=100`)).check_runs ?? [];
-        const since = runs.filter((run) => Date.parse(run.started_at) > Date.parse(stop.stoppedAt));
-        if (since.some((run) => attempted(run) || run.output?.title === STOP_RESOLVED)) continue;
-        data.stalledStops.push({ pr: pull.number, head, ...stop });
+        for (const stop of stops.values()) {
+          if (!(Date.parse(stop.stoppedAt) < cutoff)) continue;
+          if (checks >= LIMITS.stalledChecks) {
+            gaps.push(`stalled stops: over ${LIMITS.stalledChecks} candidate stops; #${pull.number} and later not judged`);
+            return;
+          }
+          checks += 1;
+          const runs = (await get(`/repos/${repo}/commits/${head}/check-runs?check_name=${encodeURIComponent(`pr-unblock / ${stop.activity}`)}&filter=all&per_page=100`)).check_runs ?? [];
+          const since = runs.filter((run) => Date.parse(run.started_at) > Date.parse(stop.stoppedAt));
+          if (since.some((run) => attempted(run) || run.output?.title === STOP_RESOLVED)) continue;
+          data.stalledStops.push({ pr: pull.number, head, ...stop });
+        }
       }
-    }
-  });
+    });
+  }
 
   await source("audits", async () => {
     data.audits = [];

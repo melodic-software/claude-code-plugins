@@ -1,5 +1,5 @@
 ---
-description: "Maintainer-facing drift check and baseline refresh for the grounding skill's vendored upstream content. Actions: --check (default, read-only drift report) and --apply (refresh the vendored baseline, working-tree checkout only). Use when: 'check dometrain drift', 'has the dometrain-grounding skill changed upstream', before a version bump, or at a scheduled recheck."
+description: "Maintainer drift check and baseline refresh for vendored dometrain grounding content (--check read-only, --apply in working-tree checkout only)."
 argument-hint: "[--check|--apply]"
 user-invocable: true
 disable-model-invocation: true

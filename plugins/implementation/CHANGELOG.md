@@ -3,6 +3,12 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.10] - 2026-11-28
+
+### Changed
+
+- Trimmed `/implementation:implement` (494 -> 345 chars) and `/implementation:implement-dispatch` (508 -> 347 chars; total 1002 -> 692 chars, -310 chars) frontmatter descriptions while preserving TDD/validation workflows, `replace` modes, direct-evidence worker verification, main-side build/test gating, and sibling boundaries.
+
 ## [0.48.9] - 2026-11-26
 
 ### Changed

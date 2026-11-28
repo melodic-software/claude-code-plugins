@@ -1,0 +1,31 @@
+{
+  "skill": "engineering-concepts:adopt",
+  "plugin": "engineering-concepts",
+  "skill_dir": "plugins/engineering-concepts/skills/adopt",
+  "competitors": [
+    "engineering-concepts:load",
+    "engineering-concepts:lookup"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "save these resilience concepts permanently into our team standards file"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "add the architecture topic entries to my personal standards index"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "turn chosen catalog concepts into standing repository standards"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "write the selected concurrency principles and index row into our team layer"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "adopt the testing concepts permanently so every future review loads them"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "persist these shipped engineering principles in ~/.claude/standards/"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "adopt the reliability topic into our committed team standards"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "record selected concept ids and sources in a personal standards file"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "make these distributed-systems concepts permanent standards across every future plan"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "preview and write adopted catalog entries into our standards surface"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "look up the official source and counterweights for Conway's Law"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "load the reliability topic into this session as working context"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "which catalog patterns fit the API design stage"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "bring the observability entries into context for this design only"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "find the catalog id and tags for circuit breaker"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "apply the caching topic just for this current review"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "what counterweights pull against microservices in the catalog"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "load event-driven concepts temporarily for today's planning session"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "search built-in concepts by concern without writing any file"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "keep the security topic in view for this session only"}
+  ]
+}

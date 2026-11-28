@@ -447,13 +447,26 @@ test("signal 8: no lane merge for 3 hours with countable PRs fires", () => {
 });
 
 test("signal 8: a recent merge, no countable PR, or a report-only lane stays quiet", () => {
-  const quiet = (sweepValue, lastMergedAt) =>
-    throughputFindings({ ...base, sweep: sweepValue, laneMerges: { lastMergedAt } });
+  const quiet = (sweepValue, lastMergedAt, extra = {}) =>
+    throughputFindings({ ...base, sweep: sweepValue, laneMerges: { lastMergedAt }, ...extra });
   assert.deepEqual(quiet(sweep([]), "2026-10-19T14:00:00Z"), []);
   assert.deepEqual(quiet(sweep([], { candidates: 0 }), "2026-10-19T10:00:00Z"), []);
   assert.deepEqual(quiet(sweep([], { live: false }), "2026-10-19T10:00:00Z"), []);
   assert.deepEqual(quiet(null, "2026-10-19T10:00:00Z"), []);
   assert.deepEqual(quiet(sweep([], { startedAt: "2026-10-19T15:00:00Z" }), "2026-10-19T10:00:00Z"), []);
+  assert.deepEqual(quiet(sweep([], { candidates: 3, refusalCounts: { "ineligible:not-adopted:updated-fresh": 3 } }), "2026-10-19T10:00:00Z", { openLanePrs: 0 }), []);
+  assert.deepEqual(quiet(sweep([], { live: false }), "2026-10-19T10:00:00Z", { openLanePrs: 2 }), []);
+});
+
+test("signal 8: open unheld lane PRs fire even when pr-merge's sweep counts 0 non-lane candidates", () => {
+  const found = throughputFindings({
+    ...base,
+    sweep: sweep([], { candidates: 0 }),
+    laneMerges: { lastMergedAt: "2026-10-19T13:30:00Z" },
+    openLanePrs: 2,
+  });
+  assert.deepEqual(found.map((f) => f.key), ["throughput-zero"]);
+  assert.match(found[0].summary, /2 open unheld lane PRs wait/);
 });
 
 test("signal 8: a stall keeps its fingerprint until a merge lands", () => {

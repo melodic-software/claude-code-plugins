@@ -1,5 +1,5 @@
 ---
-description: "Forward-looking guidance and hand-holding on the GitHub settings/admin plane: how to design, configure, and set up any area (rulesets, billing budgets, security model, Actions policy, webhooks, PATs, apps), grounded in live gh state and freshly fetched GitHub docs. Use when: 'how should I configure X', 'help me set up Y', 'walk me through Z', 'what's the recommended way to', 'design our org's Actions policy'. Not for current-state review or drift ('what is', 'what drifted', 'are these consistent'): that is the audit skill."
+description: "Forward-looking GitHub guidance: how to design, configure, walk through, and set up recommended rulesets, billing budgets, security model, Actions policy, webhooks, PATs, or apps, grounded in live gh state and docs. Use when: 'how should I configure X', 'help me set up Y', 'what's the recommended way to'. Not for current review: /github:audit."
 argument-hint: "[--unattended] [topic] [--apply]"
 user-invocable: true
 disable-model-invocation: false
