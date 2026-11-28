@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: interview-lightning-mid-switch
+description: "Saying \"speed this up\" mid-interview reprints the current round condensed. Why hard: the reply reads like impatience, not a switch, so the easy path apologises and repeats the full layout."
+tags: [interview, lightning, no-network]
+expected_outcome: "The open round is reprinted as condensed entries with no Context block."
+execution:
+  prompt: "/planning:interview Add a nightly job that deletes expired password-reset tokens from the database. Use the topic slug `token-cleanup`.\n\nWhere we are: your round 1 asked, in the full layout, Q1 (what fails today without this job) and Q2 (which quality bar: prototype, internal tool or production). Neither is answered.\n\nMy reply: speed this up."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: condensed-answer-line
+    type: regex
+    pattern: "^\\S*\\s*\\*\\*[^*\\n]{1,80}\\*\\* - \\S"
+    flags: m
+    arm: with-only
+  - name: no-context-block
+    type: regex
+    pattern: "^Context:"
+    flags: m
+    match: not_contains
+    arm: with-only

@@ -6197,6 +6197,67 @@ SKIPPING_ROUNDS = {
     3: round_text(3, [(7, "Question 7?"), (8, "Question 8?")], []),
 }
 
+LIGHTNING = [
+    "**Round 3.** The retry budget is three tries, and a failed retry pages no one.",
+    "Scope check: 9 of 27 questions registered; round 2 added 4, settled 3; round 1 added 3, settled 3",
+    "Later: alert routing, the on-call rota",
+    "Held: Q12 (queue choice) until the queue lookup returns",
+    "",
+    "❓ Q10: **Should a failed retry write to the audit log?**",
+    "➡️ **yes, one entry per failed retry** - The log already takes one write per job, so a "
+    "retry entry fits it (verified, `src/retry.ts:12`) (or: a Log only the final failure, "
+    "b Log nothing for retries)",
+    "   Flips if: the audit log starts dropping batched writes in production.",
+    "   Second view: write only the final failure, to keep the log short.",
+    "   Departs from: Q4 (one write per job) because a retry adds a second write to a failed job.",
+    "   - one log entry per failed retry",
+    "   - keeping the retry count in the entry",
+    "",
+    "❓ Q11: **Who reads the retry entries?**",
+    "Discovery: who reads the entries settles whether they need a dashboard.",
+    "",
+    "❓ Q13: **Which store holds the entries?**",
+    "Withheld: the queue lookup has not returned, so no store can be recommended yet.",
+    "   Flips if: the lookup finds the queue already persists jobs.",
+    "",
+    'say "more Q<N>" for the full block.',
+    "You can answer in any order. Is there something else that would change these recommendations?",
+]
+
+
+class TestRoundShowLightning(unittest.TestCase):
+    """show --level lightning prints each question as a condensed entry from the full blocks."""
+
+    def show(self, path=ROUND_FULL):
+        rc, out, err = run_bytes("show", "--level", "lightning", str(path))
+        self.assertEqual(rc, 0, err)
+        return out.decode("utf-8").splitlines()
+
+    def test_lightning_prints_condensed_entries(self):
+        self.assertEqual(self.show(), LIGHTNING)
+
+    def test_lightning_keeps_every_warning_and_commitment_line(self):
+        out = self.show()
+        for line in (
+            "   Flips if: the audit log starts dropping batched writes in production.",
+            "   Departs from: Q4 (one write per job) because a retry adds a second write to a failed job.",
+            "   - keeping the retry count in the entry",
+            "Withheld: the queue lookup has not returned, so no store can be recommended yet.",
+        ):
+            self.assertIn(line, out)
+
+    def test_lightning_drops_context_and_full_alternatives(self):
+        out = self.show()
+        self.assertNotIn("Context:", out)
+        self.assertNotIn("Alternatives:", out)
+        self.assertNotIn("---", out)
+
+    def test_lightning_leaves_the_round_file_untouched(self):
+        before = ROUND_FULL.read_bytes()
+        self.show()
+        self.assertEqual(ROUND_FULL.read_bytes(), before)
+
+
 WAYFIND_LINE = (
     "Wayfind: the last two rounds each opened more questions than they settled; "
     "/planning:wayfind chart can map what is left.\n"

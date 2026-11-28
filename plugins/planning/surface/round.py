@@ -53,7 +53,8 @@ ops, and supersede and resolve read their text from a file.
                   `## Reopened answers`, and add `recheck:: Q<N>` to every row whose `depends::`
                   reaches it at any depth, printing each; --rechecked Q<N>... clears recheck::
                   from those rows. Needs no data dir; backs up and prints the verdict as supersede
-  show            print a saved round file at --level full (every line), standard or minimal, its
+  show            print a saved round file at --level full (every line), standard, minimal or
+                  lightning (each question as a condensed entry), its
                   citation labels per --links plain|vscode|file, its held-back block as the
                   Next round and Later: lines
   scope-check     print a round header's Scope check: line from --ledger F, a Wayfind: line on the
@@ -2821,7 +2822,7 @@ def cmd_next_id(d, a):
     print("\n".join([*(f"Q{top + k}" for k in range(1, a.count + 1)), *scope]))
 
 
-LEVELS = ("full", "standard", "minimal")
+LEVELS = ("full", "standard", "minimal", "lightning")
 BULLET_LABELS = ("Why", "Gains", "Costs", "Evidence", "Flips if")
 ROUND_LABELS = (
     "My recommendation",
@@ -2995,10 +2996,103 @@ def expand_held_back(text, where):
     return "".join(lines[:start] + shown + lines[end + 1 :])
 
 
+LIGHTNING_KEEP = ("Withheld", "Discovery", "No recommendation", "Your answer settles", "Strong answer")
+LIGHTNING_WARN = ("Flips if", "Second view", "Departs from")
+ALT_ITEM = re.compile(r"^[ \t]*[-*+][ \t]+\(([a-z])\)[ \t]*(.*)$")
+BOLD_ANSWER = re.compile(r"^(?P<lead>.*?)My recommendation:[ \t]*(?P<bold>\*\*.+?\*\*)(?P<rest>.*)$")
+
+
+def label_text(line, label):
+    """The text after `label:` on `line`, any list marker and bold around the label dropped."""
+    bare = line.strip()
+    bare = re.sub(r"^[-*+][ \t]+", "", bare)
+    bare = re.sub(rf"^(?:\*\*|__)?{re.escape(label)}(?:\*\*|__)?:[ \t]*", "", bare)
+    return bare.strip()
+
+
+def alt_labels(seg):
+    """`a <label>` for each `(a) <label>. <tradeoff>` alternative under an Alternatives: line."""
+    out = []
+    for line in seg[1:]:
+        m = ALT_ITEM.match(line.rstrip("\r\n"))
+        if m:
+            label = re.split(r"\.(?:\s|$)", m.group(2).strip(), maxsplit=1)[0].strip().rstrip(".")
+            out.append(f"{m.group(1)} {label}")
+    return out
+
+
+def lightning_entry(parts, eol):
+    """One question's condensed entry from its labeled segments (label -> lines)."""
+    out = list(parts["title"])
+    rec = parts.get("My recommendation")
+    if rec:
+        m = BOLD_ANSWER.match(rec[0].rstrip("\r\n"))
+        if m:
+            basis = ""
+            if "Evidence" in parts:
+                basis = label_text(parts["Evidence"][0], "Evidence")
+            elif m.group("rest").strip(" .:-"):
+                basis = m.group("rest").strip(" .:-")
+            elif "Why" in parts:
+                basis = label_text(parts["Why"][0], "Why")
+            line = f"{m.group('lead')}{m.group('bold')}"
+            if basis:
+                line += f" - {basis}"
+            alts = alt_labels(parts.get("Alternatives", []))
+            if alts:
+                line += f" (or: {', '.join(alts)})"
+            out.append(line + eol)
+    for label in LIGHTNING_KEEP:
+        out.extend(parts.get(label, []))
+    for label in LIGHTNING_WARN:
+        for line in parts.get(label, [])[:1]:
+            out.append(f"   {label}: {label_text(line, label)}{eol}")
+    for line in parts.get("Commits you to", [])[1:]:
+        if line.strip():
+            out.append(f"   {line.strip()}{eol}")
+    return out
+
+
+def render_lightning(text):
+    """Every question as a condensed entry: its title line; the bold answer, its basis after a
+    dash and the alternatives' letters; warning and commitment lines when present; the
+    `say "more Q<N>"` hint before the round's closing text."""
+    segs = round_segments(text.splitlines(keepends=True))
+    header = segs[0][2] if segs and segs[0][0] == "header" else []
+    eol = eol_of(header[0]) if header else "\n"
+    order, entries, closing = [], {}, []
+    for label, qid, seg in segs[1:]:
+        if label == "title":
+            order.append(qid)
+            entries[qid] = {"title": seg}
+            closing = []
+            continue
+        parts = entries[qid]
+        if label in ("blank",):
+            continue
+        if label == "text":
+            if not seg[0].strip().startswith("---"):
+                closing.append(seg)
+            continue
+        closing = []
+        parts.setdefault(label, list(seg))
+    out = [line for line in header if line.strip()]
+    for qid in order:
+        out.append(eol)
+        out.extend(lightning_entry(entries[qid], eol))
+    out.append(eol)
+    out.append(f'say "more Q<N>" for the full block.{eol}')
+    for seg in closing:
+        out.extend(seg)
+    return "".join(out)
+
+
 def render_round(text, level, where="round file"):
     text = expand_held_back(text, where)
     if level == "full":
         return text
+    if level == "lightning":
+        return render_lightning(text)
     out = []
     for label, qid, seg in round_segments(text.splitlines(keepends=True)):
         eol = eol_of(seg[0])
