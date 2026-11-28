@@ -1,4 +1,4 @@
-# test-scope: plugins/planning/.claude-plugin/plugin.json plugins/planning/lib/branding_helper.py plugins/planning/lib/view-settings.mjs plugins/planning/reference/html-tokens.css plugins/planning/shared/server.py
+# test-scope: plugins/planning/.claude-plugin/plugin.json plugins/planning/lib/branding_helper.py plugins/planning/lib/view-settings.mjs plugins/planning/reference/html-tokens.css plugins/planning/shared/server.py plugins/planning/surface/question_shape.py
 """Shared interview server branding integration tests."""
 
 from __future__ import annotations
