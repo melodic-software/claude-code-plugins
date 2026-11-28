@@ -2056,7 +2056,25 @@ test("gateLines names exactly the lines check-gate-lines.sh names", (t) => {
   }
   const named = out.split("\n").filter((line) => line.startsWith("added: ")).map((line) => line.slice("added: ".length)).sort();
   assert.deepEqual(gateLines(corpus), named);
-  assert.ok(named.length >= 14, "the corpus exercises the list");
+  for (const [rule, line] of [
+    ["a quoted Draft: lead", "> Draft: quoted"],
+    ["a Siblings: lead", "Siblings: #1, #2"],
+    ["a MERGE-RISK: lead", "MERGE-RISK: max=LOW"],
+    ["a Refs: lead", "Refs: #5"],
+    ["a relates to: lead", "relates to: #6"],
+    ["a No related issue lead", "No related issue: reason"],
+    ["a no linked issue lead", "no linked issue here"],
+    ["a closing keyword on #N", "Closes #7"],
+    ["a closing keyword on owner/repo#N mid-line", "this fixes o/r#8 too"],
+    ["a closing keyword with a colon", "resolved: #9"],
+    ["a closing keyword on an issue URL", "Closes https://github.com/o/r/issues/10"],
+    ["a closing keyword with a colon on an issue URL mid-line", "see fixes: https://github.com/o/r/issues/11 too"],
+    ["the Follow-ups heading", "## Follow-ups"],
+    ["a Follow-ups bullet", "- Pre-existing (advisory): `x`"],
+  ]) {
+    assert.ok(named.includes(line), `the corpus hits ${rule}`);
+  }
+  for (const line of ["Hold: wait", "  hold: indented", "- Hold: in a bullet"]) assert.ok(!named.includes(line), `a hold line is no gate line: ${line}`);
 });
 
 const ASKED_AT = "2026-11-17T10:00:00Z";
