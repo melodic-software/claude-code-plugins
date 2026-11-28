@@ -3,6 +3,18 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.3] - 2026-11-28
+
+### Changed
+
+- Trimmed `/ai-briefing:setup` user-invoked frontmatter description (444 -> 143 chars) to a one-line summary without trigger phrasing.
+
+## [2.0.2] - 2026-11-28
+
+### Changed
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
 ## [2.0.1] - 2026-11-26
 
 ### Changed

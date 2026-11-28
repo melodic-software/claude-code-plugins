@@ -77,9 +77,7 @@ Everything tunable resolves through three layers with per-key override, listed i
 [`reference/config.md`](reference/config.md#layers-and-merge-form): your own `userConfig` file
 (the YAML file the `config_file` option below names), the tracked team file, and a gitignored
 personal override, all checked by [`schemas/code-metrics.schema.json`](schemas/code-metrics.schema.json).
-The old `~/.claude/code-metrics.yaml` and `.claude/code-metrics.local.yaml` are still read, each
-with a warning, until a later release; `/code-metrics:setup apply --copy-old` copies their keys to
-their new locations. Every key has a bundled default
+Every key has a bundled default
 (`scripts/config-defaults.json`), so the plugin works with no configuration at all; the one
 opinionated default is `scope.exclude`, which drops `node_modules`, `vendor`, `dist`, and `build`
 directories at any depth and reports what it dropped, and a team file that sets the key replaces
@@ -88,8 +86,8 @@ the list whole. The consumer's
 and `enabled`. References ship with their provenance: cyclomatic 20 cites ISO/IEC 5055:2021
 §8.2.117; the 1000-line file default is the plugin's own number and says so. Files are written in
 a documented YAML subset (block style, flow sequences of scalars, no flow mappings). Every key:
-`reference/config.md`; `/code-metrics:setup` writes the team layer, copies old files to their new
-locations, and probes the collectors. Where each layer lives across this marketplace's
+`reference/config.md`; `/code-metrics:setup` writes the team layer and probes the collectors.
+Where each layer lives across this marketplace's
 plugins: [config locations](reference/config-locations.md).
 
 ## The report
@@ -199,7 +197,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `config_file` | file | *(none)* | Path to your own code-metrics YAML file, the layer that applies in every repository, under the team file and your personal override. Same keys as docs/conventions/code-metrics.yaml. Unset: no user layer. /code-metrics:setup apply --copy-old fills it from ~/.claude/code-metrics.yaml. |
+| `config_file` | file | *(none)* | Path to your own code-metrics YAML file, the layer that applies in every repository, under the team file and your personal override. Same keys as docs/conventions/code-metrics.yaml. Unset: no user layer. |
 
 ### How to set these
 

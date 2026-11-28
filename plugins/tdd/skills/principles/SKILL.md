@@ -1,5 +1,5 @@
 ---
-description: "Answers test design questions from authoritative TDD sources (Beck, Khorikov), producing WHY reasoning to improve test design decisions. Use when: 'should I mock this', 'four pillars of a good test', 'red green refactor', 'classical vs london school', 'test doubles', 'testing anti-patterns', 'resistance to refactoring', 'code coverage', 'observable behavior', 'humble object', 'integration test', 'test pyramid', 'output vs state vs communication test', 'property-based testing', 'characterization test', 'legacy code'. Not for HOW to run tests in the project (use the project's own test tooling and workflow for that)."
+description: "Test design WHY reasoning (Beck, Khorikov, etc.): TDD, four pillars of a good test, resistance to refactoring, Classical vs London school, test doubles, observable behavior, Humble Object, test pyramid, integration/property-based/characterization testing, output/state/communication tests, code coverage, legacy code, anti-patterns. Use when 'should I mock this', 'red green refactor'. Not for running/filtering tests."
 argument-hint: "[question or concept]"
 user-invocable: true
 disable-model-invocation: false

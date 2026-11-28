@@ -1,5 +1,5 @@
 ---
-description: "Verify actionlint's prerequisites and whether its hooks lint workflows here, and register its git pre-commit entry. Use when: 'set up actionlint', 'configure actionlint', 'is actionlint working', workflow lint silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply [install-git-hooks [scope=local|shared]]. Re-runnable and safe."
+description: "Verify actionlint prerequisites and workflow hooks (check [inspect]), or register its git pre-commit entry (apply [install-git-hooks])."
 argument-hint: "[check|apply] [inspect|install-git-hooks [scope=local|shared]]"
 user-invocable: true
 disable-model-invocation: true
