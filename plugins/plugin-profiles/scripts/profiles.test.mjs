@@ -498,6 +498,7 @@ test("session_start_profile_enabled: a user false wins over the repository, and 
   assert.equal(at("true", "false"), "", "user false, repository true");
   assert.equal(at("false", undefined), "", "user unset, repository false");
   assert.match(JSON.parse(at("true", undefined)).systemMessage, /Profile build applies here/, "user unset, repository true");
+  assert.match(JSON.parse(at("false", "true")).systemMessage, /Profile build applies here/, "user true, repository false");
 });
 
 test("Q69: in cloud sessions the session-start notice prints nothing and writes nothing, even where a profile is applied", () => {

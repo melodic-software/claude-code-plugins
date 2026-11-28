@@ -98,6 +98,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `model_checker_jar` | file | *(none)* | Path to tla2tools.jar, the TLC model checker. Unset uses the jar that setup installs under the plugin data directory. |
 | `java` | file | *(none)* | Path to the java binary that runs TLC. Unset uses java on PATH. The plugin never installs Java. |
 | `script_runtime` | file | *(none)* | Path to the Node, Bun or Deno binary that runs the chart scripts. Unset lets the launcher pick the first supported one on PATH. |
+| `branding` | string | *(none)* | Palette, type and logo overrides for rendered HTML pages as one JSON object matching branding in docs/conventions/rendered-views.yaml. Empty (default): shipped look. Repository team and personal override files win; invalid values are reported and ignored. |
 
 ### How to set these
 

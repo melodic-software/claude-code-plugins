@@ -187,8 +187,9 @@ of working the way out from the code each time.
 - **Writer and readers:** `reuse-or-replace` is the one skill that writes
   entries, and only after the user says yes; other skills propose entries to
   it. The planning plugin's `plan`, the implementation plugin's `implement`
-  (which reads only the entries for the concerns the paths it edits touch)
-  and review are the readers.
+  (which reads only the entries for the concerns the paths it edits touch),
+  review, and every carrier of the ecosystem-resolution contract are the
+  readers.
 - **No default content:** no plugin ships paved paths. An index with no
   `paved-path` row gives the readers nothing to apply, and they report
   nothing about it.
@@ -557,7 +558,11 @@ and all repo-relative paths resolve against it.
    the assumption in their output.
 
 No silent writes, ever: every rung that could persist state does so only
-by explicit offer and acceptance.
+by explicit offer and acceptance. Under the ecosystem-resolution contract,
+for an ecosystem record (`docs/conventions/ecosystems/<ecosystem>.yaml`)
+only, a merged pull request counts as acceptance of a lane's proposed
+record; every standards index, standards file and paved-path entry still
+requires a person's explicit yes.
 
 **Org layer (every rung):** whatever the team rungs above yield,
 resolution ALSO reads the org layer when the repository opts in (see Org

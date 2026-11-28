@@ -3,6 +3,12 @@
 All notable changes to the `themes` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0] - 2026-11-28
+
+### Added
+
+- Add `themes_enabled` boolean on/off setting (default `true`) resolved across user and repository layers via shared `mod-hook-enabled.ts`, plus `schemas/themes.schema.json`.
+
 ## [0.5.0] - 2026-11-24
 
 ### Changed

@@ -23,7 +23,7 @@ import { specSource } from "./spec-source.mjs";
 import { authorSkip, baselineOnly, DEPENDENCY_MANAGERS, isDependencyManager, loginKey, refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { GATE_ALIAS, gateEntries } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { ACTIONS_BOT_ID, briefedIssue, carriesSplit, ownAgentIds, readSchedule, SOURCE_LABEL, sourceLabels, webHostsFrom } from "../intake-triage/admit.mjs";
-import { actionsBotOnly, baseAdmissionRules, DRIFT_TITLE, driftIssue, loadRules, ownAgentText, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, trustedDriftSpec, vendoredRows } from "../intake-triage/issue-spec.mjs";
+import { actionsBotOnly, baseAdmissionRules, DRIFT_TITLE, driftIssue, loadRules, ownAgentText, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, trustedDriftSpec, vendoredDriftLead, vendoredRows } from "../intake-triage/issue-spec.mjs";
 import { issueBody, issueTitle, SCHEDULE_MARKER } from "../recurring-schedule/file-due.mjs";
 import { FILING, incidentKey, readMarker } from "../maintenance-monitor-signals/issues.mjs";
 
@@ -608,10 +608,82 @@ function vendoredSkillSafe(file) {
   return !skillFile(file?.filename) || (file.status === "modified" && skillTextSafe(file.texts?.base, file.texts?.head));
 }
 
-export function driftSpec(issue, pages, files, rows = vendoredRows()) {
-  const drift = driftIssue(issue, rows);
-  if (drift === null || !Array.isArray(files) || files.length === 0 || files.length >= COMPARE_FILES_CAP) {
+const VENDORED_REPORT_SCRIPT = fileURLToPath(new URL("../../../scripts/upstream-drift-vendored-report.sh", import.meta.url));
+const ALL_VENDORED_ROW = /^\s*"([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\|plugins\/([A-Za-z0-9][A-Za-z0-9_.-]*)\/[^|"]*\|[^|"]*(\|files-only)?"\s*$/;
+const ALL_VENDORED_ROW_ID = /^\s*"([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\|/;
+
+export function allVendoredRows(file = VENDORED_REPORT_SCRIPT) {
+  const rows = new Map();
+  let text;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch {
+    return rows;
+  }
+  for (const line of text.split("\n")) {
+    const row = ALL_VENDORED_ROW.exec(line);
+    if (row) {
+      const prev = rows.get(row[1]);
+      const plugin = !rows.has(row[1]) || prev?.plugin === row[2] ? row[2] : null;
+      const filesOnly = Boolean(row[3]) && (!rows.has(row[1]) || prev?.filesOnly === true);
+      rows.set(row[1], plugin === null ? null : { plugin, filesOnly });
+    } else {
+      const id = ALL_VENDORED_ROW_ID.exec(line)?.[1];
+      if (id !== undefined) {
+        rows.set(id, null);
+      }
+    }
+  }
+  return rows;
+}
+
+export function vendoredPluginPath(plugin, name) {
+  if (vendoredPath(plugin, name)) {
+    return true;
+  }
+  if (typeof plugin !== "string" || typeof name !== "string") {
+    return false;
+  }
+  const parts = name.split("/");
+  return (
+    name.startsWith(`plugins/${plugin}/reference/`) &&
+    parts.length > 3 &&
+    parts.every((part) => part !== "" && !VENDORED_UNSAFE.has(part)) &&
+    /\.(?:md|css)$/.test(parts.at(-1))
+  );
+}
+
+export function vendoredNonFilesOnlySpecText(id, plugin) {
+  return [
+    `# Upstream drift: ${id}`,
+    "",
+    `Bring this repository's vendored copy of upstream \`${id}\` in \`plugins/${plugin}/\` up to date per its row in \`scripts/upstream-drift-vendored-report.sh\`. Fold what changed upstream into the plugin's distilled files and add a changelog fragment under \`.changes/${plugin}/\`; leave the plugin's \`version\` and \`CHANGELOG.md\` unchanged. An upstream change that would change the design of one of this repository's skills is not applied without owner approval. The pull request changes only markdown under \`plugins/${plugin}/skills/\`, markdown, \`.jsonc\` and \`LICENSE\` files in its \`vendor/\` baselines, markdown or \`.css\` files under \`plugins/${plugin}/reference/\`, and that changelog fragment (no script, hook, library, manifest, MCP config, eval suite, update-procedure file, or \`SKILL.md\` frontmatter/command change beyond sync stamps), and closes this issue with \`Closes #<this issue>\`.`,
+    "",
+    "## Done when",
+    "",
+    `- [ ] The vendored copy of \`${id}\` in \`plugins/${plugin}/\` is brought up to date as its row's drift-check script reports it.`,
+    "- [ ] Relevant upstream changes are folded into the plugin's distilled files, or the pull request body says why any are left out.",
+    `- [ ] The plugin carries a changelog fragment under \`.changes/${plugin}/\` and its \`version\` and \`CHANGELOG.md\` are unchanged.`,
+    `- [ ] The pull request stays inside inert docs/reference/vendor files of \`plugins/${plugin}/\` and \`.changes/${plugin}/\` (with each \`SKILL.md\` outside \`vendor/\` keeping its frontmatter except sync stamps and its \`!\` command lines), and its body closes this issue with \`Closes\`.`,
+  ].join("\n");
+}
+
+export function driftSpec(issue, pages, files, rows = vendoredRows(), allRows = allVendoredRows()) {
+  if (!Array.isArray(files) || files.length === 0 || files.length >= COMPARE_FILES_CAP) {
     return null;
+  }
+  const drift = driftIssue(issue, rows);
+  if (drift === null) {
+    const id = actionsBotOnly(issue) ? DRIFT_TITLE.exec(String(issue?.title ?? ""))?.[1] : undefined;
+    const lead = String(issue?.body ?? "").split("\n", 1)[0].replace(/\r$/, "");
+    const entry = id !== undefined && lead === vendoredDriftLead(id) ? allRows.get(id) : null;
+    if (!entry || entry.filesOnly || typeof entry.plugin !== "string") {
+      return null;
+    }
+    const inside = (name) => vendoredPluginPath(entry.plugin, name);
+    return files.every((file) => inside(file?.filename) && (file.previous_filename === undefined || inside(file.previous_filename)) && vendoredSkillSafe(file))
+      ? vendoredNonFilesOnlySpecText(id, entry.plugin)
+      : null;
   }
   if (drift.kind === "vendored") {
     const plugin = rows.get(drift.id);
@@ -641,6 +713,78 @@ export const MAIN_RED_SPEC = [
 ].join("\n");
 
 export const mainRedIncident = (issue) => actionsBotOnly(issue) && issue.title === MAIN_RED_TITLE && readMarker(issue.body)?.key === MAIN_RED_KEY;
+
+const MONITOR_BY_KEY = new Map(
+  Object.entries(FILING)
+    .filter(([signal]) => signal !== MAIN_RED)
+    .map(([signal, { title }]) => [incidentKey(signal), { signal, title }]),
+);
+
+export function monitorIncidentSpec(signal, title) {
+  return [
+    `# ${title}`,
+    "",
+    `The monitoring lane filed this incident for signal \`${signal}\`. Fix the cause of that signal without weakening, skipping or deleting any check, security control or billing/rate hold. Fixing the cause is the whole delivery: the monitoring lane closes this issue on its own once the signal stays clear, so a pull request that links it with \`Refs:\` names no remaining work.`,
+    "",
+    "## Done when",
+    "",
+    `- [ ] The cause of the \`${signal}\` monitoring signal is fixed, without weakening, skipping or deleting any check, security control or hold.`,
+    "- [ ] The change does not widen beyond that fix.",
+  ].join("\n");
+}
+
+export function monitorIncident(issue) {
+  if (!actionsBotOnly(issue)) {
+    return null;
+  }
+  const marker = readMarker(issue.body);
+  const entry = marker ? MONITOR_BY_KEY.get(marker.key) : undefined;
+  return entry && issue.title === entry.title ? monitorIncidentSpec(entry.signal, entry.title) : null;
+}
+
+export const DEAD_LINKS_MARKER = "<!-- link-check-dead-pointer rollup -->";
+export const DEAD_LINKS_TITLE = "Dead links found by the online link check";
+export const DEAD_LINKS_SPEC = [
+  `# ${DEAD_LINKS_TITLE}`,
+  "",
+  "Repair or demote dead external links reported by the weekly online link check, following `plugins/attribution/skills/audit/reference/dispositions.md`: point at a live source holding the same fact, demote to a stamped record or archived-snapshot citation without re-expanding into a copy, or add an exact-URL `.lycheeignore` entry for a live page that refuses the checker (with the dated reason in the commit message). The online link-check workflow closes this rollup on its own once no dead links remain, so a pull request that links it with `Refs:` names no remaining work.",
+  "",
+  "## Done when",
+  "",
+  "- [ ] Each dead link the pull request addresses is removed, replaced with a live pointer or demoted record, or given an exact-URL `.lycheeignore` entry.",
+  "- [ ] The change does not weaken or disable the link check or widen beyond repairing those links.",
+].join("\n");
+
+export const deadLinksRollup = (issue) =>
+  actionsBotOnly(issue) &&
+  issue.title === DEAD_LINKS_TITLE &&
+  String(issue.body ?? "").split("\n", 1)[0].replace(/\r$/, "") === DEAD_LINKS_MARKER;
+
+const DEMOTION = "babysit-merge-demotion";
+const DEMOTION_MARKER = /^<!-- babysit-merge-demotion sha=[0-9a-f]{40} signal=(schedule|dispatch|canary|revert|read-back) -->$/;
+
+export function demotionAlertSpec(signal) {
+  return [
+    `# Resolve post-merge demotion (${signal})`,
+    "",
+    `A post-merge demotion alert (\`${DEMOTION}\`, signal \`${signal}\`) demoted unattended merging. Fix the underlying post-merge failure, restore or confirm the reverted change, or acknowledge an intentional deletion (such as in \`scripts/silent-revert-acknowledged.txt\` for a canary false positive) without weakening, skipping or deleting any check. The demotion lifts and closes automatically once resolved on main, so a pull request that links it with \`Refs:\` names no remaining work.`,
+    "",
+    "## Done when",
+    "",
+    `- [ ] The underlying cause of the post-merge \`${signal}\` demotion is fixed (or the intentional change is acknowledged) without weakening, skipping or deleting any check.`,
+    "- [ ] The change does not widen beyond resolving that demotion.",
+  ].join("\n");
+}
+
+export function demotionAlert(issue, laneAppId) {
+  const botFiled = actionsBotOnly(issue) || (laneAppId !== undefined && ownAgentText(issue, new Set([laneAppId])));
+  if (!botFiled || typeof issue?.title !== "string" || !issue.title.endsWith(": unattended merging demoted")) {
+    return null;
+  }
+  const first = String(issue.body ?? "").split("\n", 1)[0].replace(/\r$/, "");
+  const match = DEMOTION_MARKER.exec(first);
+  return match ? demotionAlertSpec(match[1]) : null;
+}
 
 const SKILL_READS_MAX = 10;
 
@@ -750,7 +894,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
     const files = await drift.changedFiles();
     const pages = drift.pages ?? upstreamPages();
     for (const issue of issues) {
-      const body = driftSpec(issue, pages, files, drift.rows ?? vendoredRows());
+      const body = driftSpec(issue, pages, files, drift.rows ?? vendoredRows(), drift.allRows ?? allVendoredRows());
       if (body !== null) {
         driftBodies.set(issue.number, body);
       }
@@ -791,6 +935,9 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
         recurring: recurringSpec(issue, schedule),
         drift: driftBodies.get(issue.number) ?? null,
         incident: mainRedIncident(issue) ? MAIN_RED_SPEC : null,
+        monitor: monitorIncident(issue),
+        deadLinks: deadLinksRollup(issue) ? DEAD_LINKS_SPEC : null,
+        demotion: demotionAlert(issue, laneAppId),
       });
       const scope = !written(issue) && childBody !== undefined ? splitScope(childBody) : null;
       return {

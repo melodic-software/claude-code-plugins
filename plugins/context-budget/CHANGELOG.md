@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [2.2.0] - 2026-11-28
+
+### Added
+
+- Add `context_budget_enabled` boolean on/off setting (default `true`) resolved across user and repository layers via shared `mod-hook-enabled.ts`, plus `schemas/context-budget.schema.json` and `live_display: off` precedence docs.
+
 ## [2.1.11] - 2026-11-28
 
 ### Changed

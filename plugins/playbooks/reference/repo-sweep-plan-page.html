@@ -5,36 +5,54 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>repo-sweep plan</title>
 <style>
-  :root { color-scheme: light dark; }
-  body {
-    font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto;
-    padding: 0 1rem 4rem; line-height: 1.5; background: #FAF9F5; color: #141413;
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
   }
-  @media (prefers-color-scheme: dark) { body { background: #141413; color: #FAF9F5; } }
+  body {
+    font-family: var(--sans); max-width: 900px; margin: 2rem auto;
+    padding: 0 1rem 4rem; line-height: 1.5; background: var(--bg); color: var(--fg);
+  }
   h1 { font-size: 1.5rem; margin-bottom: .25rem; }
   p.lead { opacity: .8; margin-top: 0; }
   h2.phase { font-size: 1rem; margin: 1.5rem 0 .5rem; border-bottom: 1px solid currentColor; padding-bottom: .25rem; opacity: .8; }
+  a { color: var(--link); }
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+    outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 2px;
+  }
+  /* rv-chrome:begin */
+  .rv-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: flex-end; }
+  .rv-theme { display: inline-flex; border: 1px solid var(--muted); border-radius: 8px; overflow: hidden; }
+  .rv-theme button { margin: 0; padding: 0.35rem 0.75rem; border: 0; border-radius: 0; background: transparent; color: var(--fg); font: inherit; font-weight: 500; cursor: pointer; }
+  .rv-theme button + button { border-left: 1px solid var(--muted); }
+  .rv-theme button[aria-pressed=true] { background: var(--fg); color: var(--bg); }
+  .rv-theme button:focus-visible { outline: 3px solid var(--fg); outline-offset: -3px; }
+  .rv-comment { display: grid; gap: 0.4rem; }
+  .rv-comment h2 { margin: 0; }
+  .rv-comment textarea { min-height: 5rem; padding: 0.6rem; border: 1px solid var(--muted); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; resize: vertical; }
+  .rv-comment textarea:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
+  /* rv-chrome:end */
   ul#list { list-style: none; margin: 0; padding: 0; }
   li.row {
     display: grid; grid-template-columns: auto auto 1fr auto; gap: .5rem .75rem;
-    align-items: start; border: 1px solid #D1CFC5; border-radius: 8px;
-    padding: .6rem .8rem; margin-bottom: .5rem; cursor: grab; background: Canvas;
+    align-items: start; border: 1px solid var(--gray-300); border-radius: var(--radius-row);
+    padding: .6rem .8rem; margin-bottom: .5rem; cursor: grab; background: var(--bg);
   }
   li.row.dimmed { opacity: .55; }
   li.row.dragover { outline: 2px dashed currentColor; }
-  li.row .id { font-family: ui-monospace, monospace; font-weight: 600; }
+  li.row .id { font-family: var(--mono); font-weight: 600; }
   li.row .meta { font-size: .85rem; opacity: .85; margin-top: .2rem; }
   .badge { font-size: .75rem; padding: .1rem .5rem; border-radius: 1rem; border: 1px solid currentColor; white-space: nowrap; height: fit-content; }
-  .badge.run, .badge.rerun { color: #2f6b2f; border-color: #2f6b2f; }
-  .badge.rerun-optional { color: #8a6d00; border-color: #8a6d00; }
-  .badge.not-applicable { color: #8a3b3b; border-color: #8a3b3b; }
+  .badge.run, .badge.rerun { color: color-mix(in srgb, var(--olive) 55%, var(--fg)); border-color: currentColor; }
+  .badge.rerun-optional { color: var(--link); border-color: currentColor; }
+  .badge.not-applicable { color: color-mix(in srgb, var(--accent) 55%, var(--fg)); border-color: currentColor; }
   .order-buttons { display: flex; flex-direction: column; gap: .15rem; }
   .order-buttons button { font: inherit; cursor: pointer; }
   #copy-row { display: flex; gap: .5rem; align-items: center; margin: 1.5rem 0; flex-wrap: wrap; }
-  #line { flex: 1 1 320px; font-family: ui-monospace, monospace; font-size: .85rem; }
+  #line { flex: 1 1 320px; font-family: var(--mono); font-size: .85rem; }
 </style>
 </head>
 <body>
+<div class="rv-bar"><div class="rv-theme" role="group" aria-label="Theme"><button type="button" data-rv-theme="system" aria-pressed="true">System</button><button type="button" data-rv-theme="light" aria-pressed="false">Light</button><button type="button" data-rv-theme="dark" aria-pressed="false">Dark</button></div></div>
 <h1 id="title">repo-sweep plan</h1>
 <p class="lead">Check the entries to run, drag a row or use its arrows to reorder, then copy the selection line back into chat.</p>
 <div id="groups"></div>
@@ -42,12 +60,29 @@
   <button id="copy-btn" type="button">Copy selection</button>
   <textarea id="line" readonly rows="2" aria-label="Selection line"></textarea>
 </div>
+<section class="rv-comment" aria-labelledby="rv-comment-h">
+  <h2 id="rv-comment-h">Comment</h2>
+  <label for="rv-comment-text">Your comment for the session</label>
+  <textarea id="rv-comment-text" data-rv-note="comment" placeholder="Say what should change, or ask a question"></textarea>
+</section>
 <script type="application/json" id="repo-sweep-data">__REPO_SWEEP_DATA__</script>
 <script>
 (function () {
   var data = JSON.parse(document.getElementById('repo-sweep-data').textContent);
   var order = data.entries.slice();
   document.getElementById('title').textContent = 'repo-sweep plan: ' + data.playbook;
+
+  document.addEventListener('click', function (event) {
+    var button = event.target.closest && event.target.closest('button[data-rv-theme]');
+    if (!button) return;
+    var choice = button.getAttribute('data-rv-theme');
+    if (choice === 'system') document.documentElement.removeAttribute('data-theme');
+    else if (choice === 'light' || choice === 'dark') document.documentElement.setAttribute('data-theme', choice);
+    else return;
+    document.querySelectorAll('button[data-rv-theme]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b === button));
+    });
+  });
 
   function badge(rec) {
     var span = document.createElement('span');
@@ -78,7 +113,10 @@
 
   function updateLine() {
     var ids = order.filter(function (e) { return e.checked; }).map(function (e) { return e.id; });
-    document.getElementById('line').value = 'repo-sweep-selection: ' + ids.join(',');
+    var noteEl = document.getElementById('rv-comment-text');
+    var note = noteEl ? noteEl.value.trim() : '';
+    var sel = 'repo-sweep-selection: ' + ids.join(',');
+    document.getElementById('line').value = note ? sel + '\ncomment: ' + note : sel;
   }
 
   function buildRow(entry) {
@@ -163,12 +201,16 @@
     updateLine();
   }
 
+  var commentInput = document.getElementById('rv-comment-text');
+  if (commentInput) commentInput.addEventListener('input', updateLine);
+
   document.getElementById('copy-btn').addEventListener('click', function () {
-    var line = document.getElementById('line').value;
+    updateLine();
+    var lineEl = document.getElementById('line');
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(line).catch(function () {});
+      navigator.clipboard.writeText(lineEl.value).catch(function () {});
     }
-    document.getElementById('line').select();
+    lineEl.select();
   });
 
   render();

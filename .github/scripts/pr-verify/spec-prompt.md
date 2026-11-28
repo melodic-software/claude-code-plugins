@@ -59,7 +59,10 @@ issue's `scope` limits each done-when item to the targets it lists. When an entr
 delivered: judge that part only, and return `fail` when it names no delivered part or claims the
 whole issue. A `refs` entry with `source` `main-red-incident` is the exception:
 fixing the failing check's cause is the whole delivery and the monitoring lane closes the issue
-itself, so judge the diff against its whole `body` and require no remaining work.
+itself, so judge the diff against its whole `body` and require no remaining work. A `refs` entry
+with `source` `monitor-incident`, `dead-link-rollup` or `demotion-alert` follows the same rule: its
+workflow or lane closes the issue on its own once resolved, so judge the diff against its whole
+`body` and require no remaining work.
 
 List the spec's outcome and each done-when item in `items`, each with the numbers of the chunks that
 together deliver it, in `chunks`, empty when none does. A script fails the head on an empty list, and

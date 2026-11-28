@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.6.6] - 2026-11-28
+
+### Changed
+
+- Replaced per-platform `ffmpeg` package-manager install commands in `/knowledge:course-digest` with a live pointer to `https://ffmpeg.org/download.html#get-packages`.
+
 ## [3.6.5] - 2026-11-28
 
 ### Changed

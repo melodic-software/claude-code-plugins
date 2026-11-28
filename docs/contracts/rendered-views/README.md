@@ -951,6 +951,24 @@ skill runs its `resolve` or `branding` command and never reads the files itself.
   `lib/view-registry.mjs`): key `branding`, `type: "string"`, title
   `Rendered-view branding (JSON)`, `default: ""`, holding one JSON object matching
   `BRANDING_SCHEMA`.
+- **Pages and stylesheets that stay apart from chrome branding.** Per
+  [ADR 0133](../../adr/0133-let-a-consumer-brand-rendered-pages-through-one-shared-token-layer.md)
+  Decision 8, a self-styled surface stays apart only with its reason recorded here:
+  - `plugins/prototype/notes-bridge/host.html`, `plugins/prototype/notes-bridge/proto-pin.js` (generated
+    from `lib/ui-feedback/host.html` and `lib/ui-feedback/proto-pin.js`) and
+    `plugins/prototype/skills/explore-directions/assets/variant-switcher.html`: UI-feedback harness
+    chrome floating over a non-final prototype. Branding the overlay with the consumer's own product
+    palette, fonts or logo would visually merge the review harness into the prototype under judgment;
+    all three stay on their cool-neutral `--uif-*` palette (`lib/ui-feedback/theme.test.mjs`) with no
+    chrome bar, theme toggle or `.rv-comment` section (the floating notes popover owns feedback).
+  - `plugins/formal-verification/skills/chart/reference/render-theme.css`: styles standalone Pele `.svg`
+    statecharts rather than an HTML document. When no `branding` is set, its base `--pele-*` tokens
+    keep Pele's neutral white/dark diagram defaults (`#ffffff`/`#1f1f1f`, with distinct `--pele-surface`
+    `#121212` and `--pele-surface-alt` `#2c2c2c`) and default font so unbranded charts keep their
+    existing look; `skills/chart/scripts/render-theme.mjs` composes `reference/html-tokens.css` and
+    layers only resolved `branding` overrides onto the matching `--pele-*` tokens, while carrying no
+    HTML chrome bar, logo slot, theme toggle or comment box and keeping its categorical state-group
+    and verification-verdict node colors.
 - **Precedence and the publish trust walk (`medium`).** `medium` chooses whether a view leaves the machine,
   so precedence alone does not decide it:
   1. The argument decides alone.
