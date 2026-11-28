@@ -1,5 +1,5 @@
 ---
-description: "Mutation-testing theory from the primary literature: what a surviving mutant means and why. Use when: the user asks what mutation testing is or whether it is worth doing, how the score relates to coverage ('mutation score vs coverage', 'what is test strength'), what a mutant's state or disposition means ('equivalent mutant', 'what is an arid node'), which operators to use or why a score is low, whether to gate a build on the score, or names the theory ('coupling effect', 'competent programmer hypothesis')."
+description: "Mutation-testing theory from primary literature: surviving mutants, operators, test strength, equivalent mutants, arid nodes, low scores, build gating, coupling effect, and competent programmer hypothesis. Use when asking 'mutation score vs coverage', 'equivalent mutant', or 'what is an arid node'. Not for runs: /mutation-testing:audit."
 argument-hint: "[question or concept]"
 user-invocable: true
 disable-model-invocation: false

@@ -1,5 +1,15 @@
 # Changelog: session-flow plugin
 
+## [10.14.1] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across 5 over-target `session-flow` skills (total 2174 -> 1111 chars, -1063 chars): `/session-flow:audit-sessions` (394 -> 340), `/session-flow:retro` (366 -> 340), `/session-flow:go-with-recommendations` (378 -> 145), `/session-flow:setup` (507 -> 142), and `/session-flow:tidy-work` (529 -> 144) while preserving evidence re-grounding, read-only/confirmation gates, opt-in `.work` hygiene, and sibling exclusions.
+
+### Fixed
+
+- A live check's `rule` or `evidence` longer than `observer_field_max` is now cut to that cap, ending in `…`, instead of failing the parse as `field_too_long:rule` or `field_too_long:evidence`; the check prompt now states the cap for both. A finding over the cap still counts as `parse_failed` with `field_too_long:finding`.
+
 ## [10.14.0] - 2026-11-27
 
 ### Added

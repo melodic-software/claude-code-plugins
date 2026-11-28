@@ -57,7 +57,7 @@ const instructions = (kinds: readonly OptionalKind[]) => `Review this session's 
 
 Report a fault only when every one of these holds: you can quote the rule or decision; you can name the act in this session that breaks it; the assistant has not already noticed or corrected it; it still matters now. Taste, unwritten preferences and guesses do not count. Most checks find nothing, and that is the expected answer.`
 
-export type PromptExtra = { autoSend?: boolean; kinds?: readonly OptionalKind[]; guidance?: string; repoGuidance?: string; guidanceMax?: number; override?: string; heldCommand?: string }
+export type PromptExtra = { autoSend?: boolean; kinds?: readonly OptionalKind[]; guidance?: string; repoGuidance?: string; guidanceMax?: number; fieldMax?: number; override?: string; heldCommand?: string }
 
 const guidanceBlock = (whose: string, text: string, max: number) => (text.trim() === '' ? '' : `\n${whose} guidance for these checks:\n${text.trim().slice(0, max)}\n`)
 
@@ -78,8 +78,8 @@ or:
 
 finding: <one sentence of at most 200 characters naming what went wrong>
 category: <${['process', 'decision', 'verification', 'instruction', ...(extra.kinds ?? [])].join(' | ')}>
-rule: <the rule or decision, quoted where you can, and where it is written>
-evidence: <the act in this session that breaks it>
+rule: <the rule or decision, quoted where you can, and where it is written, at most ${extra.fieldMax ?? FIELD_MAX} characters>
+evidence: <the act in this session that breaks it, at most ${extra.fieldMax ?? FIELD_MAX} characters>
 
 You may add a last line "fix: session" when the fix is larger than or unrelated to this session's work and belongs in a dedicated session, or "fix: issue" when it should be filed as an issue for later; leave it out when the fix belongs in this session.`
 
@@ -95,6 +95,8 @@ const field = (lines: readonly string[], label: string) => {
   return undefined
 }
 
+const cap = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text)
+
 export const parseReply = (text: string, fieldMax = FIELD_MAX): Parsed => {
   const lines = clean(text).split(/\r?\n/)
   const finding = field(lines, 'finding')
@@ -105,12 +107,11 @@ export const parseReply = (text: string, fieldMax = FIELD_MAX): Parsed => {
   const raw = (field(lines, 'category') ?? '').toLowerCase()
   const category = CATEGORIES.find(c => raw.startsWith(c))
   const lengths = { finding: finding.length, rule: rule.length, evidence: evidence.length }
-  const tooLong = (Object.keys(lengths) as (keyof typeof lengths)[]).find(k => lengths[k] > fieldMax)
-  const reason = rule === '' ? 'no_rule' : category === undefined ? 'bad_category' : tooLong ? `field_too_long:${tooLong}` : undefined
+  const reason = rule === '' ? 'no_rule' : category === undefined ? 'bad_category' : finding.length > fieldMax ? 'field_too_long:finding' : undefined
   if (reason) return { kind: 'unparsable', reason, lengths }
   const route = (field(lines, 'fix') ?? '').toLowerCase()
   const fix: Fix | undefined = route.startsWith('session') ? { route: 'session', how: 'take it to a dedicated session', command: '' } : route.startsWith('issue') ? { route: 'issue', how: "file it as an issue under the repository's filing rules" } : undefined
-  return { kind: 'finding', value: { finding: /[.!?]$/.test(finding) ? finding : `${finding}.`, category, rule, evidence, ...(fix ? { fix } : {}) } }
+  return { kind: 'finding', value: { finding: /[.!?]$/.test(finding) ? finding : `${finding}.`, category, rule: cap(rule, fieldMax), evidence: cap(evidence, fieldMax), ...(fix ? { fix } : {}) } }
 }
 
 export const fixText = (fix: Fix) => (fix.route === 'session' ? `${fix.how}: ${fix.command}` : `${fix.route}: ${fix.how}`)

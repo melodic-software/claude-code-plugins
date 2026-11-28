@@ -1,11 +1,8 @@
 ---
-description: "Boris Cherny Claude Code workflow tips (howborisusesclaudecode.com). 143 tips across 131 sections on parallel sessions, planning, CLAUDE.md, skills, hooks, permissions, autonomy, orchestration, loops, context engineering, maintenance routines, and effort. Use when: 'how does Boris use Claude Code', 'Claude Code workflow tips', 'optimize my CLAUDE.md', 'improve my Claude Code setup', 'parallel Claude sessions', 'hook ideas', or optimizing Claude Code setup, workflows, CLAUDE.md, skills, hooks, or parallel sessions."
+description: "Knowledge guide to Boris Cherny's 143 Claude Code workflow tips (howborisusesclaudecode.com): parallel sessions, planning, CLAUDE.md, skills, hooks, permissions, autonomy, orchestration, loops, context engineering, maintenance routines, and effort. Use when: 'how does Boris use Claude Code', 'Claude Code workflow tips', 'parallel Claude sessions'."
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  author: Boris Cherny (tips)
-  source: howborisusesclaudecode.com
-  compiled-by: "@CarolinaCherry"
   upstream-version: 8.16.0
   synced: 2026-10-11
   workflow-stage: anytime

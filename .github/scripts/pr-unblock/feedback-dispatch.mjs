@@ -208,7 +208,16 @@ export async function relayUpstream({ api, upstream, repository, appSenderId, tr
 }
 export const MERGE_WORKFLOW = ".github/workflows/pr-merge.yml";
 
-export async function reviewRunAt({ api, head, repository, settings = DEFAULTS }) {
+export function trustedReviewRun(run, { appSenderId, trustedHumans = new Set() } = {}) {
+  const bot = (user) => Number.isSafeInteger(user?.id) && user.id === appSenderId;
+  const human = (user) => Number.isSafeInteger(user?.id) && user.id !== appSenderId && trustedHumans.has(user.id);
+  return (
+    (bot(run?.actor) || human(run?.actor)) &&
+    ((run?.run_attempt === 1 && bot(run?.triggering_actor)) || human(run?.triggering_actor))
+  );
+}
+
+export async function reviewRunAt({ api, head, repository, settings = DEFAULTS, appSenderId, trustedHumans = new Set() }) {
   const listings = [];
   for (const path of settings.reviewWorkflows) {
     listings.push(await api.listCompletedRuns(path, head));
@@ -220,7 +229,8 @@ export async function reviewRunAt({ api, head, repository, settings = DEFAULTS }
         run.head_sha === head &&
         run.event === "pull_request" &&
         run.head_repository?.full_name === repository &&
-        !["skipped", "cancelled"].includes(run.conclusion),
+        !["skipped", "cancelled"].includes(run.conclusion) &&
+        trustedReviewRun(run, { appSenderId, trustedHumans }),
     );
   runs.sort((a, b) => Date.parse(b.created_at ?? "") - Date.parse(a.created_at ?? ""));
   return runs[0] ?? null;
@@ -286,6 +296,11 @@ export async function dispatchFeedback({
     !SHA.test(upstream.head_sha ?? "")
   ) {
     return skip(`run ${upstreamRunId} is not a completed same-repository review or relay run`);
+  }
+  if (!relayed && !trustedReviewRun(upstream, { appSenderId, trustedHumans })) {
+    return skip(
+      `run ${upstreamRunId} (attempt ${upstream.run_attempt ?? "unknown"}, actor ${upstream.actor?.login ?? "unknown"}, triggering_actor ${upstream.triggering_actor?.login ?? "unknown"}) is not a broker-accepted review run; push a fresh head or have a listed human re-run a review workflow`,
+    );
   }
   const head = upstream.head_sha;
   const cutoff = notesSince ?? requestSince;
@@ -664,7 +679,7 @@ async function sweepStale({ api, pull, repository, appSenderId, log, settings, r
     log(`skip: #${number}: ${settings.activity} is not enabled or does not apply`);
     return null;
   }
-  const upstream = await reviewRunAt({ api, head, repository, settings });
+  const upstream = await reviewRunAt({ api, head, repository, settings, appSenderId, trustedHumans: rest.trustedHumans });
   if (upstream === null) {
     log(`skip: #${number}: head ${head} has no completed review run`);
     return null;
@@ -703,7 +718,7 @@ async function sweepUnsent(context) {
   if (unresolved.length === 0 && !earlierFailNoted(threads, head)) {
     return null;
   }
-  const upstream = await reviewRunAt({ api, head, repository, settings });
+  const upstream = await reviewRunAt({ api, head, repository, settings, appSenderId, trustedHumans: rest.trustedHumans });
   if (upstream === null) {
     return null;
   }
@@ -794,7 +809,7 @@ async function dispatchSince(context, requestSince, what) {
 
 async function dispatchAtHead({ api, pull, repository, appSenderId, log, settings, rest }, options = {}) {
   const head = pull.head.sha;
-  const upstream = await reviewRunAt({ api, head, repository, settings });
+  const upstream = await reviewRunAt({ api, head, repository, settings, appSenderId, trustedHumans: rest.trustedHumans });
   if (upstream === null) {
     log(`skip: #${pull.number}: head ${head} has no completed review run`);
     return null;
@@ -1269,7 +1284,7 @@ async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapp
     if ((await releaseState({ api: client, pull, log, settings: DEFAULTS })).capped) {
       return 0;
     }
-    upstream = await reviewRunAt({ api: client, head, repository: common.repository });
+    upstream = await reviewRunAt({ api: client, head, repository: common.repository, appSenderId: common.appSenderId, trustedHumans: common.trustedHumans });
     if (upstream === null) {
       log(`skip: head ${head} has no completed review run yet; the review run dispatches when it completes`);
       return 0;
@@ -1302,10 +1317,33 @@ async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapp
     if (Number.isNaN(notesSince)) {
       throw new Error(`pr-verify run ${upstream.id} has no readable creation time`);
     }
-    upstream = await reviewRunAt({ api: client, head, repository: common.repository });
+    upstream = await reviewRunAt({ api: client, head, repository: common.repository, appSenderId: common.appSenderId, trustedHumans: common.trustedHumans });
     if (upstream === null) {
       log(`skip: head ${head} has no completed review run yet; the review run dispatches when it completes`);
       return 0;
+    }
+  }
+  if (
+    DEFAULTS.reviewWorkflows.includes(upstream?.path) &&
+    upstream.event === "pull_request" &&
+    upstream.status === "completed" &&
+    upstream.repository?.full_name === common.repository &&
+    upstream.head_repository?.full_name === common.repository &&
+    SHA.test(upstream.head_sha ?? "") &&
+    !trustedReviewRun(upstream, { appSenderId: common.appSenderId, trustedHumans: common.trustedHumans })
+  ) {
+    const sibling = await reviewRunAt({
+      api: client,
+      head: upstream.head_sha,
+      repository: common.repository,
+      appSenderId: common.appSenderId,
+      trustedHumans: common.trustedHumans,
+    });
+    if (sibling !== null) {
+      log(
+        `upstream review run ${upstream.id} (attempt ${upstream.run_attempt ?? "unknown"}, triggering_actor ${upstream.triggering_actor?.login ?? "unknown"}) is not broker-accepted; using sibling review run ${sibling.id}`,
+      );
+      upstream = sibling;
     }
   }
   const dispatched = await dispatchFeedback({ ...common, record, upstream, notesSince, requestSince, passOnly }).finally(summary);

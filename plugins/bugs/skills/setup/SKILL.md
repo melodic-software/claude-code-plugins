@@ -1,5 +1,5 @@
 ---
-description: "Check where /bugs:write --file reports land, check or write the tracked docs/conventions/bugs.yaml focus areas and filing posture /bugs:scan reads, and move settings out of the old ~/.claude/bugs.md and .claude/bugs.local.md."
+description: "Check (read-only) userConfig report paths or apply docs/conventions/bugs.yaml focus areas and filing posture, migrating legacy bugs.md files."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true

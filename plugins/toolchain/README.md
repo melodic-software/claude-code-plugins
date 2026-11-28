@@ -71,12 +71,9 @@ Only a `false` in your user settings' `pluginConfigs`, or in managed settings, t
 it off; a `CLAUDE_PLUGIN_OPTION_RESULT_GATE_ENABLED=false` in the environment is
 ignored.
 
-Reading the setting costs processes on every Stop where `turn_end_result_gate` is not
-`off`, before the hook's own `git` calls: `bash` for the helper, which starts `uname`,
-then `jq` when the install's `settings.json` exists, and one `jq` per managed settings
-file (on Linux, plus two `stat` each)
+Reading the setting runs in-process inside the hook's Node process through the shared
+helper (`lib/hook-enabled.mjs`) with zero extra subprocesses
 ([hook budget](../../docs/contracts/hook-budget/README.md#the-hook-enablement-helper)).
-No wall-clock figure in S has been taken for this hook.
 
 A repository can commit `toolchain.yaml` in its convention home (default
 `docs/conventions`) to set this key, checked against

@@ -1,5 +1,5 @@
 ---
-description: "Verify the playwright plugin's runtime prerequisites: the playwright-cli binary and a resolvable browser for this machine. Use when: 'set up playwright', 'configure playwright', 'is playwright working', 'install playwright-cli', a browser flow reports the CLI is missing, or before a first E2E run. Actions: check (read-only verification, default) | apply (resolve what check found; apply install-cli performs the global CLI install). Re-runnable and safe."
+description: "Check playwright-cli and browser prerequisites (check, read-only) or resolve findings (apply; apply install-cli runs global CLI install)."
 argument-hint: "[check|apply] [install-cli]"
 user-invocable: true
 disable-model-invocation: true
