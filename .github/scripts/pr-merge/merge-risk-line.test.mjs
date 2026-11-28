@@ -452,6 +452,6 @@ test("ci-status's sparse hold config holds every module clear-escalations.mjs lo
   visit(join(root, ".github/scripts/pr-merge/clear-escalations.mjs"));
   const missing = [...seen].filter((path) => !sparse.has(`/${path}`));
   assert.deepEqual(missing, []);
-  assert.ok(seen.has(".github/scripts/pr-merge/enable-auto-merge.mjs"));
+  assert.ok(seen.has(".github/scripts/pr-merge/verifier.mjs"));
   assert.ok(!seen.has(".github/scripts/pr-merge/merge-risk-line.mjs"));
 });

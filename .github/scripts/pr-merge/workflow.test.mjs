@@ -13,7 +13,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
+import { LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS } from "./enable-auto-merge.mjs";
+import { VERIFY_TIMEOUT_MS } from "./verifier.mjs";
 import { classify, resetLabel } from "../../actions/log-api-budget/rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";

@@ -3,6 +3,12 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.4.5] - 2026-11-28
+
+### Changed
+
+- Trimmed `/markdown-format:setup` user-invoked frontmatter description (514 -> 137 chars) to a one-line summary without trigger phrasing.
+
 ## [2.4.4] - 2026-11-28
 
 ### Changed

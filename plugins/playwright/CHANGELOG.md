@@ -3,6 +3,18 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.3] - 2026-11-28
+
+### Changed
+
+- Trim skill frontmatter descriptions across `demo-video` (568 -> 341 chars), `playwright` (489 -> 326 chars), and `setup` (456 -> 137 chars), reducing total frontmatter description length from 1,513 to 804 characters (-709 chars).
+
+## [2.2.2] - 2026-11-28
+
+### Changed
+
+- Removed unregistered metadata keys (`source`, `upstream-package`) with no consumer from `/playwright:playwright` frontmatter.
+
 ## [2.2.1] - 2026-11-28
 
 ### Changed

@@ -3,6 +3,12 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.4] - 2026-11-28
+
+### Changed
+
+- Trimmed `/actionlint:setup` user-invoked frontmatter description (434 -> 135 chars) to a one-line summary without trigger phrasing.
+
 ## [2.3.3] - 2026-11-27
 
 ### Fixed

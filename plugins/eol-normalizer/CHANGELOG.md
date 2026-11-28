@@ -3,6 +3,12 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.41] - 2026-11-28
+
+### Changed
+
+- Trimmed `/eol-normalizer:setup` user-invoked frontmatter description (379 -> 118 chars) to a one-line summary without trigger phrasing.
+
 ## [1.0.40] - 2026-11-26
 
 ### Changed

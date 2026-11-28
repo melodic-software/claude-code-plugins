@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.5.5] - 2026-11-28
+
+### Changed
+
+- Trimmed `/guardrails:setup` user-invoked frontmatter description (986 -> 136 chars) to a one-line summary without trigger phrasing.
+
 ## [5.5.4] - 2026-11-27
 
 ### Fixed
