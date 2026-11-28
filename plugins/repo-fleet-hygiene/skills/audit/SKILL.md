@@ -1,5 +1,5 @@
 ---
-description: "Read-only Git/GitHub fleet hygiene audit across repos: discover each canonical repo, merged remote branch still on origin, orphaned worktree, and moved/renamed repo into an action plan (never mutates). Use when: 'audit a repo fleet', 'stale branches across repos', 'orphaned worktrees across repos'. Not for applying: /repo-fleet-hygiene:apply."
+description: "Read-only Git/GitHub fleet hygiene audit: discover each canonical repo, merged remote branch still on origin, orphaned worktree, and moved/renamed GitHub entry into an action plan (never mutates). Use when: 'audit the fleet', 'stale branches across repos', 'orphaned worktrees across repos'. Not for applying: /repo-fleet-hygiene:apply."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] [--detail]|--apply-plan <path>]"
