@@ -246,12 +246,7 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
-VERSION_TRIPLE_DEF='
-  def version_triple:
-    if type == "string" then
-      ((capture("^v?(?<maj>[0-9]+)[.](?<min>[0-9]+)[.](?<pat>[0-9]+)") // null)
-       | if . == null then null else [.maj, .min, .pat] | map(tonumber) end)
-    else null end;'
+VERSION_INCLUDE='include "version";'
 
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
 PROJECTION_PROGRAM='
@@ -318,8 +313,8 @@ if [[ -n "$FROM_REPORT" ]]; then
     echo "ERROR: --from report is for marketplace '$FS_FROM_NAME', not '$TARGET': $FROM_REPORT" >&2
     exit 2
   fi
-  if ! jq_to FS_BLOCK -r --arg selector "$IDS_SELECTOR" \
-    "$VERSION_TRIPLE_DEF . as \$block | $PROJECTION_PROGRAM" "$FROM_REPORT"; then
+  if ! jq_to FS_BLOCK -r -L "$script_src_dir" --arg selector "$IDS_SELECTOR" \
+    "$VERSION_INCLUDE . as \$block | $PROJECTION_PROGRAM" "$FROM_REPORT"; then
     echo "ERROR: --from projection failed for selector '$IDS_SELECTOR': $FROM_REPORT" >&2
     exit 2
   fi
@@ -600,7 +595,7 @@ PASS2_PROGRAM='
     end'
 
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-PASS3_PROGRAM="$VERSION_TRIPLE_DEF"'
+PASS3_PROGRAM="$VERSION_INCLUDE"'
   (. | split("\u001d")) as $parts
   | ($parts[0] | fromjson) as $ctx
   | ($parts[1] | split("\n")
@@ -927,7 +922,7 @@ emit_marketplace() {
     bundle+="${cv_names[i]}"$'\x1e'"$content"$'\x1f'
   done
 
-  jq_to FS_BLOCK -Rsrc \
+  jq_to FS_BLOCK -Rsrc -L "$script_src_dir" \
     --slurpfile inst "$INSTALLED_JSON" \
     --slurpfile catalog "$catalog_json" \
     --arg name "$name" \

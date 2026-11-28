@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # test-scope: .claude/settings.json plugins/harness-ops/.claude-plugin/plugin.json
 # test-scope: plugins/harness-ops/skills/plugins/scripts/question-groups.jq plugins/harness-ops/skills/plugins/scripts/verdict.jq
+# test-scope: plugins/harness-ops/skills/plugins/scripts/version.jq
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -2533,20 +2534,23 @@ else
 fi
 
 CASE_NUM=$((CASE_NUM + 1))
-case_dir=$(new_case_dir)
 version_direction_of() {
-  local pair="$1"
-  SYNC_RUN_VERSION_DIRECTION="$pair" bash "$SCRIPT" --marketplace market1 \
-    --journal-root "$case_dir/journal" 2>"$case_dir/vd.err"
+  jq -r -n -L "$SCRIPT_DIR" --arg old "$1" --arg new "$2" 'include "version"; version_direction($old; $new)'
 }
-got=$(version_direction_of $'2026.09.30\t2026.10.01')
-assert_eq "version_direction: 2026.09.30 -> 2026.10.01 is forward" "forward" "$got"
-assert_eq "version_direction: that forward pair writes nothing to stderr" "" "$(cat "$case_dir/vd.err")"
-got=$(version_direction_of $'1.010.0\t1.9.0')
-assert_eq "version_direction: 1.010.0 -> 1.9.0 is backward" "backward" "$got"
-got=$(version_direction_of $'2026.10.08\t2026.10.08')
-assert_eq "version_direction: 2026.10.08 -> 2026.10.08 is same" "same" "$got"
-assert_eq "version_direction: 2026.10.08 -> 2026.10.08 writes nothing to stderr" "" "$(cat "$case_dir/vd.err")"
+assert_eq "version_direction: 2026.09.30 -> 2026.10.01 is forward" "forward" \
+  "$(version_direction_of 2026.09.30 2026.10.01)"
+assert_eq "version_direction: 1.010.0 -> 1.9.0 is backward" "backward" "$(version_direction_of 1.010.0 1.9.0)"
+assert_eq "version_direction: 2026.10.08 -> 2026.10.08 is same" "same" \
+  "$(version_direction_of 2026.10.08 2026.10.08)"
+assert_eq "version_direction: v1.2.3 -> 1.2.4 is forward" "forward" "$(version_direction_of v1.2.3 1.2.4)"
+assert_eq "version_direction: 1.2.3 -> 1.2.3-beta is unknown" "unknown" "$(version_direction_of 1.2.3 1.2.3-beta)"
+assert_eq "version_direction: 1.2.3-beta -> 1.2.4 is forward" "forward" "$(version_direction_of 1.2.3-beta 1.2.4)"
+assert_eq "version_direction: an unparsable old is unknown" "unknown" "$(version_direction_of main 1.2.3)"
+assert_eq "version_direction: an unparsable new is unknown" "unknown" "$(version_direction_of 1.2.3 1.2)"
+assert_eq "version_triple: 1.2.3-beta reads as 1.2.3" "[1,2,3]" \
+  "$(jq -c -n -L "$SCRIPT_DIR" 'include "version"; "1.2.3-beta" | version_triple')"
+assert_eq "version_triple: a non-string is null" "null" \
+  "$(jq -c -n -L "$SCRIPT_DIR" 'include "version"; 123 | version_triple')"
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)

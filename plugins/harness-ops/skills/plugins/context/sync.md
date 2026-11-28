@@ -953,7 +953,7 @@ row reads and why the row exists; the exact text of every row and variant is the
 `scripts/fixtures/render/`, and the model adds nothing. The reasons behind a row stay in these files and out of the render, so a clean run prints none of them.
 
 **Every `<old> -> <new>` pair reaches the report already classified by direction.** Apply the same triple
-compare the guard uses, reading each numeric segment in base 10: a pair whose new version is higher, or whose direction the compare cannot
+compare the guard uses (`version_direction` in `scripts/version.jq`), reading each numeric segment in base 10: a pair whose new version is higher, or whose direction the compare cannot
 read, goes under `updated:`, with an unreadable one flagged `(direction unknown)`; a pair whose new
 version is lower goes under `downgraded:`. A pair whose two versions differ as strings but whose
 triples tie, `1.2.3` to `1.2.3-beta`, goes under `updated:` flagged `(direction unknown)` too,
