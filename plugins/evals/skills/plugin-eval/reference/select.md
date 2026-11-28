@@ -73,7 +73,7 @@ A diff that affects nothing prints `no affected cases`. Otherwise one block per 
 | Line | Meaning | What to do |
 |---|---|---|
 | `cases:` | Cases with at least one deterministic grader that this change must run | Pass the list as the run's case filter (an eval workflow with a `cases` input takes it as is) |
-| `suite-only:` | Deterministic run-requiring cases of a plugin with no changed file under its `skills/`, `agents/`, `context/` or `evals/` (a case whose grader reads another plugin's changed skill, or a change to only the plugin's `reference/`), then the reason; a compare run refuses such a plugin | Dispatch no compare run for them; merge first, then run them in a suite run on the default branch |
+| `suite-only:` | Deterministic run-requiring cases of a plugin with no changed file under its `skills/`, `agents/`, `context/` or `evals/` (a case whose grader reads another plugin's changed skill, or a change to only the plugin's `reference/`), then the reason; a compare run refuses such a plugin; printed only where the repository's `.github/scripts/plugin-eval/compare-arms.sh` exists | Dispatch no compare run for them; merge first, then run them in a suite run on the default branch |
 | `judged:` | Run-requiring cases whose graders are all judged | Run them where a judge grades them, and check that judge against labeled samples first |
 | `run-after-merge:` | Triggering and no-fire cases of an additive-only `description` or `when_to_use` edit | Merge first, then run them on the default branch |
 | `affected-no-run:` | Cases the change touches that the policy runs nothing for (added body text, scripts, samples) | Nothing; they are listed so the author sees them |

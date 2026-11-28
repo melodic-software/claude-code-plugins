@@ -50,6 +50,7 @@ VALIDATE_CASES_PY = os.path.normpath(
 SELECT_MAPPING_PY = os.path.join(HERE, "select_mapping.py")
 EVAL_VISIBILITY_PY = os.path.join(HERE, "eval_visibility.py")
 SELECT_PLUGINS_MJS = (".github", "scripts", "plugin-eval", "select-plugins.mjs")
+COMPARE_ARMS_SH = (".github", "scripts", "plugin-eval", "compare-arms.sh")
 SELECT_PLUGINS_HEADER = "a selected plugin changes more than"
 REFUSED_PLUGIN_RE = re.compile(r'^"?plugins/([^/:"\\]+)[/:]')
 COMPARE_DIRS = frozenset(["skills", "agents", "context", "evals"])
@@ -413,9 +414,12 @@ def plugin_diff_paths(repo_root, merge_base):
     return [path for path in diff.stdout.split("\n") if path]
 
 
-def compare_plugins(diff_paths):
+def compare_plugins(repo_root, diff_paths):
     """Return the plugins a compare run takes: compare-arms.sh refuses a
-    plugin with no changed path under its skills/, agents/, context/ or evals/."""
+    plugin with no changed path under its skills/, agents/, context/ or evals/.
+    Returns None when the repository has no such script or git failed."""
+    if diff_paths is None or not os.path.isfile(os.path.join(repo_root, *COMPARE_ARMS_SH)):
+        return None
     return {
         parts[1]
         for parts in (path.split("/") for path in diff_paths)
@@ -469,7 +473,7 @@ def select_cases(repo_root, diff_base, merge_base):
     if entries is None:
         return None
     diff_paths = plugin_diff_paths(repo_root, merge_base)
-    comparable = None if diff_paths is None else compare_plugins(diff_paths)
+    comparable = compare_plugins(repo_root, diff_paths)
     refused = compare_refusals(repo_root, merge_base, diff_paths)
     if refused is None:
         sys.stderr.write(

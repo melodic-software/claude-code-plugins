@@ -16,6 +16,7 @@ from pathlib import Path
 
 from select_test_helpers import (
     SCRIPT,
+    _add_compare_arms,
     _build_fixture_repo,
     _commit_all,
     _git,
@@ -92,6 +93,7 @@ class SelectCasesTest(unittest.TestCase):
         path = self.repo / "plugins/alpha/reference/shared.md"
         text = path.read_text(encoding="utf-8").replace("concise", "brief")
         path.write_text(text, encoding="utf-8")
+        _add_compare_arms(self.repo)
         _commit_all(self.repo, "cut plugin reference")
 
         res = _run_select(self.repo)
@@ -447,6 +449,7 @@ class SelectCasesTest(unittest.TestCase):
         path = self.repo / "plugins/alpha/skills/one/SKILL.md"
         text = path.read_text(encoding="utf-8").replace("carefully", "strictly")
         path.write_text(text, encoding="utf-8")
+        _add_compare_arms(self.repo)
         _commit_all(self.repo, "cut alpha one")
 
         res = _run_select(self.repo, as_json=True)
@@ -463,7 +466,7 @@ class SelectCasesTest(unittest.TestCase):
         )
         self.assertEqual(14, payload["plugins/alpha"]["agent-runs"])
 
-    def _add_beta_grader_reading_alpha(self):
+    def _add_beta_grader_reading_alpha(self, compare_arms=True):
         _write(
             self.repo,
             "plugins/beta/evals/reads-alpha/prompt.md",
@@ -489,6 +492,8 @@ class SelectCasesTest(unittest.TestCase):
         )
         _commit_all(self.repo, "add beta case reading alpha:one")
         _git(self.repo, "branch", "-f", "base")
+        if compare_arms:
+            _add_compare_arms(self.repo)
         path = self.repo / "plugins/alpha/skills/one/SKILL.md"
         text = path.read_text(encoding="utf-8").replace("carefully", "strictly")
         path.write_text(text, encoding="utf-8")
@@ -508,6 +513,14 @@ class SelectCasesTest(unittest.TestCase):
             beta["suite-only"],
         )
         self.assertEqual("4", beta["agent-runs"])
+
+    def test_grader_reading_other_plugin_skill_stays_on_cases_without_compare_arms(self):
+        self._add_beta_grader_reading_alpha(compare_arms=False)
+        _commit_all(self.repo, "cut alpha one")
+
+        payload = json.loads(_run_select(self.repo, as_json=True).stdout)
+        self.assertEqual(["reads-alpha"], payload["plugins/beta"]["cases"])
+        self.assertEqual([], payload["plugins/beta"]["suite-only"])
 
     def test_grader_reading_other_plugin_skill_stays_on_cases_when_plugin_changes(self):
         self._add_beta_grader_reading_alpha()

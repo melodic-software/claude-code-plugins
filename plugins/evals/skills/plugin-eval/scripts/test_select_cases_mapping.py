@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from select_test_helpers import (
+    _add_compare_arms,
     _build_fixture_repo,
     _commit_all,
     _git,
@@ -310,6 +311,7 @@ class SelectCasesMappingTest(unittest.TestCase):
             path.read_text(encoding="utf-8").replace("exact", "strict"),
             encoding="utf-8",
         )
+        _add_compare_arms(self.repo)
         _commit_all(self.repo, "reword alpha rules")
 
         res = _run_select(self.repo)
