@@ -404,6 +404,7 @@ pointers; this record holds that decision and our own probe results, not the pag
 
   | Setup | Trigger | Loaded |
   |---|---|---|
+  | No `CLAUDE.md`; root and `sub/` `AGENTS.md` | Session started from `sub/` (`--tools ""`, measured on 2.1.278) | root and nested |
   | No `CLAUDE.md`; root and `sub/` `AGENTS.md` | Read `sub/thing.txt` (Read only) | root and nested |
   | Same | Write `sub/new.txt` (Write only) | root only |
   | Root `CLAUDE.md` is `@AGENTS.md`; `sub/AGENTS.md` without a shim | Read `sub/thing.txt` (Read only) | root only |
@@ -417,4 +418,4 @@ pointers; this record holds that decision and our own probe results, not the pag
 - **Recheck trigger**: either memory section changes the triggers it names; a changelog entry names
   a load trigger for a subdirectory's `AGENTS.md` or an `@` import inside a rules file; or a new
   Claude Code release, for the import row only, which is undocumented and re-measured per release.
-  `cutover-check`'s nested write probe re-measures the second row on every run.
+  `cutover-check`'s nested write probe re-measures the first `Write sub/new.txt` row on every run.
