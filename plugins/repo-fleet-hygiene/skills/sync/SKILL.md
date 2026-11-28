@@ -1,5 +1,5 @@
 ---
-description: "Fast-forward canonical fleet checkouts on their default branch, parking dirty work in worktrees (dry-run default; --apply mutates after confirm)."
+description: "Switch canonical fleet checkouts to the default branch and fast-forward, parking dirty work in worktrees (dry-run default; --apply after confirm)."
 user-invocable: true
 disable-model-invocation: true
 argument-hint: "[<dir>...] [--root <dir>] [--repo <dir>] [--skip <name>] [--config <file>] [--apply] [--yes]"
