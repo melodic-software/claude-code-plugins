@@ -1,5 +1,5 @@
 ---
-description: "If ClaudeDesign resolves in this session for existing claude.ai/design projects, prefer it. Decide the best visual form (mermaid, table, chart, sketch, page) and medium for what is in conversation right now, and render. Use when asked to visualize, diagram, chart, draw, sketch, render something, or which visual form fits best. Not for chart craft."
+description: "When the built-in ClaudeDesign tool resolves in this session and the person names, links, or asks for work in an existing claude.ai/design project, prefer it; this skill renders its own output. Decide the best visual form (mermaid, table, chart, sketch, page) and medium, then render. Use when asked to visualize, diagram, chart, draw, sketch, or render something. Not for chart craft."
 argument-hint: "[<medium>] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
