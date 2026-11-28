@@ -311,6 +311,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `medium` | string | `"auto"` | Where the map-* views and the improve report go. auto (default): a local file; terminal: no page; file: a local file; artifact: a private Artifact (the improve report stays a local file); hosted is read as artifact. A team rendered-views file never publishes. |
 | `adr_template` | string | *(none)* | Absolute or ~/ path to your own ADR template, used by /architecture:adr when a repository has no ADR convention. Empty: the bundled template. A repository's team or personal architecture.yaml overrides it, and a repository's own ADR convention always wins. |
 | `adr_retirement` | string | `"delete"` | How /architecture:adr retires a record a new decision reverses, after your yes. delete (default): remove the file; its number is never reused. supersede: mark it superseded. archive: move it to the ADR folder's archive folder. A repository's team or personal architecture.yaml overrides it. |
+| `branding` | string | *(none)* | Palette, type and logo overrides for rendered HTML pages as one JSON object matching branding in docs/conventions/rendered-views.yaml. Empty (default): shipped look. Repository team and personal override files win; invalid values are reported and ignored. |
 
 ### How to set these
 

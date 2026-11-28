@@ -79,8 +79,8 @@ assert_eq "index prints a copy of the org index under the reader's state, never 
 mkdir -p "$TEST_TMPDIR/no-index/docs/standards"
 printf '# Not an index\n' >"$TEST_TMPDIR/no-index/docs/standards/README.md"
 assert_eq "an org README without the key is no index: exit 5" "5" "$(STANDARDS_DIR="$TEST_TMPDIR/no-index" code index --root "$t")"
-mkdir -p "$TEST_TMPDIR/moved-index/.claude" "$TEST_TMPDIR/moved-index/std"
-printf 'standards_dir: std\n' >"$TEST_TMPDIR/moved-index/.claude/standards.yaml"
+mkdir -p "$TEST_TMPDIR/moved-index/docs/conventions" "$TEST_TMPDIR/moved-index/std"
+printf 'standards_dir: std\n' >"$TEST_TMPDIR/moved-index/docs/conventions/standards.yaml"
 printf -- '---\nstandards-contract: 1.2.0\n---\n\n| Surface | Applies when | File |\n|---|---|---|\n| moved | x | moved.md |\n' >"$TEST_TMPDIR/moved-index/std/README.md"
 assert_eq "index follows the org repository's standards_dir, resolving its rows there" \
   "$(printf -- '---\nstandards-contract: 1.2.0\n---\n\n| Surface | Applies when | File |\n|---|---|---|\n| moved | x | %s/moved-index/std/moved.md |' "$TEST_TMPDIR")" \
@@ -88,18 +88,18 @@ assert_eq "index follows the org repository's standards_dir, resolving its rows 
 
 org_checkout() {
   local dir="$TEST_TMPDIR/$1"
-  mkdir -p "$dir/.claude"
-  [[ -z "$2" ]] || printf 'standards_dir: %s\n' "$2" >"$dir/.claude/standards.yaml"
+  mkdir -p "$dir/docs/conventions"
+  [[ -z "$2" ]] || printf 'standards_dir: %s\n' "$2" >"$dir/docs/conventions/standards.yaml"
   printf '%s\n' "$dir"
 }
 o=$(org_checkout escape-dots ../outside)
 assert_eq "a standards_dir with a '..' segment is no usable index: exit 5" "5" "$(STANDARDS_DIR="$o" code index --root "$t")"
 assert_eq "a standards_dir with a '..' segment is refused naming the file" "1" \
-  "$(STANDARDS_DIR="$o" errs index --root "$t" | grep -c "^org-standards: $o/.claude/standards.yaml: standards_dir ../outside has a '..' segment; no usable index")"
+  "$(STANDARDS_DIR="$o" errs index --root "$t" | grep -c "^org-standards: $o/docs/conventions/standards.yaml: standards_dir ../outside has a '..' segment; no usable index")"
 o=$(org_checkout escape-abs "$OUTSIDE")
 assert_eq "an absolute standards_dir is no usable index: exit 5" "5" "$(STANDARDS_DIR="$o" code index --root "$t")"
 assert_eq "an absolute standards_dir is refused naming the file" "1" \
-  "$(STANDARDS_DIR="$o" errs index --root "$t" | grep -c "^org-standards: $o/.claude/standards.yaml: standards_dir $OUTSIDE is absolute; no usable index")"
+  "$(STANDARDS_DIR="$o" errs index --root "$t" | grep -c "^org-standards: $o/docs/conventions/standards.yaml: standards_dir $OUTSIDE is absolute; no usable index")"
 o=$(org_checkout escape-link '')
 mkdir -p "$o/docs"
 ln -s "$OUTSIDE" "$o/docs/standards"
@@ -199,12 +199,12 @@ assert_eq "a symbolic link among the reader's state directories is reported" "1"
   "$(STANDARDS_DIR="$TEST_TMPDIR/tricky-org" errs index --root "$tc" | grep -c "^org-standards: $ORG_STANDARDS_CACHE/.state/confined is a symbolic link; not written")"
 
 o="$TEST_TMPDIR/yaml-link"
-mkdir -p "$o/.claude" "$o/elsewhere"
+mkdir -p "$o/docs/conventions" "$o/elsewhere"
 printf 'standards_dir: elsewhere\n' >"$OUTSIDE/standards.yaml"
-ln -s "$OUTSIDE/standards.yaml" "$o/.claude/standards.yaml"
+ln -s "$OUTSIDE/standards.yaml" "$o/docs/conventions/standards.yaml"
 printf -- '---\nstandards-contract: 1.2.0\n---\n' >"$o/elsewhere/README.md"
-assert_eq "an org .claude/standards.yaml that resolves outside its checkout is not read: exit 5, naming the file" "5|1" \
-  "$(STANDARDS_DIR="$o" code index --root "$tc")|$(STANDARDS_DIR="$o" errs index --root "$tc" | grep -c "^org-standards: $o/.claude/standards.yaml resolves outside its checkout; no usable index")"
+assert_eq "an org docs/conventions/standards.yaml that resolves outside its checkout is not read: exit 5, naming the file" "5|1" \
+  "$(STANDARDS_DIR="$o" code index --root "$tc")|$(STANDARDS_DIR="$o" errs index --root "$tc" | grep -c "^org-standards: $o/docs/conventions/standards.yaml resolves outside its checkout; no usable index")"
 
 export ORG_STANDARDS_CACHE="$TEST_TMPDIR/build-cache"
 CONFINED="$ORG_STANDARDS_CACHE/.state/confined"

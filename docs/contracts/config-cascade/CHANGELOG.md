@@ -12,6 +12,11 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 Additive (minor bump): a linked worktree reads the personal override from the main checkout. The
 other entries below leave `contract_version` as it is.
 
+- **The `standards` concern file is on the location axis.** It moved from `.claude/standards.yaml`
+  to `docs/conventions/standards.yaml` (standards contract 2.0.0), so the `standards` row names the
+  new file and it leaves the list of `.claude/*` team-layer paths. The layering axis is unchanged,
+  so `contract_version` stays.
+
 - **The `code-tidying` comment policy keys read `<home>/comment-policy.yaml`.** `comment_lint`,
   `comment_adr_dir` and the three lint lists move from `code-tidying.yaml` to the team file
   `<home>/comment-policy.yaml`; `comment_posture`, `comment_keep_list` and `class_c_max_lines`

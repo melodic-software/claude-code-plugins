@@ -17,7 +17,7 @@ overengineering. An abstraction for a stated, known repetition is not, when the 
 repository's consolidation tests say the repetition is enough.
 
 Read those standards where they live rather than from memory. Resolve the standards index: the
-repository's own (`docs/standards/README.md`, unless `.claude/standards.yaml` sets `standards_dir`),
+repository's own (`docs/standards/README.md`, unless `docs/conventions/standards.yaml` sets `standards_dir`),
 over the org layer's when `docs/conventions/source-control.yaml` names a `standards_repository`
 (that repository's index on its `main`, read as the "Org layer" section of the standards contract,
 `docs/contracts/standards/README.md` in the marketplace repository, says). Read two entries: `simpler-code`, section "Named failure modes to avoid" (speculative generality, YAGNI), and

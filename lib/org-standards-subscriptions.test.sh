@@ -35,16 +35,16 @@ assert_eq "unpinned untrusted: refused, nothing read" "" "$(run subscriptions --
 assert_eq "unpinned untrusted: the refusal names the file and line" "1" \
   "$(errs subscriptions --root "$t" | grep -c "^org-standards: $USER_INDEX:4: stranger/other is not pinned")"
 
-user_index $'trusted_owners:\n  - acme\nstandards_repositories:\n  - repo: acme/handbook\n    topics:\n      - naming\n'
+user_index $'trusted_owners:\n  - acme\nstandards_repositories:\n  - repo: acme/handbook\n    surfaces:\n      - naming\n'
 filtered=$(run subscriptions --root "$t" | cut -f3)
-assert_eq "topic filter: the index keeps only the rows of the named Surface ids" \
+assert_eq "surfaces filter: the index keeps only the rows of the named Surface ids" \
   "$(printf -- '---\nstandards-contract: 1.2.0\n---\n\n| Surface | Applies when | File |\n|---|---|---|\n| naming | naming things | %s/acme/handbook@%s/docs/standards/naming.md |' "$ORG_STANDARDS_CACHE" "$HANDBOOK")" \
   "$(cat "$filtered")"
-assert_eq "topic filter: the filtered index is the reader's copy under its state" \
+assert_eq "surfaces filter: the filtered index is the reader's copy under its state" \
   "$ORG_STANDARDS_CACHE/.state/confined" "$(dirname "$filtered")"
-user_index $'trusted_owners:\n  - acme\nstandards_repositories:\n  - repo: acme/handbook\n    topics:\n      - nope\n'
-assert_eq "topic filter: a topic the index lacks is reported" "1" \
-  "$(errs subscriptions --root "$t" | grep -c 'topic nope is not a Surface id')"
+user_index $'trusted_owners:\n  - acme\nstandards_repositories:\n  - repo: acme/handbook\n    surfaces:\n      - nope\n'
+assert_eq "surfaces filter: a surface no index of the layer holds is reported" "1" \
+  "$(errs subscriptions --root "$t" | grep -c 'surface nope is not a Surface id in any index of')"
 
 scoped=$(target scoped 'pr_open_state: ready\n')
 g init -q "$scoped"
@@ -229,8 +229,8 @@ assert_eq "a subscribed symlink is checked out as a plain file holding its targe
 
 publish stranger/escape "$HANDBOOK_INDEX"
 ESCAPE_WORK="$TEST_TMPDIR/work/stranger/escape"
-mkdir -p "$ESCAPE_WORK/.claude"
-printf 'standards_dir: ../../../outside\n' >"$ESCAPE_WORK/.claude/standards.yaml"
+mkdir -p "$ESCAPE_WORK/docs/conventions"
+printf 'standards_dir: ../../../outside\n' >"$ESCAPE_WORK/docs/conventions/standards.yaml"
 g -C "$ESCAPE_WORK" add -A
 g -C "$ESCAPE_WORK" commit -q -m escape
 g -C "$ESCAPE_WORK" push -q origin main
@@ -244,7 +244,7 @@ user_index "standards_repositories:
 assert_eq "a subscribed standards_dir that leaves its checkout skips that layer only" "stranger/guide@$GUIDE" \
   "$(run subscriptions --root "$t" | cut -f1)"
 assert_eq "a subscribed standards_dir that leaves its checkout is refused naming the file" "1" \
-  "$(errs subscriptions --root "$t" | grep -c "^org-standards: $ORG_STANDARDS_CACHE/stranger/escape@$ESCAPE/.claude/standards.yaml: standards_dir ../../../outside has a '..' segment")"
+  "$(errs subscriptions --root "$t" | grep -c "^org-standards: $ORG_STANDARDS_CACHE/stranger/escape@$ESCAPE/docs/conventions/standards.yaml: standards_dir ../../../outside has a '..' segment")"
 
 publish stranger/rows "$(printf -- '---\nstandards-contract: 1.2.0\n---\n\n| Surface | Applies when | File |\n|---|---|---|\n| testing | writing tests | testing.md |\n| up | x | ../../../secret.txt |\n| abs | x | /etc/hostname |\n| home | x | ~/.ssh/id_rsa |\n| naming | naming things | naming.md |')"
 ROWS=$(head_of stranger/rows)
@@ -265,11 +265,11 @@ assert_eq "subscription: each dropped row is reported with its file, line and va
 user_index "standards_repositories:
   - repo: stranger/rows
     ref: $ROWS
-    topics:
+    surfaces:
       - up
       - naming
 "
-assert_eq "subscription: a topic filter keeps only confined rows" \
+assert_eq "subscription: a surfaces filter keeps only confined rows" \
   "$(printf -- '---\nstandards-contract: 1.2.0\n---\n\n| Surface | Applies when | File |\n|---|---|---|\n| naming | naming things | %s/naming.md |' "$(dirname "$ROWS_INDEX")")" \
   "$(cat "$(run subscriptions --root "$t" | cut -f3)")"
 
@@ -319,7 +319,7 @@ printf -- '---\nstandards-contract: 1.3.0\nstandards_repositories:\n  - repo: st
   >"$TEST_TMPDIR/home1/.claude/standards/README.md"
 lost=$(PATH="$TEST_TMPDIR/shim:$PATH" HOME="$TEST_TMPDIR/home1" bash "$SCRIPT" subscriptions --root "$t" 2>&1)
 assert_eq "a build that loses the rename to another reader uses the winner's checkout" \
-  "stranger/guide@$GUIDE	$ORG_STANDARDS_CACHE/stranger/guide@$GUIDE|$ORG_STANDARDS_CACHE/.state/confined" "${lost%	*}|$(dirname "${lost##*	}")"
+  "stranger/guide@$GUIDE	$ORG_STANDARDS_CACHE/stranger/guide@$GUIDE|$ORG_STANDARDS_CACHE/.state/confined|-" "$(cut -f1,2 <<<"$lost")|$(dirname "$(cut -f3 <<<"$lost")")|$(cut -f4 <<<"$lost")"
 assert_eq "a build that loses the rename leaves no build directory behind" "" "$(find "$ORG_STANDARDS_CACHE" -name '.build.*')"
 assert_eq "a build that loses the rename is never moved inside the winner's checkout" "another reader won" "$(cat "$TEST_TMPDIR/race.log")"
 

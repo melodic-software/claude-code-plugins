@@ -4,10 +4,64 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { escapeHtml } from "../../../lib/html-escape.mjs";
+import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall } from "../../../lib/plugin-options.mjs";
 import { buildView, validateView } from "../../../lib/view-builder.mjs";
+import { findRoot, resolveBranding } from "../../../lib/view-settings.mjs";
 
 const selfDir = dirname(fileURLToPath(import.meta.url));
+const PLUGIN_ROOT = resolve(selfDir, "../../..");
 export const TEMPLATE_PATH = join(selfDir, "../templates/digest.html");
+const TOKENS_PATH = join(selfDir, "../../../reference/html-tokens.css");
+const BRAND_CSS = [
+  ".rv-brand { display: inline-flex; align-items: center; gap: 0.5rem; margin-right: auto; }",
+  ".rv-brand svg { height: 1.5rem; width: auto; display: block; }",
+  ".rv-brand-mark { display: inline-block; width: 1.5rem; height: 1.5rem; background-size: contain; background-repeat: no-repeat; background-position: center; }",
+  ".rv-brand-label { font-family: var(--sans); font-weight: 600; font-size: 0.95rem; color: var(--fg); }",
+].join("\n");
+
+function readBrandingOption(explicitOption) {
+  if (typeof explicitOption === "string" && explicitOption !== "" && !/^\$\{user_config\./.test(explicitOption)) {
+    return explicitOption;
+  }
+  if (process.env.CLAUDE_PLUGIN_OPTION_BRANDING) {
+    return process.env.CLAUDE_PLUGIN_OPTION_BRANDING;
+  }
+  try {
+    return readOperatorOptions(resolveInstall(PLUGIN_ROOT), managedSettingsFiles(), ["branding"]).branding?.value ?? null;
+  } catch (err) {
+    if (err instanceof OptionsError) {
+      process.stderr.write(`notice: branding userConfig: ${err.message}\n`);
+      return null;
+    }
+    throw err;
+  }
+}
+
+function applyBranding(template, teamRef, brandingOption = null) {
+  const tokens = readFileSync(TOKENS_PATH, "utf8").replace(/\r\n?/g, "\n").replace(/^(?:\s*\/\*[\s\S]*?\*\/\s*)+/, "").trim();
+  const safeRef = typeof teamRef === "string" ? teamRef : "";
+  const branding = resolveBranding({ userConfig: readBrandingOption(brandingOption), projectRoot: findRoot(), teamRef: safeRef });
+  for (const notice of branding.notices) {
+    process.stderr.write(`notice: ${notice.text}\n`);
+  }
+  const logo = branding?.logo;
+  const parts = [];
+  if (logo?.kind === "svg" && logo.svg) {
+    parts.push(logo.svg);
+  } else if (logo?.kind === "image") {
+    parts.push(`<span class="rv-brand-mark rv-logo" role="img" aria-label="${escapeHtml(logo.label || "Brand logo")}"></span>`);
+  }
+  if (logo?.label) {
+    parts.push(`<span class="rv-brand-label">${escapeHtml(logo.label)}</span>`);
+  }
+  const slot = parts.length ? `<div class="rv-brand">${parts.join("")}</div>` : "";
+  const extraCss = [slot ? BRAND_CSS : "", branding?.css ?? ""].filter(Boolean).join("\n");
+  let out = template.replace(/<style>\s*/i, (open) => `${open}${tokens}\n`);
+  if (extraCss) out = out.replace(/<\/style>/i, (close) => `\n${extraCss}\n${close}`);
+  if (slot) out = out.replace(/<div class="rv-bar">/i, (bar) => `${bar}${slot}`);
+  return out;
+}
 
 const text = (value) =>
   typeof value === "string" ? value : typeof value === "number" ? String(value) : "";
@@ -54,11 +108,11 @@ export function shapeDigest(input) {
   };
 }
 
-export function buildDigest(input, connect = null) {
+export function buildDigest(input, connect = null, { teamRef = "", brandingOption = null } = {}) {
   const data = shapeDigest(input);
   return buildView({
     profile: "interactive",
-    template: readFileSync(TEMPLATE_PATH, "utf8"),
+    template: applyBranding(readFileSync(TEMPLATE_PATH, "utf8"), teamRef, brandingOption),
     data,
     connect,
     title: data.title,
@@ -130,11 +184,22 @@ function main(args) {
     process.stdout.write("ok\n");
     return;
   }
-  const usage = "usage: build-digest.mjs [--connect <origin> --dir <view-bridge data dir>] < data.json | --check <file>";
+  const usage = "usage: build-digest.mjs [--team-ref <sha>] [--branding-option <value>] [--connect <origin> --dir <view-bridge data dir>] < data.json | --check <file>";
   const flags = {};
-  for (let i = 0; i < args.length; i += 2) flags[args[i]] = args[i + 1];
-  const connected = args.length === 4 && typeof flags["--connect"] === "string" && typeof flags["--dir"] === "string";
-  if (args.length > 0 && !connected) fail(usage, 2);
+  if (args.length % 2 !== 0) fail(usage, 2);
+  for (let i = 0; i < args.length; i += 2) {
+    const flag = args[i];
+    const value = args[i + 1];
+    const allowEmpty = flag === "--team-ref" || flag === "--branding-option";
+    if (!["--connect", "--dir", "--team-ref", "--branding-option"].includes(flag) || Object.hasOwn(flags, flag) || typeof value !== "string" || (!allowEmpty && value === "")) {
+      fail(usage, 2);
+    }
+    flags[flag] = value;
+  }
+  const hasConnect = Object.hasOwn(flags, "--connect");
+  const hasDir = Object.hasOwn(flags, "--dir");
+  if (hasConnect !== hasDir) fail(usage, 2);
+  const connected = hasConnect && hasDir;
   if (connected) {
     const problem = bridgeDirProblem(flags["--dir"], flags["--connect"]);
     if (problem) fail(`refused: ${problem}`, 2);
@@ -153,7 +218,10 @@ function main(args) {
   if (!input || typeof input !== "object" || Array.isArray(input)) fail("JSON root must be an object", 2);
   let page;
   try {
-    page = buildDigest(input, connected ? flags["--connect"] : null);
+    page = buildDigest(input, connected ? flags["--connect"] : null, {
+      teamRef: flags["--team-ref"] ?? "",
+      brandingOption: flags["--branding-option"] ?? null,
+    });
   } catch (error) {
     fail(error.message, 1);
   }
