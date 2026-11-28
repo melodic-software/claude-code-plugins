@@ -149,18 +149,32 @@ git -C "$REPO_ODD" commit -qm "carry cfg"
 WT_ODD="$TEST_TMPDIR/wt-odd"
 git -C "$REPO_ODD" worktree add -q -b feat/odd "$WT_ODD" main >/dev/null 2>&1
 mkdir -p "$REPO_ODD/cfg" "$WT_ODD/cfg"
-for f in a.env $'a.env\r' '"q.env' z.env; do
-  printf 'same\n' >"$REPO_ODD/cfg/$f"
-  printf 'same\n' >"$WT_ODD/cfg/$f"
-done
-printf 'edited\n' >"$WT_ODD/cfg/"$'a.env\r'
-printf 'edited\n' >"$WT_ODD/cfg/z.env"
-printf 'new\n' >"$WT_ODD/cfg/m.env"
-run_inc diff "$WT_ODD" --main-root "$REPO_ODD"
-assert_exit "diff with odd names exits 1" 1 "$?"
-assert_contains "diff compares a name ending in CR as itself" "$OUT" $'MODIFIED\tcfg/a.env\r\t'
-assert_not_contains "diff reads an identical name with a leading quote as clean" "$OUT" '"q.env'
-assert_eq "diff keeps rows in listing order" $'MODIFIED\tcfg/a.env\r\nNEW\tcfg/m.env\nMODIFIED\tcfg/z.env' "$(cut -f1,2 <<<"$OUT")"
+if printf 'same\n' 2>/dev/null >"$REPO_ODD/cfg/"$'a.env\r'; then
+  for f in a.env $'a.env\r' '"q.env' z.env; do
+    printf 'same\n' >"$REPO_ODD/cfg/$f"
+    printf 'same\n' >"$WT_ODD/cfg/$f"
+  done
+  printf 'edited\n' >"$WT_ODD/cfg/"$'a.env\r'
+  printf 'edited\n' >"$WT_ODD/cfg/z.env"
+  printf 'new\n' >"$WT_ODD/cfg/m.env"
+  run_inc diff "$WT_ODD" --main-root "$REPO_ODD"
+  assert_exit "diff with odd names exits 1" 1 "$?"
+  assert_contains "diff compares a name ending in CR as itself" "$OUT" $'MODIFIED\tcfg/a.env\r\t'
+  assert_not_contains "diff reads an identical name with a leading quote as clean" "$OUT" '"q.env'
+  assert_eq "diff keeps rows in listing order" $'MODIFIED\tcfg/a.env\r\nNEW\tcfg/m.env\nMODIFIED\tcfg/z.env' "$(cut -f1,2 <<<"$OUT")"
+fi
+
+REPO_256="$(mktemp -d "$TEST_TMPDIR/repo256XXXXXX")"
+if git init -q --object-format=sha256 "$REPO_256" >/dev/null 2>&1; then
+  mkdir -p "$REPO_256/cfg"
+  printf 'same\n' >"$REPO_256/cfg/s.env"
+  printf 'theirs\n' >"$REPO_256/cfg/d.env"
+  printf 'same\n' >"$WT_ODD/cfg/s.env"
+  printf 'ours\n' >"$WT_ODD/cfg/d.env"
+  run_inc diff "$WT_ODD" --main-root "$REPO_256"
+  assert_not_contains "diff across object formats reads an identical file as clean" "$OUT" $'\tcfg/s.env\t'
+  assert_contains "diff across object formats still finds a changed file" "$OUT" $'MODIFIED\tcfg/d.env\t'
+fi
 
 run_inc sync-back "$WT" --copy "../escape.env"
 assert_exit "sync-back rejects .. traversal (exit 2)" 2 "$?"

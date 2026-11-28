@@ -179,8 +179,16 @@ hash_paths() {
   for rel; do printf './%s\n' "$rel"; done | git -C "$root" hash-object --no-filters --stdin-paths 2>/dev/null
 }
 
+files_differ() {
+  local cmp_rc
+  cmp -s -- "$1" "$2"
+  cmp_rc=$?
+  ((cmp_rc <= 1)) || die "diff: failed comparing $3" 3
+  ((cmp_rc == 1))
+}
+
 main_rows() {
-  local wt_top="$1" main_root="$2" wt_list="$3" rel i j=0 cmp_rc
+  local wt_top="$1" main_root="$2" wt_list="$3" rel i j=0
   local -a rows=() both=() wt_oids=() main_oids=()
   while IFS= read -r -d '' rel; do
     [[ -n "$rel" ]] || continue
@@ -194,19 +202,23 @@ main_rows() {
     fi
     [[ -f "$main_root/$rel" && -r "$main_root/$rel" ]] || die "diff: unreadable main file: $main_root/$rel" 3
     if [[ "$rel" == *$'\r' ]]; then
-      cmp -s -- "$wt_top/$rel" "$main_root/$rel"
-      cmp_rc=$?
-      ((cmp_rc <= 1)) || die "diff: failed comparing $rel" 3
-      ((cmp_rc == 0)) || rows+=("M$rel")
+      ! files_differ "$wt_top/$rel" "$main_root/$rel" "$rel" || rows+=("M$rel")
     else
       both+=("$rel")
       rows+=("")
     fi
   done <"$wt_list"
-  if ((${#both[@]} > 0)); then
+  if ((${#both[@]} > 0)) &&
+    [[ "$(git -C "$wt_top" rev-parse --show-object-format 2>/dev/null)" == "$(git -C "$main_root" rev-parse --show-object-format 2>/dev/null)" ]]; then
     mapfile -t wt_oids < <(hash_paths "$wt_top" "${both[@]}")
     mapfile -t main_oids < <(hash_paths "$main_root" "${both[@]}")
-    ((${#wt_oids[@]} == ${#both[@]} && ${#main_oids[@]} == ${#both[@]})) || die "diff: failed hashing carried files" 3
+  fi
+  if ((${#wt_oids[@]} != ${#both[@]} || ${#main_oids[@]} != ${#both[@]})); then
+    wt_oids=() main_oids=()
+    for rel in "${both[@]}"; do
+      main_oids+=(same)
+      if files_differ "$wt_top/$rel" "$main_root/$rel" "$rel"; then wt_oids+=(differs); else wt_oids+=(same); fi
+    done
   fi
   for i in "${!rows[@]}"; do
     case "${rows[$i]}" in
