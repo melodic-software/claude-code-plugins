@@ -1,5 +1,5 @@
 // test-scope: .github/scripts/plugin-eval/last-messages.mjs .github/scripts/plugin-eval/summarize.mjs plugins/evals/skills/plugin-eval/scripts/run-validity.py
-// test-scope: plugins/evals/vendor/gitleaks/gitleaks-rules.json
+// test-scope: plugins/evals/vendor/gitleaks/gitleaks-rules.json plugins/evals/scripts/redact.py
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
