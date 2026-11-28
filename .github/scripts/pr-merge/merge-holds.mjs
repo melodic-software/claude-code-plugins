@@ -249,6 +249,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-merge/sweep-summary.mjs", "gate"],
   [".github/scripts/pr-merge/who.mjs", "gate"],
   [".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"],
+  [".github/scripts/pr-merge/cancel-orphaned-runs.mjs", "gate"],
   [".github/scripts/pr-merge/verify-answers.mjs", "gate"],
   [".github/scripts/lib/run-title.mjs", "gate"],
   [".github/scripts/lib/lane-branch.mjs", "gate"],
