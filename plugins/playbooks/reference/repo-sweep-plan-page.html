@@ -113,7 +113,10 @@
 
   function updateLine() {
     var ids = order.filter(function (e) { return e.checked; }).map(function (e) { return e.id; });
-    document.getElementById('line').value = 'repo-sweep-selection: ' + ids.join(',');
+    var noteEl = document.getElementById('rv-comment-text');
+    var note = noteEl ? noteEl.value.trim() : '';
+    var sel = 'repo-sweep-selection: ' + ids.join(',');
+    document.getElementById('line').value = note ? sel + '\ncomment: ' + note : sel;
   }
 
   function buildRow(entry) {
@@ -198,15 +201,16 @@
     updateLine();
   }
 
+  var commentInput = document.getElementById('rv-comment-text');
+  if (commentInput) commentInput.addEventListener('input', updateLine);
+
   document.getElementById('copy-btn').addEventListener('click', function () {
-    var line = document.getElementById('line').value;
-    var noteEl = document.getElementById('rv-comment-text');
-    var note = noteEl ? noteEl.value.trim() : '';
-    var payload = note ? line + '\ncomment: ' + note : line;
+    updateLine();
+    var lineEl = document.getElementById('line');
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(payload).catch(function () {});
+      navigator.clipboard.writeText(lineEl.value).catch(function () {});
     }
-    document.getElementById('line').select();
+    lineEl.select();
   });
 
   render();

@@ -38,6 +38,7 @@ fi
 
 if [[ $mode == --checklist ]]; then
   line=$(printf '%s' "$3" | tr -d '\r')
+  line=${line%%$'\n'*}
   if [[ ! $line =~ ^[[:space:]]*repo-sweep-selection:(.*)$ ]]; then
     printf 'render.sh: selection line must start with repo-sweep-selection:\n' >&2
     exit 1

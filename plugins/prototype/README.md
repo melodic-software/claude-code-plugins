@@ -70,7 +70,6 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `level` | string | *(none)* | The level a /prototype:explore-directions run takes when the request names none: sketch, standard or full, or a level your repository's docs/conventions/prototype.yaml adds. Unset is standard. A repository's prototype.yaml wins over this option; see the plugin's reference/config.md. |
-| `branding` | string | *(none)* | Palette, type and logo overrides for rendered HTML pages as one JSON object matching branding in docs/conventions/rendered-views.yaml. Empty (default): shipped look. Repository team and personal override files win; invalid values are reported and ignored. |
 
 ### How to set these
 

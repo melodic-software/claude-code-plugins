@@ -42,6 +42,9 @@ fi
 assert_eq "checklist without a TSV: markers only" "<!-- repo-sweep:begin playbook=fixture -->
 - [ ] tidy: c:t
 <!-- repo-sweep:end -->" "$(bash "$SCRIPT" --checklist "$CATALOG" 'repo-sweep-selection: tidy')"
+assert_eq "checklist two-line paste with comment: validates first line only" "<!-- repo-sweep:begin playbook=fixture -->
+- [ ] tidy: c:t
+<!-- repo-sweep:end -->" "$(bash "$SCRIPT" --checklist "$CATALOG" $'repo-sweep-selection: tidy\ncomment: skip it, focus on lint')"
 assert_eq "every entry selected: no Not run section" "0" \
   "$(bash "$SCRIPT" --checklist "$CATALOG" 'repo-sweep-selection: dead-code,residue-dissolve,testing-audit,tidy,prompt-audit' "$recs" | grep -c 'Not run')"
 
