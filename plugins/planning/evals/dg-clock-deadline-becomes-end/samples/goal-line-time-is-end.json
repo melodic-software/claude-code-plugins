@@ -105,6 +105,10 @@
     {
       "answer": "Type `/goal ` (with a trailing space), then paste this:\n\n```text\n(The queue is empty or date -u shows 2026-11-28T06:00Z or later) and notes/status.md contains a results line timestamped before `2026-11-28T06:00Z`.\n```\n",
       "why": "a deadline to beat, written in inline code"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty, every item imported or failed, and date -u shows 2026-11-28T06:00Z or later.\n──────────────────────────────────────────────────────────\n",
+      "why": "an unrelated or earlier in the clause; the clock end is still joined with and"
     }
   ]
 }
