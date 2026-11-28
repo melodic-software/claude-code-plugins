@@ -1,5 +1,5 @@
 ---
-description: "Produce a short narrated (or silent without speech) Manim/ManimCE explainer video (beats, captions, ffmpeg mux, fresh-context frame check) or 4K narrated stills, chapters, and contact sheet from storyboard.json. Use when: 'make an explainer video', 'animate this concept', 'render a math animation'. Not for hand-drawn film: /animation:produce."
+description: "Produce a short animated video to explain topics (narrated or silent video clip) with Manim/ManimCE: narration, captions, render, ffmpeg mux, fresh-context QC; or 4K stills, chapters, contact sheet (storyboard.json). Use when: 'make an explainer video', 'animate this concept', 'render a math animation'. Not for hand-drawn film: /animation:produce."
 argument-hint: "<topic> [output dir]"
 user-invocable: true
 disable-model-invocation: false
