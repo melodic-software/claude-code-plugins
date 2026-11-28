@@ -935,6 +935,11 @@ def op_meta(d, doc, a):
     return [], f"meta set {', '.join(sorted(a.set))}"
 
 
+def op_set_style(d, doc, a):
+    doc["meta"]["style"] = a.style
+    return [], f"style {a.style}"
+
+
 def op_add(d, doc, a):
     doc.pop("finished", None)
     before = newest_round(doc)
@@ -2101,6 +2106,7 @@ OP_ARGS = {
     ),
     "group-order": (op_group_order, {"ids": None}),
     "meta": (op_meta, {"set": None}),
+    "set-style": (op_set_style, {"style": None}),
     "note-reply": (op_note_reply, {"seq": None, "text": None, "needsAnswer": False}),
     "handle": (op_handle, {"seqs": None}),
     "archive": (op_archive, {"ids": None, "why": None}),
