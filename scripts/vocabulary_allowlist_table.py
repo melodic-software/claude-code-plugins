@@ -592,6 +592,11 @@ ALLOWLIST = [
     ),
     phrase(
         "surface-config",
+        r"`surfaces`",
+        "The concern file is `docs/conventions/standards.yaml`; entries take `surfaces` in place of `topics`.",
+    ),
+    phrase(
+        "surface-config",
         r"\bsurface,?\s+(or|and|checker or)\s+(supplying\s+)?settings files?\b",
         "It refuses a surface, checker or supplying settings file.",
     ),
