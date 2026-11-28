@@ -2864,7 +2864,8 @@ PROTECTED = re.compile(
 LINK_FORMS = ("plain", "vscode", "file")
 CITATION = re.compile(
     r"\((?P<path>[^()\s`]*[A-Za-z][^()\s`]*):"
-    r"(?P<lines>(?P<first>[0-9]+)(?:-[0-9]+)?(?:, [0-9]+(?:-[0-9]+)?)*)\)$"
+    r"(?P<lines>(?P<first>[0-9]+)(?:-[0-9]+)?(?:, [0-9]+(?:-[0-9]+)?)*)\)"
+    r"(?P<alts> \(or: [^()]*\))?$"
 )
 ROUND_FENCE = re.compile(
     r"^(?:[ \t]*>)*[ \t]*(?:(?:[-*+]|[0-9]+[.)])[ \t]+)?(`{3,}|~{3,})(.*)$"
@@ -3010,6 +3011,12 @@ def label_text(line, label):
     return bare.strip()
 
 
+def joined(seg):
+    """A labeled segment as one line: a wrapped value's continuation lines joined by spaces."""
+    first, *rest = [line.rstrip("\r\n") for line in seg]
+    return " ".join([first.rstrip(), *(line.strip() for line in rest if line.strip())])
+
+
 def alt_labels(seg):
     """`a <label>` for each `(a) <label>. <tradeoff>` alternative under an Alternatives: line."""
     out = []
@@ -3026,15 +3033,15 @@ def lightning_entry(parts, eol):
     out = list(parts["title"])
     rec = parts.get("My recommendation")
     if rec:
-        m = BOLD_ANSWER.match(rec[0].rstrip("\r\n"))
+        m = BOLD_ANSWER.match(joined(rec))
         if m:
             basis = ""
             if "Evidence" in parts:
-                basis = label_text(parts["Evidence"][0], "Evidence")
+                basis = label_text(joined(parts["Evidence"]), "Evidence")
             elif m.group("rest").strip(" .:-"):
                 basis = m.group("rest").strip(" .:-")
             elif "Why" in parts:
-                basis = label_text(parts["Why"][0], "Why")
+                basis = label_text(joined(parts["Why"]), "Why")
             line = f"{m.group('lead')}{m.group('bold')}"
             if basis:
                 line += f" - {basis}"
@@ -3045,8 +3052,8 @@ def lightning_entry(parts, eol):
     for label in LIGHTNING_KEEP:
         out.extend(parts.get(label, []))
     for label in LIGHTNING_WARN:
-        for line in parts.get(label, [])[:1]:
-            out.append(f"   {label}: {label_text(line, label)}{eol}")
+        if label in parts:
+            out.append(f"   {label}: {label_text(joined(parts[label]), label)}{eol}")
     for line in parts.get("Commits you to", [])[1:]:
         if line.strip():
             out.append(f"   {line.strip()}{eol}")
@@ -3171,7 +3178,8 @@ LINK_FORMATTERS = {"plain": plain_link, "vscode": vscode_link, "file": file_link
 
 
 def link_citations(text, form, round_file):
-    """`text` with each citation label `(path:line)` that ends a line, outside fences, printed
+    """`text` with each citation label `(path:line)` that ends a line, or comes just before a
+    lightning answer line's closing `(or: ...)`, outside fences, printed
     in `form`: a relative path resolves against the round file's repository top, else its
     folder."""
     fmt = LINK_FORMATTERS[form]
@@ -3192,7 +3200,7 @@ def link_citations(text, form, round_file):
                 base = repo_top(folder) or folder
             abs_path = quote((base / path).resolve().as_posix().lstrip("/"), safe="/:")
         label = fmt(path, m.group("lines"), m.group("first"), abs_path)
-        out.append(f"{bare[: m.start()]}({label}){eol_of(line)}")
+        out.append(f"{bare[: m.start()]}({label}){m.group('alts') or ''}{eol_of(line)}")
     return "".join(out)
 
 

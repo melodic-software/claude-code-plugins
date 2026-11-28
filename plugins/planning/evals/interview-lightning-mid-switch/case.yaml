@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: interview-lightning-mid-switch
-description: "Saying \"speed this up\" mid-interview reprints the current round condensed. Why hard: the reply reads like impatience, not a switch, so the easy path apologises and repeats the full layout."
+description: "Saying \"speed this up\" mid-interview reprints the current round condensed. Why hard: the reply reads like impatience, not a switch, so the easy path apologizes and repeats the full layout."
 tags: [interview, lightning, no-network]
 expected_outcome: "The open round is reprinted as condensed entries with no Context block."
 execution:
