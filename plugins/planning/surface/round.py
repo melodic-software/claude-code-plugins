@@ -3029,34 +3029,39 @@ def alt_labels(seg):
 
 
 def lightning_entry(parts, eol):
-    """One question's condensed entry from its labeled segments (label -> lines)."""
+    """One question's condensed entry from its labeled segments (label -> each segment's
+    lines, in order; "protected" holds the protected lines no label claimed)."""
     out = list(parts["title"])
     rec = parts.get("My recommendation")
     if rec:
-        m = BOLD_ANSWER.match(joined(rec))
+        m = BOLD_ANSWER.match(joined(rec[0]))
         if m:
             basis = ""
             if "Evidence" in parts:
-                basis = label_text(joined(parts["Evidence"]), "Evidence")
+                basis = label_text(joined(parts["Evidence"][0]), "Evidence")
             elif m.group("rest").strip(" .:-"):
                 basis = m.group("rest").strip(" .:-")
             elif "Why" in parts:
-                basis = label_text(joined(parts["Why"]), "Why")
+                basis = label_text(joined(parts["Why"][0]), "Why")
             line = f"{m.group('lead')}{m.group('bold')}"
             if basis:
                 line += f" - {basis}"
-            alts = alt_labels(parts.get("Alternatives", []))
+            alts = alt_labels(parts.get("Alternatives", [[]])[0])
             if alts:
                 line += f" (or: {', '.join(alts)})"
             out.append(line + eol)
     for label in LIGHTNING_KEEP:
-        out.extend(parts.get(label, []))
+        for seg in parts.get(label, []):
+            out.extend(seg)
     for label in LIGHTNING_WARN:
-        if label in parts:
-            out.append(f"   {label}: {label_text(joined(parts[label]), label)}{eol}")
-    for line in parts.get("Commits you to", [])[1:]:
-        if line.strip():
-            out.append(f"   {line.strip()}{eol}")
+        for seg in parts.get(label, []):
+            out.append(f"   {label}: {label_text(joined(seg), label)}{eol}")
+    for seg in parts.get("protected", []):
+        out.extend(seg)
+    for seg in parts.get("Commits you to", []):
+        for line in [label_text(seg[0], "Commits you to"), *seg[1:]]:
+            if line.strip():
+                out.append(f"   {line.strip()}{eol}")
     return out
 
 
@@ -3078,11 +3083,14 @@ def render_lightning(text):
         if label in ("blank",):
             continue
         if label == "text":
-            if not seg[0].strip().startswith("---"):
+            if seg[0].strip().startswith("---"):
+                continue
+            if not PROTECTED.match(seg[0].rstrip("\r\n")):
                 closing.append(seg)
-            continue
+                continue
+            label = "protected"
         closing = []
-        parts.setdefault(label, list(seg))
+        parts.setdefault(label, []).append(list(seg))
     out = [line for line in header if line.strip()]
     for qid in order:
         out.append(eol)

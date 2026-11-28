@@ -6276,6 +6276,36 @@ class TestRoundShowLightning(unittest.TestCase):
             out,
         )
 
+    def test_lightning_keeps_every_protected_line(self):
+        protected = [
+            "*Flips if:* the guide changes its batching rule.",
+            "Second view (recommender): log both failures.",
+            "- Commits you to: no second store",
+            "Departs from: Q4 (one write per job), once more.",
+            "Withheld: until the queue lookup returns.",
+            "**Discovery** first: who reads the entries.",
+        ]
+        basis = "Basis: verified, `src/retry.ts:12` and the audit guide's Writes section\n"
+        store = "- The store depends on the queue lookup.\n"
+        text = ROUND_FULL.read_text(encoding="utf-8")
+        text = text.replace(basis, basis + "".join(x + "\n" for x in protected[:2]), 1)
+        text = text.replace(store, store + "".join(x + "\n" for x in protected[2:]), 1)
+        out = self.show_edited(ROUND_FULL.read_text(encoding="utf-8"), text)
+        hint = out.index('say "more Q<N>" for the full block.')
+        shown = [x.strip() for x in out[:hint]]
+        for line in protected + [
+            "Withheld: the queue lookup has not returned, so no store can be recommended yet."
+        ]:
+            self.assertIn(line, shown)
+
+    def test_lightning_prints_a_commitment_written_on_its_label_line(self):
+        out = self.show_edited(
+            "Withheld: the queue lookup has not returned, so no store can be recommended yet.\n",
+            "Withheld: the queue lookup has not returned, so no store can be recommended yet.\n"
+            "Commits you to: no second store\n",
+        )
+        self.assertIn("   no second store", out)
+
     def test_lightning_links_a_citation_before_the_alternatives(self):
         out = self.show_edited(
             "(verified, `src/retry.ts:12`).", "(src/retry.ts:12).", "--links", "plain"
