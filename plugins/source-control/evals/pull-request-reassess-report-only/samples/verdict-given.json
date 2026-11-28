@@ -17,6 +17,18 @@
     {
       "answer": "The verdict is not given: the goal could not be read.",
       "why": "names no verdict"
+    },
+    {
+      "answer": "The verdict is continue on every read but one, so: reassess: no verdict: the update decision could not be read.",
+      "why": "a no-verdict line follows the verdict word"
+    },
+    {
+      "answer": "No verdict is `continue` until the goal is read.",
+      "why": "says there is no verdict"
+    },
+    {
+      "answer": "The verdict is close to a call; reassess: no verdict: the goal could not be read.",
+      "why": "close to is not a verdict, and the reply states no verdict"
     }
   ]
 }

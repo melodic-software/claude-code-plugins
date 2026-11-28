@@ -17,6 +17,10 @@
     {
       "answer": "It looks fine.",
       "why": "no failure stated"
+    },
+    {
+      "answer": "reassess: no verdict: no goal stated.\nThe verdict is close.",
+      "why": "a verdict after the failure line"
     }
   ]
 }

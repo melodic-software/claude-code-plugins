@@ -29,6 +29,14 @@
     {
       "answer": "The verdict is not continue.",
       "why": "denies the verdict"
+    },
+    {
+      "answer": "The verdict is continue on every read but one, so: reassess: no verdict: the update decision could not be read.",
+      "why": "a no-verdict line follows the verdict word"
+    },
+    {
+      "answer": "No verdict is `continue` until the goal is read.",
+      "why": "says there is no verdict"
     }
   ]
 }

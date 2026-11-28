@@ -29,6 +29,14 @@
     {
       "answer": "The verdict is not close.",
       "why": "denies the verdict"
+    },
+    {
+      "answer": "The verdict is close to rework, but rework wins: the verdict is `rework`.",
+      "why": "close to is not the verdict, and the verdict is rework"
+    },
+    {
+      "answer": "The verdict is close to a call; reassess: no verdict: the goal could not be read.",
+      "why": "close to is not a verdict, and the reply states no verdict"
     }
   ]
 }
