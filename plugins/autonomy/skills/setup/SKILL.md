@@ -1,5 +1,5 @@
 ---
-description: "Configure the autonomy plugin for this repository: discover the adopting org's state (role homes, substrate availability, budget posture, pipeline slots with live prices), interview where discovery cannot infer, and write the schema-versioned binding under .claude/autonomy/. Use when: 'set up autonomy', 'autonomy setup', 'configure autonomy', 'bind the autonomy contracts', 'set up an agent pipeline', or another autonomy capability reports a missing binding. Re-runnable. Safe to invoke again to reconfigure."
+description: "Check or configure the repository's autonomy binding under .claude/autonomy/ (org role homes, substrates, budget posture, pipeline slots)."
 argument-hint: "<check|apply> [--org-policy-home <locator>|none] [--budget-posture free|paid-opt-in]"
 user-invocable: true
 disable-model-invocation: true
