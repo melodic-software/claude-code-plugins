@@ -16,7 +16,7 @@ Read when an affected ecosystem resolves a non-empty `gates` array, or the proje
 - **Outcome.** Report `pass` or `FAIL` by gate name; on `FAIL`, surface `gate.remediation`. A fired gate that fails counts toward the run's `FAIL` verdict. A gate that runs more than once (`"ecosystem"` scope under `project-discovery`) reports **one** line per gate name: `FAIL` if any invocation failed, `pass` only if every one passed, with each failing invocation's output shown below the table labeled by its execution root.
 
 Gates resolve through the ladder like every other key, and the plugin ships none: a consumer declares its own in `docs/conventions/ecosystems/<ecosystem>.yaml` (e.g. the `nuget-lockfile-drift` shape in the contract's examples,
-<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/ecosystem-commands/examples/dotnet.yaml>).
+<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/ecosystem-commands/examples/dotnet.yaml>). <!-- portability-ok: R6 link to ecosystem-commands contract example -->
 
 **Convention-documented gates still run.** When the project documents extra local checks in its `CLAUDE.md`, `.claude/rules/` or a commands reference instead of a `gates` array, run those too by the same rules: fire on their stated trigger files, run after build, test and lint independent of the short-circuit, report by name with the project's own remediation, and count a failure toward the verdict. Declaring them in `docs/conventions/ecosystems/<ecosystem>.yaml` is preferred, not required.
 

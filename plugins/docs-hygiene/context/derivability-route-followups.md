@@ -59,7 +59,7 @@ scanner; remaining real cite relocated.
 | `plugins/songwriting/context/pat-pattison/research/ai-tools.md` | clean |
 | `plugins/testing/README.md` | clean |
 | `/toolchain:check` `context/bash.md` | clean |
-| `/toolchain:check` `context/dotnet.md` | clean |
+| `/toolchain:check` `context/dotnet.md` | clean <!-- portability-ok: R6 mechanism record - derivability audit target list --> |
 | `/toolchain:check` `context/go.md` | clean |
 | `/toolchain:check` `context/python.md` | clean |
 | `/toolchain:check` `context/typescript.md` | clean |

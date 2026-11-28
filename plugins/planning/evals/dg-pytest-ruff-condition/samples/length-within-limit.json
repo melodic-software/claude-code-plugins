@@ -23,6 +23,14 @@
     {
       "answer": "ProposeGoal cap: 187/500 chars, so the native tool can take it too.\n",
       "why": "ratio against the 500-character tool cap"
+    },
+    {
+      "answer": "I drafted the condition below, and the counter reports 705 characters against a 4000 limit.\n",
+      "why": "counter's count stated against the limit, no within or under"
+    },
+    {
+      "answer": "The draft below is 634 characters by the deterministic counter (`status=ok` against 4000).\n",
+      "why": "counter verdict quoted against the limit"
     }
   ],
   "fail": [
@@ -69,6 +77,22 @@
     {
       "answer": "Length: 4,210/4,000 characters.\n",
       "why": "ratio over the limit with thousands separators"
+    },
+    {
+      "answer": "The counter reports 4210 characters against a 4000 limit, which is over, so I tightened it.\n",
+      "why": "against-the-limit form that says over"
+    },
+    {
+      "answer": "It comes to roughly 700 characters against a 4000 limit.\n",
+      "why": "estimated count in the against form"
+    },
+    {
+      "answer": "chars=4210 limit=4000 status=over against the cap\n",
+      "why": "status=over, not ok"
+    },
+    {
+      "answer": "The counter reports 4210 characters against a 4000 limit. I tried several rewrites of the constraints and the stall clause, and it is still over.\n",
+      "why": "over verdict more than a sentence after the against form"
     }
   ]
 }

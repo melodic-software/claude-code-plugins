@@ -28,32 +28,33 @@ below, in place of these two.
 
 | Ecosystem | Runner | Form | Kind | Source |
 |---|---|---|---|---|
-| .NET | dotnet test (VSTest runner) | `dotnet test {tests}`, run once per line `scripts/dotnet-test-selection.sh <test file>...` prints: the owning project, then `--filter 'FullyQualifiedName~<Namespace>.<Class>.\|...'` for each top-level class in that project's files, plus `<Class>+` for a class holding nested classes and no trailing dot for a generic one (`~` is contains, `\|` is or; there is no file path form). Keep `--filter` out of `test-command`. A baseline whose filter matches no test refuses: [Running a .NET test set](#running-a-net-test-set) | project and name filter | https://learn.microsoft.com/en-us/dotnet/core/testing/selective-unit-tests, https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-vstest |
+| .NET | dotnet test (VSTest runner) | `dotnet test {tests}`, run once per line `scripts/dotnet-test-selection.sh <test file>...` prints: the owning project, then `--filter 'FullyQualifiedName~<Namespace>.<Class>.\|...'` for each top-level class in that project's files, plus `<Class>+` for a class holding nested classes and no trailing dot for a generic one (`~` is contains, `\|` is or; there is no file path form). Keep `--filter` out of `test-command`. A baseline whose filter matches no test refuses: [Running a .NET test set](#running-a-net-test-set) | project and name filter | https://learn.microsoft.com/en-us/dotnet/core/testing/selective-unit-tests, https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-vstest <!-- portability-ok: R6 kept-adapter operation - dotnet-test-selection.sh --> |
 
-Recheck trigger: a new major release of StrykerJS, Stryker.NET or mutmut, or a change to the named option on its configuration docs page. For the .NET row and [Running a .NET test set](#running-a-net-test-set): a change to the filter syntax on the selective-tests page, or to the project argument or the no-matching-tests exit code on the VSTest `dotnet test` page (both read 2026-10-26).
+Recheck trigger: a new major release of StrykerJS, Stryker.NET or mutmut, or a change to the named option on its configuration docs page. For the .NET row and [Running a .NET test set](#running-a-net-test-set): a change to the filter syntax on the selective-tests page, or to the project argument or the no-matching-tests exit code on the VSTest `dotnet test` page (both read 2026-10-26). <!-- portability-ok: R6 kept-adapter operation - dotnet-test-selection.sh -->
 
+<!-- portability-ok: R6 kept-adapter operation - dotnet-test-selection.sh -->
 ## Running a .NET test set
 
-When `test-command` starts with `dotnet test`, the exercised scope runs the bundled
-`scripts/dotnet-test-selection.sh` (SKILL.md names its path) over the test set, from the directory
+When `test-command` starts with `dotnet test`, the exercised scope runs the bundled <!-- portability-ok: R6 kept-adapter operation - dotnet-test-selection.sh -->
+`scripts/dotnet-test-selection.sh` (SKILL.md names its path) over the test set, from the directory <!-- portability-ok: R6 kept-adapter operation - dotnet-test-selection.sh -->
 `test-command` runs in. It prints one already-quoted line per owning project. Every run of the
 test set runs `test-command` once per line, with `{tests}` replaced by that line, and any red run
 makes the set red. A non-zero exit from the script refuses. A baseline run that reports no test
 matching the filter refuses: a filter that matches no test still exits 0, so that baseline can
-pass with nothing run. Never run `dotnet test` without a project argument, a baseline included.
+pass with nothing run. Never run `dotnet test` without a project argument, a baseline included. <!-- portability-ok: R6 kept-adapter operation - dotnet-test-selection.sh -->
 
 ## Running Stryker.NET on a test set
 
-When the configured tool is Stryker.NET, the exercised scope runs `scripts/dotnet-test-selection.sh`
+When the configured tool is Stryker.NET, the exercised scope runs `scripts/dotnet-test-selection.sh` <!-- portability-ok: R6 kept-adapter operation - dotnet-test-selection.sh -->
 over the test set from the directory Stryker runs in. A non-zero exit refuses. From its lines it
 builds two values: `test-projects`, each line's project; and `test-case-filter`, the lines'
 `--filter` expressions joined with `|`, wrapped as `(<existing>)&(<built>)` when the project's
 config already sets one. One filter spans every listed project, and each term uses the `~` operator
 (its matching rule:
-https://learn.microsoft.com/en-us/dotnet/core/testing/selective-unit-tests#syntax, read 2026-10-26;
-recheck with the .NET row above), so it can take in more tests than the set: a test in another
+https://learn.microsoft.com/en-us/dotnet/core/testing/selective-unit-tests#syntax, read 2026-10-26; <!-- portability-ok: R6 kept-adapter operation - dotnet-test-selection.sh -->
+recheck with the .NET row above), so it can take in more tests than the set: a test in another <!-- portability-ok: R6 kept-adapter operation - dotnet-test-selection.sh -->
 listed project that a term matches, and, for a generic class, whose term has no trailing `.`
-(`scripts/dotnet-test-selection.sh`, its `generic == 1` branch, against the nested and plain-class
+(`scripts/dotnet-test-selection.sh`, its `generic == 1` branch, against the nested and plain-class <!-- portability-ok: R6 kept-adapter operation - dotnet-test-selection.sh -->
 branches, which both add the `.`), any class whose name
 the term also matches. Each extra test counts toward coverage and kills, so a mutant the set does
 not reach can report Survived or Killed instead of NoCoverage. It writes both values into an

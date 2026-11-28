@@ -3,6 +3,18 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.3] - 2026-11-27
+
+### Changed
+
+- Trimmed `/debugging:debug` (1,020 -> 413 chars) and `/debugging:analyze-profile` (630 -> 346 chars) frontmatter descriptions while preserving trigger coverage, `diagnose` no-edit semantics, and sibling boundaries: `/debugging:debug` routes an existing failing test to `/testing:fix-failing` and only a captured profile, trace, or snapshot with no repro to `/debugging:analyze-profile`.
+
+## [3.1.2] - 2026-11-27
+
+### Fixed
+
+- Exclude validated `<style>` bodies without raw `<` from the HTML text escaping scan in shared `html-escape.mjs` and `view-builder.mjs` so quoted CSS font stacks, attribute selectors and child combinators pass validation.
+
 ## [3.1.1] - 2026-11-26
 
 ### Changed

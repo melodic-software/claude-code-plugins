@@ -67,6 +67,10 @@ When it does, this doc points at the upstream setting and the per-hook key becom
   [policy-floor class](../config-cascade/README.md#sanctioned-exception-class-policy-floor-precedence-inversion),
   a floor the repository cannot loosen, and departs from its condition 2: the user's own `false`
   still takes effect for that user, per the precedence above.
+- **Subagent-confining gates.** A hook that confines a subagent to an allowed command or host set
+  (`discovery`'s `docs-fetcher-gate`, and `multi-agent`'s `drift-checker-fetch-gate`,
+  `docs-fetcher-gate` and `registry-fetcher-gate`) carries no `<name>_enabled` setting and is
+  exempt from the adoption check.
 - **Cost.** Reading the repository file on every fire counts against the
   [hook budget](../hook-budget/README.md#the-hook-enablement-helper).
 
@@ -154,13 +158,17 @@ resolves both layers. Plugins that ship hooks with no such option are listed in
 ### The adoption check
 
 `bash scripts/list-hook-enablement-gaps.sh` prints, one per line, each plugin whose
-`hooks/hooks.json` declares a hook and whose `plugin.json` `userConfig` declares no boolean option
-ending in `_enabled`. A hook here is an event handler under `hooks` or an entry under `modules`, so a
-plugin that ships only a module is listed too. The script exits `2` when a `hooks.json` or
-`plugin.json` is empty or not valid JSON, naming the file, and when no plugin declares a hook. Its
-suite, `scripts/list-hook-enablement-gaps.test.sh`, runs in CI's shell test lane, on every change to
-a `hooks.json` or `plugin.json` under `plugins/`, and fails when the repository's list differs from
-the suite's `PENDING` list. A plugin that adopts its option leaves
+`hooks/hooks.json` declares a non-exempt hook and whose `plugin.json` `userConfig` declares no
+boolean option ending in `_enabled`. A hook here is an event handler under `hooks` or an entry
+under `modules`, so a plugin that ships only a module is listed too. The script filters out the
+four exempt [subagent-confining gates](#the-per-hook-setting) by plugin and leading `args` prefix,
+so a plugin whose only hooks are exempt (`multi-agent`) is not listed, while any non-exempt hook in
+the same plugin (such as `discovery`'s `webfetch-truncation.mjs`) still puts the plugin on the
+list. The script exits `2` when a `hooks.json` or
+`plugin.json` is empty or not valid JSON, naming the file, and when no plugin declares a non-exempt
+hook. Its suite, `scripts/list-hook-enablement-gaps.test.sh`, runs in CI's shell test lane, on
+every change to a `hooks.json` or `plugin.json` under `plugins/`, and fails when the repository's
+list differs from the suite's `PENDING` list. A plugin that adopts its option leaves
 both lists in the same change. A new plugin that ships a hook ships its option with it.
 
 A hook maps to its key by [the key rule](#the-per-hook-setting): a hook named after its plugin maps to

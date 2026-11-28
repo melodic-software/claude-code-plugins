@@ -89,6 +89,35 @@ class PolicyCascadeTests(unittest.TestCase):
             with self.assertRaises(policy_cascade.PolicyError):
                 policy_cascade.load_policy(None, project, None)
 
+    def test_team_layer_extends_inventory_bounded_stores_and_bad_entries_fail(
+        self,
+    ) -> None:
+        project = self.base / "project"
+        (project / "docs" / "conventions").mkdir(parents=True)
+        team_file = project / "docs" / "conventions" / "disk-hygiene.yaml"
+        team_file.write_text(
+            "version: 1\nadditional_inventory_bounded_stores:\n"
+            '  - glob: "vendor/blobs"\n    reason: "artifact mirror"\n',
+            encoding="utf-8",
+        )
+        with mock.patch.object(Path, "home", return_value=self.base / "home"):
+            policy = policy_cascade.load_policy(None, project, None)
+        globs = [
+            policy_cascade.protection_glob_pattern(e)
+            for e in policy["inventory_bounded_stores"]
+        ]
+        self.assertIn(".npm", globs)
+        self.assertEqual("vendor/blobs", globs[-1])
+        team_file.write_text(
+            "version: 1\nadditional_inventory_bounded_stores:\n  - glob: x\n    size: 1\n",
+            encoding="utf-8",
+        )
+        with mock.patch.object(Path, "home", return_value=self.base / "home"):
+            with self.assertRaisesRegex(
+                policy_cascade.PolicyError, "inventory bounded store objects"
+            ):
+                policy_cascade.load_policy(None, project, None)
+
     def test_policy_migration_does_not_import_hygiene(self) -> None:
         migration = PLUGIN_ROOT / "skills" / "setup" / "scripts" / "policy_migration.py"
         tree = ast.parse(migration.read_text(encoding="utf-8"), filename=str(migration))

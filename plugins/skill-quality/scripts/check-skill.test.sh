@@ -5614,6 +5614,363 @@ else
   fail "check 31 should WARN on a default-baseline row in its own repository (rc=$rc): $out"
 fi
 
+make_skill dmi-clean-summary '---
+name: dmi-clean-summary
+description: "Verify prerequisites and print configuration guidance for the plugin. Read-only check."
+disable-model-invocation: true
+---
+
+## Purpose
+
+User-only skill with a concise summary and no trigger list.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-clean-summary 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  ! grep -q "no 'Use when:' trigger phrasing" <<<"$out" &&
+  ! grep -q 'carries trigger phrasing' <<<"$out" &&
+  grep -q "disable-model-invocation: true — 'Use when:' trigger phrasing not required (check 12)" <<<"$out"; then
+  pass "check 12 exempts disable-model-invocation: true skills from requiring Use when phrasing"
+else
+  fail "check 12 should exempt dmi:true clean summary (rc=$rc): $out"
+fi
+
+make_skill dmi-with-triggers '---
+name: dmi-with-triggers
+description: "Verify prerequisites. Use when: '\''set up plugin'\''."
+disable-model-invocation: true
+---
+
+## Purpose
+
+User-only skill carrying dead trigger prose.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-with-triggers 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: disable-model-invocation: true skill carries trigger phrasing' <<<"$out"; then
+  pass "check 12 WARNs when a disable-model-invocation: true skill carries Use when or quoted triggers"
+else
+  fail "check 12 should WARN on dmi:true skill with trigger phrasing (rc=$rc): $out"
+fi
+
+make_skill dmi-long-summary '---
+name: dmi-long-summary
+description: "Verify every repository prerequisite, inspect configuration layers across workspace and user scope, print diagnostic tables, and output detailed remediation guidance for operators running setup manually."
+disable-model-invocation: true
+---
+
+## Purpose
+
+User-only skill with an overly long summary.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-long-summary 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: disable-model-invocation: true description is .* (target <= 150 chars' <<<"$out"; then
+  pass "check 12 WARNs when a disable-model-invocation: true description exceeds 150 chars"
+else
+  fail "check 12 should WARN on dmi:true description over 150 chars (rc=$rc): $out"
+fi
+
+make_skill dmi-drop-triggers '---
+name: dmi-drop-triggers
+description: "Verify plugin setup. Use when: '\''old setup trigger'\''."
+disable-model-invocation: true
+---
+
+## Purpose
+
+Committed user-only skill carrying dead triggers.
+
+## Gotchas
+
+None known.
+'
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'add dmi-drop-triggers'
+make_skill dmi-drop-triggers '---
+name: dmi-drop-triggers
+description: "Verify plugin setup prerequisites and print configuration guidance."
+disable-model-invocation: true
+---
+
+## Purpose
+
+Updated user-only skill with dead triggers removed.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-drop-triggers 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  ! grep -q 'WARN: dropped trigger keyword' <<<"$out" &&
+  grep -q 'disable-model-invocation: true — trigger-keyword preservation (check 3) skipped' <<<"$out"; then
+  pass "check 3 skips trigger-preservation warnings when disable-model-invocation: true"
+else
+  fail "check 3 should skip dropped-trigger warning for dmi:true (rc=$rc): $out"
+fi
+
+make_skill redun-drop '---
+name: redun-drop
+description: "Audit markdown prose for AI tells. Use when: '\''audit markdown'\'', '\''de-slop this'\''."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Committed skill with one lexically redundant quoted trigger and one idiomatic hook.
+
+## Gotchas
+
+None known.
+'
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'add redun-drop'
+make_skill redun-drop '---
+name: redun-drop
+description: "Audit markdown prose for AI tells. Use when: '\''de-slop this'\''."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Working tree removes only the redundant quoted trigger whose words remain in prose.
+
+## Gotchas
+
+None known.
+'
+out="$(run redun-drop 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  ! grep -q 'WARN: dropped trigger keyword' <<<"$out" &&
+  grep -q "INFO: consolidated lexically covered trigger phrase(s).*audit markdown" <<<"$out"; then
+  pass "check 3 downgrades dropped quoted triggers to INFO when all words remain in the updated description"
+else
+  fail "check 3 should downgrade lexically covered trigger drops to INFO (rc=$rc): $out"
+fi
+
+make_skill short-token-drop '---
+name: short-token-drop
+description: "Fix lint errors and CI runs. Use when: '\''fix CI'\'', '\''lint pass'\''."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Committed skill with a 2-char domain token trigger.
+
+## Gotchas
+
+None known.
+'
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'add short-token-drop'
+make_skill short-token-drop '---
+name: short-token-drop
+description: "Fix lint errors quickly. Use when: '\''lint pass'\''."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Drops fix CI while keeping fix.
+
+## Gotchas
+
+None known.
+'
+out="$(run short-token-drop 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: dropped trigger keyword.*fix CI" <<<"$out" &&
+  ! grep -q 'consolidated lexically covered' <<<"$out"; then
+  pass "check 3 still WARNs when a dropped trigger loses a 2-char domain token like CI"
+else
+  fail "check 3 should still WARN when a 2-char token is dropped (rc=$rc): $out"
+fi
+
+make_skill neg-clause-drop '---
+name: neg-clause-drop
+description: "Audit markdown files. Use when: '\''audit markdown'\'', '\''check prose'\''."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Committed skill before moving trigger words into a Not for clause.
+
+## Gotchas
+
+None known.
+'
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'add neg-clause-drop'
+make_skill neg-clause-drop '---
+name: neg-clause-drop
+description: "Review docs. Use when: '\''check prose'\''. Not for audit markdown."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Moves dropped trigger words into a Not for clause.
+
+## Gotchas
+
+None known.
+'
+out="$(run neg-clause-drop 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: dropped trigger keyword.*audit markdown" <<<"$out"; then
+  pass "check 3 does not treat words inside a Not for clause as lexical coverage"
+else
+  fail "check 3 should not count Not for words as coverage (rc=$rc): $out"
+fi
+
+make_skill neg-clause-drop '---
+name: neg-clause-drop
+description: "Review docs. Use when: '\''check prose'\''; not for audit markdown."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Moves dropped trigger words into a semicolon-delimited not for clause.
+
+## Gotchas
+
+None known.
+'
+out="$(run neg-clause-drop 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: dropped trigger keyword.*audit markdown" <<<"$out"; then
+  pass "check 3 does not treat words inside a semicolon-delimited not for clause as lexical coverage"
+else
+  fail "check 3 should not count semicolon not for words as coverage (rc=$rc): $out"
+fi
+
+make_skill neg-clause-drop '---
+name: neg-clause-drop
+description: "Review docs. Use when: '\''check prose'\''; skip when audit markdown is requested."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Moves dropped trigger words into a semicolon-delimited skip when clause.
+
+## Gotchas
+
+None known.
+'
+out="$(run neg-clause-drop 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: dropped trigger keyword.*audit markdown" <<<"$out"; then
+  pass "check 3 does not treat words inside a semicolon-delimited skip when clause as lexical coverage"
+else
+  fail "check 3 should not count semicolon skip when words as coverage (rc=$rc): $out"
+fi
+
+make_skill dmi-because-when '---
+name: dmi-because-when
+description: "Verify prerequisites because when paths drift setup fails cleanly. Read-only check."
+disable-model-invocation: true
+---
+
+## Purpose
+
+Contains because when in normal summary prose.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-because-when 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'carries trigger phrasing' <<<"$out"; then
+  pass "check 12 does not false-positive on because when in dmi:true prose"
+else
+  fail "check 12 should not false-positive on because when (rc=$rc): $out"
+fi
+
+make_skill dmi-wtu-only '---
+name: dmi-wtu-only
+description: "Verify prerequisites for the plugin."
+when_to_use: "Whenever configuring the repository."
+disable-model-invocation: true
+---
+
+## Purpose
+
+User-only skill carrying when_to_use without Use when or quotes.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-wtu-only 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: disable-model-invocation: true skill carries trigger phrasing' <<<"$out"; then
+  pass "check 12 WARNs when a dmi:true skill carries when_to_use"
+else
+  fail "check 12 should WARN on dmi:true with when_to_use (rc=$rc): $out"
+fi
+
+dmi_150="$(printf 'Verify plugin setup prerequisites cleanly. %0107d' 0 | tr '0' 'a')"
+dmi_151="${dmi_150}b"
+make_skill dmi-cap-150 "---
+name: dmi-cap-150
+description: \"$dmi_150\"
+disable-model-invocation: true
+---
+
+## Purpose
+
+Exact 150-char summary.
+
+## Gotchas
+
+None known.
+"
+make_skill dmi-cap-151 "---
+name: dmi-cap-151
+description: \"$dmi_151\"
+disable-model-invocation: true
+---
+
+## Purpose
+
+Exact 151-char summary.
+
+## Gotchas
+
+None known.
+"
+out150="$(run dmi-cap-150 2>&1)"
+rc150=$?
+out151="$(run dmi-cap-151 2>&1)"
+rc151=$?
+if [[ $rc150 -eq 0 && $rc151 -eq 0 ]] &&
+  ! grep -q 'target <= 150 chars' <<<"$out150" &&
+  grep -q 'WARN: disable-model-invocation: true description is 151 chars (target <= 150 chars' <<<"$out151"; then
+  pass "check 12 enforces the exact 150-char dmi:true summary boundary"
+else
+  fail "check 12 150/151 boundary mismatch (rc150=$rc150 rc151=$rc151)"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

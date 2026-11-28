@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "outcome: denied\nerror_code: ERR_EXPORT_SCOPE_REQUIRED\nprimary_source: src/authz/export_gate.py\n",
+      "why": "plain denied outcome"
+    },
+    {
+      "answer": "- **outcome:** `denied` (HTTP 403)\n- **error_code:** `ERR_EXPORT_SCOPE_REQUIRED`\n- **primary_source:** `src/authz/export_gate.py`\n",
+      "why": "markdown formatted denied with HTTP status"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "outcome: allowed\nerror_code: none\nprimary_source: docs/guides/scopes-cheatsheet.md\n",
+      "why": "trusts secondary cheat sheet claiming allowed"
+    },
+    {
+      "answer": "outcome: allowed (though code may deny)\nerror_code: none\nprimary_source: README.md\n",
+      "why": "states allowed first"
+    }
+  ]
+}

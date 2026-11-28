@@ -132,7 +132,7 @@ Read `context/action-create.md` for full issue creation process, mandatory gates
 | Claude Code | `anthropics/claude-code` | Default. Hooks, skills, settings, plugins, tools |
 | Python SDK | `anthropics/anthropic-sdk-python` | Python API client issues |
 | TypeScript SDK | `anthropics/anthropic-sdk-typescript` | Node.js API client issues |
-| C# SDK | `anthropics/anthropic-sdk-csharp` | .NET API client issues |
+| C# SDK | `anthropics/anthropic-sdk-csharp` | .NET API client issues <!-- portability-ok: R3/R6 official Anthropic SDK catalog --> |
 | MCP Protocol | `modelcontextprotocol/python-sdk` | MCP server/client issues |
 | Azure MCP | `microsoft/mcp` | Azure MCP server issues |
 

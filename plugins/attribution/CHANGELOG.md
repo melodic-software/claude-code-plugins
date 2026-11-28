@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.22.12] - 2026-11-27
+
+### Changed
+
+- Synced shared `reference/detector-findings.md` with `portability-ok` annotations from `docs/contracts/detector-findings/README.md` and annotated surviving ecosystem specifics under ADR 0101 (#17746); no behavior change.
+
 ## [0.22.11] - 2026-11-26
 
 ### Changed

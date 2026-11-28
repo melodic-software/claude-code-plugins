@@ -32,7 +32,7 @@ and ask how it maps, rather than forcing it into one.
 ## Naming a rule's modules in the graph
 
 `dependency-graph.json` identifies a project by its repository-relative manifest path (for
-example `src/Shipping.Domain/Shipping.Domain.csproj`), and a .NET node may also carry a
+example `src/Shipping.Domain/Shipping.Domain.csproj`), and a .NET node may also carry a <!-- portability-ok: R6 kept-adapter record shape for dependency-graph.sh -->
 `namespace` field. A rule names modules in the team's own words. Map each name in this order and
 stop at the first that matches:
 

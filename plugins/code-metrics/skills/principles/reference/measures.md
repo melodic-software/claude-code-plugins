@@ -150,7 +150,7 @@ Two languages produce a number, and the two numbers are different measures over 
   typed `Any` divided by all expressions. A ratio over expressions, a different population from the
   TypeScript identifier ratio.
 
-Comparing the two, or averaging them, is unsupported. C# reports `not-applicable`: no off-the-shelf
+Comparing the two, or averaging them, is unsupported. C# reports `not-applicable`: no off-the-shelf <!-- portability-ok: R6 kept-adapter coverage statement -->
 tool produces a comparable percentage, and a `dynamic` or bare `object` occurrence count is not
 comparable to a ratio. No standard and no CWE anchors any of this; see [thresholds.md](thresholds.md).
 

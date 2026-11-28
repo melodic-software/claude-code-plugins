@@ -2846,13 +2846,11 @@ class HygieneTests(unittest.TestCase):
                     ".devcache",
                     "Windows",
                     "builds",
+                    "orphan.tmp",
                 },
                 admitted,
             )
-            skipped = {
-                item["name"]: item["reason"] for item in payload["skipped_children"]
-            }
-            self.assertEqual({"orphan.tmp": "not-a-directory"}, skipped)
+            self.assertEqual([], payload["skipped_children"])
 
     def test_handoff_verify_clears_directory_from_root_children_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -2888,13 +2886,8 @@ class HygieneTests(unittest.TestCase):
             snapshot = json.loads(
                 (data_root / "snapshot.json").read_text(encoding="utf-8")
             )
-            self.assertEqual(
-                [("loose.tmp", "not-a-directory")],
-                [
-                    (item["name"], item["reason"])
-                    for item in snapshot["root_children_skipped"]
-                ],
-            )
+            self.assertEqual([], snapshot["root_children_skipped"])
+            self.assertNotIn("loose.tmp", {e["path"] for e in snapshot["entries"]})
             result = hygiene.handoff_verify(
                 snapshot, ["scratch", "scratch/deep/orphan.tmp"]
             )
@@ -3615,11 +3608,11 @@ class HygieneTests(unittest.TestCase):
             self.assertIn("scratch", admitted)
             self.assertIn("AppData", admitted)
             self.assertIn("tmp", admitted)
+            self.assertIn("loose.tmp", admitted)
             skipped = {
                 item["name"]: item["reason"] for item in payload["skipped_children"]
             }
-            self.assertEqual("not-a-directory", skipped["loose.tmp"])
-            self.assertEqual("baseline-protected-name", skipped["Documents"])
+            self.assertEqual({"Documents": "baseline-protected-name"}, skipped)
             self.assertFalse((data_root / "snapshot.json").exists())
 
     def test_root_children_on_home_inventories_approved_hidden_children(
@@ -3681,6 +3674,109 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual({".dotnet", "scratch"}, set(rollup))
             self.assertTrue(rollup[".dotnet"]["walked"])
             self.assertTrue(rollup["scratch"]["walked"])
+
+    def _home_patches(self) -> list[Any]:
+        return [
+            mock.patch.object(hygiene, "is_volume_root", return_value=False),
+            mock.patch.object(hygiene, "is_os_managed_target", return_value=False),
+            mock.patch.object(hygiene, "mount_state", return_value=(False, None)),
+        ]
+
+    def test_root_children_on_home_plans_a_loose_file_and_a_folder_together(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "home"
+            data_root = base / "plugin-data"
+            (target / "scratch").mkdir(parents=True)
+            data_root.mkdir()
+            (target / "scratch" / "orphan.tmp").write_text("left", encoding="utf-8")
+            (target / "loose.tmp").write_text("root file", encoding="utf-8")
+            (target / "other.tmp").write_text("unselected", encoding="utf-8")
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._home_patches(),
+                extra_args=[
+                    "--root-children",
+                    "--root-child",
+                    "loose.tmp",
+                    "--root-child",
+                    "scratch",
+                ],
+            )
+            self.assertEqual(0, code, payload)
+            self.assertEqual("scan-complete", payload["status"])
+            self.assertEqual(
+                ["loose.tmp", "scratch"], payload["root_children_selected"]
+            )
+            snapshot = json.loads(
+                (data_root / "snapshot.json").read_text(encoding="utf-8")
+            )
+            by_path = {entry["path"]: entry for entry in snapshot["entries"]}
+            self.assertEqual(
+                {"loose.tmp", "scratch", "scratch/orphan.tmp"}, set(by_path)
+            )
+            self.assertEqual("file", by_path["loose.tmp"]["kind"])
+            self.assertEqual(9, by_path["loose.tmp"]["logical_size"])
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("loose.tmp"), candidate("scratch/orphan.tmp")],
+            }
+            with mock.patch.object(hygiene, "execution_blockers", return_value=[]):
+                ready = hygiene.preview(snapshot, plan)
+                self.assertEqual("ready-for-explicit-approval", ready["status"])
+                (target / "loose.tmp").unlink()
+                (target / "loose.tmp").write_text("replaced!", encoding="utf-8")
+                replaced = hygiene.preview(snapshot, plan)
+            self.assertEqual("blocked", replaced["status"])
+            blockers = {c["path"]: c["blockers"] for c in replaced["candidates"]}
+            self.assertIn("changed-since-scan", blockers["loose.tmp"])
+            self.assertEqual([], blockers["scratch/orphan.tmp"])
+
+    def test_root_children_on_home_withholds_unsafe_loose_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "home"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / "real.tmp").write_text("x", encoding="utf-8")
+            (target / "link.tmp").symlink_to(target / "real.tmp")
+            (target / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+            (target / "NTUSER.DAT").write_text("hive", encoding="utf-8")
+            os.mkfifo(target / "pipe")
+            code, payload = self._scan_target(
+                target, data_root, self._home_patches(), extra_args=["--root-children"]
+            )
+            self.assertEqual(0, code)
+            admitted = {item["name"] for item in payload["admitted_children"]}
+            self.assertEqual({"real.tmp"}, admitted)
+            skipped = {
+                item["name"]: item["reason"] for item in payload["skipped_children"]
+            }
+            self.assertEqual(
+                {
+                    "link.tmp": "symlink-junction-or-reparse-point",
+                    ".git": "baseline-protected-name",
+                    "NTUSER.DAT": "baseline-protected-name",
+                    "pipe": "not-regular-file-or-directory",
+                },
+                skipped,
+            )
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._home_patches(),
+                extra_args=["--root-children", "--root-child", "link.tmp"],
+            )
+            self.assertEqual(2, code)
+            self.assertIn(
+                "withheld (symlink-junction-or-reparse-point)", payload["error"]
+            )
+            self.assertFalse((data_root / "snapshot.json").exists())
 
     def test_root_children_home_snapshot_clears_truncated_handoff_block(
         self,
@@ -17907,6 +18003,82 @@ class InventoryCommandTests(unittest.TestCase):
         self.assertEqual("CANDIDATE", rows[str(cache / "1.0.0")]["disposition"])
         self.assertEqual("KEEP", rows[str(cache / "2.0.0")]["disposition"])
 
+    def test_home_npm_cache_is_one_bounded_row_and_the_summary_says_so(self) -> None:
+        for index in range(40):
+            self.write(f".npm/_cacache/content/{index:02d}", "abcd")
+        self.write("notes/todo.md", "12")
+        self.home.return_value = self.target
+        code, summary = self.run_inventory()
+        self.assertEqual(0, code, summary)
+        rows = self.rows(summary)
+        npm = rows[str(self.target / ".npm")]
+        self.assertEqual("bounded-store", npm["category"])
+        self.assertEqual("UNKNOWN", npm["disposition"])
+        self.assertEqual(160, npm["size"])
+        self.assertEqual(
+            {
+                "walk": "bounded-sum",
+                "store_glob": ".npm",
+                "store_reason": "npm cache directory",
+                "entries_counted": 42,
+                "entry_budget": hygiene.deep_inventory.STORE_ENTRY_BUDGET,
+                "size_is_lower_bound": False,
+                "incomplete_reason": None,
+            },
+            npm["coverage"],
+        )
+        self.assertEqual([], [n for n in rows if n.startswith(str(npm["name"]) + "/")])
+        self.assertEqual(162, rows[str(self.target)]["size"])
+        self.assertFalse(summary["fully_inventoried"])
+        self.assertEqual(1, summary["bounded_row_count"])
+        self.assertEqual(0, summary["bounded_lower_bound_count"])
+        self.assertEqual(
+            [
+                {
+                    "name": str(self.target / ".npm"),
+                    "size": 160,
+                    "store_glob": ".npm",
+                    "entries_counted": 42,
+                    "size_is_lower_bound": False,
+                }
+            ],
+            summary["bounded_rows"],
+        )
+
+    def test_plain_target_with_no_store_is_fully_inventoried(self) -> None:
+        self.write("a/b.txt")
+        code, summary = self.run_inventory("--deep")
+        self.assertEqual(0, code, summary)
+        self.assertTrue(summary["fully_inventoried"])
+        self.assertEqual(0, summary["bounded_row_count"])
+
+    def test_policy_overlay_adds_a_bounded_store(self) -> None:
+        self.write("datasets/big/part-1", "123")
+        self.write("datasets/big/part-2", "45")
+        overlay = self.data_root / "policy.json"
+        overlay.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "additional_inventory_bounded_stores": [
+                        {"glob": "datasets/*", "reason": "training data shards"}
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.home.return_value = self.target
+        code, summary = self.run_inventory("--policy", str(overlay))
+        self.assertEqual(0, code, summary)
+        rows = self.rows(summary)
+        big = rows[str(self.target / "datasets" / "big")]
+        self.assertEqual("datasets/*", big["coverage"]["store_glob"])
+        self.assertEqual(5, big["size"])
+        self.assertIn("training data shards", big["reason"])
+        self.assertNotIn(str(self.target / "datasets" / "big" / "part-1"), rows)
+        self.assertNotIn("coverage", rows[str(self.target / "datasets")])
+        self.assertIn(str(overlay), summary["policy_sources"])
+
     def test_mount_point_on_the_same_device_is_not_entered(self) -> None:
         self.write("bind/inside.txt")
         self.write("plain/file.txt")
@@ -17920,6 +18092,25 @@ class InventoryCommandTests(unittest.TestCase):
         self.assertEqual("not-walked", rows[str(self.target / "bind")]["category"])
         self.assertNotIn(str(self.target / "bind" / "inside.txt"), rows)
         self.assertIn(str(self.target / "plain" / "file.txt"), rows)
+
+    def test_shallow_walk_reports_a_nested_mount_and_is_not_fully_inventoried(
+        self,
+    ) -> None:
+        self.write("child/own.txt", "12")
+        self.write("child/bind/inside.txt", "12345")
+        mounted = {self.target / "child" / "bind"}
+        with mock.patch.object(
+            hygiene, "linux_mount_points", return_value=(mounted, None)
+        ):
+            code, summary = self.run_inventory()
+        self.assertEqual(0, code, summary)
+        self.assertFalse(summary["deep"])
+        rows = self.rows(summary)
+        bind = rows[str(self.target / "child" / "bind")]
+        self.assertEqual("not-walked", bind["category"])
+        self.assertEqual(2, rows[str(self.target / "child")]["size"])
+        self.assertEqual(1, summary["not_walked_row_count"])
+        self.assertFalse(summary["fully_inventoried"])
 
     def test_unreadable_mountinfo_is_reported_not_hidden(self) -> None:
         self.write("a.txt")

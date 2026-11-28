@@ -1,5 +1,17 @@
 # Changelog: discovery plugin
 
+## [3.3.0] - 2026-11-27
+
+### Changed
+
+- `scripts/turns-to-complete.py` reads per-dispatch turn rows across every collected fleet source through `session-flow`'s `scripts/dispatches.py` when `session-flow` is installed and has a store, falling back to local sources when `session-flow` or its store is absent, with the report header naming which source was read.
+
+## [3.2.1] - 2026-11-27
+
+### Fixed
+
+- Exclude validated `<style>` bodies without raw `<` from the HTML text escaping scan in shared `html-escape.mjs` and `view-builder.mjs` so quoted CSS font stacks, attribute selectors and child combinators pass validation.
+
 ## [3.2.0] - 2026-11-27
 
 ### Added

@@ -138,6 +138,6 @@ fetch the page when a definition needs verifying (a book cited from recall is re
 - **Architecture styles**: Bogard,
   [Vertical Slice Architecture](https://www.jimmybogard.com/vertical-slice-architecture/);
   Martin,
-  [The Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html);
+  [The Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html); <!-- portability-ok: R9 source citation - architecture style reference -->
   Grzybek, [Modular Monolith: A Primer](https://www.kamilgrzybek.com/blog/posts/modular-monolith-primer);
   Fowler, [Bounded Context](https://martinfowler.com/bliki/BoundedContext.html).

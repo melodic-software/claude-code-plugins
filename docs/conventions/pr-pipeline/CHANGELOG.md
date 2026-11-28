@@ -1,5 +1,23 @@
 # Changelog for the PR pipeline convention
 
+## [13.6.2] - 2026-11-27
+
+### Fixed
+
+- A work-resolve-issue run that finds, just before it opens its PR, that a trusted open PR already closes the issue now stops `closed-by-open-pr` on the `wait` route, naming that PR in its `outcome=wait pr=<n>` marker, instead of `retry`. work-unblock then leaves the issue alone while that PR is open and starts it again only once the PR merges or closes unmerged, so the issue is not queued for another build while a person's PR for it is open. When the PR has already closed by the time the stop is written, the stop falls back to `retry`.
+
+## [13.6.1] - 2026-11-27
+
+### Fixed
+
+- `pr-verify.yml`'s `wake-pr-merge` and `pr-merge.yml`'s `wake-eval-released` now fail closed (warning and skipping dispatch, leaving arming to the scheduled sweep) when `AUTOMATION_LANES_APP_SENDER_ID` is unset or invalid, the pull request read fails, or the trusted-actor list cannot be read, preventing PR-scoped wakes that the lanes token broker refuses as `untrusted-author`.
+
+## [13.6.0] - 2026-11-27
+
+### Changed
+
+- The `maintenance-scan-architecture` lane files its findings on a lanes App token instead of the job's `GITHUB_TOKEN`: its one slot, `file-architecture-findings`, has the `mutate-tracker` effect, File Findings requests the token from the broker and revokes it after filing, and its `GITHUB_TOKEN` drops `issues: write`. The issues start intake as the lanes App's own filings, and `own-agents.hold-sources` in `admission-rules.json` no longer lists `source: architecture-improve`, so admission takes them like any own-agent filing up to the source cap instead of holding them for a person.
+
 ## [13.5.0] - 2026-11-27
 
 ### Changed

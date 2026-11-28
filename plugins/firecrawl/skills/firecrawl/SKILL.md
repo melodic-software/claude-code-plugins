@@ -105,6 +105,7 @@ firecrawl scrape "https://www.gnu.org/software/bash/manual/bash.html" \
 ```bash
 # Search for recent posts on a topic, saving URL list + excerpts to JSON
 OUT=$(mktemp "${TMPDIR:-/tmp}/fc-search-XXXXXX"); echo "$OUT"
+# portability-ok: R9 example search query for firecrawl CLI
 firecrawl search "HybridCache .NET 10" \
   --limit 5 \
   --json \

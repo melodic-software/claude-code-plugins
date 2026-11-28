@@ -1,5 +1,5 @@
 ---
-description: "Find the cause in a captured CPU profile, heap snapshot or performance trace and report it at file:line, with no fix. It turns a Chrome trace, V8 .cpuprofile or .heapsnapshot into SQLite and narrows it to the hot path or the reference keeping memory alive. Use when: 'read this heap snapshot', 'what does this cpuprofile show', 'analyze this trace', 'what is holding this memory', or a profile, trace or snapshot is in hand with no reproduction. Skip when: the failure reproduces and needs a loop, a fix and a regression test (`/debugging:debug`), or no artifact exists yet and one must be recorded (`/app-control:drive capture`)."
+description: "Analyze a captured Chrome trace, V8 .cpuprofile, or .heapsnapshot in SQLite for the file:line hot path or memory retainer (no fix). Use when a profile, trace, or heap snapshot is in hand ('analyze this trace', 'what is holding this memory'). Not for reproducible bugs (`/debugging:debug`) or recording new captures (`/app-control:drive capture`)."
 argument-hint: "[<artifact path>]"
 user-invocable: true
 disable-model-invocation: false
