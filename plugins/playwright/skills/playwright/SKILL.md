@@ -1,5 +1,5 @@
 ---
-description: "Live browser automation through Microsoft's @playwright/cli, writing snapshots, screenshots, traces and video to disk so only paths enter context. Use when a task needs live browser testing against a running app: an 'E2E test' or 'UI smoke test' of a flow, 'snapshot the page', a screenshot or video as evidence, console errors or network traffic, a mocked response, or saving, checking or inspecting a playwright-cli login or auth state file. Maintainers: `/playwright:playwright update`."
+description: "Live browser automation via @playwright/cli against a running app, writing snapshots, screenshots, traces, and video to disk; also maintainer update. Use when: 'E2E test', 'UI smoke test', 'snapshot the page', console/network checks, mocked responses, or login/auth state files. Not for PR demo videos: /playwright:demo-video."
 argument-hint: "[update] [--check|--apply]"
 user-invocable: true
 disable-model-invocation: false

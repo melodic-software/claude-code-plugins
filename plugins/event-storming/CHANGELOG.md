@@ -3,6 +3,12 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.3] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across both `event-storming` skills (1,219 -> 696 chars, -523 / -42.9%): `methodology` (564 -> 348) and `simulation` (655 -> 348), while preserving all three workshop formats, all ten simulation action modes, markdown/Miro backends, and sibling exclusions. The `simulation` Miro trigger is scoped to EventStorming (`'Miro EventStorming'`), so a plain Miro board request does not match it.
+
 ## [0.10.2] - 2026-11-27
 
 ### Fixed
