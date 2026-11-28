@@ -15,6 +15,7 @@
     { "answer": "Historical: links-and-paths rewrites links, paths, and prose." },
     { "answer": "| `links-and-paths` | links, paths and prose | nothing |" },
     { "answer": "| historical | `links-and-paths` | links, paths and prose are rewritten |" },
-    { "answer": "Under links-and-paths, ADR prose is rewritten; CHANGELOG is left as written." }
+    { "answer": "Under links-and-paths, ADR prose is rewritten; CHANGELOG is left as written." },
+    { "answer": "| historical | `links-and-paths` | updates only the prose and leaves links alone |" }
   ]
 }
