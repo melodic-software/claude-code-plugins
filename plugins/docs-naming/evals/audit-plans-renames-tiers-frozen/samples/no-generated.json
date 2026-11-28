@@ -7,6 +7,8 @@
   "fail": [
     { "answer": "Three files in `docs/` break the lower-kebab rule." },
     { "answer": "The plan file is generated under `.work/`." },
-    { "answer": "The plan file is generated. No files were renamed." }
+    { "answer": "The plan file is generated. No files were renamed." },
+    { "answer": "No files were renamed, and the plan was generated at `.work/plan.md`." },
+    { "answer": "I did not rename anything; the plan was generated." }
   ]
 }
