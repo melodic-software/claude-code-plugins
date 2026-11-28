@@ -82,12 +82,13 @@ recommendation the source re-stated as old → new → why keeps all three parts
 
 Before choosing a form, run the shared medium resolver. Add `--argument` only when the reader
 passed `--medium`, with the value they gave. `<option>` is this plugin's `medium` option,
-`${user_config.medium}`, and `<branding option>` is `${user_config.branding}`; pass `""` when
-either reads empty or as an unsubstituted placeholder. Read each option value from this text; never
-put a `${user_config.*}` string in a shell command.
+`${user_config.medium}` (`""` when empty or unsubstituted), and `<branding JSON>` is
+`${user_config.branding}` (omit `--branding-option` when empty or unsubstituted; otherwise
+single-quote the JSON value, escaping any `'` as `'\''`, never double-quoting JSON). Read each
+option value from this text; never put a `${user_config.*}` string in a shell command.
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --producer adhd:clarify --option "<option>" [--argument <medium>] [--branding-option "<branding option>"]
+node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --producer adhd:clarify --option "<option>" [--argument <medium>] [--branding-option '<branding JSON>']
 ```
 
 It prints one JSON line, then the report line naming the medium and what decided it, then one line
@@ -134,7 +135,8 @@ fidelity rules hold in every medium.
 from `${CLAUDE_PLUGIN_ROOT}/reference/html-tokens.css` and the toggle, comment box, radii and
 accessibility floor (link and focus contrast tokens, color-scheme and reduced-motion behavior) from
 `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`, rather than inventing a look per page. Run
-`node "${CLAUDE_PLUGIN_ROOT}/lib/html-branding.mjs" --in "<page>" --out "<page>" --option "<branding option>"`
+`node "${CLAUDE_PLUGIN_ROOT}/lib/html-branding.mjs" --in "<page>" --out "<page>" [--option '<branding JSON>']`
+(omit `--option` when empty or unsubstituted; single-quote the JSON value, escaping any `'` as `'\''`)
 to inline the token layer and any resolved `branding` overrides into the page's one `<style>`
 element and show any resolved logo in `.rv-bar`'s fixed slot while keeping the toggle, comment box
 and floor unchanged (print any notices it reports; with no `branding` set, the page stays

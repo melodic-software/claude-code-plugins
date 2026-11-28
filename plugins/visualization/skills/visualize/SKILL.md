@@ -121,12 +121,12 @@ layers, first hit wins:
    caller declaring that nobody is present. Take it out first, then read the rest.
 2. **Resolved preference**. Run the shared medium resolver, adding `--argument <medium>`,
    `<medium>` being the argument's word, when there is one. `<option>` is this plugin's `medium`
-   option, `${user_config.medium}`, and `<branding option>` is `${user_config.branding}`; pass `""`
-   when either reads empty or as an unsubstituted placeholder. Read each option value from this
-   text; never put a `${user_config.*}` string in a shell command.
+   option, `${user_config.medium}` (`""` if empty/unsubstituted), and `<branding JSON>` is
+   `${user_config.branding}` (omit `--branding-option` when empty/unsubstituted; otherwise
+   single-quote it, escaping any `'` as `'\''`, never double-quote JSON or put `${user_config.*}` in shell):
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --producer visualization:visualize --option "<option>" [--argument <medium>] [--branding-option "<branding option>"]
+   node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --producer visualization:visualize --option "<option>" [--argument <medium>] [--branding-option '<branding JSON>']
    ```
 
    It prints one JSON line, then the report line naming the medium and what decided it, then any
@@ -266,8 +266,8 @@ never written to a diagram file. That exception overrides layer 1, the preferenc
 `${CLAUDE_PLUGIN_ROOT}/reference/html-tokens.css` and toggle, comment box, radii and accessibility
 floor (link/focus contrast tokens, color-scheme, reduced motion) from
 `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html` instead of inventing a look per page. Run
-`node "${CLAUDE_PLUGIN_ROOT}/lib/html-branding.mjs" --in "<page>" --out "<page>" --option "<branding option>"`
-to inline the token layer and resolved `branding` overrides into the one `<style>` and place any
+`node "${CLAUDE_PLUGIN_ROOT}/lib/html-branding.mjs" --in "<page>" --out "<page>" [--option '<branding JSON>']`
+(omit `--option` if empty/unsubstituted; single-quote JSON, escaping `'` as `'\''`) to inline the token layer and resolved `branding` overrides into the one `<style>` and place any
 logo in `.rv-bar` while keeping toggle, comment box and floor unchanged (print any notices; unset
 leaves the page unchanged). Name layout habits to leave out: italic accent words in headings,
 numbered "01 / 02 / 03" section labels, pill buttons/badges, hero banners, and any style the user
