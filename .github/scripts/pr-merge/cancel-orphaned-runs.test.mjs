@@ -1,3 +1,4 @@
+// test-scope: .github/scripts/pr-merge/fixtures/cancel-orphaned-runs-*.json
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
