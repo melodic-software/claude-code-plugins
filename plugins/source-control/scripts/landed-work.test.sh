@@ -603,6 +603,7 @@ OUT="$(PATH="$PR_BIN:$PATH" GH_STUB_OUT="$TEST_TMPDIR/pr-many" GH_STUB_LOG="$GH_
 assert_eq "pr listing: three unlanded worktrees make one gh call" "1" "$(grep -c . "$GH_LOG")"
 assert_contains "pr listing: the call is one GraphQL query" "$(cat "$GH_LOG")" "api graphql"
 assert_contains "pr listing: the query lists merged PRs" "$(cat "$GH_LOG")" "states: MERGED, baseRefName: \$base"
+assert_contains "pr listing: the query reads newest first" "$(cat "$GH_LOG")" "orderBy: {field: UPDATED_AT, direction: DESC}"
 assert_contains "pr listing: the query names the base" "$(cat "$GH_LOG")" "-f base=main"
 assert_contains "pr listing: the query reads only commit oids" "$(cat "$GH_LOG")" "commits(first: 100) { nodes { commit { oid } } }"
 assert_not_contains "pr listing: the call is not gh pr list --json" "$(cat "$GH_LOG")" "--json"
@@ -659,6 +660,8 @@ assert_eq "pr paging: a full first page stops the listing and looks up each miss
 assert_contains "pr paging: the page asks for no more than the limit" "$(head -n 1 "$GH_LOG")" "-F first=1 "
 assert_contains "pr paging: a missing branch is looked up by name" "$(cat "$GH_LOG")" "-f head=feat-many-2"
 assert_contains "pr paging: the branch lookup filters on the head branch" "$(cat "$GH_LOG")" "headRefName: \$head"
+assert_contains "pr paging: the branch lookup reads newest first" "$(grep -F -- '-f head=feat-many-2' "$GH_LOG")" \
+  "orderBy: {field: UPDATED_AT, direction: DESC}"
 assert_not_contains "pr paging: a branch in the listing is not looked up" "$(cat "$GH_LOG")" "-f head=feat-many-1"
 assert_contains "pr paging: the count includes the branch lookups" "$(cat "$MANY_ERR")" "merged-pr-proof made 3 gh call(s)"
 assert_eq "pr paging: a PR past the limit with no branch match proves nothing" \
