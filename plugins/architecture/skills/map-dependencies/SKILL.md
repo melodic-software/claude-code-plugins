@@ -61,9 +61,9 @@ Every shipped adapter whose manifests are present runs, and their nodes, edges a
 findings are one record. `ecosystem` is the adapter's name when one ran, `mixed` when
 more than one ran, and `unknown` when none did. Each node carries its own `ecosystem`.
 [`reference/dependency-graph-record.md`](reference/dependency-graph-record.md) records the upstream source, verification date
-and recheck trigger behind each non-.NET adapter's rules below.
+and recheck trigger behind each non-.NET adapter's rules below. <!-- portability-ok: R6 kept-adapter operation - dependency-graph.sh .NET reader -->
 
-The .NET adapter:
+The .NET adapter: <!-- portability-ok: R6 kept-adapter operation - dependency-graph.sh .NET reader -->
 
 - `ProjectReference` is a directed internal edge. The target is the `Include` path
   relative to the project file. A target that is missing, or that resolves outside the
@@ -76,7 +76,7 @@ The .NET adapter:
   edge to itself that way. Any other `.props` or `.targets` file, and
   `Directory.Packages.props`, has no known importer, so its references are counted in an
   `unread-reference-tags` finding and not drawn.
-- `*.sln` and `*.slnx` contribute membership. A project path that does not resolve inside
+- `*.sln` and `*.slnx` contribute membership. A project path that does not resolve inside <!-- portability-ok: R6 kept-adapter operation - dependency-graph.sh .NET reader -->
   the root is a finding, not an edge.
 - Source files are not read. A `using` or an import is not an edge.
 
@@ -162,7 +162,7 @@ The JVM adapter (Gradle and Maven):
   argument, a module holding a `${property}`, and a module naming a pom file not called
   `pom.xml` are `unread-manifest` findings.
 
-Read: .NET, Node, Go, Python, Rust, and JVM (Gradle and Maven). Declined: Ruby (`Gemfile`) and
+Read: .NET, Node, Go, Python, Rust, and JVM (Gradle and Maven). Declined: Ruby (`Gemfile`) and <!-- portability-ok: R6 kept-adapter operation - dependency-graph.sh .NET reader -->
 PHP (`composer.json`) are detected and named in the record's `message`, never parsed. The
 unread rule: a manifest or declaration no reader handles is reported, never guessed at and
 never dropped. A tree holding only declined manifests is `unknown`; in a tree a reader ran on,
@@ -244,7 +244,7 @@ The component view reads dependency-graph.json.
 
 ## Gotchas
 
-- **The shared .NET reader is the one portfolio-facts uses.** It reads each reference tag
+- **The shared .NET reader is the one portfolio-facts uses.** It reads each reference tag <!-- portability-ok: R6 kept-adapter operation - dependency-graph.sh .NET reader -->
   as a whole, so an `Include` on a later line and a single-quoted `Include` are edges. A
   reference inside an XML comment is not, and an `Update` or `Remove` override is not a
   reference. A reference-like tag it cannot turn into an edge (`FrameworkReference`,
@@ -265,7 +265,7 @@ The component view reads dependency-graph.json.
   lines is not part of the citation. A `Version` attribute on the same tag is.
 - **`bin`, `obj`, `node_modules`, `vendor`, and dot-directories** other than the CI and
   devcontainer directories are not walked. A project that lives only there is absent.
-- **A solution folder is not a project.** Only paths ending in `.csproj` or `.fsproj`
+- **A solution folder is not a project.** Only paths ending in `.csproj` or `.fsproj` <!-- portability-ok: R6 kept-adapter operation - dependency-graph.sh .NET reader -->
   are membership. A member with another project extension (`.vbproj`, `.sqlproj`) is an
   `unread-manifest` finding.
 - **Aggregation is a view.** `dependency-graph.json` stays one node per project. The

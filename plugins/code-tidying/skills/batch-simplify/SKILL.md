@@ -208,7 +208,7 @@ Exclude non-code files. Keep only files that benefit from code simplification:
 **Include** (code and code-like config):
 
 - `.cs`, `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.py`, `.sh`, `.bash`, `.ps1`, `.psm1`, and any other source-code extensions the project uses
-- Build-system config (`.csproj`, `.props`, `.targets`, `package.json`, `pyproject.toml`, and equivalents)
+- Build-system config (`.csproj`, `.props`, `.targets`, `package.json`, `pyproject.toml`, and equivalents) <!-- portability-ok: R6 multi-ecosystem build-system exclusion list -->
 - Project config `.json` / `.jsonc` / `.toml` (e.g. `tsconfig.json`, `biome.json`, not data files)
 - Linter/format config (`.editorconfig`, `.gitattributes`, `.gitignore`, `.dockerignore`, `.shellcheckrc`)
 

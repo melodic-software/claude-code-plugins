@@ -57,7 +57,7 @@ run each through the single-folder steps below. The plan edits and runs no test.
 
 1. **Findings.** Run the step 1 scanner command once with `CANT_FAIL_SCAN_ROOT` set to the
    repository root, and save its table as `findings.md` there.
-2. **Batches.** Group the rows by folder: a row whose `project:` names a `.csproj` belongs to that
+2. **Batches.** Group the rows by folder: a row whose `project:` names a `.csproj` belongs to that <!-- portability-ok: R6 kept-adapter output fields from testing:audit -->
    file's directory; any other row to its own file's directory. A folder inside another listed
    folder of the same language (the adapters' `language`, as step 0 reads it) joins that folder's
    batch, since a batch scans its whole folder; one holding a folder of another language is marked
@@ -66,7 +66,7 @@ run each through the single-folder steps below. The plan edits and runs no test.
    `skip: kind <kind>` when any of its rows has kind `live` or `operational`.
 3. **Show.** Write `plan.md` there, one row per batch ordered by finding count, most first:
    folder, findings, kind, ci, state (`pending`, `skip: <reason>`, then the outcome). Show it,
-   ask whether any `unknown`-kind batch's tests reach live or shared environments (outside C#,
+   ask whether any `unknown`-kind batch's tests reach live or shared environments (outside C#, <!-- portability-ok: R6 kept-adapter output fields from testing:audit -->
    every kind is `unknown`), mark each one the user names `skip: kind live`, and ask which
    batches to run; the default is every `pending` row in order. A `skip: kind` batch runs only
    when the user names its folder, and then only in

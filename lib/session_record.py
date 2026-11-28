@@ -117,6 +117,56 @@ def _obj(value: object) -> dict:
     return value if isinstance(value, dict) else {}
 
 
+def _is_tool_result(content: object) -> bool:
+    return (
+        isinstance(content, list)
+        and bool(content)
+        and all(isinstance(block, dict) and block.get("type") == "tool_result" for block in content)
+    )
+
+
+class _DispatchScan:
+    """Per-subagent dispatch turn counts and stop/resume signals for `subagents.dispatches`."""
+
+    def __init__(self, agent_type: str | None) -> None:
+        self.agent_type = agent_type
+        self.first_ts: object = None
+        self.ids: set[str] = set()
+        self.last_stop: str | None = None
+        self.hit_max_turns = False
+        self.resumed_after_turn: int | None = None
+        self.resumed_after_max_turns = False
+
+    def add(self, record: dict) -> None:
+        if not self.first_ts:
+            self.first_ts = record.get("timestamp")
+        message = _obj(record.get("message"))
+        kind = record.get("type")
+        if kind == "assistant" and isinstance(message.get("id"), str) and message["id"]:
+            self.ids.add(message["id"])
+            stop = message.get("stop_reason")
+            self.last_stop = stop if isinstance(stop, str) else None
+            if self.last_stop == "max_turns":
+                self.hit_max_turns = True
+        elif kind == "user" and not _is_tool_result(message.get("content")):
+            if self.ids:
+                self.resumed_after_turn = len(self.ids)
+            if self.hit_max_turns:
+                self.resumed_after_max_turns = True
+
+    def row(self, scrub: Scrubber) -> dict:
+        day = self.first_ts[:10] if isinstance(self.first_ts, str) and len(self.first_ts) >= 10 else "unknown"
+        return {
+            "agent_type": scrub.key(self.agent_type) if self.agent_type is not None else None,
+            "date": day,
+            "turns": len(self.ids),
+            "last_stop_reason": self.last_stop,
+            "hit_max_turns": self.hit_max_turns,
+            "resumed_after_turn": self.resumed_after_turn,
+            "resumed_after_max_turns": self.resumed_after_max_turns,
+        }
+
+
 def _number(value: object) -> float:
     return value if isinstance(value, (int, float)) and not isinstance(value, bool) else 0
 
@@ -810,13 +860,20 @@ def build_record(
 ) -> dict:
     scan = SessionScan(excerpt_words)
     stats: dict[str, int] = {"files": 0}
+    dispatches: list[_DispatchScan] = []
     for path, side, meta in [(main, "main", None), *((s.path, "sub", s.meta) for s in subagents)]:
         meter.check()
         stats["files"] += 1
         agent = (meta or {}).get("agentType")
-        scan.friction.start_file(side, agent if isinstance(agent, str) else None)
+        agent_name = agent if isinstance(agent, str) else None
+        scan.friction.start_file(side, agent_name)
+        dispatch = _DispatchScan(agent_name) if side == "sub" else None
+        if dispatch is not None:
+            dispatches.append(dispatch)
         for record in transcript_reader.iter_records(path, stats):
             meter.tick()
+            if dispatch is not None:
+                dispatch.add(record)
             scan.add(record, side)
     repo_identity, worktree = identity.lookup(scan.cwd)
     metas = [s.meta or {} for s in subagents]
@@ -866,6 +923,7 @@ def build_record(
             "by_type": dict(Counter(str(m.get("agentType")) for m in metas)),
             "by_model": dict(Counter(str(m.get("model")) for m in metas)),
             "by_depth": dict(Counter(str(m.get("spawnDepth")) for m in metas)),
+            "dispatches": [dispatch.row(scrub) for dispatch in dispatches],
         },
         "stop_hooks": {
             "runs": len(stop_ms),

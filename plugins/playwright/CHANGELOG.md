@@ -3,6 +3,22 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.1] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [2.2.0] - 2026-11-27
+
+### Added
+
+- `install_python_deps_enabled` option (boolean, default `false`) in `plugin.json` and `schemas/playwright.schema.json` controls the SessionStart `install-python-deps` hook across the plugin default, user layer (`CLAUDE_PLUGIN_OPTION_INSTALL_PYTHON_DEPS_ENABLED`), and repository layer (`docs/conventions/playwright.yaml`) through `lib/hook-enabled.sh`.
+
+### Changed
+
+- The SessionStart `install-python-deps` hook now defaults to off per the hook-enablement convention because it installs packages over the network without an explicit request; running `/playwright:demo-video` without the packages prints the one-line install command.
+
 ## [2.1.9] - 2026-11-27
 
 ### Fixed

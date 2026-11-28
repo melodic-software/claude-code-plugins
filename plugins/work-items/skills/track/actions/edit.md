@@ -7,7 +7,7 @@ question) without naming a tracker's commands.
 ## Usage
 
 ```
-/work-items:track edit <id> [--repo <owner>/<repo>] [--title-file <path>] [--body-file <path>] [--add-label <name>]... [--remove-label <name>]... [--blocked-by <id>] [--comment-file <path>]
+/work-items:track edit <id> [--repo <owner>/<repo>] [--title-file <path>] [--body-file <path>] [--add-label <name>]... [--remove-label <name>]... [--blocked-by <id>] [--related-to <id>] [--comment-file <path>]
 ```
 
 `<id>` follows `view`'s rules ([view.md](view.md)). At least one change flag is required.
@@ -40,6 +40,15 @@ question) without naming a tracker's commands.
      ```
 
      `<project root>` is the literal path [`tracker-seam.md`](../../../reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet.
+
+   - `--related-to` through the seam for non-blocking symmetric cross-references, both IDs qualified:
+
+     ```bash
+     "$TRACKER" link-relates '<id>' --related-to '<related-id>'
+     ```
+
+     On exit `6` (feature unavailable), note the relationship with a `Refs` line in a comment
+     instead of failing the edit.
 
    - `--comment-file` (adapter: "Comment on item").
 

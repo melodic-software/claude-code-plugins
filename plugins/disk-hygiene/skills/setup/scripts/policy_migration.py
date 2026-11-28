@@ -44,6 +44,7 @@ PATH_KEYS = ("source", "hint_sources")
 COMPARED_KEYS = (
     "hints",
     "additional_protected_path_globs",
+    "inventory_bounded_stores",
     "rules",
     "elevation",
 )

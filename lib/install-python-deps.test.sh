@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
+# test-scope: lib/install-python-deps.sh lib/hook-utils.sh lib/hook-enabled.sh lib/pydeps.py
 
 set -uo pipefail
+unset CLAUDE_PLUGIN_OPTION_INSTALL_PYTHON_DEPS_ENABLED CLAUDE_PROJECT_DIR
 
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -67,7 +69,7 @@ EOF
 new_plugin() {
   local root="$WORK/$1"
   mkdir -p "$root/hooks" "$root/scripts"
-  cp "$LIB_DIR/install-python-deps.sh" "$LIB_DIR/hook-utils.sh" "$root/hooks/"
+  cp "$LIB_DIR/install-python-deps.sh" "$LIB_DIR/hook-utils.sh" "$LIB_DIR/hook-enabled.sh" "$root/hooks/"
   cp "$LIB_DIR/pydeps.py" "$root/scripts/"
   printf "PYDEPS_PLUGIN='fixture'\nPYDEPS_PYTHONS='3.12 or later'\nPYDEPS_USERS='/fixture:run'\nPYDEPS_PACKAGES='Python packages'\n" >"$root/hooks/install-python-deps.conf"
   printf '{"plugin": "fixture", "python_min": "3.12", "allow_free_threaded": true, "probe": ["fakedeps"], "pip_timeout_s": 240}\n' >"$root/scripts/pydeps.json"
@@ -75,11 +77,17 @@ new_plugin() {
   printf '%s' "$root"
 }
 
-run_hook() {
+run_hook_raw() {
   local root="$1" links="$2"
   shift 2
   OUT="$(env PIP_NO_INDEX=1 PIP_FIND_LINKS="$(native "$links")" "$@" bash "$root/hooks/install-python-deps.sh" <<<'{"hook_event_name":"SessionStart"}')"
   RC=$?
+}
+
+run_hook() {
+  local root="$1" links="$2"
+  shift 2
+  run_hook_raw "$root" "$links" CLAUDE_PLUGIN_OPTION_INSTALL_PYTHON_DEPS_ENABLED=true "$@"
 }
 
 installs() { find "$1/python" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d '[:space:]'; }
@@ -223,7 +231,7 @@ for t in bash cat dirname basename env printf mktemp mkdir find tr awk grep sed 
   chmod +x "$tools/$t"
 done
 root="$(new_plugin nopython "$digest")"
-out="$(env PATH="$tools" CLAUDE_PLUGIN_DATA="$(native "$WORK/data-nopython")" "$tools/bash" "$root/hooks/install-python-deps.sh" <<<'{}')"
+out="$(env PATH="$tools" CLAUDE_PLUGIN_OPTION_INSTALL_PYTHON_DEPS_ENABLED=true CLAUDE_PLUGIN_DATA="$(native "$WORK/data-nopython")" "$tools/bash" "$root/hooks/install-python-deps.sh" <<<'{}')"
 rc=$?
 if [[ "$rc" -eq 0 && "$out" == *'"systemMessage"'* && "$out" != *'"additionalContext"'* && "$out" == *'fixture: Python 3.12 or later was not found'* ]]; then
   ok "no Python on PATH surfaces a notice naming the plugin and the Pythons its conf supports"
@@ -239,7 +247,7 @@ native_hook() {
   printf '#!/bin/sh\n%s\n' "$2" >"$stubs/cygpath"
   chmod +x "$stubs/python3" "$stubs/cygpath"
   rm -f "$WORK/argv.log"
-  OUT="$(env PATH="$stubs:$tools" OSTYPE="$1" MSYS_NO_PATHCONV=1 CLAUDE_PLUGIN_DATA="$WORK/data-native" "$tools/bash" "$root/hooks/install-python-deps.sh" <<<'{}')"
+  OUT="$(env PATH="$stubs:$tools" OSTYPE="$1" MSYS_NO_PATHCONV=1 CLAUDE_PLUGIN_OPTION_INSTALL_PYTHON_DEPS_ENABLED=true CLAUDE_PLUGIN_DATA="$WORK/data-native" "$tools/bash" "$root/hooks/install-python-deps.sh" <<<'{}')"
   RC=$?
   ARGV="$(cat "$WORK/argv.log" 2>/dev/null)"
 }
@@ -291,7 +299,7 @@ root="$(new_plugin launcher "$digest")"
 launcher_hook() {
   cat >"$WORK/listing"
   rm -f "$WORK/py.log" "$WORK/started.log"
-  OUT="$(env PATH="$launcher:$tools" OSTYPE=msys CLAUDE_PLUGIN_DATA="$(native "$WORK/data-launcher")" "$tools/bash" "$root/hooks/install-python-deps.sh" <<<'{}')"
+  OUT="$(env PATH="$launcher:$tools" OSTYPE=msys CLAUDE_PLUGIN_OPTION_INSTALL_PYTHON_DEPS_ENABLED=true CLAUDE_PLUGIN_DATA="$(native "$WORK/data-launcher")" "$tools/bash" "$root/hooks/install-python-deps.sh" <<<'{}')"
   RC=$?
   PYLOG="$(tr '\n' '|' <"$WORK/py.log" 2>/dev/null)"
   STARTED="$(cat "$WORK/started.log" 2>/dev/null)"
@@ -322,7 +330,7 @@ else
   fail "py launcher, only 3.14 listed: rc=$RC py=[$PYLOG] started=[$STARTED] output=[$OUT]"
 fi
 rm -f "$WORK/py.log"
-out="$(env PATH="$tools:$launcher" OSTYPE=linux-gnu CLAUDE_PLUGIN_DATA="$(native "$WORK/data-launcher")" "$tools/bash" "$root/hooks/install-python-deps.sh" <<<'{}')"
+out="$(env PATH="$tools:$launcher" OSTYPE=linux-gnu CLAUDE_PLUGIN_OPTION_INSTALL_PYTHON_DEPS_ENABLED=true CLAUDE_PLUGIN_DATA="$(native "$WORK/data-launcher")" "$tools/bash" "$root/hooks/install-python-deps.sh" <<<'{}')"
 rc=$?
 if [[ "$rc" -eq 0 && "$out" == *'Python 3.12 or later was not found'* && ! -e "$WORK/py.log" ]]; then
   ok "outside Git Bash and Cygwin a py on PATH is not used"
@@ -465,7 +473,7 @@ drive_starts=""
 for ostype in cygwin msys; do
   rm -f "$WORK/drive/starts.log"
   # shellcheck disable=SC2016  # expands inside the namespace
-  if ! unshare -rm bash -c "$(declare -f drive_case); WORK='$WORK'; drive_case 'OSTYPE=$ostype CLAUDE_PLUGIN_DATA=/c/data PATH=/c/bin:/usr/bin:/bin bash /c/plugin/hooks/install-python-deps.sh </dev/null >/dev/null 2>&1'" 2>/dev/null; then
+  if ! unshare -rm bash -c "$(declare -f drive_case); WORK='$WORK'; drive_case 'OSTYPE=$ostype CLAUDE_PLUGIN_OPTION_INSTALL_PYTHON_DEPS_ENABLED=true CLAUDE_PLUGIN_DATA=/c/data PATH=/c/bin:/usr/bin:/bin bash /c/plugin/hooks/install-python-deps.sh </dev/null >/dev/null 2>&1'" 2>/dev/null; then
     drive_starts="unavailable"
     break
   fi
@@ -479,6 +487,45 @@ elif [[ "$drive_starts" == "cygwin=0 msys=0 " ]]; then
   ok "a drive-letter stamp holds where drives mount at /c/, whether the shell reports cygwin or msys"
 else
   fail "drive-letter stamp under a /c/ mount: starts $drive_starts"
+fi
+
+root="$(new_plugin enablement "$digest")"
+proj_true="$WORK/proj-true"
+proj_false="$WORK/proj-false"
+mkdir -p "$proj_true/docs/conventions" "$proj_false/docs/conventions"
+printf 'install_python_deps_enabled: true\n' >"$proj_true/docs/conventions/fixture.yaml"
+printf 'install_python_deps_enabled: false\n' >"$proj_false/docs/conventions/fixture.yaml"
+
+data="$WORK/data-default-off"
+run_hook_raw "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")"
+if [[ "$RC" -eq 0 && -z "$OUT" && "$(installs "$data")" == 0 ]]; then
+  ok "plugin default off installs nothing and exits quietly"
+else
+  fail "default off: rc=$RC installs=$(installs "$data") output=[$OUT]"
+fi
+
+data="$WORK/data-user-false-repo-true"
+run_hook_raw "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")" CLAUDE_PROJECT_DIR="$proj_true" CLAUDE_PLUGIN_OPTION_INSTALL_PYTHON_DEPS_ENABLED=false
+if [[ "$RC" -eq 0 && -z "$OUT" && "$(installs "$data")" == 0 ]]; then
+  ok "user layer false beats repository layer true and exits quietly"
+else
+  fail "user false over repo true: rc=$RC installs=$(installs "$data") output=[$OUT]"
+fi
+
+data="$WORK/data-user-unset-repo-false"
+run_hook_raw "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")" CLAUDE_PROJECT_DIR="$proj_false"
+if [[ "$RC" -eq 0 && -z "$OUT" && "$(installs "$data")" == 0 ]]; then
+  ok "user layer unset with repository layer false exits quietly"
+else
+  fail "user unset with repo false: rc=$RC installs=$(installs "$data") output=[$OUT]"
+fi
+
+data="$WORK/data-user-unset-repo-true"
+run_hook_raw "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")" CLAUDE_PROJECT_DIR="$proj_true"
+if [[ "$RC" -eq 0 && -z "$OUT" && "$(installs "$data")" == 1 ]]; then
+  ok "user layer unset with repository layer true installs the locked set"
+else
+  fail "user unset with repo true: rc=$RC installs=$(installs "$data") output=[$OUT]"
 fi
 
 echo "---"

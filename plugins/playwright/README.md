@@ -48,8 +48,9 @@ reviewer looks at the frames before anything is posted.
 
 It needs Python 3.12+, `ffmpeg` and `ffprobe`, and `playwright-cli` for
 recording. Its numpy and Pillow are hash-locked in
-`skills/demo-video/requirements.txt`; a SessionStart hook installs them into
-the plugin data directory, and a run before that prints the one install
+`skills/demo-video/requirements.txt`; the SessionStart hook
+(`install_python_deps_enabled`, off by default) can install them into the
+plugin data directory, and a run without them prints the one install
 command. The `demo_*` options in the reference below set the style and the
 layers.
 
@@ -127,6 +128,7 @@ to set these keys, checked against
 
 | Key | Values | Default | What it controls |
 |---|---|---|---|
+| `install_python_deps_enabled` | `true`, `false` | `false` | Whether the SessionStart `install-python-deps` hook installs demo-video's hash-locked Python packages (numpy, Pillow) into the plugin data directory. A user-layer value in `pluginConfigs` wins when set; otherwise this repository value overrides the plugin default ([hook enablement](../../docs/contracts/hook-enablement/README.md)). |
 | `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | How much of `/playwright:demo-video`'s independent frame review (step 8) runs: `light` and `off` skip the quality judgment and report the video as not independently judged for quality, but the fresh-context check for secrets and personal data in the frames still runs and still gates posting. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
@@ -138,6 +140,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
+| `install_python_deps_enabled` | boolean | `false` | Install demo-video Python packages (numpy, Pillow) into the plugin data directory at session start. Off by default; running /playwright:demo-video without them prints the one-line install command. |
 | `demo_style` | string | `"produced"` | Style of /playwright:demo-video output: produced (zoom on each action, captions, title card) or plain (the same replay and drawn cursor, no zoom, captions or title). |
 | `demo_title` | boolean | `true` | Open the demo video with a title card. The plain style has none whatever this says. |
 | `demo_camera` | boolean | `true` | Zoom and pan onto each action. The plain style has none whatever this says. |

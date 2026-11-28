@@ -290,7 +290,7 @@ check_range() {
       k=$((k + 1))
       slots[n]=$k
     fi
-  done < <(checks_files)
+  done < <(checks_files --include-exact-renames)
   ran=0
   if ((k)); then
     (

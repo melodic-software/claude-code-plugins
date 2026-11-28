@@ -52,34 +52,38 @@ deliberate decline is never re-offered). This is deliberately user-scope, not th
 a plugin installed only at `project`/`local` scope is absent from `missing_from_install` yet still not
 usable from other directories, so installing at `user` scope below (the "usable from any directory"
 guarantee) must key off user-scope completeness. Apply the configured
-policy. SKILL.md's **Configured value** line renders the actual value; that render, not this
-step's prose, is what to branch on:
+policy. The `${user_config.install_new}` token in SKILL.md's command renders the actual value;
+that render, not this step's prose, is what to branch on:
 
-- **`ask`** (default): present every entry through `AskUserQuestion` multi-selects worded
-  as "install and enable", in chunks of at most 4 options per question and at most 4 questions per
-  call, with a further call past 16 entries. Each chunk's question text is distinct, because
-  answers are keyed by question text. A chunk of 1, whether a gap of 1 or the one left over from a
-  gap of 5, 9, 13 and so on, is one single-select Install/Skip question, with no hand-added Other
-  option. The limits are the tool's, per
-  [Handle approvals and user input: limitations](https://code.claude.com/docs/en/agent-sdk/user-input#limitations)
-  (as of 2026-11-10; recheck if that section changes them). Then `claude plugin install <id> -s user` for each the user picks. A
+- **`ask`** (default): ask the questions the digest block's `install_offer` lists: each entry is
+  one `AskUserQuestion` call, each inner list one question, each id one option. Word each question
+  as "install and enable" and give each its own question text, because answers are keyed by
+  question text. A question of several ids is a multi-select; a question of one id is a
+  single-select Install/Skip question, with no hand-added Other option. Then `claude plugin install <id> -s user` for each the user picks. A
   pick is the user's choice, so a pick the CLI reports as disabled by default is then enabled with
   `claude plugin enable <id> -s user`; a pick installed enabled gets no `enable`, which exits 1
   for a plugin that is already enabled. Do not show catalog defaults in the prompt: the CLI's
-  notice, not the catalog's `defaultEnabled`, decides which picks it enables. A dismissed or unanswered prompt
-  (or chunk) means no picks for its entries; the other chunks' picks still go in the id list, and
+  notice, not the catalog's `defaultEnabled`, decides which picks it enables. A dismissed or unanswered call
+  (or question) means no picks for its ids; the other questions' picks still go in the id list, and
   when nothing was answered re-enter with `--only-install ""` (SKILL.md Step 4), which installs
   nothing and still completes Step 5, and the report lists the declined gap under "Action needed". Under `ask`
   the only persistent opt-out is `enabledPlugins: false`; a decline is re-offered on the next run
-- **`all`**: `claude plugin install <id> -s user` for every entry, no prompt
+- **`all`**: `claude plugin install <id> -s user` for every entry, no prompt. Under the `all`
+  marketplace target the script holds the gap instead (`install_held: "all-target"`): run the `ask`
+  offer above
 - **`none`**: install nothing; list the entries under "Action needed" in the report only
+
+`scripts/question-groups.jq` does the grouping for `install_offer` and for `converge-plan.sh`'s
+`question_calls`. Its two constants hold the tool's per-call limits, read from
+[Handle approvals and user input: limitations](https://code.claude.com/docs/en/agent-sdk/user-input#limitations);
+a change to those limits changes those constants and nothing else.
 
 **A headless run launched with `--setting-sources` that omits `user` silently reverts this policy to
 `ask`** (the flag: [CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags)).
 `pluginConfigs` is read from user settings, `--settings`, and managed settings only (see
 [scope-semantics.md](scope-semantics.md)), so dropping `user` from the source list drops the
-configured `install_new` with it, and the render falls back to the unset placeholder, which this
-step correctly reads as `ask`. That is the right fallback and the wrong silence: say so in the
+configured `install_new` with it, and the render falls back to the unset placeholder, which `sync-run.sh`
+correctly reads as `ask`. That is the right fallback and the wrong silence: say so in the
 report rather than letting a policy the user set appear to have been honored.
 
 **Caveat (document, don't silently absorb):** with `install_new: all`, a plugin this step installed
@@ -94,7 +98,7 @@ so the id reappears in `missing_from_user_install` and the next sync reinstalls 
 `ask`/`none`.
 
 **Say that in the report, at the moment it fires.** When the policy is `all` and this step installed
-anything, the `Installed:` row carries the recurrence clause from SKILL.md's Report section. A
+anything, the render's `installed:` row carries the recurrence clause. A
 caveat documented only here is invisible to the person reading the report, who is exactly the person
 about to be surprised by it on the next run. Do not leave it to inference.
 
@@ -109,8 +113,8 @@ record of what it said.
 
 **An install the CLI reports as disabled by default is installed and not loading.** `sync-run.sh`
 classifies that notice from the untruncated CLI output. Under `ask` it enables the pick at user
-scope, and the report lists it under `Enabled:`. Under `all` nobody chose it, so it stays off by
-the publisher's choice: the digest's `installed_disabled[]` names it, and the render says the
+scope, and the report lists it under `enabled:`. Under `all` nobody chose it, so it stays off by
+the publisher's choice: the digest's `verdict.installed_disabled[]` names it, and the render says the
 plugin is installed but not enabled and gives `claude plugin enable <id> -s user`. An `ask` pick
 whose enable failed is named there too, beside the failure. The classification keys off the CLI's line, never the catalog's `defaultEnabled`: we
 observed the two disagree for one plugin.
@@ -160,12 +164,12 @@ machine default (same override `fleet-state.sh` honors).
 
   `project-unsorted` is a report row, not a write. `converge` remains the only action that may
   touch that file.
-- **Never silent.** A `normalized moved=K keys=N` result becomes the report's `Normalized:` row,
+- **Never silent.** A `normalized moved=K keys=N` result becomes the report's `normalized:` row,
   `K of N keys moved`. A `refused:` result (permission denial, unreadable JSON, a semantic diff)
   becomes an Action needed bullet: fail loudly, never skip. `--check` is the audit-mode stand-in
   (predict `would-normalize moved=K keys=N`, write nothing).
 - **A missing user settings file is not an error.** `missing-file keys=0` exits `0` and renders as
-  `Normalized: skipped, no user settings file` (`Would normalize:` in audit), never as already
+  `normalize: skipped, no user settings file` in the marketplace block, in both modes, never as already
   sorted.
 - **Skip the write when this step installed nothing.** An already-sorted map is a no-op either
   way (`already-sorted`); the reorder exists to heal the tail this step just created.
@@ -185,12 +189,15 @@ and project from it:
   >"$run_dir/pre-enable.$mp.json"
 
 "<skill-dir>/scripts/fleet-state.sh" \
-  --ids missing-enabled --from "$run_dir/pre-enable.$mp.json" \
+  --ids enable-targets --from "$run_dir/pre-enable.$mp.json" \
   >"$run_dir/ids.pre-enable.$mp.txt"
 rc=$?   # exit 2 with empty output is a FAILED projection, not "nothing to enable"
 ```
 
-Check `rc` before looping the file, for the reason Step 4 gives.
+Check `rc` before looping the file, for the reason Step 4 gives. Each `enable-targets` record is
+one `missing_from_enabled` id with whether it has a user, a current-project local and a
+current-project project record, and that project record's path: the scopes the enables below pick
+from.
 
 Take `fleet-state.sh`'s `missing_from_enabled` from that projection: ids
 installed somewhere but never mentioned (true
@@ -232,7 +239,7 @@ reports.** SKILL.md's scope section makes `converge` the one action that may tou
 `.claude/settings.json`, and only behind its confirm gate. `enable <id> -s project` writes exactly
 that file (verified on Claude Code 2.1.228, re-verified unchanged on 2.1.261, see [scope-semantics.md](scope-semantics.md)), so this
 step must not issue it. Confirming instead of skipping is not an option: `converge` can afford a
-confirm because it *aborts* in an autonomous session, while `sync` is the on-demand and headless
+confirm because it *aborts* on a session that fails the autonomy test (SKILL.md), while `sync` is the on-demand and headless
 maintenance action with no such abort, so there may be no human to answer.
 
 - **`user` and `local`: enable automatically.** Neither is team-shared state: `user` writes
@@ -243,8 +250,8 @@ maintenance action with no such abort, so there may be no human to answer.
   claude plugin enable <id> -s user     # or -s local
   ```
 
-- **`project`: never enable; report it, but only when the report would be runnable.** Emit an
-  "Action needed" row per SKILL.md's Report section carrying the exact command, so the user can run
+- **`project`: never enable; report it, but only when the report would be runnable.** The render's
+  `Action needed` item carries the exact command, so the user can run
   it deliberately and review the resulting diff:
 
   ```bash

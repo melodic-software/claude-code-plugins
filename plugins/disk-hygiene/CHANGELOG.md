@@ -3,6 +3,25 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.0] - 2026-11-28
+
+### Added
+
+- Baseline hints for the home-root leftovers a manual WSL2 cleanup removed: Claude Code sandbox 0-byte placeholders at write-denied names (shell startup and git files, package-manager files, `.env*`, an empty `node_modules` tree; Linux and WSL2), `.claude.json.pre-onboarding.bak`, the pytest, Ruff, Playwright CLI, Storybook, CUDA (`~/.nv` and `%APPDATA%\NVIDIA\ComputeCache`), `dotnet new`, Semgrep, n, legacy pip and Biome folders, the mcp-remote token store, the Ubuntu MOTD stamp and Landscape log, and the evals plugin's legacy docker link lock. Each names its owner and native command; `reference/home-leftover-hints.md` points at each owner's source.
+- A hint may set `requires` (`zero_bytes`, `absent_siblings`, `absent_children`, `unreferenced`), each failing closed. A hint whose condition fails is dropped and the entry records why in `unmet_hint_conditions`, so a non-empty `.npmrc`, a project `.storybook`, a `.semgrep` holding its API token or an `.mcp-auth` that a home MCP config still names stays out. Checking a condition lists no directory.
+- Owner-registry entries for the evals plugin's `~/.ev` run roots (`prune-run-roots.py`) and its docker link swap manifest (`docker-links.py restore`).
+
+## [1.3.0] - 2026-11-27
+
+### Added
+
+- Policy overlays take `additional_inventory_bounded_stores`, `{glob, reason}` entries appended to the baseline `inventory_bounded_stores` list of known-large tool stores. `inventory` takes the `--policy`, `--user-policy` and `--project-dir` flags `scan` takes, so every policy layer reaches it.
+
+### Fixed
+
+- `hygiene.py inventory` no longer walks known-large tool stores entry by entry. Each store the policy names (npm, NuGet, Cargo, Go, Gradle and Maven caches, XDG and macOS per-tool caches, Claude Code transcripts, plugin caches and logs by default) is one row with a `coverage` field, its size summed under a per-store and a per-run entry budget, so a home inventory finishes in bounded time. A store a classifier recognizes keeps its category and disposition. The summary lists the bounded rows, counts those whose size is a lower bound, and sets `fully_inventoried` false while any bounded or not-walked row exists. Without `--deep` the same holds below each immediate child: a store, mount or unreadable entry beneath it gets its own row instead of being summed in full or skipped silently.
+- `scan --root-children --root-child <file>` admits a regular file on a home or any other non-volume-root target instead of withholding it as `not-a-directory`, so folders and loose root files go into one snapshot and one plan. The file passes the same link, cloud-placeholder, virtual-disk, protected-name and mount checks as a directory, and other non-directory types are withheld as `not-regular-file-or-directory`.
+
 ## [1.2.1] - 2026-11-27
 
 ### Fixed

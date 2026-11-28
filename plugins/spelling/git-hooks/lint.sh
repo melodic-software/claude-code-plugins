@@ -36,7 +36,7 @@ fi
 candidates=()
 while IFS= read -r -d '' f; do
   [[ ! -L "$f" ]] && rt_wants "$f" && candidates+=("$f")
-done < <(checks_files)
+done < <(checks_files --include-exact-renames)
 ((${#candidates[@]})) || exit 0
 
 rt_group lint "$PWD" "${candidates[@]}"

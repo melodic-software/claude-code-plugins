@@ -6,7 +6,7 @@
     },
     {
       "answer": "Type `/goal ` (with a trailing space), then paste this. Confirm the `◎ /goal active` indicator appears after you send it; if it is missing, redo it:\n\n```text\nThe queue is empty and a results line with a date -u timestamp is in notes/status.md, shown in this session, or date -u shows 2031-03-09T06:00Z or later.\n```\n",
-      "why": "markdown fenced region, any resolved date"
+      "why": "markdown fenced region, a later resolved date"
     },
     {
       "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines. Confirm the `◎ /goal active` indicator appears after you send it; if it is missing, redo it:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty, shown by the queue command's output in this conversation, and a results line with a `date -u +%Y-%m-%dT%H:%MZ` timestamp is appended to notes/status.md and shown with `tail -n 3 notes/status.md`. Alternatively, stop when `date -u +%Y-%m-%dT%H:%MZ` shows 2026-11-27T05:30Z or later, after appending the same results line with the remaining count.\n──────────────────────────────────────────────────────────\n",
@@ -19,6 +19,38 @@
     {
       "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty, shown in this conversation, and a results line carrying a `date -u` timestamp goes into notes/status.md before stopping, or `date -u +%Y-%m-%dT%H:%MZ` shows 2026-11-27T05:00Z or later.\n──────────────────────────────────────────────────────────\n",
       "why": "'before stopping' orders the work; it names no time to beat"
+    },
+    {
+      "answer": "I split your deadline into two endings, since a line that must be stamped before 06:00 can never be written once 06:00 passes.\n\nType `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nEnd state A: the import queue is empty, shown by `<QUEUE_STATUS_COMMAND>` reporting 0 pending in this conversation, then one results line (imported, failed, and the `date -u +%Y-%m-%dT%H:%MZ` time) is appended to notes/status.md and shown with `tail -n 1 notes/status.md`. End state B, only if A is not reached: `date -u +%Y-%m-%dT%H:%MZ` shows 2026-11-27T06:00Z or later, and the same results line, stating the items still pending, is appended and shown.\n──────────────────────────────────────────────────────────\n",
+      "why": "a second labeled end used only if the first is not reached, no 'or' word before date"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty: the last run of `<QUEUE_COMMAND>` printed zero pending items, shown in this conversation, and you then appended one results line to notes/status.md and showed its last line. Reach empty only by importing items. Or, if `date -u +%Y-%m-%dT%H:%MZ` shows 2026-11-27T05:30Z or later, you have appended a results line stating how many items remain and shown that file's last line.\n──────────────────────────────────────────────────────────\n",
+      "why": "'Or, if' clause inside the condition, buffer before 06:00Z"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe queue command shows 0 pending in this conversation and a results line is appended to notes/status.md and shown; otherwise, once `date -u +%FT%RZ` prints 2026-11-27T05:45Z or a later time, the results line records the remaining count and is shown.\n──────────────────────────────────────────────────────────\n",
+      "why": "'otherwise' branch with a different date -u format"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nOne of these holds, shown in this conversation: (1) `<QUEUE_CMD>` reports an empty queue and a results line is then appended to notes/status.md and shown; (2) `date -u` shows 2026-11-27T06:00:00Z or later and a results line naming the items left is appended and shown.\n──────────────────────────────────────────────────────────\n",
+      "why": "numbered either-of ends, seconds in the time"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty per `<QUEUE_CMD>` output in this conversation and the results line is appended to notes/status.md and shown, or the time `date -u` reports has passed 2026-11-27T05:30Z and the results line with the remaining count is appended and shown.\n──────────────────────────────────────────────────────────\n",
+      "why": "'has passed' wording for the clock end"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste this:\n\n```text\nShown in this conversation: the queue is empty by `<QUEUE_CMD>` and a results line is appended to notes/status.md, or `date -u +%Y-%m-%dT%H:%MZ` shows 2026-11-27T06:00Z or later with the results line appended either way.\n```\n\nI used 06:00Z itself, not an earlier buffer, so on a long day the line lands at or just after 06:00.\n",
+      "why": "fenced region, explains the trade-off outside the condition"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty, shown in this conversation by `<QUEUE_CMD>`, with a results line appended to notes/status.md and shown afterwards. Do not clear items by deleting them. If the same failure repeats, try another approach. Or `date -u +%Y-%m-%dT%H:%MZ` shows 2026-11-27T05:30Z or later and the results line with the pending count is appended and shown.\n──────────────────────────────────────────────────────────\n",
+      "why": "constraints between the two ends, clock end last"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste this:\n\n```text\nThe queue is empty and notes/status.md holds a results line, or\n`date -u` shows 2026-11-29T06:00Z or later and notes/status.md holds a results line.\n```\n",
+      "why": "the alternative wraps onto the next line before date"
     }
   ],
   "fail": [
@@ -45,6 +77,42 @@
     {
       "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty, shown in this conversation.\n──────────────────────────────────────────────────────────\n",
       "why": "drops the time entirely"
+    },
+    {
+      "answer": "I dropped \"timestamped before 06:00 UTC tomorrow\" because the line could miss it. If you also want a hard stop at the deadline, add this to the end of the condition:\n\n`, or `date -u +%Y-%m-%dT%H:%MZ` shows 2026-11-27T06:00Z or later, in which case append the results line anyway and show it`\n\nType `/goal ` (with a trailing space), then paste this:\n\n```text\nThe import queue is empty: `<QUEUE_STATUS_COMMAND>` printed zero pending items in this conversation. After that, append one results line to notes/status.md starting with the output of `date -u +%Y-%m-%dT%H:%MZ`, and show `tail -n 3 notes/status.md`.\n```\n",
+      "why": "the clock end is only a clause the user may append; the condition itself has none"
+    },
+    {
+      "answer": "Draft condition:\n\n```\nThe import queue is empty and the results line is recorded, both shown in this conversation: (1) `<QUEUE_STATUS_CMD>` reports 0 items remaining; (2) `date -u +%Y-%m-%dT%H:%M:%SZ`, run right after, shows a time earlier than 2026-11-27T06:00:00Z; (3) `tail -n 3 notes/status.md` shows the new results line with that timestamp. If the deadline would pass first, stop and append a line saying the queue is incomplete.\n```\n",
+      "why": "no paste instruction, and element (2) is a deadline to beat"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty, shown by `<QUEUE_STATUS_COMMAND>` reporting 0 pending. Then run `date -u` and `tail -n 3 notes/status.md` and show both; the appended line's timestamp must be earlier than 2026-11-27T06:00:00Z.\n──────────────────────────────────────────────────────────\n",
+      "why": "requires a timestamp earlier than the clock time, no clock end"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty, shown by `<QUEUE_CMD>` output in this conversation, and a results line starting with a `date -u` timestamp is appended to notes/status.md and shown. Run `date -u` periodically; if it passes 05:30Z with items pending, stop importing and append the results line anyway so it is written before the deadline.\n──────────────────────────────────────────────────────────\n",
+      "why": "the cutoff is a time of day with no date, and it still writes to beat the deadline"
+    },
+    {
+      "answer": "The deadline can't be kept once 06:00 passes, so I removed it.\n\nType `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty, shown by `<QUEUE_CMD>` in this conversation, and a results line is appended to notes/status.md and shown.\n──────────────────────────────────────────────────────────\n\nYou can stop the run yourself near 06:00 UTC if it is still going.\n",
+      "why": "names the problem but leaves the clock end out of the condition"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty and a results line is in notes/status.md, both shown in this conversation, or 2026-11-27T06:00Z has arrived.\n──────────────────────────────────────────────────────────\n",
+      "why": "the clock end names no command whose output the conversation can show"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty and notes/status.md holds a results line, and date -u shows 2026-11-28T06:00Z or later.\n──────────────────────────────────────────────────────────\n",
+      "why": "the clock is joined with and, so the queue must still empty; no alternative end"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste this:\n\n```text\n(The queue is empty or date -u shows 2026-11-28T06:00Z or later) and notes/status.md contains a results line timestamped before `2026-11-28T06:00Z`.\n```\n",
+      "why": "a deadline to beat, written in inline code"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty, every item imported or failed, and date -u shows 2026-11-28T06:00Z or later.\n──────────────────────────────────────────────────────────\n",
+      "why": "an unrelated or earlier in the clause; the clock end is still joined with and"
     }
   ]
 }

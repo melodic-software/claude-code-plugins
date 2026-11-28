@@ -25,10 +25,10 @@ usage() {
 is_scannable() {
   local f="$1"
   case "$f" in
-  */vendor/* | */evals/*) return 1 ;;
-  *.test.sh) return 1 ;;
-  *.md | *.sh) return 0 ;;
-  *) return 1 ;;
+    */vendor/* | */evals/*) return 1 ;;
+    *.test.sh) return 1 ;;
+    *.md | *.sh) return 0 ;;
+    *) return 1 ;;
   esac
 }
 
@@ -38,31 +38,38 @@ if ! gate_entry::classify "$@"; then
 fi
 
 case "$GE_MODE" in
-all)
-  while IFS= read -r f; do
-    is_scannable "$f" && files+=("$f")
-  done < <(find plugins -type f -path 'plugins/*/skills/*' \( -name '*.md' -o -name '*.sh' \) | sort)
-  ;;
-paths)
-  files=("${GE_PATHS[@]}")
-  ;;
-base)
-  changed=()
-  gate_entry::collect_changed changed "$GE_REF" -- 'plugins/'
-  for f in ${changed[@]+"${changed[@]}"}; do
-    case "$f" in
-    plugins/*/skills/*) ;;
-    *) continue ;;
-    esac
-    is_scannable "$f" || continue
-    [[ -f "$f" ]] || continue
-    files+=("$f")
-  done
-  ;;
-*)
-  printf 'Error: unrecognized gate mode: %s\n' "$GE_MODE" >&2
-  gate_entry::finish 2
-  ;;
+  all)
+    while IFS= read -r f; do
+      is_scannable "$f" && files+=("$f")
+    done < <(
+      find plugins -type f \( \
+        -path 'plugins/*/skills/*' -o \
+        -path 'plugins/*/agents/*' -o \
+        -path 'plugins/*/reference/*' -o \
+        -path 'plugins/*/context/*' \
+        \) \( -name '*.md' -o -name '*.sh' \) | sort
+    )
+    ;;
+  paths)
+    files=("${GE_PATHS[@]}")
+    ;;
+  base)
+    changed=()
+    gate_entry::collect_changed changed "$GE_REF" -- 'plugins/'
+    for f in ${changed[@]+"${changed[@]}"}; do
+      case "$f" in
+        plugins/*/skills/* | plugins/*/agents/* | plugins/*/reference/* | plugins/*/context/*) ;;
+        *) continue ;;
+      esac
+      is_scannable "$f" || continue
+      [[ -f "$f" ]] || continue
+      files+=("$f")
+    done
+    ;;
+  *)
+    printf 'Error: unrecognized gate mode: %s\n' "$GE_MODE" >&2
+    gate_entry::finish 2
+    ;;
 esac
 
 if ((${#files[@]} == 0)); then
@@ -72,14 +79,20 @@ fi
 
 scan_file() {
   local file="$1"
-  if grep -qE '^[[:space:]]*(#|((>|[-*+]|[0-9]+[.)])[[:space:]]+)*<!--)[[:space:]]*portability-scope:' -- "$file"; then
-    return 0
+  local scope_lines ecosystem_scoped=0
+  scope_lines="$(grep -E '^[[:space:]]*(#|((>|[-*+]|[0-9]+[.)])[[:space:]]+)*<!--)[[:space:]]*portability-scope:' -- "$file" || true)"
+  if [[ -n "$scope_lines" ]]; then
+    if grep -qvE 'portability-scope:[[:space:]]*ecosystem([[:space:]=:-]|$)' <<<"$scope_lines"; then
+      return 0
+    fi
+    ecosystem_scoped=1
   fi
-  local awk_file
+  local awk_file is_shell=0
+  [[ "$file" == *.sh ]] && is_shell=1
   # awk reads an operand shaped name=value as an assignment, not a file:
   # https://pubs.opengroup.org/onlinepubs/9799919799/utilities/awk.html
   awk_file="$(token_scan::awk_operand "$file")"
-  awk '
+  awk -v is_shell="$is_shell" -v ecosystem_scoped="$ecosystem_scoped" '
     function is_annotated(l) { return l ~ /portability-ok:[[:space:]]*[^[:space:]#<\-]/ }
     # Block-level only: a content line that merely happens to carry an inline
     # HTML comment marker (e.g. prose with `<!-- note -->` mid-line) must NOT
@@ -173,7 +186,12 @@ scan_file() {
     function is_ecosystem_pattern(p) {
       return index(p, "otnet") || index(p, "\\.NET") ||
         index(p, "csproj") || index(p, "sln") || index(p, "razor") ||
-        index(p, "lazor") || index(p, "C#") || index(p, ".cs(")
+        index(p, "lazor") || index(p, "C#") || index(p, ".cs(") ||
+        index(p, "fast-check(") || index(p, "proptest(") || index(p, "jqwik(") ||
+        index(p, "Chakra(") || index(p, "Vue(") || index(p, "Svelte(") ||
+        index(p, "FluentAssertions(") || index(p, "AutoFixture(") ||
+        index(p, "Moq(") || index(p, "NSubstitute(") || index(p, "RSpec(") ||
+        index(p, "Dapper(")
     }
     # Architecture vocabulary is guarded by the illustration shape ALONE — never
     # by a userConfig read. The token file entry for it names exactly two
@@ -213,6 +231,7 @@ scan_file() {
         return is_illustrated_placeholder(l)
       }
       if (is_ecosystem_pattern(p)) {
+        if (is_shell || ecosystem_scoped) return 1
         return l ~ /[$]\{user_config\./ || is_illustrated_placeholder(l)
       }
       return 0
@@ -252,6 +271,26 @@ for file in "${files[@]}"; do
     printf 'Error: no such file: %s\n' "$file" >&2
     exit 2
   fi
+done
+
+candidates=()
+batch_size=250
+for ((idx = 0; idx < ${#files[@]}; idx += batch_size)); do
+  batch=("${files[@]:idx:batch_size}")
+  matched="$(grep -l -E -f "$TOKENS" -- "${batch[@]}" 2>/dev/null)"
+  rc=$?
+  if ((rc >= 2)); then
+    printf 'Error: gate prefilter failed (exit %d) — failing closed\n' "$rc" >&2
+    exit 2
+  fi
+  if [[ -n "$matched" ]]; then
+    while IFS= read -r m; do
+      [[ -n "$m" ]] && candidates+=("$m")
+    done <<<"$matched"
+  fi
+done
+
+for file in ${candidates[@]+"${candidates[@]}"}; do
   out="$(scan_file "$file")" || {
     printf 'Error: gate scanner failed on %s — failing closed\n' "$file" >&2
     exit 2
@@ -267,14 +306,14 @@ done
 if ((violations > 0)); then
   {
     echo
-    echo "A skill declared ecosystem/forge/tracker-agnostic must not hardcode a"
-    echo "stack/forge/branch/tracker default. Resolve the coupling, or — when the"
-    echo "use is legitimate — co-locate the branch-resolution command on the"
-    echo "line (detection-first), add a"
-    echo "'portability-ok: <reason>' comment at the site, or declare an inherent"
-    echo "narrower scope with 'portability-scope: <reason>' in the file."
+    echo "A skill, agent, or plugin reference/context file declared ecosystem/forge/tracker-agnostic"
+    echo "must not hardcode a stack/forge/branch/tracker default. Resolve ecosystem choices through"
+    echo "the ecosystem-resolution contract (docs/contracts/ecosystem-resolution/README.md), or —"
+    echo "when the use is legitimate — co-locate the branch-resolution command on the line"
+    echo "(detection-first), add a 'portability-ok: <rule id and reason>' comment at the site, or"
+    echo "declare an inherent narrower scope with 'portability-scope: <reason>' in the file."
   } >&2
   gate_entry::finish 1
 fi
-echo "No unexcused coupling tokens in ${#files[@]} skill file(s)."
+echo "No unexcused coupling tokens in ${#files[@]} file(s)."
 gate_entry::finish 0

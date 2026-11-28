@@ -56,6 +56,12 @@ D/audit-sessions/
   - the working directory, edited file paths (relative to it when inside it), branch names and PR
     repositories (the main session's in `branches` and `prs`, its subagents' in `branches_sub` and
     `prs_sub`), and the names of slash commands, model-invoked skills and assistant errors;
+  - in `subagents.dispatches`, one row per subagent transcript: redacted `agent_type`, `date`,
+    distinct assistant-message `turns`, `last_stop_reason`, `hit_max_turns`, `resumed_after_turn`
+    and `resumed_after_max_turns`. Older or carried-over records without `subagents.dispatches`
+    stay readable; `scripts/dispatches.py` (`audit-sessions.dispatches/v1`, exit 0 pass / 2 error /
+    3 no store) reads them for downstream tools and names any source whose stored records lack
+    per-dispatch rows in `data.header`.
   - in the `friction` block, per event: the command shape, the call's `tool_use_id` for a denial
     or an approved prompt, and, for a denial, the classifier's category or the first line of the
     hook's message; with `audit_sessions_excerpt_chars` above 0,

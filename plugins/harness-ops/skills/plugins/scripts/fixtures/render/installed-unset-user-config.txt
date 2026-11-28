@@ -1,14 +1,28 @@
 Result: 1 item(s) under Action needed
-Marketplace: market1: current (autoUpdate: on)
-In-repo: 0: <case> has no project/local installs
-Installed: 1 new catalog plugin(s): beta@market1
-  policy install_new: all, so the next sync reinstalls any of these you uninstall
-    remedy: to keep one out, disable it with claude plugin disable <id> -s user instead of uninstalling
-Divergences: 0 actionable
-Timing: <elided>
-Action needed:
+
+Action needed (1)
   - beta@market1: 2 userConfig option(s) not yet set (1 required)
     remedy: run /plugin configure beta@market1 in Claude Code, or pass --config KEY=VALUE
 
-Run journal: <run_dir>
-Timing: <elided>
+Changed by this run (1)
+  installed:  1 new catalog plugin(s): beta@market1
+    policy install_new: all, so the next sync reinstalls any of these you uninstall
+      remedy: to keep one out, disable it with claude plugin disable <id> -s user instead of uninstalling
+
+Marketplace: market1
+  status:       current
+  autoUpdate:   on
+  in-repo:      0, <case> has no project/local installs
+  divergences:  0 actionable
+
+Run
+  journal:             <run_dir>
+  total:               <elided>
+  marketplace block:   <elided>
+  slowest step:        <elided>
+  outside the steps:   <elided>
+  outside the blocks:  <elided>
+  clock resolution:    <elided>
+
+Reload: run /reload-plugins to load these changes into this session
+  if it warns, rerun it as /reload-plugins --force

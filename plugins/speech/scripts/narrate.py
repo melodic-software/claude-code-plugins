@@ -195,8 +195,9 @@ def narrate(text, out, data, voice=DEFAULT_VOICE, speed=1.0, phonemize=None, mod
         import numpy as np
         import onnxruntime as rt
     except ImportError as e:
-        raise Missing(f'the Python packages do not import ({e}); start a new session, whose SessionStart hook '
-                      f'installs them, or run the repair line that python3 "{Path(__file__).with_name("check.py")}" prints.') from e
+        raise Missing(f'the Python packages do not import ({e}); run the repair line that '
+                      f'python3 "{Path(__file__).with_name("check.py")}" prints, or set '
+                      'install_python_deps_enabled to true and start a new session.') from e
     root = assets.assets_dir(data, m, model_dir)
     vocab = json.loads((root / 'tokenizer.json').read_text(encoding='utf-8'))['model']['vocab']
     phonemize = phonemize or espeak_phonemizer(LANGS[voice[0]])
@@ -371,8 +372,9 @@ def edge_backend():
         try:
             import edge_tts
         except ImportError as e:
-            raise Unavailable(f'the edge-tts package does not import ({e}); start a new session, whose SessionStart '
-                              'hook installs it') from None
+            raise Unavailable(f'the edge-tts package does not import ({e}); run the repair line from '
+                              f'python3 "{Path(__file__).with_name("check.py")}", or set '
+                              'install_python_deps_enabled to true and start a new session') from None
         ffmpeg = shutil.which('ffmpeg')
         if not ffmpeg:
             raise Unavailable('ffmpeg is not on PATH; edge-tts sends MP3, which ffmpeg turns into narration.wav')

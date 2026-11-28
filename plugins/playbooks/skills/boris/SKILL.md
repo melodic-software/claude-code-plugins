@@ -3,9 +3,6 @@ description: "Boris Cherny Claude Code workflow tips (howborisusesclaudecode.com
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  author: Boris Cherny (tips)
-  source: howborisusesclaudecode.com
-  compiled-by: "@CarolinaCherry"
   upstream-version: 8.16.0
   synced: 2026-10-11
   workflow-stage: anytime

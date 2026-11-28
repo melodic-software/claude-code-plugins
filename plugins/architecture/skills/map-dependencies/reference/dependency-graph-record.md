@@ -1,3 +1,5 @@
+<!-- portability-scope: ecosystem=dotnet - R6 kept-adapter record schema for dependency-graph.sh -->
+
 # dependency-graph.sh record and adapter rules
 
 Behavior notes for `dependency-graph.sh`.

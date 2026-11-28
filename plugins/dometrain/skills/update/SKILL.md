@@ -74,7 +74,7 @@ those files to the Bash tool.
   [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
   live.
 
-## Boundaries
+## What this skill does not do
 
 - Never model-invocable. This skill exists so a maintainer can check drift explicitly, not so
   the model can decide on its own that a check is warranted.

@@ -432,7 +432,6 @@ directory, one row per acceptance criterion. `go test ./...` must pass.
 | `internal/server/server_test.go` | create |
 MD
 
-# Each phase heading takes its status tag here, outside the heredoc.
 plan=.work/review-target/PLAN.md
 text="$(cat "$plan")"
 printf '%s\n' "${text//'[STATUS]'/[TODO]}" >"$plan"

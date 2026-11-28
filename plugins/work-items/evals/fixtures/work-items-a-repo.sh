@@ -30,9 +30,6 @@ case "${here}" in
 *) ;;
 esac
 
-# The eval workspace sits inside the run's temporary home, which is itself a repository, so a
-# repository above the workspace is expected there. Allow only that one; refuse a workspace that
-# is already a repository and any other enclosing repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 if top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
   tmp="$(cd "${TMPDIR:-/nonexistent}" 2>/dev/null && pwd -P || true)"
@@ -46,7 +43,6 @@ if top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
     exit 3
   fi
 fi
-# A file under $HOME is written only when $HOME is not the real home of the user running this.
 if [[ "${mode}" == board-retired ]]; then
   if [[ -z "${real_home}" || -z "${HOME:-}" || "$(cd "${HOME}" && pwd -P)" == "$(cd "${real_home}" 2>/dev/null && pwd -P)" ]]; then
     echo "refusing to write under HOME=${HOME:-unset}: it is the real home or the real home is unknown" >&2
@@ -71,12 +67,11 @@ if [[ "$(git rev-parse --show-toplevel)" != "${here}" ]]; then
   echo "git did not create a repository here: ${PWD}" >&2
   exit 3
 fi
-# The seam's claim identity is the git user name.
 git config user.name 'Fabrikam Fixture'
 git config user.email 'fixture@fabrikam.example'
 mkdir -p docs/conventions
 
-binding() { # binding [role_labels line...]
+binding() {
   {
     printf 'tracker:\n  schema_version: "1.0"\n  provider: local-markdown\n  config:\n'
     printf '    lease_ttl_hours: 24\n    storage_dir: .work-items\n'
@@ -88,7 +83,7 @@ binding() { # binding [role_labels line...]
   mkdir -p .work-items
 }
 
-item() { # item <n> <title> <labels json> <assignees json> <state> <created> <body>
+item() {
   local closed=""
   [[ "$5" == closed ]] && closed=$'\nclosed_at: "2026-10-20T09:00:00Z"'
   cat >".work-items/$1.md" <<MD
@@ -209,7 +204,6 @@ JSON
   g commit -q -m "ledger fixture"
   ;;
 comment-markers)
-  # The marker words are assembled at run time so this file carries none of them literally.
   t="TO""DO"
   f="FIX""ME"
   c="acme/csvkit""#12"
@@ -274,7 +268,8 @@ adapter-tasker | adapter-redmine)
     "release": false, "reclaim": false, "link-blocks": true, "add-sub-item": false,
     "list-items": true, "list-sub-items": false, "label-provenance": false,
     "set-fields": false, "get-field-options": false, "get-statuses": false, "change-link": true,
-    "add-recurrence": false, "capabilities": true
+    "add-recurrence": false, "put-artifact": false, "list-artifacts": false, "get-artifact": false,
+    "link-relates": false, "unlink-relates": false, "list-relates": false, "capabilities": true
   },
   "features": {
     "cross_repo_edges": false, "sub_items": false, "leases": false, "labels": true
@@ -401,5 +396,5 @@ HTML
   g commit -q -m "fabrikam-plugins fixture"
   mkdir -p .lane/scratch
   ;;
-*) exit 2 ;; # the mode was checked above
+*) exit 2 ;;
 esac

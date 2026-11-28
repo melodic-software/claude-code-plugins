@@ -15,11 +15,6 @@ graders:
     type: tool_used
     tool: Write
     input_match: '^(?=.*\.work/reviews/[^"]*\.md")(?=.*type: review-findings)(?=.*## Dismissed(?:(?!\\n## ).)*not reproduced: unattended run, nothing ran)'
-  # runs-no-reviewed-code counts the Bash calls in the main session's transcript only: the docs page
-  # (https://code.claude.com/docs/en/plugin-evals#what-a-grader-can-look-at) does not say a tool_used
-  # grader sees a subagent's calls, so this proves the orchestrator ran no reviewed code, not that
-  # its reviewers ran none. A node script is allowed only under a /review/.../scripts/ path or
-  # ${CLAUDE_PLUGIN_ROOT}, so a script the agent writes under such a path would pass.
   - name: runs-no-reviewed-code
     type: tool_used
     tool: Bash

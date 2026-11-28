@@ -15,7 +15,7 @@ table and the other languages still run.
 | Python | `lizard`, then `radon cc -j` | no maintained collector found; the row says so | `radon hal -j`, per function, then `multimetric` |
 | Bash | `shellmetrics`, then `multimetric` | no collector found; the row says so | `multimetric`, per file |
 | Go | `lizard`, then `gocyclo` | `gocognit` | `multimetric`, per file |
-| C# | deferred | deferred | deferred |
+| C# | deferred | deferred | deferred <!-- portability-ok: R6 kept-adapter collector coverage --> |
 
 `lizard` and `radon` report a start and an end line per function; `gocyclo`, `gocognit`,
 `shellmetrics`, and the two ESLint rules report a start line only, and their rows are labeled

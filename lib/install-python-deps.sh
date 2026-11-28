@@ -11,6 +11,12 @@ PYDEPS_PLUGIN="install-python-deps" PYDEPS_PYTHONS="3.12 or later" PYDEPS_USERS=
 # shellcheck source=/dev/null
 source "$SCRIPT_DIR/install-python-deps.conf"
 
+# shellcheck source=hook-enabled.sh
+source "$SCRIPT_DIR/hook-enabled.sh"
+rc=0
+hook_enabled::resolve "$PYDEPS_PLUGIN" install_python_deps_enabled false || rc=$?
+((rc != 1)) || exit 0
+
 notice() {
   # shellcheck source=hook-utils.sh
   source "$SCRIPT_DIR/hook-utils.sh"

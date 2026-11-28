@@ -260,7 +260,7 @@ agreement rate and every disagreement in the criteria doc.
 
 ## Next
 
-- Scaffolded a skill's cases: `/evals:validate <eval-dir>`, then `/evals:plugin-eval` to run them.
+- Scaffolded a skill's cases: `/evals:validate <eval-dir>`.
 - Routed a plugin target to `claude plugin eval init`: `/evals:plugin-eval`.
 
 ## Gotchas

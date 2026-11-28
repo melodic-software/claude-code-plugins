@@ -23,6 +23,38 @@
     {
       "answer": "ProposeGoal cap: 187/500 chars, so the native tool can take it too.\n",
       "why": "ratio against the 500-character tool cap"
+    },
+    {
+      "answer": "I drafted the condition below, and the counter reports 705 characters against a 4000 limit.\n",
+      "why": "counter's count stated against the limit, no within or under"
+    },
+    {
+      "answer": "The draft below is 634 characters by the deterministic counter (`status=ok` against 4000).\n",
+      "why": "counter verdict quoted against the limit"
+    },
+    {
+      "answer": "The counter reports 723 characters against your 4000 limit.\n",
+      "why": "against your limit, run 2 of suite run 46088071768"
+    },
+    {
+      "answer": "The counter reports 696 of 4000 characters, status ok, so the limit is not close.\n",
+      "why": "N of N form, run 2 of suite run 46090478069"
+    },
+    {
+      "answer": "The counter reports 603 characters against 4000.\n",
+      "why": "against a bare number, run 1 of suite run 46092986142"
+    },
+    {
+      "answer": "The draft is 823 characters, under the 4000 limit.\n",
+      "why": "count then under the limit, run 3 of suite run 46092986142"
+    },
+    {
+      "answer": "The condition below is 500 characters, well under the 4000 limit.\n",
+      "why": "a real count of exactly 500, run 2 of suite run 46095248310"
+    },
+    {
+      "answer": "The condition is 823 characters, below the 4000-character cap.\n",
+      "why": "a count beside cap wording"
     }
   ],
   "fail": [
@@ -69,6 +101,94 @@
     {
       "answer": "Length: 4,210/4,000 characters.\n",
       "why": "ratio over the limit with thousands separators"
+    },
+    {
+      "answer": "The counter reports 4210 characters against a 4000 limit, which is over, so I tightened it.\n",
+      "why": "against-the-limit form that says over"
+    },
+    {
+      "answer": "It comes to roughly 700 characters against a 4000 limit.\n",
+      "why": "estimated count in the against form"
+    },
+    {
+      "answer": "chars=4210 limit=4000 status=over against the cap\n",
+      "why": "status=over, not ok"
+    },
+    {
+      "answer": "The counter reports 4210 characters against a 4000 limit. I tried several rewrites of the constraints and the stall clause, and it is still over.\n",
+      "why": "over verdict more than a sentence after the against form"
+    },
+    {
+      "answer": "The counter reports 4210 characters against your 4000 limit, so it is over and I cut it.\n",
+      "why": "against your limit, but over"
+    },
+    {
+      "answer": "The counter reports 4210 of 4000 characters, which is over, so I cut it.\n",
+      "why": "N of N form, but over"
+    },
+    {
+      "answer": "It is roughly 700 of 4000 characters.\n",
+      "why": "N of N form, estimated"
+    },
+    {
+      "answer": "The counter reports 4210 of 4000 characters, which exceeded the limit, so I trimmed it.\n",
+      "why": "N of N form with exceeded"
+    },
+    {
+      "answer": "The draft is 4210 characters against a 4000 limit, exceeding it, so I cut it down.\n",
+      "why": "against form with exceeding"
+    },
+    {
+      "answer": "Limit: 4000 characters.\n",
+      "why": "states the limit, counts nothing"
+    },
+    {
+      "answer": "Your notes say a condition can be at most 4000 characters.\n",
+      "why": "echoes the limit, counts nothing"
+    },
+    {
+      "answer": "I drafted the condition from the notes you pasted instead, well under 4000 characters.\n",
+      "why": "under the limit with no count, the without-plugin shape of suite run 46092986142"
+    },
+    {
+      "answer": "A condition can be at most **4000 characters**.\n",
+      "why": "bold limit echo, no count"
+    },
+    {
+      "answer": "The maximum length is 4000 characters.\n",
+      "why": "limit description, no count"
+    },
+    {
+      "answer": "ProposeGoal's own cap is 500 characters, lower than /goal's.\n",
+      "why": "tool cap description, no count"
+    },
+    {
+      "answer": "The draft is 4210 characters, more than the 4000 limit.\n",
+      "why": "over the limit with more than"
+    },
+    {
+      "answer": "It comes to 4210 characters, longer than allowed.\n",
+      "why": "over the limit with longer than"
+    },
+    {
+      "answer": "That's an estimated 300 characters.\n",
+      "why": "estimate"
+    },
+    {
+      "answer": "It is approx. 300 characters.\n",
+      "why": "estimate with approx"
+    },
+    {
+      "answer": "It is ≈300 characters.\n",
+      "why": "estimate with ≈"
+    },
+    {
+      "answer": "Conditions are capped at 4000 characters.\n",
+      "why": "limit description with capped at"
+    },
+    {
+      "answer": "It stays within the 4000 characters allowed.\n",
+      "why": "limit description with within the"
     }
   ]
 }

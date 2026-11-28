@@ -12,6 +12,8 @@ TMP_BASE="${TMP_BASE//\\//}"
 TEST_TMPDIR="$(mktemp -d "$TMP_BASE/cache-content-check.XXXXXX")"
 TEST_TMPDIR="${TEST_TMPDIR//\\//}"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
+export FLEET_STATE_USER_SETTINGS="$TEST_TMPDIR/no-user-settings.json" CLAUDE_PROJECT_DIR="$TEST_TMPDIR"
+unset FLEET_STATE_CATALOG_DIR FLEET_STATE_INSTALLED_JSON FLEET_STATE_MARKETPLACES_JSON
 
 FAILED=0
 CASE_NUM=0
@@ -31,8 +33,8 @@ assert_exit() {
 }
 assert_contains() {
   case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3 — got: $2" ;;
+    *"$3"*) pass "$1" ;;
+    *) fail "$1" "expected to contain: $3 — got: $2" ;;
   esac
 }
 
@@ -299,7 +301,7 @@ case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
 seed_cache_from "$case_dir" "$SHA2" >/dev/null
 seed_state "$case_dir" "$SHA2"
-mkdir -p "$case_dir/plain"
+write "$case_dir/plain/.claude-plugin/marketplace.json" '{"plugins":[{"name":"alpha","source":"./plugins/alpha"}]}'
 write "$case_dir/known_marketplaces.json" \
   "{\"market1\": {\"installLocation\": \"$case_dir/plain\"}}"
 out=$(run_check "$case_dir" --marketplace market1)
@@ -309,11 +311,18 @@ assert_eq "not-a-git-worktree: counted as unverifiable" "1" "$(jq -r '.unverifia
 CASE_NUM=$((CASE_NUM + 1))
 write "$case_dir/known_marketplaces.json" \
   "{\"market1\": {\"installLocation\": \"$case_dir/does-not-exist\"}}"
-out=$(run_check "$case_dir" --marketplace market1)
+write "$case_dir/catalog/market1.json" '{"plugins":[{"name":"alpha"}]}'
+out=$(FLEET_STATE_CATALOG_DIR="$case_dir/catalog" run_check "$case_dir" --marketplace market1)
 assert_eq "no-install-location: verdict names the condition" "no-install-location" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+out=$(run_check "$case_dir" --marketplace market1)
+rc=$?
+assert_exit "no-install-location without a catalog elsewhere: fleet-state cannot read the marketplace, exit 2" 2 "$rc"
+assert_contains "no-install-location without a catalog elsewhere: the error names the marketplace and the reason" \
+  "$out" "could not read marketplace: market1 (marketplace.json not found at installLocation)"
 
 CASE_NUM=$((CASE_NUM + 1))
 init_fixture_repo "$case_dir/unborn"
+write "$case_dir/unborn/.claude-plugin/marketplace.json" '{"plugins":[{"name":"alpha","source":"./plugins/alpha"}]}'
 write "$case_dir/known_marketplaces.json" \
   "{\"market1\": {\"installLocation\": \"$case_dir/unborn\"}}"
 out=$(run_check "$case_dir" --marketplace market1)
@@ -402,13 +411,16 @@ read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
 seed_cache_from "$case_dir" "$SHA2" >/dev/null
 seed_state "$case_dir" "$SHA2"
 write "$case_dir/known_marketplaces.json" \
-  "{\"market1\": {\"installLocation\": \"$case_dir/market\"}, \"market2\": {\"installLocation\": \"$case_dir/absent\"}}"
+  "{\"market1\": {\"installLocation\": \"$case_dir/market\"}, \"market2\": {\"installLocation\": \"$case_dir/empty\"}, \"market3\": {\"installLocation\": \"$case_dir/absent\"}}"
+write "$case_dir/empty/.claude-plugin/marketplace.json" '{"plugins":[]}'
 out=$(run_check "$case_dir" --all)
 rc=$?
 assert_exit "--all: exit 0" 0 "$rc"
-assert_eq "--all: both marketplaces appear in the envelope" "2" "$(jq -r '.marketplaces | length' <<<"$out" 2>/dev/null)"
+assert_eq "--all: every marketplace appears in the envelope" "3" "$(jq -r '.marketplaces | length' <<<"$out" 2>/dev/null)"
 assert_eq "--all: the healthy marketplace still reports its match" "match" "$(jq -r '.marketplaces.market1.installs[0].verdict' <<<"$out" 2>/dev/null)"
 assert_eq "--all: a marketplace with no installs is still reported" "0" "$(jq -r '.marketplaces.market2.checked' <<<"$out" 2>/dev/null)"
+assert_eq "--all: a marketplace fleet-state cannot read is reported with its reason" \
+  "marketplace.json not found at installLocation" "$(jq -r '.marketplaces.market3.error' <<<"$out" 2>/dev/null)"
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -635,8 +647,8 @@ if ln -s real.sh "$repo/plugins/alpha/link.sh" 2>/dev/null && [[ -L "$repo/plugi
   git -C "$repo" add -A
   git -C "$repo" commit -q -m one
   case "$(git -C "$repo" ls-tree -r HEAD -- plugins/alpha/link.sh)" in
-  120000*) symlink_ok="yes" ;;
-  *) symlink_ok="" ;;
+    120000*) symlink_ok="yes" ;;
+    *) symlink_ok="" ;;
   esac
 fi
 if [[ -z "$symlink_ok" ]]; then
@@ -841,6 +853,33 @@ else
   fail "process budget: a one-install report costs at most 26 process creations" \
     "measured $large (trace: $case_dir/trace-large.log)"
 fi
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
+seed_cache_from "$case_dir" "$SHA2" >/dev/null
+mkdir -p "$case_dir/present-repo"
+write "$case_dir/installed_plugins.json" "$(jq -n --arg c "$case_dir" --arg s "$SHA2" '
+  def r($scope): {scope: $scope, version: "1.0.0", gitCommitSha: $s, installPath: ($c + "/cache/alpha/1.0.0")};
+  {version: 1, plugins: {"alpha@market1": [
+    r("user"),
+    r("project") + {projectPath: ($c + "/present-repo")},
+    r("local") + {projectPath: ($c + "/gone-a")},
+    r("project") + {projectPath: ($c + "/gone-b")}]}}')"
+write "$case_dir/known_marketplaces.json" \
+  "{\"market1\": {\"installLocation\": \"$case_dir/market\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+out=$(run_check_stdout "$case_dir" --marketplace market1 --scope all)
+fleet=$(env FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+  FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
+  bash "$SCRIPT_DIR/fleet-state.sh" --marketplace market1)
+assert_eq "fleet-state records: the checker checks the records fleet-state reports present" \
+  "$(jq -r '[.installed[] | select(.projectPathPresent != false) | "\(.scope) \(.gitCommitSha)"] | sort | join(",")' <<<"$fleet")" \
+  "$(jq -r '[.installs[] | "\(.scope) \(.gitCommitSha)"] | sort | join(",")' <<<"$out")"
+assert_eq "fleet-state records: and skips the ones fleet-state reports absent" \
+  "$(jq -r '[.installed[] | select(.projectPathPresent == false)] | length' <<<"$fleet")" \
+  "$(jq -r '.skipped_absent_project_paths' <<<"$out")"
+assert_eq "fleet-state records: the fixture holds two present and two absent records" "2 2" \
+  "$(jq -r '"\(.checked) \(.skipped_absent_project_paths)"' <<<"$out")"
 
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]] && exit 0

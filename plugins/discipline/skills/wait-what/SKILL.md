@@ -18,7 +18,7 @@ itself uses for its domain. Read its domain glossary with
 find the glossary yourself, when one exists; with none, plain technical
 English alone.
 
-## Boundaries
+## What this skill does not do
 
 - **One-shot repair, not a corrector.** It re-pitches the one message that
   lost its reader and sets no standing posture; the re-pitch is the repair.

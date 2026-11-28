@@ -11,7 +11,7 @@ mean. There is no pass or fail here, and no bar to argue with.
 | Python | mypy `--any-exprs-report` | `type_coverage_pct`, `any_expressions`, `expressions_total` on every file row and on the language row | mypy's own Coverage column: expressions not typed `Any`, over all expressions |
 | Bash | not applicable | | no collector reports a typed-code ratio for shell |
 | Go | not applicable | | the compiler admits no untyped identifier to count |
-| C# | not applicable | | no tool produces a comparable percentage for C#; a `dynamic`/`object` occurrence count is not comparable to a ratio |
+| C# | not applicable | | no tool produces a comparable percentage for C#; a `dynamic`/`object` occurrence count is not comparable to a ratio <!-- portability-ok: R6 kept-adapter coverage statement --> |
 
 ## Run it
 
@@ -79,7 +79,7 @@ the collectors.
 - It does not run tests, edit files, add annotations, or install `type-coverage` or `mypy`; an
   absent tool is a row in the run table with its install hint.
 - It does not judge: the reference is not a bar, and no `check` gate exists in this version.
-- It does not count `any` occurrences for C#, and it does not report a count where the other languages
+- It does not count `any` occurrences for C#, and it does not report a count where the other languages <!-- portability-ok: R6 kept-adapter coverage statement -->
   report a ratio.
 - It does not measure complexity, size, duplication, or coverage; those are the sibling `audit`
   actions and `audit-*` skills in this plugin, and `/code-metrics:principles` explains what each

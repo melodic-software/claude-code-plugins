@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.13.7",
+  "version": "0.14.0",
   "license": "MIT",
   "engines": {
     "claude-code": ">=2.1.287"
@@ -23,6 +23,18 @@
       "type": "boolean",
       "title": "Remember each folder's profile",
       "description": "When on, a profile applied to a folder holds for every later session there. When off, every session starts from the initial profile: a folder apply is refused, and the session-start notice names a folder profile left from before as not in force. Read from managed settings first, then user settings.",
+      "default": true
+    },
+    "session_start_profile_enabled": {
+      "type": "boolean",
+      "title": "Session-start profile hook",
+      "description": "When on, the SessionStart hook names the folder's plugin profile and records each session's profile. Off, it does nothing. Your value wins when set; otherwise the repository's docs/conventions/plugin-profiles.yaml decides.",
+      "default": true
+    },
+    "plugin_profile_module_enabled": {
+      "type": "boolean",
+      "title": "Plugin-profile module hook",
+      "description": "When on, the mod registers /plugin-profile, the in-session switch, and its turn-end /reload-plugins. Off, sessions start without the command; profiles.mjs still works. Your value wins when set; otherwise the repository's docs/conventions/plugin-profiles.yaml decides.",
       "default": true
     }
   },

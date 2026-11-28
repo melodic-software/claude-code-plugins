@@ -191,13 +191,11 @@ split under the limit; it is hosted whole as an Actions artifact, never recompre
 
 ## Related
 
-- `/education:illustrate` offers a video view through this skill.
-- `/review:reviewer-media` builds a pull request's reviewer storyboard from that digest and hands
-  it here, then hands the manifest to `/source-control:pull-request media`.
-- `/review:explain-change` writes a pull request digest; a `storyboard.json` built from one renders
-  here through the stills renderer.
-- `/playwright:demo-video` records a live UI flow; this skill renders still frames and diagrams.
-- `/source-control:pull-request` places a finished video in a pull request.
+- Visual concept explainer with a video view: `/education:illustrate`.
+- Pull request reviewer storyboard built from a digest: `/review:reviewer-media`.
+- Pull request digest feeding a stills storyboard: `/review:explain-change`.
+- Live UI flow recording instead of still frames and diagrams: `/playwright:demo-video`.
+- When a run places a finished video in a pull request: `/source-control:pull-request`.
 
 ## Next
 

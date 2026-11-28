@@ -223,12 +223,13 @@ sandboxed (`sandbox: "true"`), with the Bash commands and deny rules in
 return the candidates find may file, sealed for the `Scan` job, which drops any naming a security
 defect or shaped like an issue another script trusts (an `Upstream drift:` title, or an HTML
 comment marker in the body). `File Findings` runs only while the lane is on, so a forced run with
-the lane off files nothing. It files on the job's own `GITHUB_TOKEN` (`issues: write`, `contents:
-read`), each issue with exactly one `source: architecture-improve` label; the lane has no slot and
-the token broker grants it nothing. GitHub starts no workflow run on that token's events, so intake
-does not start on these issues, and admission's `own-agents.hold-sources` in
-`admission-rules.json` refuses any issue carrying a listed label, whoever filed it, for a listed
-human.
+the lane off files nothing. It files on a lanes App token the broker grants the lane's one slot,
+`file-architecture-findings` (`mutate-tracker`: `issues: write`), and revokes it whatever happens;
+its `GITHUB_TOKEN` holds only `contents: read` and `id-token: write`, and no model leg holds a lane
+token. Each issue carries exactly one `source: architecture-improve` label. As the lanes App's own
+filings, they start intake and admission takes them like any own-agent filing, up to
+`own-agents.source-cap` open at once; `own-agents.hold-sources` in `admission-rules.json` lists no
+source.
 
 `pr-unblock`'s dispatches come from `pr-unblock-dispatch.yml`, a scripted workflow with no model
 that runs on a push to `main`, half-hourly (five minutes after the lost-run reconciler's :04 and
@@ -2407,8 +2408,10 @@ The pr-verify wake (`wake-pr-merge`), and the eval-release wake kept in step wit
 for a lanes App pull request and for a trusted person's at its pass, the two the token broker mints
 that wake for, unless it is armed or labeled `do-not-merge`, or is a person's draft or carries a
 person's body `Hold:` line. The wake downloads the trusted-actor list only for a `User`'s pull
-request, and dispatches anyway when its read or that list fails. The scheduled sweep is the
-fallback for every pull request the wake leaves.
+request, and fails closed (warning and dispatching nothing) when `AUTOMATION_LANES_APP_SENDER_ID`
+is unset or invalid, the pull request read fails, or the trusted-actor list cannot be read, so an
+unverified author never starts a run the broker refuses as `untrusted-author`. The scheduled sweep
+is the fallback for every pull request the wake leaves.
 
 Each verifier read is a full read. The arm step's skip records (`merge.skip-unchanged`) cross runs
 only as the `pr-merge-verify-answers` artifact of a scheduled or hand-started run on main

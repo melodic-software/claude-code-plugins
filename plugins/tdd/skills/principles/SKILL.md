@@ -87,6 +87,6 @@ Puts the test-design reasoning into the tests themselves.
 - Expected-value provenance and test-value taxonomy: /testing:test-value.
 - Mutation-testing principles and coverage limits: /mutation-testing:principles.
 
-## Scope boundary
+## What this skill does not do
 
 This skill is **knowledge** (WHY behind testing decisions), not **workflow** (HOW to run tests). For running, filtering, or scaffolding tests, use your project's own test tooling, conventions, and workflow skills. This skill informs the design decisions those workflows execute.

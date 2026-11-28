@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: .gitattributes
+# test-scope: .gitattributes plugins/harness-ops/skills/plugins/scripts/question-groups.jq
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -62,26 +62,27 @@ mkdir -p "$P_NOGIT"
 REPORT="$TEST_TMPDIR/report.json"
 jq -n --arg ok "$P_OK" --arg commit "$P_COMMIT" --arg wt "$P_WT" --arg nogit "$P_NOGIT" \
   --arg gone "$P_GONE" --arg homedir "$P_HOME" '
-  def rec($s; $v; $p; $present; $home; $wt):
+  def rec($s; $v; $p; $present; $home; $wt; $c):
     {scope: $s, version: $v, projectPath: $p, projectPathPresent: $present,
-     projectPathIsHome: $home, linkedWorktree: $wt, label: null,
+     projectPathIsHome: $home, linkedWorktree: $wt, label: null, class: $c,
      projectEnabledEntry: (if $present != true or $home then null elif $p == $commit then "false" else "absent" end)};
-  def user($v): {scope: "user", version: $v, projectPath: null, projectPathPresent: null,
-                 projectPathIsHome: null, linkedWorktree: null, label: null};
+  def user($v; $c): {scope: "user", version: $v, projectPath: null, projectPathPresent: null,
+                     projectPathIsHome: null, linkedWorktree: null, label: null, class: $c};
+  def div($id; $hi; $uh; $match; $scopes): {id: $id, versionsMatch: $match, highest: $hi, userHolds: $uh, scopes: $scopes};
   {marketplace: {name: "mk"},
    catalog_versions: {"zeta@mk": "1.0.5", "alpha@mk": "1.2.0", "beta@mk": "1.2.0"},
    installed: [],
    divergences: [
-     {id: "alpha@mk", versionsMatch: false, scopes: [user("1.2.0"), rec("project"; "1.0.0"; $ok; true; false; false)]},
-     {id: "beta@mk", versionsMatch: false, scopes: [user("1.2.0"), rec("project"; "1.0.0"; $commit; true; false; false)]},
-     {id: "gamma@mk", versionsMatch: false, scopes: [user("1.2.0"), rec("project"; "1.0.0"; $gone; false; false; null)]},
-     {id: "delta@mk", versionsMatch: false, scopes: [user("1.2.0"), rec("project"; "1.0.0"; $homedir; true; true; false)]},
-     {id: "epsilon@mk", versionsMatch: false, scopes: [user("1.2.0"), rec("project"; "1.0.0"; $wt; true; false; true)]},
-     {id: "zeta@mk", versionsMatch: false, scopes: [user("1.0.0"), rec("project"; "1.1.0"; $ok; true; false; false)]},
-     {id: "theta@mk", versionsMatch: false, scopes: [rec("project"; "1.1.0"; $ok; true; false; false), rec("project"; "1.0.0"; $wt; true; false; true)]},
-     {id: "iota@mk", versionsMatch: false, scopes: [user("1.2.0"), rec("project"; "1.0.0"; $nogit; true; false; false)]},
-     {id: "kappa@mk", versionsMatch: false, scopes: [user("1.2.0"), rec("local"; "1.0.0"; $ok; true; false; false)]},
-     {id: "eta@mk", versionsMatch: true, scopes: [user("1.2.0"), rec("project"; "1.2.0"; $ok; true; false; false)]}
+     div("alpha@mk"; "1.2.0"; true; false; [user("1.2.0"; "actionable"), rec("project"; "1.0.0"; $ok; true; false; false; "actionable")]),
+     div("beta@mk"; "1.2.0"; true; false; [user("1.2.0"; "actionable"), rec("project"; "1.0.0"; $commit; true; false; false; "actionable")]),
+     div("gamma@mk"; "1.2.0"; true; false; [user("1.2.0"; "actionable"), rec("project"; "1.0.0"; $gone; false; false; null; "blocked-absent")]),
+     div("delta@mk"; "1.2.0"; true; false; [user("1.2.0"; "actionable"), rec("project"; "1.0.0"; $homedir; true; true; false; "blocked-home")]),
+     div("epsilon@mk"; "1.2.0"; true; false; [user("1.2.0"; "actionable"), rec("project"; "1.0.0"; $wt; true; false; true; "worktree")]),
+     div("zeta@mk"; "1.1.0"; false; false; [user("1.0.0"; "blocked-catalog"), rec("project"; "1.1.0"; $ok; true; false; false; "blocked-catalog")]),
+     div("theta@mk"; "1.1.0"; false; false; [rec("project"; "1.1.0"; $ok; true; false; false; "actionable"), rec("project"; "1.0.0"; $wt; true; false; true; "worktree")]),
+     div("iota@mk"; "1.2.0"; true; false; [user("1.2.0"; "actionable"), rec("project"; "1.0.0"; $nogit; true; false; false; "actionable")]),
+     div("kappa@mk"; "1.2.0"; true; false; [user("1.2.0"; "actionable"), rec("local"; "1.0.0"; $ok; true; false; false; "actionable")]),
+     div("eta@mk"; "1.2.0"; true; true; [user("1.2.0"; "actionable"), rec("project"; "1.2.0"; $ok; true; false; false; "actionable")])
    ]}' >"$REPORT"
 
 PLAN="$TEST_TMPDIR/plan.json"
@@ -132,16 +133,28 @@ assert_eq "counts: worktree, blocked-absent, blocked-home, blocked-catalog" "2 1
   "$(jq -r '.counts | "\(.worktree) \(.["blocked-absent"]) \(.["blocked-home"]) \(.["blocked-catalog"])"' "$PLAN")"
 assert_eq "counts: actionable" "4" "$(jq -r '.counts.actionable' "$PLAN")"
 assert_eq "counts: rows" "9" "$(jq -r '.counts.rows' "$PLAN")"
+assert_eq "question calls: a blocked row in the path gets no question" "[[0,1]]" \
+  "$(jq -c --arg p "$P_OK" '.groups[] | select(.projectPath == $p) | .question_calls' "$PLAN")"
+assert_eq "question calls: a path with no runnable row asks nothing" "[]" \
+  "$(jq -c --arg p "$P_GONE" '.groups[] | select(.projectPath == $p) | .question_calls' "$PLAN")"
+jq -n --arg p "$P_OK" '
+  {marketplace: {name: "mk"}, catalog_versions: {}, installed: [],
+   divergences: [("a", "b", "c", "d", "e") | {id: "\(.)@mk", versionsMatch: false, highest: "1.2.0", userHolds: true, scopes: [
+     {scope: "user", version: "1.2.0", projectPath: null, class: "actionable"},
+     {scope: "project", version: "1.0.0", projectPath: $p, projectPathPresent: true, projectPathIsHome: false,
+      linkedWorktree: false, projectEnabledEntry: "absent", class: "actionable"}]}]}' >"$TEST_TMPDIR/five-report.json"
+assert_eq "question calls: five runnable rows in one path take a further call for the fifth" "[[0,1,2,3],[4]]" \
+  "$("$SCRIPT" --from "$TEST_TMPDIR/five-report.json" | jq -c '.groups[] | select(.projectPath != null) | .question_calls')"
 
 WT_COMMIT="$TEST_TMPDIR/wt-commit"
 tracked_repo "$WT_COMMIT" '{"mu@mk":true}'
 jq -n --arg p "$WT_COMMIT" '
   {marketplace: {name: "mk"}, catalog_versions: {}, installed: [],
-   divergences: [{id: "mu@mk", versionsMatch: false, scopes: [
+   divergences: [{id: "mu@mk", versionsMatch: false, highest: "1.2.0", userHolds: true, scopes: [
      {scope: "user", version: "1.2.0", projectPath: null, projectPathPresent: null,
-      projectPathIsHome: null, linkedWorktree: null, label: null},
+      projectPathIsHome: null, linkedWorktree: null, label: null, class: "actionable"},
      {scope: "project", version: "1.0.0", projectPath: $p, projectPathPresent: true,
-      projectPathIsHome: false, linkedWorktree: true, label: null}]}]}' >"$TEST_TMPDIR/wt-report.json"
+      projectPathIsHome: false, linkedWorktree: true, label: null, class: "worktree"}]}]}' >"$TEST_TMPDIR/wt-report.json"
 WT_PLAN="$("$SCRIPT" --from "$TEST_TMPDIR/wt-report.json")"
 assert_eq "worktree + committed enable: uninstall is not the default" "false" \
   "$(jq -r '.groups[0].rows[0].default' <<<"$WT_PLAN")"
@@ -153,11 +166,11 @@ tracked_repo "$SHADOW" '{}'
 entry_plan() {
   jq -n --arg p "$SHADOW" --argjson e "$1" '
     {marketplace: {name: "mk"}, catalog_versions: {"nu@mk": "1.2.0"}, installed: [],
-     divergences: [{id: "nu@mk", versionsMatch: false, scopes: [
+     divergences: [{id: "nu@mk", versionsMatch: false, highest: "1.2.0", userHolds: true, scopes: [
        {scope: "user", version: "1.2.0", projectPath: null, projectPathPresent: null,
-        projectPathIsHome: null, linkedWorktree: null, label: null, projectEnabledEntry: null},
+        projectPathIsHome: null, linkedWorktree: null, label: null, projectEnabledEntry: null, class: "actionable"},
        ({scope: "project", version: "1.0.0", projectPath: $p, projectPathPresent: true,
-         projectPathIsHome: false, linkedWorktree: false, label: null}
+         projectPathIsHome: false, linkedWorktree: false, label: null, class: "actionable"}
         + (if $e == "missing" then {} else {projectEnabledEntry: $e} end))]}]}' >"$TEST_TMPDIR/entry-report.json"
   "$SCRIPT" --from "$TEST_TMPDIR/entry-report.json" | jq -r '.groups[] | select(.projectPath != null) | .rows[0].strategy'
 }
@@ -166,6 +179,53 @@ assert_eq "an explicit committed true in the report defaults to update" "update"
 assert_eq "no entry in the report keeps the uninstall default" "uninstall" "$(entry_plan '"absent"')"
 assert_eq "an unreadable settings file counts as a committed enable" "update" "$(entry_plan '"unreadable"')"
 assert_eq "a report without the field counts as a committed enable" "update" "$(entry_plan '"missing"')"
+
+FLEET="$TEST_TMPDIR/fleet"
+F_REPO="$FLEET/repo"
+F_WT="$FLEET/wt"
+F_HOME="$FLEET/home"
+F_GONE="$FLEET/gone"
+tracked_repo "$F_REPO" '{"beta@mk":false}'
+git -C "$F_REPO" worktree add -q "$F_WT" -b wt
+mkdir -p "$F_HOME"
+for spec in alpha=1.2.0 beta=1.2.0 gamma=1.2.0 delta=1.2.0 epsilon=1.2.0 zeta=1.0.5; do
+  mkdir -p "$FLEET/catalog/mk/${spec%=*}/.claude-plugin"
+  printf '{"version":"%s"}\n' "${spec#*=}" >"$FLEET/catalog/mk/${spec%=*}/.claude-plugin/plugin.json"
+done
+jq -cn '{plugins: [("alpha", "beta", "gamma", "delta", "epsilon", "zeta") | {name: ., source: ("./" + .)}]}' \
+  >"$FLEET/catalog/mk.json"
+jq -cn '{mk: {source: {source: "github", repo: "e/mk"}, installLocation: "unused", lastUpdated: "2026-01-01T00:00:00Z"}}' \
+  >"$FLEET/known_marketplaces.json"
+printf '{"enabledPlugins":{}}\n' >"$FLEET/user_settings.json"
+jq -n --arg repo "$F_REPO" --arg wt "$F_WT" --arg home "$F_HOME" --arg gone "$F_GONE" '
+  def u($v): {scope: "user", installPath: "u", version: $v};
+  def p($path; $v): {scope: "project", projectPath: $path, installPath: "p", version: $v};
+  {version: 1, plugins: {
+    "alpha@mk": [u("1.2.0"), p($repo; "1.0.0")],
+    "beta@mk": [u("1.2.0"), p($repo; "1.0.0")],
+    "gamma@mk": [u("1.2.0"), p($gone; "1.0.0")],
+    "delta@mk": [u("1.2.0"), p($home; "1.0.0")],
+    "epsilon@mk": [u("1.2.0"), p($wt; "1.0.0")],
+    "zeta@mk": [u("1.0.0"), p($repo; "1.1.0")]}}' >"$FLEET/installed_plugins.json"
+fleet_env=(HOME="$F_HOME" CLAUDE_PROJECT_DIR="$FLEET"
+  FLEET_STATE_INSTALLED_JSON="$FLEET/installed_plugins.json"
+  FLEET_STATE_MARKETPLACES_JSON="$FLEET/known_marketplaces.json"
+  FLEET_STATE_USER_SETTINGS="$FLEET/user_settings.json"
+  FLEET_STATE_CATALOG_DIR="$FLEET/catalog")
+env "${fleet_env[@]}" bash "$SCRIPT_DIR/fleet-state.sh" --marketplace mk >"$FLEET/report.json"
+assert_eq "fleet seam: fleet-state reads the fixture fleet" "0" "$?"
+FLEET_PLAN="$("$SCRIPT" --from "$FLEET/report.json")"
+counts() { jq -r '.counts | "\(.actionable) \(.worktree) \(.["blocked-absent"]) \(.["blocked-home"]) \(.["blocked-catalog"]) \(.rows)"' <<<"$1"; }
+assert_eq "fleet seam: actionable, worktree, blocked-absent, blocked-home, blocked-catalog, rows" \
+  "2 1 1 1 1 6" "$(counts "$FLEET_PLAN")"
+fleet_row() { jq -r --arg id "$1" ".groups[].rows[] | select(.id == \$id) | $2" <<<"$FLEET_PLAN"; }
+assert_eq "fleet seam: each pin's class comes from the real report" \
+  "actionable actionable blocked-absent blocked-home worktree blocked-catalog" \
+  "$(fleet_row alpha@mk .class) $(fleet_row beta@mk .class) $(fleet_row gamma@mk .class) $(fleet_row delta@mk .class) $(fleet_row epsilon@mk .class) $(fleet_row zeta@mk .class)"
+assert_eq "fleet seam: the committed false entry fleet-state read defaults beta to update, alpha to uninstall" \
+  "update uninstall" "$(fleet_row beta@mk .strategy) $(fleet_row alpha@mk .strategy)"
+assert_eq "fleet seam: running fleet-state itself plans the same fleet" "$FLEET_PLAN" \
+  "$(env "${fleet_env[@]}" "$SCRIPT" --marketplace mk)"
 
 "$SCRIPT" --from "$TEST_TMPDIR/missing.json" >/dev/null 2>&1
 assert_eq "missing --from file exits 2" "2" "$?"

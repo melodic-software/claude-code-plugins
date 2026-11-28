@@ -18,7 +18,7 @@ Two collectors, tried in order:
 substring count rather than cyclomatic complexity.
 
 Every text file in scope is measured. The languages (TypeScript/JavaScript, Python, Bash,
-Go, C#) are detected by extension, and everything else that is not binary (markdown, JSON, YAML,
+Go, C#) are detected by extension, and everything else that is not binary (markdown, JSON, YAML, <!-- portability-ok: R6 kept-adapter extension detection list -->
 PowerShell, a `Makefile`) lands in the catch-all `other` language, which this measure serves and no
 other does; `languages.other.enabled: false` opts it out.
 

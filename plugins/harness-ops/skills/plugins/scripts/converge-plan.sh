@@ -11,8 +11,8 @@ unset GIT_DIR GIT_WORK_TREE
 
 script_src="${BASH_SOURCE[0]}"
 case "$script_src" in
-*/*) script_src_dir="${script_src%/*}" ;;
-*) script_src_dir="." ;;
+  */*) script_src_dir="${script_src%/*}" ;;
+  *) script_src_dir="." ;;
 esac
 
 JQ_CAPTURE="$script_src_dir/jq-capture.sh"
@@ -48,30 +48,30 @@ TARGET=""
 FROM_REPORT=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --marketplace)
-    TARGET="${2:-}"
-    if [[ -z "$TARGET" ]]; then
-      echo "ERROR: --marketplace requires a name" >&2
+    --marketplace)
+      TARGET="${2:-}"
+      if [[ -z "$TARGET" ]]; then
+        echo "ERROR: --marketplace requires a name" >&2
+        exit 2
+      fi
+      shift 2
+      ;;
+    --from)
+      FROM_REPORT="${2:-}"
+      if [[ -z "$FROM_REPORT" ]]; then
+        echo "ERROR: --from requires a report path" >&2
+        exit 2
+      fi
+      shift 2
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "ERROR: unknown argument: $1 (see --help)" >&2
       exit 2
-    fi
-    shift 2
-    ;;
-  --from)
-    FROM_REPORT="${2:-}"
-    if [[ -z "$FROM_REPORT" ]]; then
-      echo "ERROR: --from requires a report path" >&2
-      exit 2
-    fi
-    shift 2
-    ;;
-  -h | --help)
-    usage
-    exit 0
-    ;;
-  *)
-    echo "ERROR: unknown argument: $1 (see --help)" >&2
-    exit 2
-    ;;
+      ;;
   esac
 done
 
@@ -112,15 +112,15 @@ if ! jq_to shape -r '
   shape="err:not valid JSON"
 fi
 case "$shape" in
-ok:*) ;;
-fail:*)
-  echo "ERROR: marketplace could not be resolved: ${shape#fail:}" >&2
-  exit 1
-  ;;
-*)
-  echo "ERROR: not a usable fleet-state report: ${shape#err:}" >&2
-  exit 2
-  ;;
+  ok:*) ;;
+  fail:*)
+    echo "ERROR: marketplace could not be resolved: ${shape#fail:}" >&2
+    exit 1
+    ;;
+  *)
+    echo "ERROR: not a usable fleet-state report: ${shape#err:}" >&2
+    exit 2
+    ;;
 esac
 if [[ -n "$TARGET" && "$TARGET" != "${shape#ok:}" ]]; then
   echo "ERROR: report is for marketplace '${shape#ok:}', not '$TARGET'" >&2
@@ -136,24 +136,17 @@ ROWS_PROGRAM='
     else null end;
   def shq: ([39] | implode) as $q | $q + gsub($q; $q + "\\" + $q + $q) + $q;
   def lagging:
-    .catalog_versions as $cv
-    | .divergences[]? | select(.versionsMatch == false) | . as $d
-    | ([$d.scopes[] | .version | triple | select(. != null)] | max) as $hi
+    .divergences[]? | select(.versionsMatch == false) | . as $d
+    | ($d.highest | triple) as $hi
     | select($hi != null)
-    | ([$d.scopes[] | select((.version | triple) == $hi)][0].version) as $hiv
-    | ([$d.scopes[] | select(.scope == "user" and (.version | triple) == $hi)] | length > 0) as $user_holds
-    | ($cv[$d.id] | triple) as $cat
     | $d.scopes[]
     | select((.version | triple) as $t | $t != null and $t < $hi)
-    | {id: $d.id, scope, version, highest: $hiv,
+    | {id: $d.id, scope, version, highest: $d.highest, class,
        projectPath: (.projectPath // null),
-       present: (.projectPathPresent == true),
-       isHome: (.projectPathIsHome == true),
        worktree: (.linkedWorktree == true),
        entry: (.projectEnabledEntry // null),
-       userHolds: $user_holds,
-       catalogLower: ($cat != null and $cat < $hi)}
-    | . + {needsCheck: (.scope == "project" and .userHolds and .present and (.isHome | not))};
+       userHolds: $d.userHolds}
+    | . + {needsCheck: (.scope == "project" and .userHolds and .class != "blocked-home" and .class != "blocked-absent")};
 '
 
 paths_needed=""
@@ -196,11 +189,7 @@ PLAN_PROGRAM="$ROWS_PROGRAM"'
        elif $r.scope == "user" then "update"
        elif $r.userHolds and ($r.scope == "local" or ($committed_enable | not)) then "uninstall"
        else "update" end) as $strategy
-    | (if $r.isHome then "blocked-home"
-       elif ($r.projectPath == null and $r.scope != "user") or ($r.scope != "user" and ($r.present | not)) then "blocked-absent"
-       elif $r.worktree then "worktree"
-       elif $strategy == "update" and $r.catalogLower then "blocked-catalog"
-       else "actionable" end) as $class
+    | (if $r.class == "blocked-catalog" and $strategy != "update" then "actionable" else $r.class end) as $class
     | ($r.scope == "user" or ($r.projectPath | type) != "string") as $bare
     | (if $bare then "" else "(cd " + ($r.projectPath | shq) + " && " end) as $pre
     | (if $bare then "" else ")" end) as $post
@@ -212,7 +201,7 @@ PLAN_PROGRAM="$ROWS_PROGRAM"'
     | (if $class != "actionable" then null
        elif $strategy == "update" and $committed_enable
        then {strategy: "uninstall", command: cmd("uninstall"), warning: "removes a committed enabledPlugins entry"}
-       elif $strategy == "uninstall" and ($r.catalogLower | not)
+       elif $strategy == "uninstall" and $r.class != "blocked-catalog"
        then {strategy: "update", command: cmd("update"), warning: null}
        else null end) as $alt
     | {id: $r.id, scope: $r.scope, version: $r.version, highest: $r.highest,
@@ -241,10 +230,13 @@ PLAN_PROGRAM="$ROWS_PROGRAM"'
                     "blocked-home": (.["blocked-home"] // 0),
                     "blocked-catalog": (.["blocked-catalog"] // 0)})),
      groups: ($rows | sort_by([.projectPath // "", .id, .scope]) | group_by(.projectPath)
-              | map({projectPath: .[0].projectPath, rows: map(del(.projectPath))}))}'
+              | map({projectPath: .[0].projectPath, rows: map(del(.projectPath))}
+                    | . + {question_calls: ([.rows | to_entries[] | select(.value.command != null) | .key]
+                                            | question_calls)}))}'
 
 plan=""
-if ! jq_to plan -c --argjson committed "$committed" "$PLAN_PROGRAM" <<<"$report"; then
+if ! jq_to plan -c -L "$script_src_dir" --argjson committed "$committed" \
+  'include "question-groups"; '"$PLAN_PROGRAM" <<<"$report"; then
   echo "ERROR: could not plan the report" >&2
   exit 2
 fi

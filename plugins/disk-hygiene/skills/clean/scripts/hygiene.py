@@ -36,6 +36,7 @@ if str(_SCRIPTS_DIR) not in sys.path:
 
 import data_root_state  # noqa: E402  (path set above; plugin-bundled module)
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
+import hint_conditions  # noqa: E402  (path set above; plugin-bundled module)
 import policy_cascade  # noqa: E402  (path set above; plugin-bundled module)
 import investigated_catalog  # noqa: E402  (sibling module; a record is a hint only)
 import deep_inventory  # noqa: E402  (path set above; sibling module)
@@ -1951,11 +1952,11 @@ def root_child_skip_reason(
     On any volume root, OS-managed or not (a Windows Dev Drive), mirrors the
     volume-root guard (OS-owned / hidden / system / reparse) and fails closed
     on anything ambiguous (#2588). Regular files use the same admission ladder
-    as directories; non-regular types are withheld as
+    as directories on every target; other types are withheld as
     ``not-regular-file-or-directory``. On a target that is not a volume root
-    (#4221), only directories can be selected, and hidden and
-    OS-owned-by-volume-name children stay selectable so a depth-1 home audit
-    can re-inventory approved directories without walking the rest of the home.
+    (#4221), hidden and OS-owned-by-volume-name children stay selectable so a
+    depth-1 home audit can re-inventory approved directories and loose files
+    in one snapshot without walking the rest of the home.
     """
     try:
         info = path.lstat()
@@ -1967,8 +1968,8 @@ def root_child_skip_reason(
         return "cloud-placeholder"
     is_dir = stat.S_ISDIR(info.st_mode)
     is_reg = stat.S_ISREG(info.st_mode)
-    if not strict_volume_root and not is_dir:
-        return "not-a-directory"
+    if not strict_volume_root and not (is_dir or is_reg):
+        return "not-regular-file-or-directory"
     name = path.name
     if name in {".", ".."} or not name:
         return "invalid-name"
@@ -2022,9 +2023,9 @@ def enumerate_root_children(
     """List immediate children into admitted vs skipped buckets.
 
     Enumerates the target once and never recurses. On a volume root,
-    OS-managed or not, admitted entries are regular files or directories that
-    cleared every root-children exclusion. On any other target, admitted
-    entries are directories only. ``strict_volume_root`` keeps the OS-owned /
+    OS-managed or not, or any other target, admitted entries are regular files
+    or directories that cleared every root-children exclusion.
+    ``strict_volume_root`` keeps the OS-owned /
     hidden / system ladder that every volume root needs; a target that is not
     a volume root drops those so approved home children stay selectable.
     """
@@ -2302,6 +2303,9 @@ def scan_tree(
     review_ranking: dict[str, Any] | None = None
     if not sizes_only:
         annotate_tracked(entries, target, repositories, truncated, repo_errors)
+        hint_conditions.apply(
+            entries, policy["hints"], target, user_home(), set(truncated) | error_paths
+        )
         apply_rules(entries, policy.get("rules", []), set(truncated) | error_paths)
         apply_in_flight_refs(entries, target, in_flight_refs or [])
         stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
@@ -4523,6 +4527,7 @@ def apply_plan(
 
 
 INVENTORY_REPORT_KIND = "deep-inventory-report"
+MAX_SUMMARY_BOUNDED_ROWS = 50
 INVENTORY_VALIDATION_FAILED = 5
 INVENTORY_REPORTS_KEPT = 3
 INVENTORY_STEM = re.compile(r"inventory-\d{8}T\d{12}Z")
@@ -4591,7 +4596,31 @@ def _exit_on_sigterm(signum: int, _frame: object) -> None:
     raise SystemExit(128 + signum)
 
 
-def run_inventory(target_arg: str, deep_flag: bool) -> int:
+def bounded_rows_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Summary fields naming every bounded-store row, largest first, capped."""
+    ordered = sorted(rows, key=lambda row: (-int(row.get("size") or 0), row["name"]))
+    return {
+        "bounded_row_count": len(rows),
+        "bounded_lower_bound_count": sum(
+            1 for row in rows if row["coverage"]["size_is_lower_bound"]
+        ),
+        "bounded_rows": [
+            {
+                "name": row["name"],
+                "size": row["size"],
+                "store_glob": row["coverage"]["store_glob"],
+                "entries_counted": row["coverage"]["entries_counted"],
+                "size_is_lower_bound": row["coverage"]["size_is_lower_bound"],
+            }
+            for row in ordered[:MAX_SUMMARY_BOUNDED_ROWS]
+        ],
+        "bounded_rows_truncated": len(rows) > MAX_SUMMARY_BOUNDED_ROWS,
+    }
+
+
+def run_inventory(
+    target_arg: str, deep_flag: bool, policy: dict[str, Any] | None = None
+) -> int:
     """List a target into a JSONL report under the data root, then validate it.
 
     Report only: nothing here deletes, and the summary is neither a snapshot
@@ -4600,8 +4629,13 @@ def run_inventory(target_arg: str, deep_flag: bool) -> int:
     the walk finishes: an interrupted walk, SIGTERM included, leaves no partial
     report, and a partial whose writer died is swept on the next run. A run
     that passes validation keeps only the newest three reports. Deep is the default when the target is the
-    home directory.
+    home directory. Each known-large store the policy's
+    ``inventory_bounded_stores`` names is one bounded row, never a per-entry
+    walk, and the summary lists those rows: the report never calls such a
+    store, or a not-walked row, fully inventoried.
     """
+    if policy is None:
+        policy = baseline_policy()
     target_input = Path(target_arg).expanduser().absolute()
     if not target_input.is_dir() or has_linkish_component(target_input):
         raise HygieneError(
@@ -4621,6 +4655,8 @@ def run_inventory(target_arg: str, deep_flag: bool) -> int:
     sweep_orphaned_inventory_partials(rows_path.parent)
     dispositions: dict[str, int] = {}
     failures: list[str] = []
+    bounded_rows: list[dict[str, Any]] = []
+    not_walked = 0
     partial = rows_path.with_name(
         f"{rows_path.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp"
     )
@@ -4641,10 +4677,15 @@ def run_inventory(target_arg: str, deep_flag: bool) -> int:
                 running=deep_inventory.running_paths(),
                 skip=frozenset({str(rows_path), str(summary_path), str(partial)}),
                 mounts=mounts,
+                bounded_stores=policy["inventory_bounded_stores"],
             ):
                 out.write(json.dumps(row, sort_keys=True) + "\n")
                 key = str(row.get("disposition"))
                 dispositions[key] = dispositions.get(key, 0) + 1
+                if "coverage" in row:
+                    bounded_rows.append(row)
+                elif row.get("category") == "not-walked":
+                    not_walked += 1
                 failures.extend(deep_inventory.validate_report([row]))
         os.replace(partial, rows_path)
     finally:
@@ -4661,10 +4702,19 @@ def run_inventory(target_arg: str, deep_flag: bool) -> int:
         "dispositions": dispositions,
         "validation_failures": failures,
         "mount_state_error": mount_error,
+        "fully_inventoried": not bounded_rows and not not_walked and not mount_error,
+        "not_walked_row_count": not_walked,
+        **bounded_rows_summary(bounded_rows),
+        "policy_sources": policy["policy_sources"],
         "note": (
             "Report only: rows are findings, never a deletion plan, and preview "
             "and apply do not accept this report. Removing a candidate goes "
-            "through scan, preview and apply with their confirmation gates."
+            "through scan, preview and apply with their confirmation gates. "
+            "A bounded row (bounded_rows, and a coverage field on the row) is a "
+            "known-large store summed without listing its entries; one with "
+            "size_is_lower_bound true was cut off by its entry budget or an "
+            "unreadable part. Neither it nor a not-walked row is inventoried: "
+            "report both as coverage gaps, never as clean or empty."
         ),
     }
     write_text_atomic(
@@ -5703,7 +5753,16 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         if args.command == "inventory":
-            return run_inventory(args.target, args.deep)
+            policy = load_policy(
+                Path(args.policy).expanduser().absolute() if args.policy else None,
+                Path(args.project_dir).expanduser().absolute()
+                if args.project_dir
+                else None,
+                args.user_policy,
+            )
+            for warning in policy["policy_warnings"]:
+                print(f"warning: {warning}", file=sys.stderr)
+            return run_inventory(args.target, args.deep, policy)
         snapshot = load_input_json(args.snapshot)
         if args.command == "catalog":
             entries = snapshot.get("entries")

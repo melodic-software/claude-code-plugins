@@ -55,7 +55,6 @@ done
 jq -n --arg body "## Summary"$'\n\n'"Show the cart total in currency."$'\n\n'"## Acceptance criteria"$'\n\n'"$criteria" \
   '{body: $body}' >"$forge/pr-overlay.json"
 
-# One evidence file per side: one entry point and one screenshot per interaction.
 for side in base head; do
   dir="evidence/$side"
   mkdir -p "$dir"

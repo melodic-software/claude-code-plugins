@@ -142,7 +142,7 @@ reveal the contents of wherever it keeps them.
   [Plugins reference: Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
   live and give them its answer.
 
-## Boundaries
+## What this skill does not do
 
 - Do not read, echo, log, copy, or persist the token.
 - Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform

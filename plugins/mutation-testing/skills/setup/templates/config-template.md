@@ -1,3 +1,5 @@
+<!-- portability-scope: ecosystem=dotnet - R6 kept-adapter runner examples in YAML template -->
+
 # Mutation testing configuration
 
 `/mutation-testing:setup apply` writes the YAML block below, without the Markdown around it, as

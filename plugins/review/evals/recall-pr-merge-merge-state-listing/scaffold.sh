@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rebuilds the pull request case.yaml names, offline: main holds the files at
+# Rebuilds the reviewed pull request offline: main holds the files at
 # its base, the branch at its head. pr-merge.yml is the candidate-listing step
 # only; the prefilter script is whole. Its test file and changelog fragment are
 # not rebuilt.

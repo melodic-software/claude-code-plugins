@@ -1,0 +1,18 @@
+{
+  "add": {
+    "data": {
+      "addRelatesTo": {
+        "issue": { "number": 1 },
+        "relatedIssue": { "number": 2 }
+      }
+    }
+  },
+  "remove": {
+    "data": {
+      "removeRelatesTo": {
+        "issue": { "number": 1 },
+        "relatedIssue": { "number": 2 }
+      }
+    }
+  }
+}

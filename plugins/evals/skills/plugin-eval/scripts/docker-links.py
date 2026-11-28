@@ -14,9 +14,13 @@ shell), and puts the links back when it exits, fails, or the wrapper gets
 SIGINT, SIGTERM or SIGHUP, which it forwards to the command first.
 
 Before anything is replaced, each link's literal value is written to the
-manifest $HOME/.docker-link-swap.json, which also lists the live runs holding
-the copies, each by its wrapper's pid and its command's. Every change to it
-happens under an exclusive lock on $HOME/.docker-link-swap.lock. Overlapping
+manifest $HOME/.ev/.docker-link-swap.json, which also lists the live runs
+holding the copies, each by its wrapper's pid and its command's. Every change to
+it happens under an exclusive lock on $HOME/.ev/.docker-link-swap.lock, and
+$HOME/.ev is created with mode 700 when missing. A manifest an earlier version
+left at $HOME/.docker-link-swap.json is moved there before a run starts or
+`restore` reads it, and the legacy $HOME/.docker-link-swap.lock is then removed;
+both existing at once is refused, for a restore by hand. Overlapping
 runs share one swap: the first swaps, later ones join, and the last to leave
 restores. The command is held at a pipe until its pid is in the manifest, and
 exits unrun if the wrapper dies first, so no command runs untracked. A holder
@@ -32,7 +36,7 @@ read or set.
 Exit: `run` exits with the command's code, or 128 + the signal number; 0 for a
 done `restore`; 2 refused with nothing changed (no store, a `tls` directory
 under a link target, a live holder for
-`restore`, a failed swap rolled back); 3 a restore step failed,
+`restore`, a failed swap rolled back, a manifest at both paths); 3 a restore step failed,
 the manifest is kept and names what is left.
 """
 
@@ -70,8 +74,24 @@ def store_path():
     return Path.home() / ".docker"
 
 
+def state_dir():
+    return Path.home() / ".ev"
+
+
 def manifest_path():
+    return state_dir() / ".docker-link-swap.json"
+
+
+def legacy_manifest_path():
     return Path.home() / ".docker-link-swap.json"
+
+
+def legacy_lock_path():
+    return Path.home() / ".docker-link-swap.lock"
+
+
+class Refused(Exception):
+    pass
 
 
 def say(message):
@@ -80,12 +100,53 @@ def say(message):
 
 @contextmanager
 def locked():
-    with open(Path.home() / ".docker-link-swap.lock", "a", encoding="utf-8") as lock:
+    """Hold the lock, and the legacy home-root lock while one still exists, so
+    a run of the earlier version cannot change the manifest underneath."""
+    state_dir().mkdir(mode=0o700, exist_ok=True)
+    with open(state_dir() / ".docker-link-swap.lock", "a", encoding="utf-8") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         try:
-            yield
+            try:
+                legacy = open(legacy_lock_path(), "r", encoding="utf-8")
+            except FileNotFoundError:
+                legacy = None
+            try:
+                if legacy is not None:
+                    fcntl.flock(legacy, fcntl.LOCK_EX)
+                yield
+            finally:
+                if legacy is not None:
+                    legacy.close()
         finally:
             fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def adopt_legacy():
+    """Move a manifest a killed run of the earlier version left in $HOME into
+    the state directory, so its links are still restored. A manifest a live
+    run still holds stays put: that run reads only the old path."""
+    old = legacy_manifest_path()
+    if old.exists():
+        if manifest_path().exists():
+            raise Refused(
+                f"refused: both {old} and {manifest_path()} exist; restore by hand "
+                "from both, then remove them"
+            )
+        legacy = json.loads(old.read_text(encoding="utf-8"))
+        live = [h for h in legacy.get("holders", []) if is_live(h)]
+        if live:
+            pids = ", ".join(str(h["pid"]) for h in live)
+            raise Refused(
+                f"refused: an earlier-version run ({pids}) still holds {old}; "
+                "rerun once it exits"
+            )
+        save(legacy)
+        old.unlink()
+        say(f"moved {old} to {manifest_path()}")
+    try:
+        legacy_lock_path().unlink()
+    except FileNotFoundError:
+        pass
 
 
 def start_time(pid):
@@ -199,6 +260,11 @@ def restore_links(state):
 
 
 def acquire(me):
+    try:
+        adopt_legacy()
+    except Refused as refusal:
+        say(str(refusal))
+        return 2
     state = load()
     if state is not None and state["holders"]:
         others = ", ".join(str(h["pid"]) for h in state["holders"])
@@ -274,6 +340,11 @@ def release(me):
 
 def restore():
     with locked():
+        try:
+            adopt_legacy()
+        except Refused as refusal:
+            say(str(refusal))
+            return 2
         state = load()
         if state is None:
             say(f"nothing to restore: no {manifest_path()}")

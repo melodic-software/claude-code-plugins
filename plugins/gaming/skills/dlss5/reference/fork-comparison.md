@@ -88,7 +88,7 @@ build: `reference/upstream-watch.md`, Updating a pin.
 |---|---|
 | `ShyVortex/dlss-unlocked` tag `v0.2.0-patch2` | Not a Dagherbou release: a repackaging of patch1 by a downstream packager. Its package also ships registry override scripts |
 | `NODIX-TECH/DLSS-5-MANAGER` | 451 MB obfuscated release, payload not in source, phones home with a machine GUID hash |
-| `DLSS5-Universal` repos, dlss5.net, dlss5mod.com, dlss5swapper.org | Byte-identical repos created within seconds across unrelated accounts: lookalike bait |
+| `DLSS5-Universal` repos, dlss5mod.com, dlss5swapper.org | Byte-identical repos created within seconds across unrelated accounts: lookalike bait |
 | Any bundle that includes `nvngx_dlssnr.dll` | The runtime is NVIDIA's; a bundled copy has undisclosed origin. The plugin takes it only from the sources `/gaming:setup` documents |
 
 ## Verification record

@@ -1,7 +1,9 @@
 # shellcheck shell=bash
 # test-scope: plugins/toolchain/hooks/hooks.json plugins/toolchain/lib/tree-result.mjs plugins/toolchain/scripts/record-result.mjs plugins/toolchain/.claude-plugin/plugin.json
+# test-scope: plugins/toolchain/lib/prerequisites.mjs plugins/toolchain/lib/prerequisites.ps1 plugins/toolchain/lib/prerequisites.sh
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_TURN_END_RESULT_GATE
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_TURN_END_RESULT_GATE \
+  CLAUDE_PLUGIN_OPTION_RESULT_GATE_ENABLED CLAUDE_PROJECT_DIR
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN="$(cd "$HOOK_DIR/.." && pwd)"
@@ -34,6 +36,8 @@ expect "the Stop row launches node on the result gate" \
   "$(jq -r '.hooks.Stop[0].hooks[0] | "\(.command) \(.args | join(" "))"' "$PLUGIN/hooks/hooks.json")"
 expect "the option defaults to advisory" "advisory" \
   "$(jq -r '.userConfig.turn_end_result_gate.default' "$PLUGIN/.claude-plugin/plugin.json")"
+expect "the on/off option is a boolean that defaults on" "boolean true" \
+  "$(jq -r '.userConfig.result_gate_enabled | "\(.type) \(.default)"' "$PLUGIN/.claude-plugin/plugin.json")"
 
 CONFIG="$WORK/config"
 INSTALL="$CONFIG/plugins/cache/mkt/toolchain/1.0.0"
@@ -191,6 +195,39 @@ out="$(stop false PATH="$STUBS")"
 expect "AC7: the hook still reports with only git and node" "yes" \
   "$([[ "$(message "$out")" == *"check: Overall: FAIL"* ]] && echo yes)"
 expect "AC7: the hook runs no build, test or lint command" "" "$(cat "$MARK" 2>/dev/null)"
+
+rm -rf "$(store)"
+record check "Overall: FAIL (1 of 1 ecosystems failed)"
+set_options() { jq -n --argjson o "$1" '{pluginConfigs: {"toolchain@mkt": {options: $o}}}' >"$CONFIG/settings.json"; }
+set_repo() {
+  mkdir -p "$R/docs/conventions"
+  printf 'result_gate_enabled: %s\n' "$1" >"$R/docs/conventions/toolchain.yaml"
+}
+layered() { stop false CLAUDE_PROJECT_DIR="$R" "$@"; }
+reports() { [[ -n "$(message "$1")" ]] && echo yes; }
+for repo in true false; do
+  set_options '{"result_gate_enabled": false}'
+  set_repo "$repo"
+  expect "user layer false keeps the hook quiet with repository $repo" "0|" "$(layered)"
+done
+rm -f "$CONFIG/settings.json"
+set_repo false
+expect "user layer unset: a repository false is ignored, so the hook runs" "yes" "$(reports "$(layered)")"
+set_repo true
+expect "user layer unset and repository true: the hook runs" "yes" "$(reports "$(layered)")"
+rm -rf "$R/docs"
+expect "user layer and repository unset: the plugin default runs the hook" "yes" "$(reports "$(layered)")"
+expect "the environment mirror cannot turn the hook off" "yes" \
+  "$(reports "$(layered CLAUDE_PLUGIN_OPTION_RESULT_GATE_ENABLED=false)")"
+set_options '{"result_gate_enabled": true, "turn_end_result_gate": "off"}'
+expect "the hook on with the gate off stays quiet" "0|" "$(layered)"
+set_options '{"result_gate_enabled": true, "turn_end_result_gate": "enforce"}'
+expect "the hook on with the gate on enforce still blocks a FAIL" "block" "$(decision "$(layered)")"
+set_options '{"result_gate_enabled": false}'
+mv "$INSTALL/hooks/hook-enabled.sh" "$WORK/hook-enabled.sh"
+expect "a missing helper fails open: the hook runs" "yes" "$(reports "$(layered)")"
+mv "$WORK/hook-enabled.sh" "$INSTALL/hooks/hook-enabled.sh"
+rm -f "$CONFIG/settings.json"
 
 expect "record refuses a line that is not an Overall line" "1" \
   "$(node "$RECORD" --dir "$R" --skill check --overall "all good" >/dev/null 2>&1; echo $?)"

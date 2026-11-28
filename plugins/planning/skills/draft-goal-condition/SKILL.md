@@ -170,7 +170,8 @@ Offer the OR exit, a more stable reference (the branch rather than the pull requ
 artifact titled X" rather than its URL), or a wording about the outcome alone. A clock time enters
 the condition only as an end of its own that names the full UTC date and time ("…, or
 `date -u +%Y-%m-%dT%H:%MZ` shows 2026-11-26T13:30Z or later"), never as a deadline an element must
-beat; a time of day alone is already true for a run that starts after it.
+beat; a time of day alone is already true for a run that starts after it. That end goes inside the
+condition in the paste region, never left out of it or offered as a clause the user may append.
 
 **Check the elements against each other.** Before Step 3, read every required element against the
 others and against the repository's own gates, and refuse a draft in which one element requires a
