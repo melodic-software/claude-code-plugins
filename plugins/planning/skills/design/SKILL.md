@@ -1,5 +1,5 @@
 ---
-description: "Resolve design decisions (types, contracts, package topology, module boundaries) in rounds before /planning:plan as design artifacts. Design types, domain model, abstractions, design space ('design this', 'how should I structure this', 'where do the module boundaries go'). Not for friction: /architecture:improve; gate: /planning:design-handoff."
+description: "Resolve design decisions (types, contracts, package topology, module boundaries) in rounds before /planning:plan as design artifacts. Use: 'design this', 'type modeling', 'figure out the abstractions', 'model this domain', 'what should the types look like', 'how should I structure this', 'where do the module boundaries go', design space. Not for friction: /architecture:improve; gate: /planning:design-handoff."
 argument-hint: "[library|module|data|integration|system] [status|thread <name>|discuss|terminology|handoff]"
 user-invocable: true
 disable-model-invocation: false

@@ -1,5 +1,5 @@
 ---
-description: "First step for underspecified build request, idea, or task naming no problem, users, or scope (add search to app): rounds of numbered questions before code is written to lock PLAN.md Brief (goal, constraints, acceptance criteria, done) or questionnaire to ask someone else. Use: 'interview me', 'grill me', 'ask me questions first'. Skip quick diffs."
+description: "First step for build request/idea naming no problem, users or scope ('add search to the product'): asks before code is written. Numbered questions lock PLAN.md Brief (goal, constraints, criteria, done) or questionnaire someone else fills in. Use: 'interview me', 'lock the brief', 'spec this task', 'grill me', 'this is underspecified', 'ask me questions first', 'help me think this through'; skip quick diffs."
 argument-hint: "[lock|scope|restate|share|document|product] [topic]"
 user-invocable: true
 disable-model-invocation: false
