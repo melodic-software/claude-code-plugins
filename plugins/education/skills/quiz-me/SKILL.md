@@ -1,5 +1,5 @@
 ---
-description: "Post-work comprehension check: HTML report of a completed change (context, decisions) and quiz to check you understand it, and recall; non-gating (quiz_policy). Use when: 'quiz me on this change', 'comprehension check', 'what did we do on TICKET'. Not for verifying artifacts: /verification:confirm, coaching: /education:teach, or prose: /education:explain."
+description: "Post-work HTML report (context, decisions) + human quiz to check you understand a completed change; recalls prior work; non-gating (quiz_policy). Use when: 'quiz me on this change', 'comprehension check', 'what did we do on TICKET'. Not for artifacts: /verification:confirm (if installed), coaching: /education:teach, prose: /education:explain."
 argument-hint: "[recall <query>]"
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/build-report.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/build-report.mjs\":*)"]
 user-invocable: true

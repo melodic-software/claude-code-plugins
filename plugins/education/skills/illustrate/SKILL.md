@@ -1,5 +1,5 @@
 ---
-description: "Visual diagram explainer for a concept or codebase topic grounded in real artifacts: markdown record plus interactive page (markdown-only, newcomer/zero-knowledge ELI5 presets, STE, optional video view). Use when: 'ELI5', 'show me a diagram of this', 'explain this visually'. Not for plain prose: /education:explain, or restructures: /adhd:clarify."
+description: "Visual picture explainer (grounded diagrams, concept/codebase): markdown record + page (markdown only on request); newcomer (default), zero-knowledge (ELI5), STE, video via explainer-video (if installed). Use when: 'ELI5', 'show me a diagram', 'illustrate this'. Not for prose: /education:explain; restructures: /adhd:clarify (if installed)."
 argument-hint: "[topic] [zero-knowledge] [ste] [markdown] [medium]"
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/build-explainer.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/build-explainer.mjs\":*)"]
 user-invocable: true
