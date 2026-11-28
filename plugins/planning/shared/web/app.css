@@ -1,26 +1,65 @@
+:root {
+  --muted: var(--gray-700);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .app[data-theme="dark"] {
+    --bg: var(--slate);
+    --fg: var(--ivory);
+    --panel: var(--gray-700);
+    --muted: var(--gray-300);
+    --link: var(--clay-soft);
+    --focus: var(--clay-soft);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="light"] .app[data-theme="dark"] {
+  --bg: var(--slate);
+  --fg: var(--ivory);
+  --panel: var(--gray-700);
+  --muted: var(--gray-300);
+  --link: var(--clay-soft);
+  --focus: var(--clay-soft);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .app[data-theme="light"] {
+    --bg: var(--ivory);
+    --fg: var(--slate);
+    --panel: var(--white);
+    --muted: var(--gray-700);
+    --link: var(--clay-deep);
+    --focus: var(--clay-deep);
+    color-scheme: light;
+  }
+}
+:root[data-theme="dark"] .app[data-theme="light"] {
+  --bg: var(--ivory);
+  --fg: var(--slate);
+  --panel: var(--white);
+  --muted: var(--gray-700);
+  --link: var(--clay-deep);
+  --focus: var(--clay-deep);
+  color-scheme: light;
+}
 .app {
-  --bg: oklch(0.155 0.01 250);
-  --sunk: oklch(0.135 0.009 250);
-  --pane: oklch(0.19 0.012 250);
-  --raise: oklch(0.225 0.014 250);
+  --sunk: var(--bg);
+  --pane: var(--panel);
+  --raise: var(--panel);
   --line: oklch(1 0 none / 0.08);
   --line-strong: oklch(1 0 none / 0.15);
-  --line-input: oklch(1 0 none / 0.38);
-  --text: oklch(0.95 0.005 250);
-  --muted: oklch(0.72 0.012 250);
-  --fg: var(--text);
-  --faint: oklch(0.64 0.012 250);
-  --accent: oklch(0.79 0.12 195);
-  --accent-text: oklch(0.82 0.11 195);
-  --accent-soft: color-mix(in oklch, var(--accent) 15%, transparent);
-  --on-accent: oklch(0.2 0.04 220);
+  --line-input: oklch(1 0 none / 0.45);
+  --text: var(--fg);
+  --faint: var(--muted);
+  --accent-text: color-mix(in oklab, var(--link) 78%, var(--fg));
+  --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
+  --on-accent: var(--slate);
   --brass: oklch(0.83 0.12 82);
   --brass-soft: color-mix(in oklch, var(--brass) 13%, transparent);
   --brass-text: var(--brass);
   --on-brass: oklch(0.22 0.04 70);
   --ok: oklch(0.77 0.15 155);
   --away: oklch(0.80 0.15 75);
-  --warn: oklch(0.69 0.19 25);
+  --warn: oklch(0.78 0.14 25);
   --on-warn: oklch(0.2 0.04 25);
   --shadow-pop: 0 1px 0 oklch(1 0 none / 0.05) inset, 0 16px 40px oklch(0 0 none / 0.5);
   --r-sm: 6px;
@@ -37,32 +76,24 @@
   --review-soft: color-mix(in oklch, var(--review) 14%, transparent);
   --claude: oklch(0.78 0.11 300);
 
-  color-scheme: dark;
   position: relative;
   display: grid;
   grid-template-rows: 48px minmax(0, 1fr) auto;
   grid-template-columns: minmax(0, 1fr);
   background: var(--bg);
   color: var(--text);
+  font-family: var(--sans);
   font-size: 13px;
   line-height: 1.45;
   font-feature-settings: "cv11", "ss01", "tnum";
 }
 .app[data-theme="light"] {
-    --bg: oklch(0.985 0.002 250);
-    --sunk: oklch(0.965 0.004 250);
-    --pane: oklch(1 0 none);
-    --raise: oklch(0.955 0.006 250);
     --line: oklch(0.25 0.02 250 / 0.1);
     --line-strong: oklch(0.25 0.02 250 / 0.18);
     --line-input: oklch(0.25 0.02 250 / 0.55);
-    --text: oklch(0.22 0.02 250);
-    --muted: oklch(0.44 0.02 250);
-    --faint: oklch(0.50 0.015 250);
-    --accent: oklch(0.53 0.11 210);
-    --accent-text: oklch(0.48 0.11 210);
+    --accent-text: var(--link);
     --accent-soft: color-mix(in oklch, var(--accent) 11%, transparent);
-    --on-accent: oklch(0.99 0 none);
+    --on-accent: var(--slate);
     --brass: oklch(0.64 0.13 70);
     --brass-soft: color-mix(in oklch, var(--brass) 12%, transparent);
     --brass-text: oklch(0.50 0.12 65);
@@ -76,7 +107,6 @@
     --sb-hover: oklch(0.25 0.02 250 / 0.38);
     --review: oklch(0.58 0.16 55);
     --claude: oklch(0.52 0.15 300);
-    color-scheme: light;
 }
 
 .app :is(.vf-rounds, .vf-scroll, .vf-board, .vf-col-scroll, .vf-mscroll, .vf-pscroll, .vf-pick, .vf-ta, .vf-treev, .vf-rd-body, .vf-merge-list) {
@@ -93,7 +123,7 @@
 .app :is(h1, h2, p, ul) { margin: 0; }
 .app ul { padding: 0; list-style: none; }
 .app [hidden] { display: none !important; }
-.app :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .app button { font: inherit; }
 .app .vf-spacer { flex: 1; }
 .app :is(.vf-rcur, .vf-qmid, .vf-plist, .vf-edit, .vf-sugform, .vf-slist, .vf-alist, .vf-col-cards, .vf-mlist, .vf-askform, .vf-ritem,
@@ -143,7 +173,7 @@
 .app .vf-vote .vf-i { inline-size: 14px; block-size: 14px; }
 @media (hover: hover) and (pointer: fine) {
   .app .vf-btn-ghost:hover:not(:disabled), .app .vf-tbtn:hover, .app .vf-propose:hover { background: var(--raise); color: var(--text); }
-  .app .vf-btn-primary:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklab, var(--accent) 88%, var(--text)); }
+  .app .vf-btn-primary:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklab, var(--accent) 84%, var(--white)); }
   .app .vf-btn-brass:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklch, var(--brass) 88%, white); }
   .app .vf-q:hover { background: var(--raise); color: var(--text); }
   .app .vf-vote:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }

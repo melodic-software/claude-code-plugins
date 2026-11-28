@@ -18,9 +18,11 @@
 
   const root = document.getElementById("app");
   const top = E("header", "vp-top");
+  const brandNode = document.querySelector("#rv-brand-slot > .rv-brand");
   const back = E("a", "vf-btn vf-btn-ghost vf-btn-sm vp-back", "Back to the questions");
   const title = E("h1", "vp-title");
   const live = E("span", "vp-live"); live.setAttribute("role", "status");
+  if (brandNode) top.append(brandNode);
   top.append(back, title, live);
   const bar = E("div", "vp-bar");
   const tabs = E("div", "vp-tabs"); tabs.setAttribute("role", "tablist"); tabs.setAttribute("aria-label", "Variants");
@@ -111,6 +113,8 @@
     const p = Core.snapshot()?.me?.prefs || {};
     const mode = p.theme === "light" || p.theme === "dark" ? p.theme : "system";
     root.dataset.theme = mode === "system" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : mode;
+    if (mode === "system") delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = mode;
   }
 
   function selectVariant(vid, { focus = false } = {}) {

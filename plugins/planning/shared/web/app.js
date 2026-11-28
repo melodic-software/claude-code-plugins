@@ -734,7 +734,8 @@
     titleRow.append(titleTxt, titleInput, titleEdit, live);
     goalRow.append(goalTxt, goalAdd, goalInput, goalEdit);
     titles.append(titleRow, goalRow);
-    brand.append(E("span", "vf-mark"), titles);
+    const brandSlot = document.querySelector("#rv-brand-slot > .rv-brand");
+    brand.append(...(brandSlot ? [brandSlot] : []), E("span", "vf-mark"), titles);
     const people = E("div", "vf-people"); people.setAttribute("aria-label", "People here");
     const hereCount = E("span", "vf-here");
     const shareBtn = lbtn("vf-tbtn vf-sharebtn", "link", "Share"); shareBtn.setAttribute("aria-haspopup", "dialog");
@@ -2057,6 +2058,8 @@
     function applyTheme() {
       const mode = myMode();
       root.dataset.theme = mode === "system" ? (lightOS.matches ? "light" : "dark") : mode;
+      if (mode === "system") delete document.documentElement.dataset.theme;
+      else document.documentElement.dataset.theme = mode;
     }
     const paintTabs = () => { for (const [t, b] of Object.entries(tabBtns)) b.setAttribute("aria-current", t === (ui.tab === "host" ? "more" : ui.tab) ? "page" : "false"); };
     function setTab(k) {

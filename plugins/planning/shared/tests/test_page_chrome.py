@@ -1,4 +1,4 @@
-# test-scope: plugins/planning/shared/web/app.js plugins/planning/shared/web/app.css plugins/planning/shared/web/proto.js
+# test-scope: plugins/planning/shared/web/index.html plugins/planning/shared/web/app.js plugins/planning/shared/web/app.css plugins/planning/shared/web/proto.js
 # test-scope: plugins/planning/reference/html-chrome.html
 """The shared-session page carries the canonical chrome's theme toggle, comment box and rules.
 
@@ -59,11 +59,16 @@ class TestSharedPageChrome(unittest.TestCase):
         self.assertEqual(flat(got.group(0)), flat(want.group(0)))
 
     def test_chrome_tokens_are_defined(self):
-        app = re.search(r"(?m)^\.app \{([^}]*)\}", self.css)
-        self.assertIsNotNone(app)
+        tokens = (HERE.parent.parent / "reference" / "html-tokens.css").read_text(encoding="utf-8")
+        root = re.search(r"(?m)^:root \{([^}]*)\}", tokens)
+        self.assertIsNotNone(root)
         for token in ("--bg:", "--fg:", "--muted:"):
             with self.subTest(token=token):
-                self.assertIn(token, app.group(1))
+                self.assertIn(token, root.group(1))
+        for page in ("index.html", "proto.html"):
+            html_text = (WEB / page).read_text(encoding="utf-8")
+            self.assertIn('href="/html-tokens.css"', html_text)
+            self.assertIn('href="/branding.css"', html_text)
 
     def test_toggle_is_the_chrome_group_of_its_three_choices(self):
         toggle = re.search(r'<div class="rv-theme" role="group" aria-label="([^"]+)">(.*?)</div>', self.chrome)

@@ -954,13 +954,15 @@ skill runs its `resolve` or `branding` command and never reads the files itself.
 - **Pages and stylesheets that stay apart from chrome branding.** Per
   [ADR 0133](../../adr/0133-let-a-consumer-brand-rendered-pages-through-one-shared-token-layer.md)
   Decision 8, a self-styled surface stays apart only with its reason recorded here:
-  - `plugins/prototype/notes-bridge/host.html`, `plugins/prototype/notes-bridge/proto-pin.js` (generated
-    from `lib/ui-feedback/host.html` and `lib/ui-feedback/proto-pin.js`) and
+  - `plugins/prototype/notes-bridge/host.html`, `plugins/prototype/notes-bridge/proto-pin.js`,
+    `plugins/planning/shared/web/proto-pin.js` (the two pin scripts are generated copies of
+    `lib/ui-feedback/proto-pin.js`; `host.html` is generated from `lib/ui-feedback/host.html`) and
     `plugins/prototype/skills/explore-directions/assets/variant-switcher.html`: UI-feedback harness
     chrome floating over a non-final prototype. Branding the overlay with the consumer's own product
     palette, fonts or logo would visually merge the review harness into the prototype under judgment;
-    all three stay on their cool-neutral `--uif-*` palette (`lib/ui-feedback/theme.test.mjs`) with no
-    chrome bar, theme toggle or `.rv-comment` section (the floating notes popover owns feedback).
+    all stay on their cool-neutral `--uif-*` palette (`lib/ui-feedback/theme.test.mjs`) with no
+    chrome bar, theme toggle or `.rv-comment` section (the floating notes popover or host page owns
+    feedback).
   - `plugins/formal-verification/skills/chart/reference/render-theme.css`: styles standalone Pele `.svg`
     statecharts rather than an HTML document. When no `branding` is set, its base `--pele-*` tokens
     keep Pele's neutral white/dark diagram defaults (`#ffffff`/`#1f1f1f`, with distinct `--pele-surface`

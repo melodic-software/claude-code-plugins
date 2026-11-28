@@ -1,6 +1,6 @@
 # test-scope: plugins/planning/lib/resolve-convention-home.sh plugins/planning/shared/schema/*.schema.json
 # test-scope: plugins/planning/surface/tests/fixtures/*.json
-# test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/.claude-plugin/plugin.json
+# test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/.claude-plugin/plugin.json plugins/planning/lib/branding_helper.py plugins/planning/lib/view-settings.mjs
 
 from __future__ import annotations
 
@@ -3276,7 +3276,7 @@ class TestSettingsLayers(ServerCase):
         self.assertEqual(s["displayName"], {"value": "You", "layer": "default"})
         self.assertNotIn("unknownKey", s)
         theme = self.state()["theme"]
-        self.assertEqual(theme["light"], {"--bg": "#333333", "--fg": "#222222"})
+        self.assertEqual(theme, {})
 
     def test_3_personal_layer_beats_team_and_may_name_the_person(self):
         write_planning(
@@ -3313,16 +3313,13 @@ class TestSettingsLayers(ServerCase):
         self.assertEqual(s["undoSeconds"], {"value": 45, "layer": "session"})
         self.assertEqual(s["waitTimeout"], {"value": 40, "layer": "user"})
 
-    def test_6_user_theme_tokens_beat_personal_beat_team_per_token(self):
+    def test_6_retired_theme_tokens_and_theme_json_are_ignored_with_notice(self):
         write_planning(
             self.repo,
             "interview_page:\n"
             "  themeTokens:\n"
             "    light:\n"
-            '      "--bg": "#111111"\n'
-            '      "--fg": "#222222"\n'
-            '      "--repo": "#666666"\n'
-            '      "--mine": "#777777"\n',
+            '      "--bg": "#111111"\n',
         )
         write_planning(
             self.repo,
@@ -3334,7 +3331,7 @@ class TestSettingsLayers(ServerCase):
             json.dumps(
                 {
                     "themeTokens": {
-                        "light": {"--bg": "#999999", "--fg": "#444444"},
+                        "light": {"--bg": "#999999"},
                         "dark": {"--fg": "#555555"},
                     }
                 }
@@ -3343,13 +3340,12 @@ class TestSettingsLayers(ServerCase):
         )
         p = ensure_running(self.dir, "--user-settings", str(user), env=self.env)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        self.assertNotIn("themeTokens ignored", p.stderr)
-        theme = self.state()["theme"]
-        self.assertEqual(
-            theme["light"],
-            {"--bg": "#333333", "--fg": "#444444", "--repo": "#666666", "--mine": "#888888"},
-        )
-        self.assertEqual(theme["dark"], {"--fg": "#555555"})
+        self.assertIn("themeTokens is retired and no longer read", p.stderr)
+        self.assertIn("docs/conventions/rendered-views.yaml", p.stderr)
+        self.assertEqual(self.state()["theme"], {})
+        p2 = ensure_running(self.dir, "--user-settings", str(user), env=self.env)
+        self.assertEqual(p2.returncode, 0, p2.stdout + p2.stderr)
+        self.assertNotIn("themeTokens is retired", p2.stderr)
 
 
 class TestSettingsResolver(unittest.TestCase):
@@ -3626,7 +3622,7 @@ class TestUndoKeepsReopenNote(WaitCase):
 
 
 class TestThemeMerge(ServerCase):
-    """A theme.json mode value that is not an object is read as {}."""
+    """Retired theme.json is ignored and yields an empty theme payload."""
 
     @classmethod
     def prepare(cls):
@@ -3634,12 +3630,132 @@ class TestThemeMerge(ServerCase):
             json.dumps({"light": "x", "dark": {"--bg": "#000000"}}), encoding="utf-8"
         )
 
-    def test_non_object_mode_is_ignored(self):
+    def test_retired_theme_json_is_ignored(self):
         code, raw, _ = self.get("/api/state")
         self.assertEqual(code, 200, raw)
         theme = json.loads(raw)["theme"]
-        self.assertIsInstance(theme.get("light", {}), dict)
-        self.assertEqual(theme["dark"], {"--bg": "#000000"})
+        self.assertEqual(theme, {})
+
+
+class TestBrandingInjection(ServerCase):
+    """GET / injects shared branding CSS and logo slot from docs/conventions/rendered-views.yaml."""
+
+    env = settings_env()
+    WOFF2_STUB = b"wOF2" + b"B" * 16
+
+    @classmethod
+    def prepare(cls):
+        cls.repo = git_repo(cls.tmp / "repo")
+        cls.dir = cls.repo / ".work" / "topic" / "interview-surface"
+        cls.dir.mkdir(parents=True)
+        conv = cls.repo / "docs" / "conventions"
+        conv.mkdir(parents=True, exist_ok=True)
+        assets = cls.repo / "assets"
+        assets.mkdir(parents=True, exist_ok=True)
+        (assets / "brand.woff2").write_bytes(cls.WOFF2_STUB)
+        (conv / "rendered-views.yaml").write_text(
+            "branding:\n"
+            "  palette:\n"
+            "    light:\n"
+            '      accent: "#1A4D2E"\n'
+            "  type:\n"
+            "    serif: \"'Brand Serif', Georgia, serif\"\n"
+            "    fonts:\n"
+            "      - family: Brand Serif\n"
+            "        file: assets/brand.woff2\n"
+            "        weight: '600'\n"
+            "  logo:\n"
+            "    label: Acme Studio\n",
+            encoding="utf-8",
+        )
+
+    def test_index_contains_branding_css_and_slot(self):
+        import interview_server as srv
+
+        code, html, headers = self.get("/")
+        self.assertEqual(code, 200)
+        self.assertIn("--accent: #1A4D2E;", html)
+        self.assertIn("url('/branding-font/0.woff2') format('woff2')", html)
+        self.assertNotIn("data:font/", html)
+        self.assertIn('class="rv-brand"', html)
+        self.assertIn("Acme Studio", html)
+        self.assertRegex(
+            html,
+            r'<div class="rv-bar">.*?class="rv-brand".*?Acme Studio.*?class="rv-theme".*?data-rv-theme="system"',
+        )
+        self.assertIn('data-rv-theme="light"', html)
+        self.assertIn('data-rv-theme="dark"', html)
+        self.assertIn('class="rv-comment"', html)
+        self.assertIn('data-rv-note="comment"', html)
+        self.assertEqual(headers.get("Content-Security-Policy"), srv.PAGE_CSP)
+        self.assertNotIn("font-src", headers.get("Content-Security-Policy", ""))
+        self.assertNotIn("%%BRANDING_CSS%%", html)
+        self.assertNotIn("%%BRANDING_LOGO%%", html)
+
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        try:
+            conn.request("GET", "/branding-font/0.woff2")
+            resp = conn.getresponse()
+            body = resp.read()
+            self.assertEqual(resp.status, 200)
+            self.assertEqual(resp.getheader("Content-Type"), "font/woff2")
+            self.assertEqual(resp.getheader("X-Content-Type-Options"), "nosniff")
+            self.assertEqual(body, self.WOFF2_STUB)
+        finally:
+            conn.close()
+
+    def test_hub_caches_branding_at_startup_without_spawning_per_request(self):
+        import interview_server as srv
+
+        cached = {"css": ":root { --accent: #1A4D2E; }", "slot_html": '<div class="rv-brand"></div>', "fonts": {}, "notices": []}
+        with unittest.mock.patch.object(srv._BRANDING_MOD, "resolve_branding", return_value=cached) as resolve_mock:
+            hub = srv.Hub(0, self.dir)
+            self.assertEqual(hub.branding()["css"], cached["css"])
+            self.assertEqual(hub.branding()["slot_html"], cached["slot_html"])
+            self.assertEqual(resolve_mock.call_count, 1)
+
+
+class TestBrandingContrastFloor(ServerCase):
+    """A below-floor palette override is omitted from served CSS and reports a contrast notice."""
+
+    env = settings_env()
+
+    @classmethod
+    def prepare(cls):
+        cls.repo = git_repo(cls.tmp / "repo")
+        cls.dir = cls.repo / ".work" / "topic" / "interview-surface"
+        cls.dir.mkdir(parents=True)
+        conv = cls.repo / "docs" / "conventions"
+        conv.mkdir(parents=True, exist_ok=True)
+        (conv / "rendered-views.yaml").write_text(
+            "branding:\n"
+            "  palette:\n"
+            "    light:\n"
+            '      bg: "#FFFFFF"\n'
+            '      fg: "#CCCCCC"\n'
+            '      accent: "#1A4D2E"\n',
+            encoding="utf-8",
+        )
+
+    def test_below_floor_palette_is_omitted_and_reports_notice(self):
+        import interview_server as srv
+
+        code, html, _ = self.get("/")
+        self.assertEqual(code, 200)
+        self.assertIn("--accent: #1A4D2E;", html)
+        self.assertNotIn("#CCCCCC", html.upper())
+        self.assertIn('data-rv-theme="system"', html)
+        self.assertIn('class="rv-comment"', html)
+
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            hub = srv.Hub(0, self.dir)
+            resolved = hub.branding()
+        notices = [n.get("text", "") if isinstance(n, dict) else str(n) for n in resolved.get("notices") or ()]
+        self.assertTrue(any("fg" in t and "4.5" in t for t in notices), notices)
+        self.assertIn("branding:", buf.getvalue())
+        self.assertIn("4.5", buf.getvalue())
+        self.assertIn("fg", buf.getvalue())
 
 
 @unittest.skipUnless(os.name == "posix", "file modes are advisory on Windows")
@@ -3772,7 +3888,7 @@ class TestEnsureRunningSettings(unittest.TestCase):
         want = {
             "port": "interview_page.port in docs/conventions/planning.yaml",
             "undoSeconds": "interview_page.undoSeconds in docs/conventions/planning.yaml",
-            "themeTokens": "interview_page.themeTokens in docs/conventions/planning.yaml",
+            "themeTokens": "branding in docs/conventions/rendered-views.yaml",
             "displayName": "interview_page.displayName in docs/conventions/planning.local.yaml",
             "browserCommand": "a --user-settings file",
             "surface": "the planning plugin's surface option",

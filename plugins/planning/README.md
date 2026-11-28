@@ -160,6 +160,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `scaffold_stubs` | boolean | `false` | When on, /planning:design hands off the stub files and signatures a change needs, and /planning:plan puts one stub phase right after dead-code removal (first when there is none). Default: off. A repository's docs/conventions/planning.yaml scaffold_stubs key overrides this value. |
 | `time_units` | boolean | `false` | When on, the planning skills may state an estimate or budget of work in hours, days or weeks; when off they use the work_size levels instead. Practice cadence and measurement windows are not affected. Default: off. A repository's docs/conventions/planning.yaml time_units key overrides this value. |
 | `medium` | string | `"auto"` | Where planning views go. auto (default): plan, brainstorm and design views go to a private Artifact, kept by the publish gate for a non-public repository or credential-shaped record; PRD and interview views stay local. terminal: no page; file: local; artifact: publish anyway; hosted = artifact. |
+| `branding` | string | *(none)* | Palette, type and logo overrides for rendered HTML pages as one JSON object matching branding in docs/conventions/rendered-views.yaml. Empty (default): shipped look. Repository team and personal override files win; invalid values are reported and ignored. |
 
 ### How to set these
 
