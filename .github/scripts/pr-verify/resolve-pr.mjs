@@ -638,29 +638,33 @@ export function allVendoredRows(file = VENDORED_REPORT_SCRIPT) {
 }
 
 export function vendoredPluginPath(plugin, name) {
+  if (vendoredPath(plugin, name)) {
+    return true;
+  }
   if (typeof plugin !== "string" || typeof name !== "string") {
     return false;
   }
-  const fragment = `.changes/${plugin}/`;
-  if (name.startsWith(fragment)) {
-    return /^[^/]+\.md$/.test(name.slice(fragment.length));
-  }
   const parts = name.split("/");
-  return name.startsWith(`plugins/${plugin}/`) && parts.length > 2 && parts.every((part) => part !== "" && part !== "." && part !== "..");
+  return (
+    name.startsWith(`plugins/${plugin}/reference/`) &&
+    parts.length > 3 &&
+    parts.every((part) => part !== "" && !VENDORED_UNSAFE.has(part)) &&
+    /\.(?:md|css)$/.test(parts.at(-1))
+  );
 }
 
 export function vendoredNonFilesOnlySpecText(id, plugin) {
   return [
     `# Upstream drift: ${id}`,
     "",
-    `Bring this repository's vendored copy of upstream \`${id}\` in \`plugins/${plugin}/\` up to date per its row in \`scripts/upstream-drift-vendored-report.sh\`. Fold what changed upstream into the plugin's distilled files and add a changelog fragment under \`.changes/${plugin}/\`; leave the plugin's \`version\` and \`CHANGELOG.md\` unchanged. An upstream change that would change the design of one of this repository's skills is not applied without owner approval. The pull request changes only files under \`plugins/${plugin}/\` and \`.changes/${plugin}/\` and closes this issue with \`Closes #<this issue>\`.`,
+    `Bring this repository's vendored copy of upstream \`${id}\` in \`plugins/${plugin}/\` up to date per its row in \`scripts/upstream-drift-vendored-report.sh\`. Fold what changed upstream into the plugin's distilled files and add a changelog fragment under \`.changes/${plugin}/\`; leave the plugin's \`version\` and \`CHANGELOG.md\` unchanged. An upstream change that would change the design of one of this repository's skills is not applied without owner approval. The pull request changes only markdown under \`plugins/${plugin}/skills/\`, markdown, \`.jsonc\` and \`LICENSE\` files in its \`vendor/\` baselines, markdown or \`.css\` files under \`plugins/${plugin}/reference/\`, and that changelog fragment (no script, hook, library, manifest, MCP config, eval suite, update-procedure file, or \`SKILL.md\` frontmatter/command change beyond sync stamps), and closes this issue with \`Closes #<this issue>\`.`,
     "",
     "## Done when",
     "",
     `- [ ] The vendored copy of \`${id}\` in \`plugins/${plugin}/\` is brought up to date as its row's drift-check script reports it.`,
     "- [ ] Relevant upstream changes are folded into the plugin's distilled files, or the pull request body says why any are left out.",
     `- [ ] The plugin carries a changelog fragment under \`.changes/${plugin}/\` and its \`version\` and \`CHANGELOG.md\` are unchanged.`,
-    `- [ ] The pull request changes only files under \`plugins/${plugin}/\` and \`.changes/${plugin}/\`, and its body closes this issue with \`Closes\`.`,
+    `- [ ] The pull request stays inside inert docs/reference/vendor files of \`plugins/${plugin}/\` and \`.changes/${plugin}/\` (with each \`SKILL.md\` outside \`vendor/\` keeping its frontmatter except sync stamps and its \`!\` command lines), and its body closes this issue with \`Closes\`.`,
   ].join("\n");
 }
 
@@ -677,7 +681,7 @@ export function driftSpec(issue, pages, files, rows = vendoredRows(), allRows = 
       return null;
     }
     const inside = (name) => vendoredPluginPath(entry.plugin, name);
-    return files.every((file) => inside(file?.filename) && (file.previous_filename === undefined || inside(file.previous_filename)))
+    return files.every((file) => inside(file?.filename) && (file.previous_filename === undefined || inside(file.previous_filename)) && vendoredSkillSafe(file))
       ? vendoredNonFilesOnlySpecText(id, entry.plugin)
       : null;
   }

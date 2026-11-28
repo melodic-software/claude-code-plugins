@@ -3182,7 +3182,8 @@ matched against `FILING` title + `factory-monitor` marker), dead-link rollups (`
 post-merge demotion alerts (`demotion-alert`, `: unattended merging demoted` +
 `babysit-merge-demotion` marker from `github-actions[bot]` or the lanes App), and non-`files-only`
 vendored drift rows in `scripts/upstream-drift-vendored-report.sh` (`upstream-drift`, scoped to
-`plugins/<plugin>/` and `.changes/<plugin>/` on a closing PR). Like `main-red-incident`, a `Refs:`
+inert `skills/`/`vendor/`/`reference/` docs or CSS under `plugins/<plugin>/` and `.changes/<plugin>/`
+with `vendoredSkillSafe` on a closing PR). Like `main-red-incident`, a `Refs:`
 pull request for `monitor-incident`, `dead-link-rollup` or `demotion-alert` names no remaining
 work, and intake/admission still do not trust them.
 

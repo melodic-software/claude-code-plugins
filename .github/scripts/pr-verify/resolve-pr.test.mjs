@@ -835,15 +835,46 @@ test("non-files-only vendored drift rows get their plugin-scoped repo-side spec 
   assert.ok(!ok.specText[0].body.includes("Ignore the spec"), "vendored body text never reaches spec");
 
   const badCases = [
-    ["file outside row's plugin", [issue("upstash/context7")], [{ filename: "plugins/other/README.md", status: "modified" }]],
-    ["path traversal out of plugin", [issue("upstash/context7")], [{ filename: "plugins/context7/../other/README.md", status: "modified" }]],
+    ["file outside row's plugin", [issue("upstash/context7")], [{ filename: "plugins/other/skills/lookup/reference/x.md", status: "modified" }]],
+    ["path traversal out of plugin", [issue("upstash/context7")], [{ filename: "plugins/context7/reference/../hooks/x.md", status: "modified" }]],
     ["changelog fragment in subdirectory", [issue("firecrawl/update")], [{ filename: ".changes/firecrawl/sub/x.md", status: "added" }]],
-    ["wrong author", [{ ...issue("upstash/context7"), author: { __typename: "User", login: "drive-by", databaseId: 999 } }], [{ filename: "plugins/context7/README.md", status: "modified" }]],
+    ["hook script under plugin", [issue("upstash/context7")], [{ filename: "plugins/context7/hooks/x.sh", status: "modified" }]],
+    ["script under plugin", [issue("upstash/context7")], [{ filename: "plugins/context7/scripts/x.sh", status: "modified" }]],
+    ["lib module under plugin", [issue("upstash/context7")], [{ filename: "plugins/context7/lib/x.mjs", status: "modified" }]],
+    ["plugin manifest", [issue("upstash/context7")], [{ filename: "plugins/context7/.claude-plugin/plugin.json", status: "modified" }]],
+    ["MCP config", [issue("upstash/context7")], [{ filename: "plugins/context7/.mcp.json", status: "modified" }]],
+    ["eval suite", [issue("upstash/context7")], [{ filename: "plugins/context7/evals/case.yaml", status: "modified" }]],
+    ["added SKILL.md", [issue("upstash/context7")], [{ filename: "plugins/context7/skills/new/SKILL.md", status: "added" }]],
+    ["wrong author", [{ ...issue("upstash/context7"), author: { __typename: "User", login: "drive-by", databaseId: 999 } }], [{ filename: "plugins/context7/skills/lookup/reference/x.md", status: "modified" }]],
   ];
   for (const [why, issues, changed] of badCases) {
     const [entry] = (await resolve({ issues, changed }, { upstreamPages: PAGES })).specText;
     assert.deepEqual(entry, { number: 7, spec_kind: "closes", body: null, comments: [] }, why);
   }
+  const c7Skill = "plugins/context7/skills/lookup/SKILL.md";
+  const [frontmatterEdit] = (
+    await resolve(
+      {
+        issues: [issue("upstash/context7")],
+        changed: [{ filename: c7Skill, status: "modified" }],
+        texts: { [`${BASE}:${c7Skill}`]: skillText(), [`${HEAD}:${c7Skill}`]: skillText({ tools: "Bash(*)" }) },
+      },
+      { upstreamPages: PAGES },
+    )
+  ).specText;
+  assert.deepEqual(frontmatterEdit, { number: 7, spec_kind: "closes", body: null, comments: [] }, "SKILL.md frontmatter change rejected");
+  const fcUpdateSkill = "plugins/firecrawl/skills/update/SKILL.md";
+  const [updateSkillEdit] = (
+    await resolve(
+      {
+        issues: [issue("firecrawl/update")],
+        changed: [{ filename: fcUpdateSkill, status: "modified" }],
+        texts: { [`${BASE}:${fcUpdateSkill}`]: skillText(), [`${HEAD}:${fcUpdateSkill}`]: skillText(SYNCED) },
+      },
+      { upstreamPages: PAGES },
+    )
+  ).specText;
+  assert.deepEqual(updateSkillEdit, { number: 7, spec_kind: "closes", body: null, comments: [] }, "update skill SKILL.md rejected even with unchanged frontmatter");
   const viaRefs = await resolve({ issues: [], body: "Refs: #7", refs: { 7: { __typename: "Issue", ...issue("vojtaholik/good-css") } }, changed: goodFiles }, { upstreamPages: PAGES });
   assert.deepEqual(viaRefs.specText, [{ number: 7, spec_kind: "refs", body: null, comments: [] }], "Refs: does not grant a vendored drift spec");
 });
