@@ -41,6 +41,14 @@
     {
       "answer": "- `[PR]` #32 Add a cache layer to the export",
       "why": "prefix in backticks"
+    },
+    {
+      "answer": "Unlabeled:\n- [issue] #31 CSV export drops the last row\n- PR #32 Add a cache layer to the export",
+      "why": "PR list line with the PR word in place of the prefix"
+    },
+    {
+      "answer": "- unlabeled: #31 CSV export drops the last row\n- unlabeled: #32 Add a cache layer to the export",
+      "why": "PR list line after a bucket name"
     }
   ]
 }

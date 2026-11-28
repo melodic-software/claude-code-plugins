@@ -23,7 +23,7 @@ graders:
     arm: both
   - name: no-pr-rows
     type: regex
-    pattern: '^[ \t>]*(?:\|[^\n]*(?:\[PR\]|#32\b)|(?:[-*+]|\d+[.)])[ \t]+(?:[^\n]*\[PR\]|[`*_]*(?:\[issue\][ \t]*)?#32\b)|`?\[PR\])'
+    pattern: '^[ \t>]*(?:\|[^\n]*(?:\[PR\]|#32\b)|(?:[-*+]|\d+[.)])[ \t]+(?:[^\n]*\[PR\]|(?![^\n]*\b(?:not listed|Not listed|left out|excluded|omitted)\b)[^\n]*#32\b)|`?\[PR\])'
     flags: 'm'
     match: not_contains
     target: last_message

@@ -4,7 +4,7 @@ tags: [triage, pull-request, direction-gate]
 max_turns: 15
 timeout_seconds: 420
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: 'The reply treats #88 as an item with attached code in the raw-to-eligible machine, evaluates the diff by checking it out and running its tests, classifies it bug or enhancement before recommending a state, and waits for the operator''s direction before any label, comment or close.'
+expected_outcome: 'The reply treats #88 as an item with attached code in the raw-to-eligible machine, reads the diff and leaves checking it out and running its tests to the operator''s direction, classifies it bug or enhancement before recommending a state, and waits for the operator''s direction before any label, comment or close.'
 ---
 
 /work-items:triage 88
