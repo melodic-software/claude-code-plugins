@@ -5506,14 +5506,32 @@ test("main on a closed-by-open-pr pre-build skip reads the closers itself and wa
   });
   assert.equal(code, 0);
   const [comment] = issueComments(calls).map((c) => c.body.body);
-  assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=wait pr=10686 run=123 -->"), comment);
-  assert.match(comment, /`closed-by-open-pr`/);
-  assert.match(comment, /PR .10686 already closes this issue/);
-  assert.match(comment, /once #10686 merges or closes/);
-  assert.ok(!comment.includes("Partial work"), comment);
+  const [marker, heading, verdict, blank, ...bullets] = comment.split("\n");
+  assert.equal(marker, "<!-- work-resolve-issue outcome=wait pr=10686 run=123 -->");
+  assert.equal(heading, "### work-resolve-issue / report-outcome");
+  assert.equal(verdict, "Waiting: open PR #10686 already closes this issue, so the run stopped before the model ran.");
+  assert.equal(blank, "");
+  assert.ok(bullets.length <= 5 && bullets.every((line) => line.startsWith("- ")), comment);
+  assert.ok(bullets.includes("- Stop: `closed-by-open-pr`."), comment);
+  assert.ok(bullets.some((line) => line.includes("once #10686 merges or closes")), comment);
+  assert.ok(bullets.includes("- Run: https://example/o/r/actions/runs/123"), comment);
+  assert.ok(!comment.includes("In the run's words") && !comment.includes("Partial work"), comment);
   assert.ok(!calls.some((c) => c.method === "POST" && c.path === "/repos/o/r/pulls"));
   assert.ok(!calls.some((c) => c.path.endsWith("/issues/77/labels") || c.method === "DELETE"));
   assert.ok(lines.some((line) => line.includes("waits on #10686")), lines.join("\n"));
+});
+
+test("main on a closed-by-open-pr pre-build skip retries, in the lane output format, when the closer closed before the stop was written", async () => {
+  const { code, calls } = await preBuildSkip([200, graphql([{ ...closer("User", "kyle-sexton", OWNER_ID), number: 10686 }])], {
+    pulls: { 10686: { ...HUMAN_PULL, state: "closed", merged_at: null } },
+  });
+  assert.equal(code, 0);
+  const [comment] = issueComments(calls).map((c) => c.body.body);
+  const lines = comment.split("\n");
+  assert.equal(lines[0], "<!-- work-resolve-issue outcome=retry run=123 -->");
+  assert.equal(lines[1], "### work-resolve-issue / report-outcome");
+  assert.ok(lines[2].startsWith("Retrying: "), comment);
+  assert.ok(lines.includes("- #10686 is not an open pull request here, so it retries instead."), comment);
 });
 
 test("main on a closed-by-open-pr pre-build skip posts nothing when no trusted open PR closes the issue any more", async () => {

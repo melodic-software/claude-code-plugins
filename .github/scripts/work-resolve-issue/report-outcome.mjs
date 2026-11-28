@@ -430,18 +430,37 @@ export const waitedPull = (reason, issueNumber) =>
   [...String(reason ?? "").matchAll(/[#＃]([1-9][0-9]{0,9})\b/g)].map((match) => match[1]).find((number) => Number(number) !== issueNumber) ?? "";
 const PUSHBACK_SECURITY_WHY =
   "the run pushed back without naming cause intent, and its words may name a security risk, so intake triage judges the issue again on evidence; if the run names it again once this intake round is spent, the issue reaches a person";
-function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, branch, runUrl, runId, onResumed = false, pr = "", after = "", why = "", neutral = false }) {
+const PRE_BUILD_VERDICT = { wait: "Waiting", retry: "Retrying" };
+const lowerFirst = (text) => `${text.charAt(0).toLowerCase()}${text.slice(1)}`;
+
+function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, branch, runUrl, runId, onResumed = false, pr = "", after = "", why = "", neutral = false, preBuild = false }) {
   const exit = ROUTE_OUTCOME[route];
-  const lines = [
-    `<!-- work-resolve-issue outcome=${exit}${neutral ? " security" : ""}${pr ? ` pr=${pr}` : ""}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`,
-    `${stopLine(stop)} ${neutral ? PUSHBACK_SECURITY_WHY : stopWhy(shown)}.`,
-    ...(why ? [why] : []),
-    ...(after ? [`It must land after #${after}: intake triage records #${after} on its \`Blocked by:\` line, which writes the blocked-by edge.`] : []),
+  const marker = `<!-- work-resolve-issue outcome=${exit}${neutral ? " security" : ""}${pr ? ` pr=${pr}` : ""}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`;
+  const kept =
     route === "retry"
       ? `It keeps \`agent-ready\`, and work-unblock starts it again (retry ${retries + 1} of ${cap}).`
       : route === "wait"
         ? `It keeps \`agent-ready\`, and work-unblock starts it again once #${pr} merges or closes (wait ${retries + 1} of ${cap}).`
-        : ROUTE_TEXT[neutral ? "intake-security" : route],
+        : ROUTE_TEXT[neutral ? "intake-security" : route];
+  if (preBuild && Object.hasOwn(PRE_BUILD_VERDICT, route)) {
+    const lines = [
+      marker,
+      `### ${WORK_RESOLVE_ISSUE} / report-outcome`,
+      `${PRE_BUILD_VERDICT[route]}: ${lowerFirst(outcome.reason)}`,
+      "",
+      `- Stop: \`${stop}\`.`,
+      ...(why ? [`- ${why}`] : []),
+      `- ${kept}`,
+      ...(runUrl ? [`- Run: ${runUrl}`] : []),
+    ];
+    return { action: route, exit, stop, issueNumber, runId, comment: lines.join("\n"), addLabels: [], ...(pr && { pr }) };
+  }
+  const lines = [
+    marker,
+    `${stopLine(stop)} ${neutral ? PUSHBACK_SECURITY_WHY : stopWhy(shown)}.`,
+    ...(why ? [why] : []),
+    ...(after ? [`It must land after #${after}: intake triage records #${after} on its \`Blocked by:\` line, which writes the blocked-by edge.`] : []),
+    kept,
   ];
   const words = outcome.reason || outcome.summary;
   if (words) {
@@ -1834,6 +1853,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         humanLabel,
         runUrl,
         runId,
+        preBuild: true,
       });
       await finishStop(github, repo, plan, { bot, appId, humans, runId, limits: readLimits(resolvedConfigPath(env)), setStatus, leaveAgentReady, statusOf, stateOf, field });
       return 0;

@@ -8101,13 +8101,16 @@ test("work-resolve-issue.yml: every job after the calls takes each resolve-issue
     const needs = [jobs[id].needs].flat();
     assert.ok(needs.includes("resolve-issue") && needs.includes("resolve-issue-subscription") && needs.includes("resolve-issue-fallback"), id);
   }
-  const leg = (from) => (expression) => {
+  const derived = { "report-outcome dimension-skip": { output: "scan-skip-reason", value: "closed-by-open-pr" } };
+  const leg = (from, given) => (expression) => {
     const context = {};
     const skipped = (call) =>
       (call === "resolve-issue-fallback" && from !== call) || (call === "resolve-issue-subscription" && from === "resolve-issue");
     for (const [ref, call, rest] of String(expression).matchAll(/needs\.(resolve-issue(?:-subscription|-fallback)?)\.(result|outputs\.[\w-]+)/g)) {
+      const output = rest.slice("outputs.".length);
       if (rest === "result") context[ref] = skipped(call) ? "skipped" : `${call}-result`;
-      else context[ref] = call === from ? `${call}:${rest.slice("outputs.".length)}` : "";
+      else if (call !== from) context[ref] = "";
+      else context[ref] = given?.output === output ? given.value : `${call}:${output}`;
     }
     for (const [ref] of String(expression).matchAll(/needs\.[\w-]+\.(?:result|outputs\.[\w-]+)/g)) context[ref] ??= "";
     return evaluate(expression, context);
@@ -8118,12 +8121,12 @@ test("work-resolve-issue.yml: every job after the calls takes each resolve-issue
     const entries = [...Object.entries(job.with ?? {}), ...(job.steps ?? []).flatMap((step) => Object.entries(step.env ?? {}))];
     for (const [name, expression] of entries) {
       if (!/needs\.resolve-issue(?:-subscription|-fallback)?\./.test(String(expression))) continue;
-      const derivedFromScanSkipReason = id === "report-outcome" && name === "dimension-skip";
-      if (derivedFromScanSkipReason) continue;
       values += 1;
+      const given = derived[`${id} ${name}`];
       for (const from of ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"]) {
-        const value = leg(from)(expression);
-        assert.ok(new RegExp(`^${from}(:|-result$)`).test(value), `${id} ${name} after ${from}: ${value}`);
+        const value = leg(from, given)(expression);
+        if (given) assert.equal(value, given.value, `${id} ${name} after ${from}`);
+        else assert.ok(new RegExp(`^${from}(:|-result$)`).test(value), `${id} ${name} after ${from}: ${value}`);
       }
     }
   }

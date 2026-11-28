@@ -2314,7 +2314,9 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `dimension-skip: closed-by-open-pr` (`workflow-stale` wins when both apply) and no lease to end,
   since the read file's report job already ended it. `report-outcome` reads the issue's open
   closing PRs itself, with the same trust rule, and stops `closed-by-open-pr` on the `wait` route
-  naming the one it finds (below), or posts nothing when none closes the issue now; a failed read
+  naming the one it finds (below), in a comment in the
+  [lane output format](../../contracts/loop-lane/lane-output-format.md) under the outcome marker, or
+  posts nothing when none closes the issue now; a failed read
   fails the job and posts nothing. It also
   skips `not-applicable` and sets the `reuse-branch` output to the first lane branch, newest run
   and attempt first, that has commits ahead, a tip commit GitHub verified whose author is the
