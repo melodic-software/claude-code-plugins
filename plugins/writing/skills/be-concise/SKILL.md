@@ -1,5 +1,5 @@
 ---
-description: "Write, reshape, or rewrite prose for scanning reader (bottom line first, concise, factual): bare sets posture; target gives word count, keeping decision/number/ask/error/warning; never edits posted record unasked. Use when 'shorten this ticket', 'make this scannable', 'bottom line first', write for PO, rewrite PR description, nobody will read."
+description: "Reshape prose for scanning readers (bottom line first, concise, factual): bare sets posture; target gives word counts, keeps decisions/numbers/asks/errors/warnings, never edits posted records unasked. Use when 'shorten this ticket', 'make this scannable', 'bottom line first'. Not for chat: /discipline:tighten-your-output; .md: /docs-hygiene:compress; restructure: /adhd:clarify; genre: /docs-hygiene:write-for-humans."
 argument-hint: "[target]"
 user-invocable: true
 disable-model-invocation: false

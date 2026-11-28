@@ -1,5 +1,5 @@
 ---
-description: "Sweep stale references after rename across docs/skills/files (slash-token, path, chain prose, table row, frontmatter glob grep misses); audit rename, impact preview, blocklist. Use when 'rename X to Y', 'find stale refs', 'after git mv', I renamed skill/X, sweep references, straggler, half-renamed, broken refs after rename, pre-PR rename check."
+description: "Sweep stale references after rename (slash-token, path, chain prose, table row, frontmatter glob grep misses); audit rename, preview, blocklist. Use when 'rename X to Y', 'find stale refs', 'after git mv', I renamed skill/X, sweep references, broken refs, pre-PR rename check. Not for casing rules: /docs-naming:audit-file-names (if enabled)."
 argument-hint: "[audit|preview|blocklist] [<old> [to <new>]] [--container|--identifier…] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

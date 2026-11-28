@@ -1,5 +1,5 @@
 ---
-description: "Write or trim agent-consumed markdown: CLAUDE.md, AGENTS.md section, .claude/rules, agent reference, navigation pointer, pointer extraction (prune what agent can derive, move section to own file). Use when 'add this to CLAUDE.md', 'trim this AGENTS.md', 'write a rule for X', write up for agent. Not for SKILL.md: /playbooks:skill-authoring."
+description: "Write or trim agent-consumed markdown: CLAUDE.md, AGENTS.md section, .claude/rules, agent reference, navigation pointer, extraction (prune derivable, move section). Use when 'add this to CLAUDE.md', 'trim this AGENTS.md', 'write a rule for X', for agent. Not for SKILL.md: /playbooks:skill-authoring; human docs: /docs-hygiene:write-for-humans."
 argument-hint: "[<file or section being written>]"
 user-invocable: true
 disable-model-invocation: false

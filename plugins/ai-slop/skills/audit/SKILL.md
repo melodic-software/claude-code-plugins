@@ -1,5 +1,5 @@
 ---
-description: "Audit markdown, commit message, PR body, interface copy for AI-writing tells (slop, unslop, AI-written, AI vocabulary, em dash, emoji, chatbot filler, hedge, promotional, vague attribution, superficial, headline); read-only, guarded fix rewrites agent-written prose. Use when 'check for AI slop', 'de-slop this doc', 'does this read AI-written'."
+description: "Audit markdown, commit message, PR body, interface copy for AI-writing tells (slop, unslop, AI-written, em dash, emoji, filler, hedge, promotional, vague attribution, headline); read-only, guarded fix rewrites. Use when 'check for AI slop', 'de-slop this doc', 'does this read AI-written'. Not for code comments: /code-tidying:remove-comments."
 argument-hint: "[audit|fix] [target|user-scope [memory]|commit [rev]|pr-body|copy <files>] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
