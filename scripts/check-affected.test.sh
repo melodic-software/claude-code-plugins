@@ -251,6 +251,10 @@ run STUB_CHECK_SPOKE_PLUGIN_ROOT=1 -- --base base
 check "a failing spoke-plugin-root fails the check" '[[ $RC == 1 && $ERR == *"FAIL spoke-plugin-root"* ]]'
 run STUB_CHECK_TOKEN_LITERALS=1 -- --base base
 check "a failing token-literals fails the check" '[[ $RC == 1 && $ERR == *"FAIL token-literals"* ]]'
+ahead_sha="$(git_test_config "$repo" commit-tree "base^{tree}" -p base -m "base moved on")"
+run STUB_CHECK_TOKEN_LITERALS=1 -- --base "$ahead_sha"
+check "token-literals compares growth against the merge-base, not a base tip the branch is behind" \
+  '[[ $ERR == *"check-token-literals ran: --base $base_sha"* ]]'
 run STUB_SYNC_PLUGIN_OPTIONS_DOCS=1 -- --base base
 check "a failing plugin-options-docs fails the check" '[[ $RC == 1 && $ERR == *"FAIL plugin-options-docs"* ]]'
 run STUB_CHECK_CHANGELOG_PARITY=1 -- --base base
