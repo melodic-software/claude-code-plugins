@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# /opt/pw. The eval's env allowlist drops PLAYWRIGHT_BROWSERS_PATH, so the
-# browser is pinned by path, as browser-probe/scaffold.sh does. File access is
 set -euo pipefail
 shopt -s nullglob
 

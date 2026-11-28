@@ -1,4 +1,19 @@
 #!/usr/bin/env bash
+# Offline stand-in for the GitHub CLI in pull-request eval runs. It serves one pull request from the
+# state install.sh wrote (or, under --no-pr, opens it on `pr create`), any extra pull requests in
+# extra-prs, the issues in issues/<n>.json, the head's CI runs (`run list`), and the REST reads the create phase and the branch update signals make, and never
+# reaches a network or the real gh: any command it does not serve
+# exits 1 naming itself, so a run cannot touch GitHub through it. `pr merge`, `pr review`, `pr comment`, `pr edit`,
+# a comment edit and the resolve-thread mutation only append a line to calls.jsonl in the forge state; every other call that
+# exits 0 appends a "read" line, so a grader can tell a served call from one the real gh failed.
+# The forge's branch update (`PUT .../update-branch`) is refused on
+# purpose: a `merge` decision in the ready phase then takes its documented local-merge fallback, which the graders read.
+# A refused write method is still recorded, as `api <METHOD>`, so a grader can see the attempt, as are
+# `pr close`, `pr update-branch`, `issue comment` and `issue edit`.
+# reassess-state.sh seeds what the reassess cases need: pr-overlay.json (merged over the first pull request),
+# comments.json (its conversation comments), reviews.json (its reviews) and merged-prs.json (pull requests
+# already merged into the base). The last `pr comment` body is kept in comment-body.md for a grader;
+# `pr comment --help` lists the flags, `--attach` among them, that the evidence step checks for.
 # shellcheck disable=SC2154 # PR_* come from the state file sourced below
 set -uo pipefail
 
