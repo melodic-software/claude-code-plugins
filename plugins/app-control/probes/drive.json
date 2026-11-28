@@ -1,0 +1,34 @@
+{
+  "skill": "app-control:drive",
+  "plugin": "app-control",
+  "skill_dir": "plugins/app-control/skills/drive",
+  "competitors": [
+    "app-control:map",
+    "verification:confirm",
+    "debugging:debug",
+    "debugging:analyze-profile",
+    "testing:run-e2e"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "boot the storefront app and walk through the checkout journey capturing artifacts"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "verify whether the app endpoints and credentials are reachable before a run"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "record a heap snapshot from the running app into ./evidence"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "stop the processes this app run launched and verify saved artifacts"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "find which mapped journeys my branch diff against main touches"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "operate the billing app unattended and save raw step observations"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "launch the project service and collect screenshots of the login flow"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "capture a thread dump on the running process to inspect a hang"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "run the app readiness probe and list every missing telemetry source"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "output affected.json for the features impacted by HEAD compared to main"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "create a new control skill for our storefront repository"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "refresh the control skill after we renamed the checkout route"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "check our control-storefront directory for contract violations"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "analyze this captured .cpuprofile to find the hot function"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "verify whether my fix matches the PR acceptance criteria"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "diagnose why checkout returns 500 and fix the bug"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "inspect this heap snapshot to see what is retaining memory"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "generate feature folders and a driver CLI for this repo"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "confirm my refactor works and passes build, test, and lint"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "convert our legacy testing feature map into a control skill"}
+  ]
+}
