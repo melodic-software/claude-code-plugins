@@ -1,5 +1,5 @@
 ---
-description: "Babysit the user's own open GitHub pull requests as a tiered fleet loop. The safe default discovers the user's own PRs under the current repo's owner, checks readiness, fixes clear branch-owned issues, and reports, it never resolves threads or merges. Explicit 'worker' tier adds auto-resolving outdated bot threads and gate-proven merges; explicit 'autopilot' adds all authors under the watched owners. Use when asked to babysit, watch, or advance open pull requests as a fleet (the safe tier), to run the worker or autopilot tier by name, or when pairing with /loop for continuous coverage; not for the single-PR lifecycle: prep, create, monitor one PR, or merge (use /pull-request)."
+description: "Babysit open GitHub pull requests as a repo fleet loop: safe default checks own PRs, fixes branch issues (no thread resolve/merge); 'worker' resolves outdated bot threads, gate-proven merges; 'autopilot' adds all authors under watched owners. Use to babysit/watch/advance a PR fleet or pair with /loop. Not for one PR: /source-control:pull-request."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[worker|autopilot|help] [--unattended] [owner/repo|#n|owner/repo#n]"

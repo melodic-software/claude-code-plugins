@@ -3,6 +3,12 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.4] - 2026-11-28
+
+### Changed
+
+- Backfilled invocation probe files (`probes/drive.json`, `probes/map.json`) and trimmed skill frontmatter descriptions (`drive`: 454 -> 335 chars, `map`: 632 -> 346 chars; total 1,086 -> 681 chars, saving 405 chars) while preserving all action modes, no-verdict/read-only-subaction contracts, and probe parity.
+
 ## [0.32.3] - 2026-11-26
 
 ### Changed

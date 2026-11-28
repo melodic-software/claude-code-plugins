@@ -249,6 +249,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-merge/sweep-summary.mjs", "gate"],
   [".github/scripts/pr-merge/who.mjs", "gate"],
   [".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"],
+  [".github/scripts/pr-merge/cancel-orphaned-runs.mjs", "gate"],
   [".github/scripts/pr-merge/verify-answers.mjs", "gate"],
   [".github/scripts/lib/run-title.mjs", "gate"],
   [".github/scripts/lib/lane-branch.mjs", "gate"],
@@ -1390,7 +1391,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       console.log(`::error title=${VERIFIER_TITLE}::#${number}: ${escape(reason)}.`);
     }
     if (!reasons.length) {
-      console.log(`#${number}: no hold path.`);
+      console.log(`#${number}: no member veto and no hold path.`);
     }
     return reasons.length || verifier.length || pinHeld ? 1 : 0;
   } catch (error) {

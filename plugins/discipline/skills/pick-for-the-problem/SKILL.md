@@ -1,5 +1,5 @@
 ---
-description: "Re-anchors fitting a tool, library, framework, language, or approach to the problem, not habit, incumbency, or preconception; re-derives the choice. Use when: 'pick for the problem', 'right tool for the job', 'which library should we use', 'what framework', 'should we build this or use X', 'is this the right approach', 'you defaulted to X', 'we always reach for X', 'evaluate the options', 'choose a dependency', or at conversation start on a build-vs-buy or technology-selection decision."
+description: "Re-anchor picking/choosing right tool for the job (library, what framework, language, dependency, approach) for problem, not habit, defaulted incumbency, or always reaching for X; evaluate options, should we build or use X, right approach choice. Use when 'pick for the problem', 'which library should we use', 'choose a dependency', build-vs-buy."
 user-invocable: true
 disable-model-invocation: false
 metadata:

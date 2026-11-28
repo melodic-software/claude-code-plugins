@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor: deterministic sub-work (counts, diffs, transforms, arithmetic) gets a script; reason over its output. Use when: 'script the deterministic work', 'you should have scripted that', 'don't eyeball that', 'you counted that by hand', 'compute that, don't estimate', 'diff it with a tool', 'stop hand-tallying', 'run it instead of guessing', or at conversation start on count-, diff-, transform-heavy work. Fires on drift, not a work order ('script it', 'diff these files', 'count the routes'). Mode lever-check plus a block summary: answers build-a-lever or edit-by-hand for one change repeated across sites."
+description: "Re-anchor: deterministic sub-work (count, diff, transform, arithmetic, tally) gets script/tool run, not guessing, eyeballing, counting by hand, hand-tallying; fires on drift, not work order. lever-check: build-a-lever vs edit-by-hand. Use when 'script the deterministic work', 'don't eyeball that', 'compute that, don't estimate', diff with tool."
 argument-hint: "[lever-check <block summary>]"
 user-invocable: true
 disable-model-invocation: false

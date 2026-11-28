@@ -90,7 +90,7 @@ export STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]\n  
 KYLE_VETO="$(comment kyle User MEMBER 2026-10-23T10:00:00Z 'Please do not merge this yet.')"
 
 STUB_PULL="$(pull 'Closes #1')"
-expect "a lanes App pull request with no hold passes" 0 2 "#7: no hold path."
+expect "a lanes App pull request with no hold passes" 0 2 "#7: no member veto and no hold path."
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
 expect "a person's pull request is left to pr-merge's gate, with no discussion read" 0 0 "not the lanes App's"
 STUB_PULL="$(pull 'Closes #1' '{"id":1,"login":"melodic-automation-lanes[bot]","type":"User"}')"
@@ -107,7 +107,7 @@ for user in '{"id":153232337,"login":"kyle-sexton","type":"User"}' '{"id":496993
   expect_pull_reads "a non-App payload author ($(jq -r .login <<<"$user")) reads no pull" 0
 done
 STUB_PULL="$(pull 'Closes #1')"
-expect "the lanes App's payload author goes on to the live read" 0 2 "#7: no hold path."
+expect "the lanes App's payload author goes on to the live read" 0 2 "#7: no member veto and no hold path."
 expect_pull_reads "the lanes App's pull request is read once" 1
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
 for payload in "STUB_AUTHOR_ID=" "STUB_AUTHOR_ID=x" "STUB_AUTHOR_TYPE="; do
@@ -365,11 +365,11 @@ expect "a line that only contains 'hold:' later does not hold" 0 2
 
 STUB_PULL="$(pull 'Closes #1')"
 STUB_ISSUE="[$KYLE_VETO]"
-expect "a member's comment saying not to merge holds nothing: the do-not-merge label is the one hold" 0 2 "#7: no hold path."
+expect "a member's comment saying not to merge holds nothing: the do-not-merge label is the one hold" 0 2 "#7: no member veto and no hold path."
 STUB_ISSUE='[]' STUB_REVIEWS="[$(review kyle COLLABORATOR 2026-10-23T11:00:00Z 'do not merge')]"
-expect "a review summary saying not to merge holds nothing" 0 2 "#7: no hold path."
+expect "a review summary saying not to merge holds nothing" 0 2 "#7: no member veto and no hold path."
 STUB_REVIEWS='[]'
-expect "the lanes App's pull request reads two discussion lists, its issue comments and reviews" 0 2 "#7: no hold path."
+expect "the lanes App's pull request reads two discussion lists, its issue comments and reviews" 0 2 "#7: no member veto and no hold path."
 if grep -q 'issues/7/comments?' "$TMP_ROOT/log" && grep -q 'pulls/7/reviews?' "$TMP_ROOT/log" && ! grep -q 'pulls/7/comments?' "$TMP_ROOT/log"; then
   ok "the lanes App's pull request reads no inline review comments: nothing in them holds or lifts"
 else
@@ -400,7 +400,7 @@ STUB_PR_FILES="$(page '[["docs/guide.md"]]')" \
   expect "broker pages listing fewer files than changed_files fail closed" 1 0 "GitHub listed fewer files than #7 changes"
 expect_file_reads "the short broker pages are not read again" 0
 STUB_PULL="$(pull 'Closes #1')"
-STUB_PR_FILES="$(page '[["docs/guide.md"]]')" expect "clean broker pages pass" 0 2 "#7: no hold path."
+STUB_PR_FILES="$(page '[["docs/guide.md"]]')" expect "clean broker pages pass" 0 2 "#7: no member veto and no hold path."
 expect_file_reads "clean broker pages leave no files read" 0
 STUB_FILES='[["docs/held/a.md"]]' STUB_PR_FILES='not json' \
   expect "unparsable broker pages fall back to the live read" 1 2 "it changes docs/held/a.md, a hold path"
@@ -659,7 +659,7 @@ expect "in the merge queue, a record with no linked issues holds" 1 2 "its verif
 STUB_RECORD='' STUB_NO_RECORD=1
 expect "in the merge queue, a record the reader could not read holds" 1 2 "its verifier pass's record could not be read"
 STUB_NO_RECORD='' STUB_RECORD='.linked_issues[].number = 9' STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]"
-expect "in the merge queue, a trusted approval of the head lifts a changed link" 0 2 "#7: no hold path."
+expect "in the merge queue, a trusted approval of the head lifts a changed link" 0 2 "#7: no member veto and no hold path."
 STUB_RECORD='' STUB_REVIEWS=''
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass-notes\":[11]}"
 expect "in the merge queue, a pass-notes at the head passes" 0 2 "no verifier hold: pr-verify passed this head"
@@ -814,11 +814,11 @@ stub_module "$TMP_ROOT/older.mjs" 'console.log("#7: no hold path.");
 console.log("#7: no verifier hold: pr-verify passed this head.");'
 STUB_MODULE="$TMP_ROOT/older.mjs"
 expect "in the merge queue, a base module that ignores the reader's report fails closed" 1 2 "::error::merge-holds.mjs exited 0 without its pr-verify FAIL verdict"
-stub_module "$TMP_ROOT/earlier-wording.mjs" 'console.log("#7: no member veto and no hold path.");
+stub_module "$TMP_ROOT/short-wording.mjs" 'console.log("#7: no hold path.");
 console.log("#7: no verifier hold: pr-verify passed this head.");
 console.log("#7: no pr-verify FAIL hold: none stands at this head.");'
-STUB_MODULE="$TMP_ROOT/earlier-wording.mjs"
-expect "in the merge queue, a base module that still prints the earlier verdict wording passes" 0 2 "#7: no member veto and no hold path."
+STUB_MODULE="$TMP_ROOT/short-wording.mjs"
+expect "in the merge queue, a base module that prints the short verdict wording passes" 0 2 "#7: no hold path."
 stub_module "$TMP_ROOT/earliest-wording.mjs" 'console.log("#7: no body hold, no member veto and no hold path.");
 console.log("#7: no verifier hold: pr-verify passed this head.");
 console.log("#7: no pr-verify FAIL hold: none stands at this head.");'
@@ -829,7 +829,7 @@ STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
 STUB_PULL="$(pull $'Closes #1\nHold: owner call')"
 expect "in the merge queue, a body hold does not fail the group" 0 2 "no hold path."
 STUB_PULL="$(pull 'Closes #1')" STUB_ISSUE="[$KYLE_VETO]"
-expect "in the merge queue, a member's comment saying not to merge does not fail the group" 0 2 "#7: no hold path."
+expect "in the merge queue, a member's comment saying not to merge does not fail the group" 0 2 "#7: no member veto and no hold path."
 STUB_ISSUE='' STUB_FILES='[["docs/held/x.md"]]'
 expect "in the merge queue, a hold path fails the group" 1 2 "it changes docs/held/x.md, a hold path"
 STUB_FILES='[["docs/guide.md"]]'

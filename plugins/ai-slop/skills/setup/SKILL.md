@@ -1,5 +1,5 @@
 ---
-description: "Configure the ai-slop plugin for a consumer repository: exemption paths for documents that legitimately need em dashes, excluded paths, AI-vocabulary word-list tuning, and per-rule thresholds, written to the team layer docs/conventions/ai-slop.yaml with the user's confirmation; also moves an old ~/.claude/ai-slop.json into the personal override. Use when: 'set up ai-slop', 'configure slop detection', 'exempt this doc from the em-dash rule', 'tune the slop thresholds'."
+description: "Check (read-only) or apply docs/conventions/ai-slop.yaml exemptions, word lists, and thresholds, and migrate legacy ~/.claude/ai-slop.json."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
