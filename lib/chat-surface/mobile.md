@@ -1,6 +1,6 @@
 # Chat surface: mobile
 
-Read only when `lib/chat-surface.sh` prints `mobile`. These rules change how output is drawn on the
+Read only when `<plugin-root>/lib/chat-surface.sh` prints `mobile`. These rules change how output is drawn on the
 Claude phone app, never what it says; a skill's own `reference/chat-surface/mobile.md` adds shapes
 only that skill prints.
 
