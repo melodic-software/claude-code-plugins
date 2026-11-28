@@ -218,8 +218,8 @@ anon_tree() {
   esac
   OUT_TREE="$(anon_git -C "$ANON_REPO" ls-tree -r -z --full-tree "$3" |
     awk -v RS='\0' '
-      { i = index($0, "\t"); split(substr($0, 1, i - 1), m, " "); p = substr($0, i + 1); c = gsub(/[[:cntrl:]]/, "\001", p) }
-      m[2] == "blob" || c { print m[3] " " p }')" ||
+      { i = index($0, "\t"); split(substr($0, 1, i - 1), m, " "); p = substr($0, i + 1); gsub(/[[:cntrl:]]/, "\001", p) }
+      m[2] == "blob" || m[2] == "commit" { print m[2] " " m[3] " " p }')" ||
     die "git ls-tree $1/$2@$3 failed"
   return 0
 }
@@ -325,6 +325,35 @@ gh_tree() {
   return 0
 }
 
+declare -A WHOLE=()
+git_tree() {
+  local o="$1" r="$2" sha="$3" p="$4" rec="${5:-1}" key="$1/$2@$3" out
+  if [[ -z "${WHOLE[$key]+set}" ]]; then
+    anon_tree "$o" "$r" "$sha" || return 5
+    WHOLE[$key]="$OUT_TREE"
+  fi
+  out="$(awk -v p="$p" -v rec="$rec" '
+    { t = $1; s = $2; q = substr($0, length(t) + length(s) + 3) }
+    q == p { exact = 1; next }
+    p != "" && index(q, p "/") != 1 { next }
+    {
+      under = 1; rest = p == "" ? q : substr(q, length(p) + 2); i = index(rest, "/")
+      if ((rec ? rest : i ? substr(rest, 1, i - 1) : rest) ~ /[[:cntrl:]]/) control = 1
+      if (t == "blob" && (rec || !i)) print s " " q
+    }
+    END { if (control) print "control"; else if (!under) print (exact ? "notree" : "missing") }' <<<"${WHOLE[$key]}")"
+  case "${out##*$'\n'}" in
+  control) die "$o/$r@${sha:0:12}:$p: a tree path holds a control character" ;;
+  notree) return 4 ;;
+  missing) return 3 ;;
+  esac
+  OUT_TREE="$out"
+}
+
+read_tree() {
+  if use_git "$1" "$2"; then git_tree "$@"; else gh_tree "$@"; fi
+}
+
 tree_list() {
   local o="$1" r="$2" sha="$3" p="$4" key="$1/$2@$3:$4" file rc dir
   if [[ -n "${TREES[$key]+set}" ]]; then
@@ -339,40 +368,24 @@ tree_list() {
       check_tree_lines "${FIXTURE_FILES[$file]}" "$o/$r@${sha:0:12}"
     fi
     OUT_TREE="$(filter_under "${FIXTURE_FILES[$file]}" "$p")"
-  elif use_git "$o" "$r"; then
-    if [[ -n "$p" ]]; then
-      tree_list "$o" "$r" "$sha" ""
-      if [[ -n "$PAGE_UNREACH" ]] && git_to_rest "$o" "$r"; then
-        tree_list "$o" "$r" "$sha" "$p"
-        return 0
-      fi
-      OUT_TREE="$(filter_under "$OUT_TREE" "$p")"
-      ! grep -q '[[:cntrl:]]' <<<"$OUT_TREE" || die "$o/$r@${sha:0:12}: a tree path holds a control character"
-    else
-      anon_tree "$o" "$r" "$sha" || OUT_TREE=""
-    fi
   elif [[ -n "$P_SCOPE" && -n "$p" && "$p" != "$P_SCOPE" && "$p" == "$P_SCOPE"/* ]]; then
     tree_list "$o" "$r" "$sha" "$P_SCOPE"
     OUT_TREE="$(filter_under "$OUT_TREE" "$p")"
   else
-    gh_tree "$o" "$r" "$sha" "$p"
+    read_tree "$o" "$r" "$sha" "$p"
     rc=$?
-    if ((rc == 6)); then
-      tree_list "$o" "$r" "$sha" "$p"
-      return 0
-    elif ((rc == 3)); then
-      OUT_TREE=""
-    elif ((rc == 4)); then
+    if ((rc == 4)); then
       dir=""
       [[ "$p" == */* ]] && dir="${p%/*}"
-      gh_tree "$o" "$r" "$sha" "$dir" 0
+      read_tree "$o" "$r" "$sha" "$dir" 0
       rc=$?
-      if ((rc == 0)); then
-        OUT_TREE="$(filter_under "$OUT_TREE" "$p")"
-      else
-        OUT_TREE=""
-      fi
+      ((rc == 0)) && OUT_TREE="$(filter_under "$OUT_TREE" "$p")"
     fi
+    if ((rc == 6)) || { ((rc == 5)) && git_to_rest "$o" "$r"; }; then
+      tree_list "$o" "$r" "$sha" "$p"
+      return 0
+    fi
+    ((rc == 0)) || OUT_TREE=""
   fi
   [[ -n "$PAGE_UNREACH" ]] || TREES[$key]="$OUT_TREE"
 }

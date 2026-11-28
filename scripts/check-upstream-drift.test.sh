@@ -427,27 +427,39 @@ want_rc "public upstream, git read checks links" 0
 want_out "public upstream, git read checks links" "1 links ok"
 no_gh "public upstream, git read checks links"
 
-rest_json() {
-  ugit ls-tree -r -t "$1:$2" |
-    jq -Rs --arg sha "$1" '{sha: $sha, truncated: false, tree: [split("\n")[] | select(. != "") |
-      capture("^(?<mode>[0-9]+) (?<type>[a-z]+) (?<sha>[0-9a-f]+)\t(?<path>.*)$")]}'
-}
-mkdir -p "$f/rest"
-for sha in "$GPIN" "$GHEAD"; do
-  rest_json "$sha" skills >"$f/rest/$sha:skills" || exit 2
-done
-cat >"$f/bin/gh" <<EOS
+rest_gh() {
+  mkdir -p "$f/restbin"
+  cat >"$f/restbin/gh" <<EOS
 #!/usr/bin/env bash
 echo "\$*" >>"$f/gh.log"
-case "\$2" in
-*/commits/HEAD) printf '{"sha":"%s"}\n' "$GHEAD" ;;
-*/git/commits/*) printf '{"sha":"%s"}\n' "\${2##*/}" ;;
-*/git/trees/*'?recursive=1') u="\${2##*/git/trees/}" && cat "$f/rest/\${u%%\\?*}" ;;
-*) echo '{"message":"Not Found","status":"404"}' && exit 1 ;;
+g() { git -C "$f/remote/acme/widgets.git" "\$@"; }
+fail() { printf '{"message":"%s","status":"%s"}\\n' "\$1" "\$2"; exit 1; }
+u="\$2"
+case "\$u" in
+*/commits/HEAD) printf '{"sha":"%s"}\\n' "\$(g rev-parse HEAD)" ;;
+*/git/commits/*) g cat-file -e "\${u##*/}^{commit}" 2>/dev/null || fail "Not Found" 404; printf '{"sha":"%s"}\\n' "\${u##*/}" ;;
+*/git/trees/*)
+  u="\${u##*/git/trees/}" rec=()
+  [[ "\$u" == *'?recursive=1' ]] && rec=(-r -t) u="\${u%\\?recursive=1}"
+  obj="\$u^{tree}"
+  [[ "\$u" == *:* ]] && obj="\$u"
+  case "\$(g cat-file -t "\$obj" 2>/dev/null || g ls-tree "\${u%%:*}" -- "\${u#*:}" | cut -d' ' -f2)" in
+  tree) ;;
+  blob | commit) fail "not a tree" 422 ;;
+  *) fail "Not Found" 404 ;;
+  esac
+  g ls-tree "\${rec[@]}" -z "\$obj" | tr '\\0' '\\n' |
+    jq -Rs '{truncated: false, tree: [split("\\n")[] | select(. != "") |
+      capture("^(?<mode>[0-9]+) (?<type>[a-z]+) (?<sha>[0-9a-f]+)\\t(?<path>.*)\$")]}'
+  ;;
+*) fail "Not Found" 404 ;;
 esac
 EOS
+  chmod +x "$f/restbin/gh"
+}
+rest_gh
 : >"$f/gh.log"
-run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/nowhere" --
+run_env PATH="$f/restbin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/nowhere" --
 want_rc "private upstream, REST read finds drift" 1
 if [[ "$ERR" == "$GIT_ERR" ]]; then
   pass "private upstream: REST findings match the git read's"
@@ -594,13 +606,13 @@ git clone -q --bare "$f/src" "$f/control-remote/acme/widgets.git" || exit 2
 run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/control-remote" -- --report
 want_rc "git read, control in tree path, --report" 2
 no_out "git read, control in tree path, --report"
-want_err "git read, control in tree path, --report" "acme/widgets@${control_head:0:12}: a tree path holds a control character"
+want_err "git read, control in tree path, --report" "acme/widgets@${control_head:0:12}:skills: a tree path holds a control character"
 tmp_clean "git read, control in tree path, --report"
 
 run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/control-remote" --
 want_rc "git read, control in tree path, default mode" 2
 no_out "git read, control in tree path, default mode"
-want_err "git read, control in tree path, default mode" "acme/widgets@${control_head:0:12}: a tree path holds a control character"
+want_err "git read, control in tree path, default mode" "acme/widgets@${control_head:0:12}:skills: a tree path holds a control character"
 tmp_clean "git read, control in tree path, default mode"
 
 outside_path=$'control\tpath'
@@ -631,6 +643,90 @@ if [[ "$(grep -c ' fetch ' "$f/git.log")" -eq 1 ]] && ! grep -q ' ls-remote ' "$
 else
   bad "other gh failure: one git fetch before REST, no ls-remote" "$(cat "$f/git.log")"
 fi
+
+fail_git_on() {
+  mkdir -p "$f/failgit"
+  cat >"$f/failgit/git" <<EOS
+#!/usr/bin/env bash
+hit=0 sub=0
+for arg in "\$@"; do
+  [[ "\$arg" == "$1" ]] && sub=1
+  [[ "\$arg" == "$2" ]] && hit=1
+done
+if ((sub && hit)); then
+  echo "fatal: remote hung up unexpectedly" >&2
+  exit 128
+fi
+exec "$REAL_GIT" "\$@"
+EOS
+  chmod +x "$f/failgit/git"
+}
+
+midpage() {
+  stub_api
+  scoped_page
+  rest_gh
+  fail_git_on "$1" "${2/@head/$GHEAD}"
+  run_env PATH="$f/failgit:$f/restbin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" --
+  want_rc "$3" 1
+  if [[ "$ERR" == "$GIT_ERR" ]]; then pass "$3: findings match the git read's"; else bad "$3: findings match the git read's" "git=$(printf '%q' "$GIT_ERR") got=$(printf '%q' "$ERR")"; fi
+  run_env PATH="$f/failgit:$f/restbin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" -- --report
+  out_lacks "$3" "status=unreachable"
+  tmp_clean "$3"
+}
+midpage ls-remote ls-remote "git HEAD read fails, REST HEAD read succeeds"
+midpage fetch @head "git HEAD tree fetch fails, REST tree read succeeds"
+if grep -q "git/trees/$GHEAD:skills" "$f/gh.log"; then
+  pass "git HEAD tree fetch fails: the HEAD tree is read over REST"
+else
+  bad "git HEAD tree fetch fails: the HEAD tree is read over REST" "$(cat "$f/gh.log")"
+fi
+
+shape() {
+  local name="$1" want="$2" scope="$3" link="$4" mode="$5" p
+  shift 5
+  new_root || return 2
+  mkdir -p "$f/bin" "$f/tmp" "$f/remote/acme"
+  git init -q -b main "$f/src" || return 2
+  for p in "$@"; do
+    mkdir -p "$f/src/${p%/*}"
+    echo x >"$f/src/$p"
+  done
+  ugit add -A && ugit commit -qm one || return 2
+  GPIN="$(ugit rev-parse HEAD)"
+  git clone -q --bare "$f/src" "$f/remote/acme/widgets.git" || return 2
+  {
+    printf '# Widgets\n\n'
+    # shellcheck disable=SC2016
+    printf '**Last audited upstream state:** `acme/widgets@%s`%s\n\n' "$GPIN" "${scope:+ under \`$scope/\`}"
+    printf -- '- [row](https://github.com/acme/widgets/%s)\n' "${link/\//\/$GPIN/}"
+  } >"$f/$PAGE"
+  printf '#!/usr/bin/env bash\necho "$*" >>"%s/gh.log"\nexit 1\n' "$f" >"$f/bin/gh"
+  chmod +x "$f/bin/gh"
+  rest_gh
+  run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" -- ${mode:+"$mode"}
+  local grc=$RC gout=$OUT gerr=$ERR
+  want_rc "$name, git read" "$want"
+  no_gh "$name, git read"
+  run_env PATH="$f/restbin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/nowhere" -- ${mode:+"$mode"}
+  want_rc "$name, REST read" "$want"
+  if [[ "$RC/$OUT/$ERR" == "$grc/$gout/$gerr" ]]; then
+    pass "$name: git and REST give the same exit, stdout and stderr"
+  else
+    bad "$name: git and REST give the same exit, stdout and stderr" "git=$(printf '%q' "$grc/$gout/$gerr") rest=$(printf '%q' "$RC/$OUT/$ERR")"
+  fi
+}
+TAB=$'\t'
+shape "tree row, control under it" 2 "" tree/skills/alpha "" skills/alpha/SKILL.md "skills/alpha/a${TAB}b"
+shape "tree row, control outside it" 0 "" tree/skills/alpha --report skills/alpha/SKILL.md "c${TAB}d"
+shape "blob row, control in a sibling name" 2 "" blob/skills/alpha/SKILL.md "" skills/alpha/SKILL.md "skills/alpha/a${TAB}b"
+shape "blob row, control below a sibling folder" 0 "" blob/skills/alpha/SKILL.md --report skills/alpha/SKILL.md "skills/alpha/sub/a${TAB}b"
+shape "blob row, control in a sibling folder name" 2 "" blob/skills/alpha/SKILL.md "" skills/alpha/SKILL.md "skills/alpha/s${TAB}b/x"
+shape "root blob row, control below a top folder" 0 "" blob/README.md --report README.md "skills/a${TAB}b"
+shape "root blob row, control in a top name" 2 "" blob/README.md "" README.md "c${TAB}d"
+shape "scoped page, control elsewhere in the scope" 2 skills tree/skills/alpha "" skills/alpha/SKILL.md "skills/beta/a${TAB}b"
+shape "scoped page, control outside the scope" 0 skills tree/skills/alpha --report skills/alpha/SKILL.md "c${TAB}d"
+shape "missing row path" 1 "" tree/skills/ghost --links skills/alpha/SKILL.md
 
 setup
 path_without gh
