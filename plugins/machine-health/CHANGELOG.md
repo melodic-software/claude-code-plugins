@@ -3,6 +3,24 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.1] - 2026-11-28
+
+### Changed
+
+- Trimmed `machine-health` skill frontmatter descriptions (`audit` 508 -> 348 chars, `setup` 974 -> 148 chars; total 1482 -> 496 chars, -986 chars) while preserving OS-specific catalog checks, pre-approved remediation posture, Windows/macOS/Linux support, and all four `setup` actions.
+
+## [0.29.0] - 2026-11-28
+
+### Added
+
+- Adopt the shared rendered-views token layer (`reference/html-tokens.css`), `lib/view-settings.mjs`, chrome theme toggle, and branding overrides (palette, type stacks, logo slot, and `branding` `userConfig` option) in the checkup HTML view.
+
+## [0.28.3] - 2026-11-28
+
+### Changed
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
 ## [0.28.2] - 2026-11-27
 
 ### Fixed

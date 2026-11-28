@@ -1,5 +1,5 @@
 ---
-description: "Verify the session-flow observer's runtime prerequisites and configuration for this machine, and write the repository's docs/conventions/session-flow.yaml after confirmation. Use when: 'set up session-flow', 'configure the observer', 'is the observer working', 'set worker_continuation for this repo', the observer isn't running, or the observer hook reported a missing prerequisite. Actions: check (read-only, default), apply (writes docs/conventions/session-flow.yaml only). Installs nothing. Re-runnable."
+description: "Check (default, read-only) observer prerequisites/config or apply confirmed docs/conventions/session-flow.yaml. Installs nothing; re-runnable."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true

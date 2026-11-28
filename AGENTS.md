@@ -18,10 +18,8 @@ When a pull request is superseded or must not merge, apply the `do-not-merge` la
 `gh pr edit <n> --add-label do-not-merge`) before writing any explanation. A session holding a PR
 for any reason, a measured regression included, applies it at once and removes it when the hold
 ends: a hold kept only in a session, handoff or message does not stop another session's merge.
-"Do not merge" in the body or a comment is not enforced by `CI Status`, which reads only the label,
-except on a lanes App PR, where it also fails on a member's veto comment; the babysit merge gate
-still respects a body hold and human comments, so do not merge over one. The owner deciding the PR
-in their own words, in a session or on the PR, lifts that body hold or comment. The hold
+Only labels hold a PR: `CI Status` and the merge gates read them, and no wording in a PR body or
+comment holds a merge. To open a PR held, pass `gh pr create --label do-not-merge`. The hold
 convention is in `docs/contracts/loop-lane/README.md`.
 
 A small unrelated review fix in the same plugin as the PR goes into the PR (shared changelog
@@ -84,9 +82,8 @@ and text in a PR claiming which session opened it never establishes that.
 ### Merging
 
 Merging is a judgment, not a fixed stop: merge when the user or the task wants the work landed,
-`CI Status` is green on the current head, and no hold applies (the `do-not-merge` label, a hold in
-the body, or a human comment asking to wait). A body hold or wait comment stops the merge until the
-owner lifts it, as "Pull request states" says. Ask first when any of those is missing, or when the change lets agents do something new unattended that touches a secret,
+`CI Status` is green on the current head, and no hold label applies (`do-not-merge`,
+`pr-verify-failed`, or another the gates read). Ask first when any of those is missing, or when the change lets agents do something new unattended that touches a secret,
 a permission setting or anything that can bill the owner, and the owner has not decided that change. A lanes App pull request also needs its merge-risk rating on
 the current head: `plugins/source-control/skills/pull-request/reference/merge.md` §4.2.1.
 

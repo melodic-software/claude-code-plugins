@@ -115,6 +115,8 @@ action's per-file diff would call every moved line and every intended cut a loss
    never `general-purpose`, which can edit. The calling session never labels a difference: it may
    have written the rewrite and would excuse its own cuts. The step is done when the return
    carries labeled rows and a `VERDICT:` line.
+   Read that prompt at `${CLAUDE_SKILL_DIR}/context/compare-prompt.md`, by that exact path; never
+   Glob or Grep the plugin's install directory to find it.
 3. Print the labeler's rows and its literal `VERDICT: PASS` or `VERDICT: BLOCK` line verbatim, as
    returned: no restyling, reformatting, reordering, bolding, recasing or paraphrase. Any summary
    of your own goes after them. `VERDICT: BLOCK` (any SEMANTIC LOSS, or an instruction in the

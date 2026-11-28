@@ -1,0 +1,32 @@
+{
+  "skill": "architecture:principles",
+  "plugin": "architecture",
+  "skill_dir": "plugins/architecture/skills/principles",
+  "competitors": [
+    "architecture:improve",
+    "architecture:adr",
+    "architecture:enforce-boundaries"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "explain what makes a module deep versus shallow"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "what does seam mean in our module-design vocabulary"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "describe the deletion test and how we judge a module"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "how do leverage and locality relate in architecture findings"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "which canonical term should we use for an enabling point in architecture notes"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "look up the module-design definitions and checks used by architecture skills"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "what is our architecture vocabulary for shallow vs deep modules"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "define seam, adapter, and interface in our architecture terminology"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "what check tells us whether a module earns its place"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "explain the vocabulary terms we use in architecture findings"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "scan this codebase for shallow modules and build an HTML report"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "write an ADR capturing why we chose event sourcing"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "set up a build test enforcing our module boundary rules"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "check whether co-changing files live in the same folder"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "draw a C4 container diagram of our deployables and brokers"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "prune outdated architecture decision records"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "run a Design-It-Twice interview to deepen this service"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "map our database schema into an entity-relationship diagram"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "trace the sequence of calls from this C# entry point"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "enforce our layering rules so violations fail CI"}
+  ]
+}

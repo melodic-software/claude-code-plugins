@@ -3,6 +3,20 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.2.3] - 2026-11-28
+
+### Fixed
+
+- `/planning:interview` now says how to fix each `preview=`, `basis=` and `flips-if=` line the round check prints, and that `undefined=` also covers a term only another question's Context defines, so a round failing those checks is corrected before it is shown (#18216).
+
+## [6.2.2] - 2026-11-28
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
 ## [6.2.1] - 2026-11-27
 
 ### Fixed

@@ -1,5 +1,5 @@
 ---
-description: "Configure the testing plugin's can't-fail checks for this repository. check prints the resolved testing config cascade, which test-lint rules the repo's lint config turns on per language (a missing one is a finding), an optional instruction line to paste, and any test glob the shipped test-weaken hook skips; apply writes your answers to docs/conventions/testing.yaml (or to the docs/conventions/testing.md block or .claude/testing.yaml when that is the team file in use). Use when: 'set up testing', 'configure the test scan', 'exclude these tests from the audit', 'add a test glob', 'which test lint rules are missing', 'testing setup'. Re-runnable."
+description: "Check (read-only) or apply repo testing config (docs/conventions/testing.yaml): can't-fail rules, test-lint audit, and hook skips. Re-runnable."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true

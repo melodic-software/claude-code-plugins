@@ -70,6 +70,12 @@
       "request": "Interview me about the most promising refactoring candidate in the billing code."
     },
     {
+      "id": "pos-val-06",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Nobody ever wrote down how a feature is supposed to be put together here. Work out the patterns the code already follows and propose each one as a rule."
+    },
+    {
       "id": "neg-train-01",
       "split": "train",
       "expect_trigger": false,

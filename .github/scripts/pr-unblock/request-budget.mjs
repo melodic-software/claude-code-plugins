@@ -60,7 +60,12 @@ export function budgetedFetch({
     return [`api-calls rest=${counts.rest} not-modified=${counts.notModified} graphql=${counts.graphql}`, ...readings].join(" ");
   }
 
-  return { fetch: countsRequests(wrapped), counts, summary };
+  function reading(resource) {
+    const seen = last.get(resource);
+    return seen ? Object.fromEntries(["limit", "remaining", "used", "reset"].map((key, i) => [key, seen[i]])) : null;
+  }
+
+  return { fetch: countsRequests(wrapped), counts, summary, reading };
 }
 
 export const serverFailure = (error) => error?.rateLimited !== true && error?.status >= 500;

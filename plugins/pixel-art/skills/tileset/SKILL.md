@@ -1,5 +1,5 @@
 ---
-description: "Pixel-art tilesets as the target engine's sheet: terrain, autotiles (RPG Maker MZ A1-A5 and B-E, blob-47, 16-tile corner), seamless tiles, and parallax layers. Use when asked for a 'tileset', 'autotile', 'terrain tiles', 'blob tileset', 'parallax background', 'RPG Maker tileset', or 'seamless tile'. One sprite or icon: /pixel-art:sprite; a window skin or icon set: /pixel-art:ui; an HTML cutscene: /pixel-art:scene."
+description: "Pixel-art tilesets as engine sheets: terrain tiles, autotiles (RPG Maker MZ A1-A5/B-E, blob-47, 16-tile corner), seamless tile, and parallax layers/background. Use when: 'tileset', 'autotile', 'parallax background'. Not for one sprite: /pixel-art:sprite; UI skins/icon sets: /pixel-art:ui; scenes: /pixel-art:scene."
 argument-hint: "<terrain or set> [engine] [tile size]"
 user-invocable: true
 disable-model-invocation: false

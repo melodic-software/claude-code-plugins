@@ -1,18 +1,24 @@
 {
   "pass": [
-    {
-      "answer": "Review sites:\n- docs/index.md:8 The catalog lists every shipment type; see CATALOG for the full list.\n- docs/index.md:9 Ask in the docs channel before you edit CATALOG by hand."
-    },
-    {
-      "answer": "| `docs/index.md` | 8 | review |\n| `docs/index.md` | 9 | review |"
-    }
+    {"answer":"Review sites:\n- docs/index.md:8 The catalog lists every shipment type; see CATALOG for the full list.\n- docs/index.md:9 Ask in the docs channel before you edit CATALOG by hand."},
+    {"answer":"| `docs/index.md` | 8 | review |\n| `docs/index.md` | 9 | review |"},
+    {"answer":"- `docs/index.md:8`: The catalog lists every shipment type; see CATALOG for the full list.\n- `docs/index.md:9`: Ask in the docs channel before you edit CATALOG by hand."},
+    {"answer":"- docs/index.md line 8: `see CATALOG for the full list`\n- docs/index.md line 9: `edit CATALOG by hand`"},
+    {"answer":"| File | Line |\n|---|---|\n| `docs/index.md` | 8 |\n| `docs/index.md` | 9 |"},
+    {"answer":"Review sites in `docs/index.md`:\n\n| Line | Excerpt |\n|---|---|\n| 8 | The catalog lists every shipment type; see CATALOG for the full list. |\n| 9 | Ask in the docs channel before you edit CATALOG by hand. |"},
+    {"answer":"In `docs/index.md`, line 8 reads \"…see CATALOG for the full list.\" and line 9 reads \"…edit CATALOG by hand.\""},
+    {"answer":"- docs/index.md#L8\n- docs/index.md#L9"},
+    {"answer":"Both are in `docs/index.md`:\n- Line 8: the stem `CATALOG` as a pointer to the list\n- Line 9: the stem `CATALOG` in a warning about hand edits"},
+    {"answer":"Both are in `docs/index.md`:\n- Line 8: \"…see **CATALOG** for the full list.\"\n- Line 9: \"…edit **CATALOG** by hand.\""},
+    {"answer":"Both are in `docs/index.md`:\n- Line 8: \"…see `CATALOG` for the full list.\"\n- Line 9: \"…edit `CATALOG` by hand.\""}
   ],
   "fail": [
-    {
-      "answer": "FN-c5a4747f has 2 review sites in docs/index.md."
-    },
-    {
-      "answer": "Review: docs/index.md line 8 (see CATALOG for the full list)."
-    }
+    {"answer":"FN-c5a4747f has 2 review sites in docs/index.md."},
+    {"answer":"Review: docs/index.md line 8 (see CATALOG for the full list)."},
+    {"answer":"Two review sites in docs/index.md need a decision."},
+    {"answer":"docs/index.md lines 8 and 9 hold the review sites."},
+    {"answer":"Review sites: docs/index.md:8-9"},
+    {"answer":"Review sites: `docs/index.md` (lines 8, 9)"},
+    {"answer":"Review site: docs/index.md:8. The other bare stem is in docs/getting-started.md."}
   ]
 }

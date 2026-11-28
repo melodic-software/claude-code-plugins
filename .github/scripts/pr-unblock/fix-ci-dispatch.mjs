@@ -15,7 +15,6 @@ import { emptyRecord, isHandled, markHandled, sendDispatch, startOf } from "./di
 import { STOP_RESOLVED } from "./escalation-routes.mjs";
 import { ACTIONS_BOT_ID, DISPATCH_HOLDS } from "../lib/lane-vocabulary.mjs";
 import { isPrUnblockTitle } from "../lib/run-title.mjs";
-import { HOLD_LINE } from "./feedback-dispatch.mjs";
 import { DEFAULTS as DOCS_FIX_DEFAULTS } from "./fix-docs-dispatch.mjs";
 import { failingChecks } from "./fix-ci-context.mjs";
 import { traceOnlyFailure } from "./declare-test-scope.mjs";
@@ -257,9 +256,6 @@ export function skipReason(
   }
   if (gateLabel !== null && labels.includes(gateLabel) && node.laneGate !== undefined && node.laneGate !== "") {
     return node.laneGate;
-  }
-  if (owner && HOLD_LINE.test(String(node.body ?? ""))) {
-    return "held by a Hold: line";
   }
   if (owner && !ownerIdle(node, adoption.idleHours, now)) {
     return `owner PR or its head commit active in the last ${adoption.idleHours} hour(s)`;

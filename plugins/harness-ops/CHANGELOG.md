@@ -3,6 +3,26 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.3.8] - 2026-11-28
+
+### Changed
+
+- Trimmed 15 skill frontmatter descriptions (7,409 -> 4,314 chars across changed skills, -3,095c / -41.8%; 11 model-invoked `<= 350c`, each keeping its `Use when` trigger phrasing: `audit-mod-posture` 397 -> 325, `audit-native-overlap` 424 -> 349, `audit-performance` 428 -> 349, `audit-skill-visibility` 432 -> 348, `behavior-probes` 379 -> 330, `changelog` 417 -> 347, `inventory` 373 -> 349, `known-issues` 384 -> 343, `machine-profile` 400 -> 348, `observability` 506 -> 347, `plugins-audit` 420 -> 348; and 4 user-only `disable-model-invocation: true` `<= 150c`: `audit-plugin-landscape` 345 -> 120, `lanes` 988 -> 148, `plugins` 530 -> 120, `setup` 986 -> 143; `control-claude-code`, `audit-install-state`, and `prerequisites` untouched) with zero body changes and zero probe trigger-rate regressions.
+
+## [11.3.7] - 2026-11-28
+
+### Changed
+
+- The shared hook library's physical-path cache answers a lookup in the order its paths were primed from the next slot, and rules out an uncached path with one string match, so a plugins sync read no longer rescans the cache for every catalog entry; results are unchanged.
+
+## [11.3.6] - 2026-11-28
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
 ## [11.3.5] - 2026-11-28
 
 ### Changed

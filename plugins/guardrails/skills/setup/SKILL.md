@@ -1,5 +1,5 @@
 ---
-description: "Verify the guardrails hooks' runtime prerequisites, per-guard toggle state and git-hook entries for this machine, and register those entries. Use when: 'set up guardrails', 'configure guardrails', 'is guardrails working', 'which guards are on', a guard failed open with a jq notice, after tuning guard toggles, a hook reported a drifted git hook, or 'install the guardrails git hooks' / 'enforce the commit convention for every committer' / 'check secrets and hardcoded paths on every commit'. Actions: check (read-only, default) | check inspect (read-only) | apply (resolve what check found) | apply install-git-hooks [scope=local|shared|user] (register the commit-msg convention, pre-commit and pre-push content entries with the repository's hook manager; user: the commit-msg entry as a git config hook under an includeIf) | apply read-deny (opt-in: print Read() deny rules for .env, with user also ~/.ssh and ~/.aws, and add or remove them in the chosen settings file). Re-runnable."
+description: "Verify guardrails prerequisites, toggles, and hooks (check [inspect]), or apply fixes, git hooks, read-deny rules, and identity-domains."
 argument-hint: "[check|apply] [inspect|install-git-hooks [scope]|read-deny [scope user remove]|identity-domains]"
 user-invocable: true
 disable-model-invocation: true

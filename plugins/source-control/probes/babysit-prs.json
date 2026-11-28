@@ -1,0 +1,31 @@
+{
+  "skill": "source-control:babysit-prs",
+  "plugin": "source-control",
+  "skill_dir": "plugins/source-control/skills/babysit-prs",
+  "competitors": [
+    "source-control:babysit-loop",
+    "source-control:pull-request"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "babysit my open pull requests across this org"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "watch my fleet of open PRs and fix simple branch failures"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "run babysit in worker tier to clear stale bot review threads and merge"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "advance all of my open PRs in safe mode without merging"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "run autopilot tier over every author's open PRs under our watched owners"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "check readiness across all my GitHub PRs and report blockers"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "keep an eye on all my open pull requests and move them forward"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "pair with /loop to sweep my open PR fleet continuously"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "run a single-pass PR fleet sweep in worker mode"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "discover my open PRs under this owner and fix branch-owned CI issues"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "open a pull request for this feature branch"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "address review comments on PR #510 and push a fix"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "commit these staged files with a descriptive message"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "stand up the repo merge lane with grace windows for acme/api"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "merge PR #204 right now"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "clean up stale worktrees from merged branches"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "mark this draft PR ready for review"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "drain the single-repo PR queue as a standing merge lane for owner/repo"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "run PR prep review and verification before opening"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "check the CI status of PR #99"}
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "data": {
+    "repository": {
+      "issue": {
+        "closedByPullRequestsReferences": {
+          "nodes": [
+            {
+              "number": 501,
+              "state": "OPEN",
+              "author": {
+                "__typename": "User",
+                "login": "octocat",
+                "databaseId": 1002
+              },
+              "repository": {
+                "nameWithOwner": "octo-org/widgets"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": "MQ"
+          }
+        }
+      }
+    }
+  }
+}

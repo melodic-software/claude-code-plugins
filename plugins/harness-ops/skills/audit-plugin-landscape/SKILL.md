@@ -1,5 +1,5 @@
 ---
-description: "On-demand, read-only report on which installed plugins and marketplaces have gone stale, which overlap, and what to adopt, adapt or drop. Use when: 'are my plugins stale', 'plugin landscape', 'which plugins overlap', 'is there a better alternative to this plugin', 'which marketplaces are dead'. Bringing the fleet current: /harness-ops:plugins."
+description: "Read-only report on stale or overlapping installed plugins and marketplaces, recommending what to adopt, adapt, or drop."
 argument-hint: "[--plugins-dir <path>]"
 user-invocable: true
 disable-model-invocation: true

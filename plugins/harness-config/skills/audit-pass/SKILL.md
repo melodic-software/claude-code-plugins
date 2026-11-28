@@ -1,5 +1,5 @@
 ---
-description: "Run one coordinated, resumable audit pass over a repo: a three-scope inventory, then each owning plugin's checks lane by lane, presence-gated, with findings persisted per lane and one human gate for the whole pass. Read-only unless --fix. Use when: 'audit pass', 'run one pass over this repo', 'coordinate the audit skills', 'audit this repo end to end', 'resume the audit', 'one reconciled findings report', 'sweep all three scopes', or a release needs one diffable findings artifact."
+description: "Run one coordinated, resumable audit pass over a repo: three-scope inventory, each owning plugin's checks lane by lane, findings persisted per lane with one human gate (read-only unless --fix) for one reconciled findings report/release artifact. Use when: 'audit pass', 'audit this repo end to end', 'resume the audit', or sweep all three scopes."
 argument-hint: "[target] [--repo <repo> ...] [--fix] [--opinion] [--postures] [--lanes <list>] [--resume]"
 user-invocable: true
 disable-model-invocation: false

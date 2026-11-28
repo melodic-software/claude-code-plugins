@@ -1,5 +1,5 @@
 ---
-description: "Read-only, audit-only scan of one directory tree for orphaned, temporary, stale-lock, failed-write, partial-download, and empty leftovers, reported as an evidence snapshot. Removes nothing; any removal is a separate /disk-hygiene:clean run, gated on the user's own answer. Use when: 'delegate a disk-hygiene audit', 'orchestrator scan of a directory for leftovers', 'subagent scan of this directory for leftovers', 'disk-hygiene audit report'. Skip when: the ask is to clean up or reclaim space (that is /disk-hygiene:clean), one repository's caches or build output (repo-hygiene), or an OS-managed root."
+description: "Read-only, audit-only scan of one directory tree for orphaned, temp, stale-lock, and empty leftovers as an evidence snapshot; removes nothing. Use when: 'delegate a disk-hygiene audit', 'subagent scan for leftovers', 'disk-hygiene audit report'. Not for cleanup: /disk-hygiene:clean, repo caches: /repo-hygiene:clean, or OS-managed roots."
 argument-hint: "[--max-depth <N>] [--sizes-only] [--policy <file>] <target-directory>"
 user-invocable: true
 disable-model-invocation: false

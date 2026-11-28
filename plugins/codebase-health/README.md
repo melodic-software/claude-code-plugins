@@ -18,7 +18,7 @@ to run, whether or not its plugin is installed, without invoking it.
 | Skill | What it does |
 |---|---|
 | `/codebase-health:audit` | Runs the audit. Prime conventions, fan out claim-extraction per file, independently validate, severity-rate, and report read-only; remediation is delegated to the implementation/verification skills. |
-| `/codebase-health:setup` | `check` inspects the audit-dimension config read-only across its layers and names any old-location file; `apply` moves an old file after a yes, interviews the user, infers targets from the layout, and writes the team file `<home>/codebase-health.md`. |
+| `/codebase-health:setup` | `check` inspects the audit-dimension config read-only across its layers; `apply` interviews the user, infers targets from the layout, and writes the team file `<home>/codebase-health.md`. |
 
 ## The audit
 
@@ -69,12 +69,6 @@ repository's convention home (default `docs/conventions`):
 2. `<home>/codebase-health.md`: team config (tracked)
 3. `<home>/codebase-health.local.md`: personal override (gitignored)
 
-The old files `~/.claude/codebase-health.md`, `.claude/codebase-health.md` and
-`.claude/codebase-health.local.md` are still read while they exist, wherever the new location does
-not supply that layer, and each run prints one warning naming the old file, its new location and
-`/codebase-health:setup apply`, which moves it after a preview and your yes, then deletes it
-([Old locations](reference/config.md#old-locations-dual-read-window)).
-
 Each dimension declares `primary-sources` (globs where claims live), `verification-sources` (globs
 where claims are checked against ground truth), and `example-claims` (concrete `{ claim, verify-via }`
 rows that teach the extraction pass what drift looks like in THIS repo). The four bundled dimensions
@@ -87,7 +81,7 @@ hardcodes a repo's layout.
 
 ```shell
 /codebase-health:setup check   # inspect the effective config read-only (default)
-/codebase-health:setup apply   # move old files, interview + write <home>/codebase-health.md (re-runnable)
+/codebase-health:setup apply   # interview + write <home>/codebase-health.md (re-runnable)
 ```
 
 Add the recursive `<home>/**/*.local.*` line (`docs/conventions/**/*.local.*` for the default home)

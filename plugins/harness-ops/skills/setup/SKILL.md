@@ -1,5 +1,5 @@
 ---
-description: "Verify harness-ops's path configuration for this repository (where the known-issues registry resolves and which layer set it, and where the skill-usage log and the per-session hook event log resolve), check the self-ignoring guard on the hook log root, report whether session-telemetry, the plugin whose hooks write those logs, is enabled, check that node and jq resolve for its hooks, detect retired conventions, and explain how to change the options through Claude Code. Use when: 'set up harness-ops', 'configure harness-ops', 'harness-ops setup', 'where does the known-issues registry live', 'where is skill usage logged', 'set up hook logging', 'where does the hook event log live', or 'turn on session event logging'. check (read-only, default) verifies and reports; apply writes exactly one file, the guard inside the hook log root, and runs the gated retired-convention cleanup. Every option itself is reconfigured through Claude Code, never by this skill. Re-runnable and safe."
+description: "Check harness-ops/telemetry paths (read-only default) or apply hook-log gitignore guard and retired-convention cleanup; never edits userConfig."
 argument-hint: "[check|apply]"
 user-invocable: true
 shell: bash

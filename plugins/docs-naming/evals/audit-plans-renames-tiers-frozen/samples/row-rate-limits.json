@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {"answer":"| `FN-6f3ce017` | `docs/Rate_Limits.md` → `docs/rate-limits.md` | 2 in 2 files | 1 current (edit), 1 released (report) |"},
+    {"answer":"- **FN-6f3ce017:** `docs/Rate_Limits.md` → `docs/rate-limits.md`. It has 2 sites in 2 files: 1 current (edit) and 1 released (report)."},
+    {"answer":"finding FN-6f3ce017 `docs/Rate_Limits.md` to `docs/rate-limits.md`: 2 site(s) in 2 file(s); by tier: 1 current (edit), 1 released (report); review: 0; generated: none"},
+    {"answer":"| `FN-6f3ce017` | `docs/Rate_Limits.md` → `docs/rate-limits.md` | 2 sites in 2 files | 1 current (edit), 1 released (report) |"},
+    {"answer":"**FN-6f3ce017** (2 sites in 2 files): `docs/Rate_Limits.md` → `docs/rate-limits.md`; 1 current (edit), 1 released (report)"},
+    {"answer":"`docs/Rate_Limits.md` → `docs/rate-limits.md`: 2 sites in 2 files; 1 current (`edit`), 1 released (`report`)"},
+    {"answer":"| `docs/Rate_Limits.md` | `docs/rate-limits.md` | 2 | 1 current (edit), 1 released (report) |"}
+  ],
+  "fail": [
+    {"answer":"| `docs/Rate_Limits.md` | `docs/rate-limits.md` |"},
+    {"answer":"`docs/Rate_Limits.md` → `docs/rate-limits.md`: 12 sites in 2 files, 1 current and 1 released."},
+    {"answer":"`docs/Rate_Limits.md` → `docs/rate-limits.md`: 2 sites, 1 current (report), 1 released (edit)"},
+    {"answer":"`docs/Rate_Limits.md` → `docs/rate-limits.md`: 3 sites in 2 files; 1 current (edit), 1 released (report)"},
+    {"answer":"`docs/Rate_Limits.md` → `docs/rate-limits.md`: 2 sites in 2 files; 1 current (edit), 1 historical (report)"},
+    {"answer":"| `docs/Rate_Limits.md` | `docs/rate-limits.md` | 3 | 2 files | 1 current (edit), 1 released (report) |"}
+  ]
+}
