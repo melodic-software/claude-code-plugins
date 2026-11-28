@@ -12,25 +12,18 @@ metadata:
 ## Pre-computed context
 
 Exec-bit backstop: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/commit/scripts/exec-bit-check.sh" --probe 2>/dev/null || echo "unavailable — run the check manually"`
-Old config location (user-global, still read below team): !`test -f "$HOME/.claude/source-control.md" && echo present || echo absent`
 
 ## Repository context. Probe the config layers
 
-Before the layer probes, classify the config root with `bash "${CLAUDE_PLUGIN_ROOT}/lib/config-root.sh" classify`. For `home` or `non-repo`, report team and personal override as not applicable, skip the repo probes, and read only the old user-global file, when present ([../../reference/config-resolution.md](../../reference/config-resolution.md), "The three layers").
+Before the layer probes, classify the config root with `bash "${CLAUDE_PLUGIN_ROOT}/lib/config-root.sh" classify`. For `home` or `non-repo`, report team and personal override as not applicable and skip the repo probes ([../../reference/config-resolution.md](../../reference/config-resolution.md), "The three layers").
 
 The team value of the convention keys (`subject_pattern`, `type_list`, `trailer_policy`) comes from
 `docs/conventions/source-control.yaml`, read when probe 1 below reports it tracked, through
 `bash "${CLAUDE_PLUGIN_ROOT}/lib/convention-key.sh" layer "$ROOT" <key>`, which prints `yaml` or
 `none` for a key; `value` and `list` print the YAML's value. The personal override,
 `docs/conventions/source-control.local.yaml`, wins per key; `local-value` and `local-list` print
-its value. The retired `.claude/source-control.md` is not read. Report which layer supplied each
-value.
-
-**Old locations.** Until `/source-control:setup apply` moves them, `~/.claude/source-control.md`
-is still read below team, and `.claude/source-control.local.md` as the personal override while
-probe 3 finds no personal YAML (beside it the old file is not read). Read the `## <key>` sections
-of each old file that applies, and for each one present tell the user once that it is an old
-location and `/source-control:setup apply` moves it.
+its value. Retired `.claude/source-control.md`, `.claude/source-control.local.md`, and
+`~/.claude/source-control.md` files are not read. Report which layer supplied each value.
 
 Run the repo-scoped probes as separate calls. Each uses git's repo-root-relative
 magic pathspec `:/`, which resolves against the top of the working tree, so these are correct from
@@ -43,10 +36,8 @@ the leading `:` is pathspec magic, and quoting keeps the shell from reinterpreti
    `git ls-files --cached --others -- ":/docs/conventions/source-control.yaml"`
 3. Personal override, existence.
    `git ls-files --cached --others -- ":/docs/conventions/source-control.local.yaml"`
-4. Old personal override, existence.
-   `git ls-files --cached --others -- ":/.claude/source-control.local.md"`
 
-Probes 2 to 4 deliberately omit `--exclude-standard`, so a gitignored file is still listed.
+Probes 2 and 3 deliberately omit `--exclude-standard`, so a gitignored file is still listed.
 
 **Combine probes 1 and 2 in that order**. Trackedness first, existence consulted only when
 trackedness comes back nonzero. They are not independent readings:
@@ -108,8 +99,7 @@ The subject convention (what shape a subject must take) resolves via a ladder, c
 
 1. **The layered source-control convention config**. Tracked team
    (`docs/conventions/source-control.yaml`) and gitignored personal override
-   (`docs/conventions/source-control.local.yaml`), plus the old locations still read, merged per
-   key by
+   (`docs/conventions/source-control.local.yaml`), merged per key by
    [`${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`](../../reference/config-resolution.md).
    Resolve every layer before using any value; a value from one layer alone is not the effective
    config. When any layer declares one, the effective `subject_pattern` (and `type_list`, when

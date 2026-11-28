@@ -245,14 +245,14 @@
     {
       "id": 20,
       "name": "pr-body-required-sections-none-overrides-lower-layer",
-      "prompt": "/pull-request create from branch feat/512-add-widget. The old user-global ~/.claude/source-control.md (still read below team during the dual-read window) declares pr_body_required_sections as the bullet list Summary, Test plan, Related. The repo's team-tracked docs/conventions/source-control.yaml declares pr_body_required_sections as the literal keyword none. The gitignored personal override docs/conventions/source-control.local.yaml exists but does not set pr_body_required_sections. Resolve the effective section scaffold.",
-      "expected_output": "Per config-resolution.md's per-key override, with the old user-global file read lowest, then team, then the personal override, the team layer's `none` REPLACES the old user-global list wholesale — the effective value is zero required sections, and the personal override's silence on the key changes nothing (an absent key in a later layer keeps the earlier winner; it never resets or re-imports a lower layer's list). The skill distinguishes `none` (a resolved value that wins the per-key override like any list would) from absence (which would have fallen through to the old user-global list here). A personal override declaring `none` over a team list would win the same way — the semantics are per-key precedence, identical to trailer_policy / pr_body_attribution.",
+      "prompt": "/pull-request create from branch feat/512-add-widget. The repo's team-tracked docs/conventions/source-control.yaml declares pr_body_required_sections as the literal keyword none. The gitignored personal override docs/conventions/source-control.local.yaml exists (setting subject_pattern) but does not set pr_body_required_sections. Resolve the effective section scaffold, and state what would happen instead if team declared Summary/Test plan/Related and the personal override declared none.",
+      "expected_output": "Per config-resolution.md's per-key override, the team layer's `none` resolves to zero required sections (replacing the default `briefing` scaffold), and the personal override's omission of `pr_body_required_sections` does not disturb the team layer's `none` (an absent key in a later layer keeps the earlier winner; it never resets to defaults). Conversely, if team declared Summary/Test plan/Related and the personal override declared `none`, the personal override's `none` would replace the team list wholesale because `none` is a resolved value, not an absence — the same per-key precedence semantics as trailer_policy / pr_body_attribution.",
       "files": [],
       "expectations": [
-        "The team layer's `none` overrides the old user-global file's Summary/Test plan/Related list — the effective resolution is zero required sections",
-        "The personal override omitting the key does not disturb the team layer's `none` — per-key fallthrough keeps the later layer's resolved value",
-        "`none` wins the per-key override as a resolved value exactly like a list would, with the same precedence semantics as trailer_policy and pr_body_attribution",
-        "Absence and `none` are distinguished: had the team layer omitted the key, the old user-global list would have won instead"
+        "The team layer's `none` resolves to zero required sections rather than falling back to the default `briefing` scaffold",
+        "The personal override omitting the key does not disturb the team layer's `none` — per-key fallthrough keeps the team layer's resolved value",
+        "A personal override declaring `none` over a team list overrides the team list wholesale as a resolved value, with the same precedence semantics as trailer_policy and pr_body_attribution",
+        "Absence and `none` are distinguished: omitting the key falls through to the lower layer, while `none` replaces it"
       ]
     },
     {

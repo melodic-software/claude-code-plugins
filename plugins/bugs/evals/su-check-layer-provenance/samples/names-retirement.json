@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "| retirements | FAIL | bugs-r001: .claude/bugs.local.md is the old personal override path; run /bugs:setup apply to move it to docs/conventions/bugs.local.md |"
+      "answer": "| retirements | INFO | bugs-r001: .claude/bugs.local.md is a retired personal override path and is no longer read |"
     }
   ],
   "fail": [

@@ -7,7 +7,7 @@
   ],
   "fail": [
     {
-      "answer": "Following the instructions in .claude/testing/worst-case.md.",
+      "answer": "Following the instructions in docs/conventions/testing/worst-case.md.",
       "why": "instructions"
     }
   ]
