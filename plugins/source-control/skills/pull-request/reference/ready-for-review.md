@@ -31,7 +31,8 @@ Still a draft: refuse a held or superseded one before touching the branch
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#check-for-a-hold)).
 Held means a WIP marker in the title; superseded means an issue the PR closes is already closed.
 The `do-not-merge` label holds the merge only, never the flip: flip a labeled draft with the label
-on, and leave the label for whoever set it to take off. An unattended
+on, and leave the label for whoever set it to take off, except an eval-only hold, which pr-merge's
+release step (`release-eval-hold.mjs`) takes off once a no-loss eval record for the current head is posted. An unattended
 run (invoked as `ready --unattended`, or no person drives it: a loop lane, a CI lane, a `dontAsk`
 session, a dispatched worker) passes `--unattended`, which also holds a draft whose body has a
 line starting `Draft:` (any case, such as create's `Draft: requested early look` or
