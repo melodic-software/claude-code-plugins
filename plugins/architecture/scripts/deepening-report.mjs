@@ -313,6 +313,7 @@ const SCRIPTS = [
 ];
 
 const REPORT_STYLE = `
+  :root { --muted: var(--gray-700); }
   body { max-width: 1360px; }
   [hidden]:not([hidden=until-found]) { display: none !important; }
   h3 { font-family: var(--serif); font-size: 1.15rem; margin: 0; }
@@ -601,7 +602,7 @@ const SVG_ATTRS = new Set([
 const SVG_ARIA = /^aria-[a-z0-9-]+$/;
 const ATTRS = new Set([
   "lang", "charset", "http-equiv", "content", "name", "class", "id", "href", "role", "type", "hidden", "tabindex",
-  "aria-label", "aria-labelledby", "aria-pressed", "aria-current", "aria-live", "aria-hidden",
+  "aria-label", "aria-labelledby", "aria-pressed", "aria-current", "aria-live",
   "data-rv-theme", "data-part", "data-step", "data-enlarge", "data-zoom-close",
   ...SVG_ATTRS,
 ]);

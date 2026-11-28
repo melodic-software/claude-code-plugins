@@ -90,7 +90,10 @@ describe("architecture branded page builds", () => {
       assert.equal(validateView(mapHtml).ok, true);
       const builtStyle = /<style>([\s\S]*?)<\/style>/i.exec(mapHtml)?.[1] ?? "";
       assert.ok(flat(builtStyle).startsWith(flat(stripTokenComment(TOKENS))), "built map-view must open <style> with html-tokens.css");
+      assert.match(builtStyle, /:root \{ --muted: var\(--gray-700\); \}/);
       assert.match(mapHtml, /data-rv-theme="system"/);
+      assert.match(mapHtml, /<section class="rv-comment"/);
+      assert.match(mapHtml, /data-rv-note="comment"/);
       assert.doesNotMatch(mapHtml, /class="rv-brand"/);
 
       const deepBuilt = spawnSync("node", [BUILD_VIEW, "deepening", "--record", DEEPENING_FIXTURE], {
@@ -101,6 +104,7 @@ describe("architecture branded page builds", () => {
       assert.equal(deepBuilt.status, 0, deepBuilt.stderr);
       const deepHtml = readFileSync(deepBuilt.stdout.trim(), "utf8");
       assert.equal(validateDeepeningPage(deepHtml).ok, true);
+      assert.match(deepHtml, /:root \{ --muted: var\(--gray-700\); \}/);
       assert.match(deepHtml, /data-rv-theme="system"/);
       assert.doesNotMatch(deepHtml, /class="rv-brand"/);
     } finally {
@@ -159,6 +163,10 @@ describe("architecture branded page builds", () => {
       assert.match(mapHtml, /<div class="rv-bar"><div class="rv-brand"><span class="rv-brand-mark rv-logo"/);
       assert.match(mapHtml, /Northwind Architecture/);
       assert.match(mapHtml, /data-rv-theme="system"/);
+      assert.match(mapHtml, /<section class="rv-comment"/);
+      assert.match(mapHtml, /data-rv-note="comment"/);
+      assert.match(mapHtml, /--muted: #475467;/);
+      assert.ok(mapHtml.lastIndexOf("--muted: #475467;") > mapHtml.indexOf("--muted: var(--gray-700);"), "consumer --muted wins over default");
       assert.match(mapHtml, /prefers-reduced-motion: reduce/);
 
       const deepBuilt = spawnSync("node", [BUILD_VIEW, "deepening", "--record", DEEPENING_FIXTURE], {
@@ -176,6 +184,8 @@ describe("architecture branded page builds", () => {
       assert.match(deepHtml, /<div class="rv-bar"><div class="rv-brand"><span class="rv-brand-mark rv-logo"/);
       assert.match(deepHtml, /Northwind Architecture/);
       assert.match(deepHtml, /data-rv-theme="system"/);
+      assert.match(deepHtml, /--muted: #475467;/);
+      assert.ok(deepHtml.lastIndexOf("--muted: #475467;") > deepHtml.indexOf("--muted: var(--gray-700);"), "consumer --muted wins over default");
       assert.match(deepHtml, /prefers-reduced-motion: reduce/);
       assert.match(deepHtml, /:focus-visible/);
     } finally {
@@ -321,6 +331,11 @@ describe("architecture branded page builds", () => {
       const checked = validateDeepeningPage(nonSvgAria);
       assert.equal(checked.ok, false);
       assert.ok(checked.failures.includes("attr:aria-describedby"));
+
+      const nonSvgHidden = deepHtml.replace('<div class="rv-bar">', '<div class="rv-bar" aria-hidden="true">');
+      const hiddenChecked = validateDeepeningPage(nonSvgHidden);
+      assert.equal(hiddenChecked.ok, false);
+      assert.ok(hiddenChecked.failures.includes("attr:aria-hidden"));
     } finally {
       rmSync(work, { recursive: true, force: true });
     }

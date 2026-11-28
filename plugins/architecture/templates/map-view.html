@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Architecture Map View</title>
 <style>
+:root { --muted: var(--gray-700); }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); }
 .page { max-width: 56rem; margin: 0 auto; padding: 0 16px; padding-block: 2rem 3rem; display: grid; gap: 1.5rem; }
@@ -57,6 +58,11 @@ summary:focus-visible, input:focus-visible { outline: 3px solid var(--focus); ou
 </details>
 </li>
 </ol>
+<section class="rv-comment" aria-labelledby="rv-comment-h">
+<h2 id="rv-comment-h">Comment</h2>
+<label for="rv-comment-text">Your comment for the session</label>
+<textarea id="rv-comment-text" data-rv-note="comment" placeholder="Say what should change, or ask a question"></textarea>
+</section>
 </main>
 </body>
 </html>
