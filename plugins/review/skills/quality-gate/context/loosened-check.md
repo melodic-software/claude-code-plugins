@@ -117,8 +117,8 @@ default branch's committed copy, never the head's, so a change cannot relax the 
 pattern or change the decision record for its own review. Use the resolved values the brief
 carries; when no value could be resolved, use `fail`, no consumer entries and an `unreadable`
 decision record, and say why. The `/review:code-review` lane runs no resolver: when its prompt has
-no `loosened_check_decision_record:` line, it asks for no citation and says in its summary that the
-citation requirement was not checked.
+no `loosened_check_decision_record:` line, it asks for no citation, and its summary mentions the
+settings only in the line below.
 
 Report one line: `Loosened checks would be marked: <value> (<layers>); patterns: <count>`. It
 states the policy in force, so a review that finds no loosening prints it too.

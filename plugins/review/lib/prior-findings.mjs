@@ -176,7 +176,8 @@ export function collect({ threads, reviews, comments, lane, head, diff }) {
       if (source === "review" || summary?.reviewed) reviewedAt(posted);
       const body = stripFooter(post.body, lane);
       if (!body) continue;
-      findings.push({ source, path: null, posted, url: post.url, body, lines: null, changed: "yes (no line anchor)" });
+      const inPlace = summary !== null;
+      findings.push({ source, path: null, posted, url: inPlace ? null : post.url, inPlace, body, lines: null, changed: "yes (no line anchor)" });
     }
   }
   return { findings, reviewed: [...heads].filter((h) => !partial.has(h)).length };
@@ -214,7 +215,9 @@ export function render({ lane, findings, reviewed, more, afterFirstReview = AFTE
       "",
       `- source: ${f.source}`,
       `- posted at head: ${f.posted || "unknown"}`,
-      `- link: ${f.url ?? "unknown"}`,
+      f.inPlace
+        ? "- link: none (this lane's summary comment, which this review's summary replaces in place; restate a finding from it with no link to it)"
+        : `- link: ${f.url ?? "unknown"}`,
       `- lines changed since posted: ${f.changed}`,
       "",
       cap(f.body),

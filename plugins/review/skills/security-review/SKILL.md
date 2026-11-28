@@ -409,7 +409,8 @@ the wrapper's line check, never on anyone's comment text, so it applies at every
 CRITICAL candidate, a trust-control widening and a `manifest <field>: flag` line included; the
 manifest summary line then reads `manifest <field>: already posted, <link>`. Post the rest at the
 severity the bar gives it: a different problem on the same lines, a match marked `yes`, and a
-match on an entry with no line anchor (a summary finding is restated each round).
+match on an entry with no line anchor (a summary finding is restated each round, with no link to
+the summary comment this review replaces).
 
 **After the first review.** When the prior-findings file says `blocking only: yes`, this lane
 already reviewed an earlier head of the pull request: post only CRITICAL and IMPORTANT findings, a
