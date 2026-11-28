@@ -377,47 +377,6 @@ MP_ERRORS=()
 run_error() { RUN_ERRORS+=("$1"); }
 mp_error() { MP_ERRORS+=("$1"); }
 
-version_direction() {
-  local __vd
-  version_direction_to __vd "$1" "$2"
-  echo "$__vd"
-}
-
-version_direction_to() {
-  local __vd_var="$1" old="$2" new="$3" ore_ok=0 nre_ok=0 o1 o2 o3 n1 n2 n3 __vd_d
-  if [[ "$old" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
-    o1=$((10#${BASH_REMATCH[1]}))
-    o2=$((10#${BASH_REMATCH[2]}))
-    o3=$((10#${BASH_REMATCH[3]}))
-    ore_ok=1
-  fi
-  if [[ "$new" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
-    n1=$((10#${BASH_REMATCH[1]}))
-    n2=$((10#${BASH_REMATCH[2]}))
-    n3=$((10#${BASH_REMATCH[3]}))
-    nre_ok=1
-  fi
-  if [[ "$ore_ok$nre_ok" != "11" ]]; then
-    __vd_d="unknown"
-  elif ((n1 > o1)) || { ((n1 == o1)) && ((n2 > o2)); } ||
-    { ((n1 == o1)) && ((n2 == o2)) && ((n3 > o3)); }; then
-    __vd_d="forward"
-  elif ((n1 < o1)) || { ((n1 == o1)) && ((n2 < o2)); } ||
-    { ((n1 == o1)) && ((n2 == o2)) && ((n3 < o3)); }; then
-    __vd_d="backward"
-  elif [[ "$old" == "$new" ]]; then
-    __vd_d="same"
-  else
-    __vd_d="unknown"
-  fi
-  printf -v "$__vd_var" '%s' "$__vd_d"
-}
-
-if [[ -n "${SYNC_RUN_VERSION_DIRECTION:-}" ]]; then
-  version_direction "${SYNC_RUN_VERSION_DIRECTION%%$'\t'*}" "${SYNC_RUN_VERSION_DIRECTION#*$'\t'}"
-  exit 0
-fi
-
 CLI_OUT=""
 CLI_RC=0
 CLI_CWD=""
@@ -706,11 +665,11 @@ catalog_regression_rows() {
     snapshot_file a "$la" "$mp"
     snapshot_file b "$lb" "$mp"
     # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-    jq_to rows -c --slurpfile a "$a" --slurpfile b "$b" -n "$TRIPLE_DEF"'
+    jq_to rows -c -L "$SCRIPT_DIR" --slurpfile a "$a" --slurpfile b "$b" -n 'include "version";
       ($a[0].catalog_versions // {}) as $before | ($b[0].catalog_versions // {}) as $after
       | [$before | to_entries[]
-         | select((.value | triple) != null and ($after[.key] | triple) != null
-                  and ($after[.key] | triple) < (.value | triple))
+         | select((.value | version_triple) != null and ($after[.key] | version_triple) != null
+                  and ($after[.key] | version_triple) < (.value | version_triple))
          | "\(.key) \(.value) \($after[.key])"]' || continue
     if [[ -n "$rows" && "$rows" != "[]" ]]; then
       printf -v "$__interval_var" '%s' "$la->$lb"
@@ -754,9 +713,9 @@ divergence_block() {
   json_array_of moved_rows ${MOVED_DURING[@]+"${MOVED_DURING[@]}"}
   json_object_file "$RUN_DIR/.divergence-args.$mp.json" moved "$moved_rows" would "$would"
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to "$__var" -c \
+  jq_to "$__var" -c -L "$SCRIPT_DIR" \
     --slurpfile p "$pre" --slurpfile m "$mid" --slurpfile q "$post" \
-    --argjson cap "$DIVERGENCE_PATH_IDS" "$ACTIONABLE_DEF$TRIPLE_DEF"'
+    --argjson cap "$DIVERGENCE_PATH_IDS" 'include "version"; '"$ACTIONABLE_DEF"'
     . as {$moved, $would}
     # Under --audit nothing moved, so a pin sync would forward-update (Step 2 or
     # Step 3a) is read at the catalog version: it is not work for converge. So is a
@@ -772,11 +731,11 @@ divergence_block() {
             . as $s
             | if $s.linkedWorktree != true and $s.projectPathIsHome != true
                  and any($wp[]; .id == $id and .scope == $s.scope and .path == $s.projectPath)
-                 and ($cv[$id] | triple) != null and ($s.version | triple) != null
-                 and ($s.version | triple) < ($cv[$id] | triple)
+                 and ($cv[$id] | version_triple) != null and ($s.version | version_triple) != null
+                 and ($s.version | version_triple) < ($cv[$id] | version_triple)
               then .version = $cv[$id] else . end))
-          | ($cv[$id] | triple) as $c
-          | if $c != null and $c > (.highest | triple)
+          | ($cv[$id] | version_triple) as $c
+          | if $c != null and $c > (.highest | version_triple)
                and any(.scopes[]; .projectPathIsHome != true and .version == $cv[$id])
             then .highest = $cv[$id] else . end)
       end) as $qq
@@ -796,9 +755,9 @@ divergence_block() {
     # keyed to a user home is dropped like in `actionable` and never classes the row.
     def row_class:
       [.scopes[]? | select(.projectPathIsHome != true)] as $s
-      | (.highest | triple) as $top
+      | (.highest | version_triple) as $top
       | [$s[] | select((.projectPath // "") != "")
-         | select($top == null or (.version | triple) != $top)
+         | select($top == null or (.version | version_triple) != $top)
          | pin_class] as $c
       | if ($c | length) == 0 or ($c | index("actionable")) != null then "actionable"
         elif ($c | index("worktree")) != null then "worktree"
@@ -811,8 +770,8 @@ divergence_block() {
     def diverging_records:
       .id as $id
       | [.scopes[]? | select(.projectPathIsHome != true)] as $s
-      | (.highest | triple) as $top
-      | [$s[] | select($top == null or (.version | triple) != $top)] as $d
+      | (.highest | version_triple) as $top
+      | [$s[] | select($top == null or (.version | version_triple) != $top)] as $d
       | (if ($d | length) > 0 then $d else $s end)
       | map({id: $id, scope, version, projectPath: (.projectPath // null),
              class: (if (.projectPath // "") != "" then pin_class else null end)});
@@ -865,13 +824,6 @@ divergence_block() {
     jq_to "$__var" -c 'del(.by_path_all) + {record_count: (.records | length), records_file: null}' <<<"$full"
   fi
 }
-
-# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-TRIPLE_DEF='def triple:
-    if type == "string" then
-      ((capture("^v?(?<x>[0-9]+)[.](?<y>[0-9]+)[.](?<z>[0-9]+)") // null)
-       | if . == null then null else [.x, .y, .z] | map(tonumber) end)
-    else null end;'
 
 SS_GIT_DIR=""
 SS_GIT_IN=0
@@ -1003,13 +955,13 @@ finalize_other_paths() {
   [[ -f "$pre" ]] || pre="$rows_file"
   [[ -f "$skipped" ]] || skipped=/dev/null
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to result -c -n --slurpfile rows "$rows_file" --slurpfile post "$post" --slurpfile pre "$pre" \
-    --slurpfile skipped "$skipped" "$TRIPLE_DEF$POST_RECORD_DEF"'
+  jq_to result -c -n -L "$SCRIPT_DIR" --slurpfile rows "$rows_file" --slurpfile post "$post" --slurpfile pre "$pre" \
+    --slurpfile skipped "$skipped" 'include "version"; '"$POST_RECORD_DEF"'
     ($post[0] | if type == "object" then . else {} end) as $q
     | ($pre[0] | if type == "object" then . else {} end) as $p
     | [$rows[0][] | select(.result == "called")
        | . + {new: (post_record($q; .id; .scope; .path).version // null)}
-       | . + {moved: ((.new | triple) != null and (.old | triple) < (.new | triple))}] as $called
+       | . + {moved: ((.new | version_triple) != null and (.old | version_triple) < (.new | version_triple))}] as $called
     | {updated: [$called[] | select(.moved) | {id, scope, path, old, new}],
        not_moved: [$called[] | select((.moved | not) and (.record_label != "" or .home))
                    | {id, scope, path, version: (.new // .old), catalog,
@@ -1905,33 +1857,41 @@ cache_content_block() {
 
 finalize_moves() {
   local mp="$1" kind id scope old new result dir row line post_v ncat nlabel joined=""
-  local post pre after_step2
+  local d_post_cat d_old_post d_old_new post pre after_step2
   snapshot_file post post "$mp"
   snapshot_file pre pre "$mp"
   [[ -f "$RUN_DIR/moves.$mp.tsv" ]] || return 0
-  if [[ -f "$post" ]]; then
-    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-    jq_to joined -r --rawfile moves "$RUN_DIR/moves.$mp.tsv" "$POST_RECORD_DEF"'
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  local program='include "version"; '"$POST_RECORD_DEF"'
       . as $p
       | $moves | gsub("\r"; "") | split("\n")[] | select(length > 0)
       | . as $line | split("\t") as $f | $f[1] as $id
       | (post_record($p; $id; $f[2]; null) // {}) as $r
-      | [$line, ($r.version // "" | tostring), ($p.catalog_versions[$id]? // "" | tostring),
-         (if $r.currentProject == true then $r.label // "" else "" end | tostring)]
-      | join("\u001f")' "$post" 2>/dev/null || joined=""
+      | ($r.version // "" | tostring) as $post_v
+      | ($p.catalog_versions[$id]? // "" | tostring) as $ncat
+      | [$line, $post_v, $ncat,
+         (if $r.currentProject == true then $r.label // "" else "" end | tostring),
+         version_direction($post_v; $ncat), version_direction($f[3]; $post_v),
+         version_direction($f[3]; $f[4])]
+      | join("\u001f")'
+  if [[ -f "$post" ]]; then
+    jq_to joined -r -L "$SCRIPT_DIR" --rawfile moves "$RUN_DIR/moves.$mp.tsv" "$program" "$post" 2>/dev/null ||
+      joined=""
   fi
-  [[ -n "$joined" ]] || joined=$(<"$RUN_DIR/moves.$mp.tsv")
+  if [[ -z "$joined" ]] &&
+    ! jq_to joined -r -n -L "$SCRIPT_DIR" --rawfile moves "$RUN_DIR/moves.$mp.tsv" "$program"; then
+    mp_error "move classification failed, so this run's moves are not reported"
+    return 0
+  fi
   joined="${joined//$'\r'/}"
-  while IFS=$'\x1f' read -r line post_v ncat nlabel; do
+  while IFS=$'\x1f' read -r line post_v ncat nlabel d_post_cat d_old_post d_old_new; do
     IFS=$'\t' read -r kind id scope old new result <<<"$line"
     [[ -n "$id" ]] || continue
     [[ "$old" == "-" ]] && old=""
     [[ "$new" == "-" ]] && new=""
     if [[ "$result" == "noop" ]]; then
       if ((ONLY_INSTALL_MODE == 0)) && [[ "$kind" == "in_repo" && "$scope" != "user" && -f "$post" ]]; then
-        dir=""
-        [[ -n "$post_v" && -n "$ncat" ]] && version_direction_to dir "$post_v" "$ncat"
-        if [[ "$dir" == "forward" ]]; then
+        if [[ "$d_post_cat" == "forward" ]]; then
           IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg cur "$post_v" --arg cat "$ncat" --arg label "$nlabel" \
             '{id: $id, scope: $sc, rc: 0, output: "",
               reason: ("the CLI said already at the latest version, but this project'"'"'s record is still at \($cur) and the catalog reads \($cat): the update did not take"
@@ -1948,7 +1908,7 @@ finalize_moves() {
         continue
       fi
       new="$post_v"
-      version_direction_to dir "$old" "$new"
+      dir="$d_old_post"
       [[ "$dir" == "same" ]] && continue
       move_row_to row "$id" "$scope" "$old" "$new" "$dir" "$kind"
       MOVED_DURING+=("$row")
@@ -1958,8 +1918,10 @@ finalize_moves() {
       fi
       continue
     fi
+    dir="$d_old_new"
     if [[ -z "$new" && -f "$post" ]]; then
       new="$post_v"
+      dir="$d_old_post"
       [[ "$new" == "$old" ]] && new=""
     fi
     if ((ONLY_INSTALL_MODE == 0)) && [[ "$kind" == "in_repo" && "$scope" != "user" &&
@@ -1985,8 +1947,6 @@ finalize_moves() {
     if [[ -z "$new" ]]; then
       new="unknown"
       dir="unknown"
-    else
-      version_direction_to dir "$old" "$new"
     fi
     case "$dir" in
       same) continue ;;
@@ -2020,9 +1980,9 @@ report_extras() {
     list_file="$RUN_DIR/stale-project-records.$mp.json"
   fi
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to "$__var" -c --argjson cap "$STALE_PARENT_ROWS" --arg list_file "$list_file" \
+  jq_to "$__var" -c -L "$SCRIPT_DIR" --argjson cap "$STALE_PARENT_ROWS" --arg list_file "$list_file" \
     --argjson left_to_step3a "$([[ "$MODE" == "audit" || "$UPDATE_OTHER_PATHS" == 0 ]] && echo true || echo false)" \
-    "$ACTIONABLE_DEF$TRIPLE_DEF"'
+    'include "version"; '"$ACTIONABLE_DEF"'
     def parent: capture("^(?<p>.*[/\\\\])[^/\\\\]+[/\\\\]*$").p // .;
     # One pass: parent groups that are siblings, more of them than the cap, merge
     # into their own parent with summed counts, so they take one row, not many.
@@ -2043,7 +2003,7 @@ report_extras() {
     # ones Step 3a could not move. Under --audit or with Step 3a off, the present
     # ones it would move are left out.
     | ([.installed[]? | select(.projectPathIsHome == true)
-        | select(($cv[.id] | triple) as $c | (.version | triple) as $v
+        | select(($cv[.id] | version_triple) as $c | (.version | version_triple) as $v
                  | ($c == null or $v == null or $v < $c)
                    and (($left_to_step3a and .projectPathPresent == true and $c != null and $v != null) | not))]) as $homes
     | {auto_update: .marketplace.autoUpdate,

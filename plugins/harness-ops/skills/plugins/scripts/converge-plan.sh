@@ -129,18 +129,13 @@ fi
 
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
 ROWS_PROGRAM='
-  def triple:
-    if type == "string" then
-      ((capture("^v?(?<maj>[0-9]+)[.](?<min>[0-9]+)[.](?<pat>[0-9]+)") // null)
-       | if . == null then null else [.maj, .min, .pat] | map(tonumber) end)
-    else null end;
   def shq: ([39] | implode) as $q | $q + gsub($q; $q + "\\" + $q + $q) + $q;
   def lagging:
     .divergences[]? | select(.versionsMatch == false) | . as $d
-    | ($d.highest | triple) as $hi
+    | ($d.highest | version_triple) as $hi
     | select($hi != null)
     | $d.scopes[]
-    | select((.version | triple) as $t | $t != null and $t < $hi)
+    | select((.version | version_triple) as $t | $t != null and $t < $hi)
     | {id: $d.id, scope, version, highest: $d.highest, class,
        projectPath: (.projectPath // null),
        worktree: (.linkedWorktree == true),
@@ -151,7 +146,7 @@ ROWS_PROGRAM='
 
 paths_needed=""
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-if ! jq_to paths_needed -r "$ROWS_PROGRAM"'
+if ! jq_to paths_needed -r -L "$script_src_dir" 'include "version"; '"$ROWS_PROGRAM"'
   [lagging | select(.needsCheck) | .projectPath] | unique | .[]' <<<"$report"; then
   echo "ERROR: could not plan the report" >&2
   exit 2
@@ -236,7 +231,7 @@ PLAN_PROGRAM="$ROWS_PROGRAM"'
 
 plan=""
 if ! jq_to plan -c -L "$script_src_dir" --argjson committed "$committed" \
-  'include "question-groups"; '"$PLAN_PROGRAM" <<<"$report"; then
+  'include "question-groups"; include "version"; '"$PLAN_PROGRAM" <<<"$report"; then
   echo "ERROR: could not plan the report" >&2
   exit 2
 fi

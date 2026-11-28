@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: .claude/settings.json
+# test-scope: .claude/settings.json plugins/harness-ops/skills/plugins/scripts/version.jq
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
