@@ -1,5 +1,5 @@
 ---
-description: "Read a named upstream vendor docs page via the shared lookup and cache, marking silences and separating inference (raw-byte verification; prefer bundled claude-code-docs for quick Claude Code Q&A). Use when: 'read the docs page for X', 'what does the official page say', or WebFetch truncated a page. Not for multi-source: /discovery:research."
+description: "Read an upstream vendor docs page via shared lookup/cache, marking silences and separating inference (raw-byte verify; when claude-code-docs resolves in this session, prefer it for Claude Code Q&A). Use when: 'read the docs page for X', 'what does the official page say', or WebFetch truncated a page. Not for multi-source: /discovery:research."
 argument-hint: "<url-or-slug> [question]"
 user-invocable: true
 disable-model-invocation: false
