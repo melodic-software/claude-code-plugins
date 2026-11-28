@@ -1577,8 +1577,8 @@ the rules that only tighten in
     `babysit_review_evidence.py`, which compute the security review's clear condition,
     `.github/scripts/pr-merge/merge-holds.mjs`, `scripts/sync-hold-floor.py`, which writes the
     floor's copies, and the pr-merge scripts that apply and enforce the holds:
-    `enable-auto-merge.mjs`, `superseded.mjs`, `clear-escalations.mjs`, `gate-check.mjs` and
-    `head-ref-map.mjs`.
+    `enable-auto-merge.mjs`, `superseded.mjs`, `clear-escalations.mjs`, `verifier.mjs`,
+    `gate-check.mjs` and `head-ref-map.mjs`.
   - `gate`, a person merges it: the rest of the merge gate's own code, which is the rate guard
     (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit defaults
     (`.github/actions/log-api-budget/rate-limits.json`) and every other script of
