@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Exit 0 clean, 1 findings, 2 environment (node missing).
-# test-scope: plugins/education/skills/illustrate/SKILL.md
+# test-scope: plugins/education/skills/illustrate/SKILL.md plugins/education/.claude-plugin/plugin.json
 set -euo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 
@@ -14,7 +16,7 @@ work="$(mktemp -d)" || exit 2
 trap 'rm -rf "$work"' EXIT
 
 node --input-type=module - "$SCRIPT_DIR" "$work" <<'NODE'
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
@@ -184,24 +186,36 @@ check("a hub with no center and no branches is hidden", /\.hub:has\(\.hub-center
 check("a before-after with no items is hidden", /\.change:not\(:has\(li\)\) \{ display: none; \}/.test(css));
 check("compare columns stack on a narrow page", /repeat\(auto-fit, minmax\(/.test(rule(".compare")), rule(".compare"));
 
-// Each theme's tokens, so the accents can be checked for variety and contrast.
 const themeBlock = (head) => css.split(head)[1]?.split("}")[0] ?? "";
-const tokens = (body) => Object.fromEntries([...body.matchAll(/--([a-z0-9]+): (#[0-9a-f]{6});/g)].map((m) => [m[1], m[2]])); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
-const themes = {
-  light: tokens(themeBlock(":root {")),
-  "dark by preference": tokens(themeBlock(":root:not([data-theme=light]) {")),
-  "dark by choice": tokens(themeBlock(":root[data-theme=dark] {")),
+const rawTokens = (body) => Object.fromEntries([...body.matchAll(/--([a-z0-9-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()])); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+const resolveTokens = (base, over = {}) => {
+  const merged = { ...base, ...over };
+  const out = {};
+  for (const key of Object.keys(merged)) {
+    let val = merged[key];
+    for (let i = 0; i < 4 && /^var\(--([a-z0-9-]+)\)$/.test(val); i += 1) {
+      val = merged[/^var\(--([a-z0-9-]+)\)$/.exec(val)[1]] ?? val;
+    }
+    if (/^#[0-9a-fA-F]{6}$/.test(val)) out[key] = val;
+  }
+  return out;
 };
-const ACCENTS = [1, 2, 3, 4, 5];
-const accentRule = (n) => (n === 1 ? rule(".picture") : rule(`.picture:nth-child(${n === 5 ? "5n" : `5n+${n}`})`));
+const rootRaw = rawTokens(themeBlock(":root {"));
+const themes = {
+  light: resolveTokens(rootRaw),
+  "dark by preference": resolveTokens(rootRaw, rawTokens(themeBlock(":root:not([data-theme=light]) {"))),
+  "dark by choice": resolveTokens(rootRaw, rawTokens(themeBlock(":root[data-theme=dark] {"))),
+};
+const BANDS = ["link", "olive", "accent", "fg", "muted"];
+const bandRule = (n) => (n === 1 ? rule(".picture") : rule(`.picture:nth-child(${n === 5 ? "5n" : `5n+${n}`})`));
 check(
-  "each of five card positions takes its own accent and tint",
-  ACCENTS.every((n) => accentRule(n).includes(`--accent: var(--a${n});`) && accentRule(n).includes(`--tint: var(--t${n});`)),
-  ACCENTS.map(accentRule).join(" | "),
+  "each of five card positions takes its own token-layer band",
+  BANDS.every((token, i) => bandRule(i + 1).includes(`--band: var(--${token});`)),
+  BANDS.map((_, i) => bandRule(i + 1)).join(" | "),
 );
 for (const [name, t] of Object.entries(themes)) {
-  const values = ACCENTS.map((n) => t[`a${n}`]);
-  check(`adjacent cards differ in accent in the ${name} theme`, values.every(Boolean) && new Set(values).size === 5, values.join(","));
+  const values = BANDS.map((token) => t[token]);
+  check(`adjacent cards differ in band color in the ${name} theme`, values.every(Boolean) && new Set(values).size === 5, values.join(","));
 }
 const luminance = (hex) => {
   const [r, g, b] = hex.slice(1).match(/../g).map((h) => parseInt(h, 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
@@ -211,22 +225,21 @@ const contrast = (a, b) => {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (hi + 0.05) / (lo + 0.05);
 };
+check(
+  "no text rule in explainer template uses the low-contrast light --muted token",
+  !/(?:^|[;{][ \t]*)color:[ \t]*var\(--muted\)/m.test(css),
+);
 for (const [name, t] of Object.entries(themes)) {
   const low = [];
-  for (const n of ACCENTS) {
-    // A node label sits on the surface; card text, a muted before-side, and an accent date sit on the tint.
-    // 4.5 is user-interface's body-text contrast floor (reference/types/web/color/contrast.md "The bar").
-    const pairs = [["fg", "surface"], ["fg", `t${n}`], ["muted", `t${n}`], [`a${n}`, `t${n}`]];
-    for (const [fg, bg] of pairs) {
-      const r = t[fg] && t[bg] ? contrast(t[fg], t[bg]) : 0;
-      if (r < 4.5) low.push(`${fg} on ${bg} ${r.toFixed(2)}`);
-    }
+  for (const [fg, bg] of [["fg", "panel"], ["fg", "bg"], ["link", "bg"], ["link", "panel"]]) {
+    const r = t[fg] && t[bg] ? contrast(t[fg], t[bg]) : 0;
+    if (r < 4.5) low.push(`${fg} on ${bg} ${r.toFixed(2)}`);
   }
-  check(`every accent keeps text at 4.5:1 or more in the ${name} theme`, low.length === 0, low.join(", "));
+  check(`every text role keeps 4.5:1 or more in the ${name} theme`, low.length === 0, low.join(", "));
 }
-check("the box behind a node label is the surface", /background: var\(--surface\)/.test(rule(".box")), rule(".box"));
+check("the box behind a node label uses the panel surface token", /background: var\(--panel\)/.test(rule(".box")), rule(".box"));
 check("the first card is the lead diagram, drawn larger", /padding: 2rem/.test(rule(".picture:first-child .diagram")) && /font-size/.test(rule(".picture:first-child h2")));
-check("every kind draws inside one tinted diagram area", /background: var\(--tint\)/.test(rule(".diagram")) && LISTS.every((key) => page.split('class="diagram"')[1]?.split('class="caption"')[0]?.includes(`data-rv-each="${key}"`)));
+check("every kind draws inside one bordered diagram area", /background: var\(--bg\)/.test(rule(".diagram")) && LISTS.every((key) => page.split('class="diagram"')[1]?.split('class="caption"')[0]?.includes(`data-rv-each="${key}"`)));
 const tick = /<label class="unclear"[^>]*>(.*?)<\/label>/.exec(page)?.[1] ?? ""; // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 check("the still-unclear toggle wraps its pick", /^<input type="checkbox" data-rv-pick="">/.test(tick) && (page.match(/data-rv-pick=/g) ?? []).length === 1, tick);
 // A ticked toggle changes its glyph, not only its color, so the state survives forced colors.
@@ -533,6 +546,61 @@ check("the skill states the short-label rule", skill.includes("Labels are capped
 const kindRows = ["flow", "stack", "hub", "timeline", "compare", "before-after"].filter((kind) => skill.includes(`| \`${kind}\` |`));
 check("the skill documents every kind the builder accepts", kindRows.length === 6, kindRows.join(","));
 check("the skill calls its diagrams diagrams, not pictures", !/small pictures|the pictures|each\s+picture/.test(skill)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+
+const rawTpl = readFileSync(`${dir}/../templates/explainer.html`, "utf8");
+const rawStyle = /<style>([^]*?)<\/style>/i.exec(rawTpl)?.[1] ?? "";
+check("explainer template defines no literal palette color", !/#[0-9a-fA-F]{3,8}(?![0-9a-fA-F])|rgb\(|hsl\(/i.test(rawStyle));
+check("default explainer carries shipped tokens, toggle, comment box and focus floor",
+  page.includes("--ivory: #FAF9F5;") &&
+  !page.includes('class="rv-brand"') &&
+  page.includes('data-rv-theme="system" aria-pressed="true"') &&
+  page.includes('data-rv-note="question"') &&
+  page.includes("outline: 3px solid var(--focus)"));
+
+const brandRepo = `${work}/brand-repo`;
+const emptyHome = `${work}/empty-home`;
+mkdirSync(`${brandRepo}/docs/conventions`, { recursive: true });
+mkdirSync(emptyHome, { recursive: true });
+spawnSync("git", ["init", "-q", brandRepo], { encoding: "utf8" });
+writeFileSync(`${brandRepo}/docs/conventions/rendered-views.yaml`, [
+  "branding:",
+  "  palette:",
+  "    light:",
+  '      bg: "#F8F4EC"',
+  '      muted: "#595954"',
+  '      link: "#1A4D8F"',
+  '      fg: "#CCCCCC"',
+  "  type:",
+  '    sans: "IBM Plex Sans, sans-serif"',
+  "  logo:",
+  '    svg: \'<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="6" fill="#1A4D8F"/></svg>\'',
+  '    label: "Acme Explain"',
+].join("\n") + "\n");
+const brandEnv = { ...process.env, CLAUDE_PROJECT_DIR: brandRepo, HOME: emptyHome, USERPROFILE: emptyHome, CLAUDE_PLUGIN_OPTION_BRANDING: "" };
+mkdirSync(`${work}/brand-rec`, { recursive: true });
+mkdirSync(`${work}/brand-page`, { recursive: true });
+const brandedPagePath = `${work}/brand-page/explainer.html`;
+const brandedOut = spawnSync(process.execPath, [builderPath, "--record", `${work}/brand-rec/explainer.md`, "--page", brandedPagePath], { input: JSON.stringify(model), encoding: "utf8", env: brandEnv });
+const brandedPage = brandedOut.status === 0 ? readFileSync(brandedPagePath, "utf8") : "";
+check("branded explainer builds and passes interactive profile", brandedOut.status === 0 && validateView(brandedPage).ok, brandedOut.stderr || validateView(brandedPage).failures.join(","));
+check("branded explainer emits contrast-floor notice on stderr", brandedOut.stderr.includes("notice:") && brandedOut.stderr.includes("fg"));
+const brandedStyle = /<style>([^]*?)<\/style>/i.exec(brandedPage)?.[1] ?? "";
+check("branded explainer strips all leading token header comments", !brandedStyle.includes("GENERATED") && !brandedStyle.includes("Provenance:"));
+check("branded explainer applies overrides, logo slot and preserves toggle, comment box and floor",
+  brandedPage.includes("--bg: #F8F4EC;") &&
+  brandedPage.includes("--link: #1A4D8F;") &&
+  !brandedPage.includes("--fg: #CCCCCC;") &&
+  brandedPage.includes("--sans: IBM Plex Sans, sans-serif;") &&
+  brandedPage.includes('<div class="rv-bar"><div class="rv-brand"><svg viewBox="0 0 16 16"') &&
+  brandedPage.includes('<span class="rv-brand-label">Acme Explain</span>') &&
+  brandedPage.includes('data-rv-theme="dark"') &&
+  brandedPage.includes('data-rv-note="question"') &&
+  brandedPage.includes("outline: 3px solid var(--focus)"));
+const optEnv = { ...process.env, CLAUDE_PROJECT_DIR: emptyHome, HOME: emptyHome, USERPROFILE: emptyHome, CLAUDE_PLUGIN_OPTION_BRANDING: "" };
+const optPagePath = `${work}/brand-page/opt-explainer.html`;
+const optOut = spawnSync(process.execPath, [builderPath, "--record", `${work}/brand-rec/opt-explainer.md`, "--page", optPagePath, "--branding-option", '{"logo":{"label":"CLI Explain"}}'], { input: JSON.stringify(model), encoding: "utf8", env: optEnv });
+const optPage = optOut.status === 0 ? readFileSync(optPagePath, "utf8") : "";
+check("--branding-option passes userConfig branding into explainer", optOut.status === 0 && validateView(optPage).ok && optPage.includes('<span class="rv-brand-label">CLI Explain</span>'), optOut.stderr);
 
 if (failed > 0) process.exit(1);
 NODE

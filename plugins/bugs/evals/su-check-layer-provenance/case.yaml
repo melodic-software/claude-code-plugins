@@ -17,7 +17,7 @@ graders:
   - name: 'ran-override-ignore-probe'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: 'check-ignore(?:(?!\\n)[^"])*bugs\.local\.md'
+    input_match: 'check-ignore(?:(?!\\n)[^"])*docs/conventions/bugs\.local\.md'
     min: 1
     arm: 'with-only'
   - name: 'names-retirement'
@@ -43,5 +43,5 @@ graders:
     arm: 'both'
   - name: 'effective-areas-opt-out'
     type: 'llm'
-    criteria: 'The tracked team layer docs/conventions/bugs.yaml declares one focus area, entrypoints; the gitignored personal override .claude/bugs.local.md declares areas: []. Per the bugs config contract an explicit empty list is an opt-out that drops every inherited focus area and the bundled defaults. PASS only if the reply says the effective focus area set here is empty (scan has no focus areas to use on this machine), names the personal override as the layer that decided it, and reports it as an opt-out rather than a broken or malformed layer. FAIL if it says scan uses the entrypoints focus area or the bundled default focus areas here, or calls the override malformed.'
+    criteria: 'The tracked team layer docs/conventions/bugs.yaml declares one focus area, entrypoints; the gitignored personal override docs/conventions/bugs.local.md declares areas: []. Per the bugs config contract an explicit empty list is an opt-out that drops every inherited focus area and the bundled defaults. PASS only if the reply says the effective focus area set here is empty (scan has no focus areas to use on this machine), names the personal override as the layer that decided it, and reports it as an opt-out rather than a broken or malformed layer. FAIL if it says scan uses the entrypoints focus area or the bundled default focus areas here, or calls the override malformed.'
     focus: 'last_message'

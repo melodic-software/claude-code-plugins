@@ -45,8 +45,26 @@ const resetPreview = (folders: ResetRow[] = [{ file: '/p/.claude/settings.local.
   }),
 })
 
-const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?: Out; clearDry?: Out; clear?: Out; resetDry?: Out; reset?: Out; reloadHangs?: boolean; noPane?: boolean; moduleOff?: boolean } = {}) => {
-  const w = { enablement: [] as string[][], runs: [] as string[][], envs: [] as (Record<string, string> | undefined)[], asks: [] as { question: string; options: string[] }[], headers: [] as string[], logs: [] as string[], commands: [] as string[], registered: [] as string[], panes: [] as string[], closed: [] as string[] }
+const REPO_FILE = '/p/docs/conventions/plugin-profiles.yaml'
+
+const world = (
+  on: any,
+  answers: string[],
+  cli: {
+    dry?: Out
+    apply?: Out
+    list?: Out
+    clearDry?: Out
+    clear?: Out
+    resetDry?: Out
+    reset?: Out
+    reloadHangs?: boolean
+    noPane?: boolean
+    repoYaml?: string
+    userConfig?: Record<string, unknown>
+  } = {},
+) => {
+  const w = { runs: [] as string[][], envs: [] as (Record<string, string> | undefined)[], asks: [] as { question: string; options: string[] }[], headers: [] as string[], logs: [] as string[], commands: [] as string[], registered: [] as string[], panes: [] as string[], closed: [] as string[] }
   const up = new Set<string>()
   on('ui.open', ($: unknown, e: { id: string }) => {
     w.panes.push(e.id)
@@ -61,10 +79,6 @@ const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?:
   on('ui.panes', () => ({ value: [...up].map(id => ({ id, title: id, isShown: true, isFocused: true, isPlaced: !cli.noPane })) }))
   on('process.run', ($: unknown, e: { argv: readonly string[]; init?: { env?: Record<string, string> } }) => {
     const args = e.argv.slice(2)
-    if (e.argv[1]?.endsWith('/lib/hook-enablement.mjs')) {
-      w.enablement.push([...args])
-      return { value: { stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false, exitCode: cli.moduleOff ? 1 : 0 } }
-    }
     w.runs.push([...args])
     w.envs.push(e.init?.env)
     const out =
@@ -109,6 +123,22 @@ const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?:
   on('session.id', () => ({ value: 'own-session' }))
   on('session.root', () => ({ value: '/p' }))
   on('turn.complete', () => ({ text: '' }))
+  on('settings.read', ($: unknown, e: { source: string }) => ({
+    value:
+      e.source === 'user' && cli.userConfig
+        ? { pluginConfigs: { 'plugin-profiles@melodic-software': { options: cli.userConfig } } }
+        : {},
+  }))
+  on('fs.stat', ($: unknown, e: { path: string }) => {
+    if (e.path === REPO_FILE && cli.repoYaml !== undefined) {
+      return { value: { kind: 'file', size: cli.repoYaml.length, mtimeMs: 0, isLink: false } }
+    }
+    return { deny: `ENOENT: ${e.path}` }
+  })
+  on('fs.read', ($: unknown, e: { path: string }) => {
+    if (e.path === REPO_FILE && cli.repoYaml !== undefined) return { value: cli.repoYaml }
+    return { deny: `ENOENT: ${e.path}` }
+  })
   return w
 }
 
@@ -141,20 +171,52 @@ const runPicking = async ($: any, w: { logs: string[] }, value: string, surface:
 
 const focusOn = (element: string) => ({ component: 'Pane', requestId: 'plugin-profile-picker', plugin: 'plugin-profiles', element, origin: { kind: 'person' } }) as any
 
-test('session.start registers /plugin-profile', async ($, on) => {
+test('session.start registers /plugin-profile without spawning a subprocess', async ($, on) => {
   const w = world(on, [])
   await $.session.start({ cwd: '/p' } as any)
   expect(w.registered).toEqual(['plugin-profile'])
-  expect(w.enablement).toEqual([['plugin_profile_module_enabled', 'true', '--settings', '--root', '/p']])
+  expect(w.runs).toEqual([])
 })
 
-test('plugin_profile_module_enabled off: session.start registers no command, reloads nothing and finishes no switch', async ($, on) => {
-  const w = world(on, [], { moduleOff: true })
+test('plugin_profile_module_enabled user false overrides repository true and registers nothing', {
+  options: { plugin_profile_module_enabled: false },
+}, async ($, on) => {
+  const w = world(on, [], { repoYaml: 'plugin_profile_module_enabled: true\n' })
   await $.session.start({ cwd: '/p' } as any)
+  await turnEnd($)
   await settle()
   expect(w.registered).toEqual([])
   expect(w.runs).toEqual([])
   expect(w.commands).toEqual([])
+})
+
+test('plugin_profile_module_enabled unset defers to repository false and runs nothing', async ($, on) => {
+  const w = world(on, [], { repoYaml: 'plugin_profile_module_enabled: false\n' })
+  await $.session.start({ cwd: '/p' } as any)
+  await turnEnd($)
+  await settle()
+  expect(w.registered).toEqual([])
+  expect(w.runs).toEqual([])
+  expect(w.commands).toEqual([])
+})
+
+test('plugin_profile_module_enabled unset defers to repository true and registers /plugin-profile', async ($, on) => {
+  const w = world(on, [], { repoYaml: 'plugin_profile_module_enabled: true\n' })
+  await $.session.start({ cwd: '/p' } as any)
+  expect(w.registered).toEqual(['plugin-profile'])
+  expect(w.runs).toEqual([])
+})
+
+test('plugin_profile_module_enabled explicit user true overrides repository false', {
+  options: { plugin_profile_module_enabled: true },
+}, async ($, on) => {
+  const w = world(on, [], {
+    repoYaml: 'plugin_profile_module_enabled: false\n',
+    userConfig: { plugin_profile_module_enabled: true },
+  })
+  await $.session.start({ cwd: '/p' } as any)
+  expect(w.registered).toEqual(['plugin-profile'])
+  expect(w.runs).toEqual([])
 })
 
 test('#16818: /plugin-profile answers before any pick, so no wait on the person counts against its hook budget', async ($, on) => {

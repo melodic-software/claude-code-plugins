@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/playbooks/.claude-plugin/plugin.json plugins/playbooks/reference/repo-sweep-plan-page.html plugins/playbooks/reference/html-tokens.css plugins/playbooks/skills/repo-sweep/scripts/apply-branding.mjs plugins/playbooks/lib/view-settings.mjs plugins/playbooks/lib/plugin-options.mjs
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -6,6 +7,9 @@ SCRIPT="$HERE/render.sh"
 CATALOG="$HERE/testdata/fixture.md"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+mkdir -p "$TMP/empty-project"
+export CLAUDE_PROJECT_DIR="$TMP/empty-project"
+export CLAUDE_CONFIG_DIR="$TMP/empty-config"
 
 # shellcheck source=../../../lib/test-helpers.sh
 source "$HERE/../../../lib/test-helpers.sh"
@@ -38,6 +42,9 @@ fi
 assert_eq "checklist without a TSV: markers only" "<!-- repo-sweep:begin playbook=fixture -->
 - [ ] tidy: c:t
 <!-- repo-sweep:end -->" "$(bash "$SCRIPT" --checklist "$CATALOG" 'repo-sweep-selection: tidy')"
+assert_eq "checklist two-line paste with comment: validates first line only" "<!-- repo-sweep:begin playbook=fixture -->
+- [ ] tidy: c:t
+<!-- repo-sweep:end -->" "$(bash "$SCRIPT" --checklist "$CATALOG" $'repo-sweep-selection: tidy\ncomment: skip it, focus on lint')"
 assert_eq "every entry selected: no Not run section" "0" \
   "$(bash "$SCRIPT" --checklist "$CATALOG" 'repo-sweep-selection: dead-code,residue-dissolve,testing-audit,tidy,prompt-audit' "$recs" | grep -c 'Not run')"
 

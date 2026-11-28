@@ -126,14 +126,19 @@ printf 'Notes cite Alpha-One.md here.\n' >"$root9/notes/n.md"
 git -C "$root9" add -A >/dev/null
 git -C "$root9" commit -qm "a deep historical file and an unclaimed one" >/dev/null
 home9="$TEST_TMPDIR/home9-$RANDOM"
-mkdir -p "$home9/.claude"
+mkdir -p "$home9/.claude" "$root9/docs/conventions"
+printf 'docs/conventions/*.local.*\n' >>"$root9/.gitignore"
 jq9="$TEST_TMPDIR/jq-bin"
 mkdir -p "$jq9"
 ln -sf "$(mise which jq 2>/dev/null || command -v jq)" "$jq9/jq"
 
-jq -n '{schema: 1, file_names: {tiers: [
-  {name: "personal-loose", paths: ["docs/adr/deep/**"], forms: "all"}]}}' \
-  >"$home9/.claude/docs-naming.json"
+cat >"$root9/docs/conventions/docs-naming.local.yaml" <<'EOF'
+tiers:
+  - name: personal-loose
+    paths:
+      - docs/adr/deep/**
+    forms: all
+EOF
 floor="$(HOME="$home9" PATH="$jq9:$PATH" bash "$SUT" --root "$root9" --pairs "$TEST_TMPDIR/pairs.tsv" | view)"
 
 assert_contains "the team's historical tier still owns the deeper file" "$floor" \
@@ -143,14 +148,25 @@ assert_eq "and a personal tier cannot loosen its frozen forms" "0" \
 assert_eq "the narrative stem there is still reported, never edited" "0" \
   "$(printf '%s\n' "$floor" | grep -c '^docs/adr/deep/0003-deep.md:bare-stem:.*:edit' || true)"
 
-jq -n '{schema: 1, file_names: {tiers: [
-  {name: "personal-frozen", paths: ["notes/**"], forms: "none"}]}}' \
-  >"$home9/.claude/docs-naming.json"
+cat >"$root9/docs/conventions/docs-naming.local.yaml" <<'EOF'
+tiers:
+  - name: personal-frozen
+    paths:
+      - notes/**
+    forms: none
+EOF
 adds="$(HOME="$home9" PATH="$jq9:$PATH" bash "$SUT" --root "$root9" --pairs "$TEST_TMPDIR/pairs.tsv" | view)"
 
 assert_contains "a personal tier still claims a file no team tier covers" "$adds" \
   "notes/n.md:plain:personal-frozen:report"
 
+rm "$root9/docs/conventions/docs-naming.local.yaml"
+jq -n '{schema: 1, file_names: {tiers: [
+  {name: "retired-home", paths: ["notes/**"], forms: "none"}]}}' \
+  >"$home9/.claude/docs-naming.json"
+retired="$(HOME="$home9" PATH="$jq9:$PATH" bash "$SUT" --root "$root9" --pairs "$TEST_TMPDIR/pairs.tsv" | view)"
+assert_eq "a retired ~/.claude/docs-naming.json is ignored" "0" \
+  "$(printf '%s\n' "$retired" | grep -c ':retired-home:' || true)"
 rm "$home9/.claude/docs-naming.json"
 opt="$(HOME="$home9" PATH="$jq9:$PATH" bash "$SUT" --root "$root9" --pairs "$TEST_TMPDIR/pairs.tsv" \
   --user-config '{"tiers": [{"name": "option-frozen", "paths": ["notes/**"], "forms": "none"}]}' | view)"

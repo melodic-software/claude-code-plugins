@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Unit tests for ``lib/policy_cascade.py`` and migration decoupling."""
+"""Unit tests for ``lib/policy_cascade.py``."""
 
 from __future__ import annotations
 
-import ast
 import json
 import sys
 import tempfile
@@ -12,7 +11,6 @@ from pathlib import Path
 from unittest import mock
 
 LIB_DIR = Path(__file__).resolve().parent
-PLUGIN_ROOT = LIB_DIR.parent
 if str(LIB_DIR) not in sys.path:
     sys.path.insert(0, str(LIB_DIR))
 
@@ -118,16 +116,64 @@ class PolicyCascadeTests(unittest.TestCase):
             ):
                 policy_cascade.load_policy(None, project, None)
 
-    def test_policy_migration_does_not_import_hygiene(self) -> None:
-        migration = PLUGIN_ROOT / "skills" / "setup" / "scripts" / "policy_migration.py"
-        tree = ast.parse(migration.read_text(encoding="utf-8"), filename=str(migration))
-        imported: set[str] = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                imported.update(alias.name for alias in node.names)
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                imported.add(node.module)
-        self.assertNotIn("hygiene", imported)
+    def test_retired_claude_policy_files_are_not_read_and_warn(self) -> None:
+        home = self.base / "home"
+        project = self.base / "project"
+        (home / ".claude").mkdir(parents=True)
+        (project / ".claude").mkdir(parents=True)
+        old_user = home / ".claude" / "disk-hygiene.json"
+        old_project = project / ".claude" / "disk-hygiene.json"
+        old_user.write_text(
+            json.dumps({"version": 1, "additional_protected_path_globs": ["old-u/**"]}),
+            encoding="utf-8",
+        )
+        old_project.write_text(
+            json.dumps({"version": 1, "additional_protected_path_globs": ["old-p/**"]}),
+            encoding="utf-8",
+        )
+        with mock.patch.object(Path, "home", return_value=home):
+            policy = policy_cascade.load_policy(None, project, None)
+        self.assertEqual(["baseline"], policy["policy_sources"])
+        self.assertEqual([], policy["additional_protected_path_globs"])
+        self.assertEqual(2, len(policy["policy_warnings"]))
+        joined = "\n".join(policy["policy_warnings"])
+        self.assertIn(str(old_user), joined)
+        self.assertIn(str(old_project), joined)
+        self.assertIn("is not read", joined)
+
+    def test_user_policy_pointing_at_retired_path_reads_it_without_warning(
+        self,
+    ) -> None:
+        home = self.base / "home"
+        project = self.base / "project"
+        (home / ".claude").mkdir(parents=True)
+        (project / ".claude").mkdir(parents=True)
+        old_user = home / ".claude" / "disk-hygiene.json"
+        old_project = project / ".claude" / "disk-hygiene.json"
+        old_user.write_text(
+            json.dumps(
+                {"version": 1, "additional_protected_path_globs": ["client/**"]}
+            ),
+            encoding="utf-8",
+        )
+        with mock.patch.object(Path, "home", return_value=home):
+            policy = policy_cascade.load_policy(None, project, str(old_user))
+        self.assertEqual(["baseline", str(old_user)], policy["policy_sources"])
+        self.assertEqual(["client/**"], policy["additional_protected_path_globs"])
+        self.assertEqual([], policy["policy_warnings"])
+
+        old_user.unlink()
+        old_project.write_text(
+            json.dumps(
+                {"version": 1, "additional_protected_path_globs": ["proj-keep/**"]}
+            ),
+            encoding="utf-8",
+        )
+        with mock.patch.object(Path, "home", return_value=home):
+            policy = policy_cascade.load_policy(None, project, str(old_project))
+        self.assertEqual(["baseline", str(old_project)], policy["policy_sources"])
+        self.assertEqual(["proj-keep/**"], policy["additional_protected_path_globs"])
+        self.assertEqual([], policy["policy_warnings"])
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 ---
-description: "Statically validate a `claude plugin eval` suite (`prompt.md`, `case.yaml`, `graders/*.md`) before any run spends money: FAIL for what the binary rejects at load, WARN for documented authoring mistakes, and an offline check of each deterministic grader against the case's sample answers. Use when: 'validate my eval cases', 'check my eval suite', 'will this suite load', 'lint case.yaml', 'check my graders', 'why did my case fail to load', or before paying for a run. Not for the skill-creator JSON eval format."
+description: "Statically validate a claude plugin eval suite (prompt.md, case.yaml, graders/*.md) offline before spending money: load FAILs, authoring WARNs, deterministic grader check against sample answers. Use when 'validate my eval cases', 'lint case.yaml', 'why did my case fail to load'. Not for skill-creator JSON format."
 argument-hint: "[eval-dir]"
 user-invocable: true
 disable-model-invocation: false

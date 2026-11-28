@@ -87,14 +87,7 @@ if [[ -z "$REPO_ROOT" ]]; then
   REPO_ROOT="$(git -c core.fsmonitor= -c core.hooksPath=/dev/null rev-parse --show-toplevel 2>/dev/null || pwd)"
 fi
 
-resolve_config_layers "$REPO_ROOT" "$SHOW_CONFIG"
-
-HAVE_JQ=1
-command -v jq >/dev/null 2>&1 || HAVE_JQ=0
-HAVE_JSON_LAYER=0
-for _cfg in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
-  [[ "$_cfg" == *.json ]] && HAVE_JSON_LAYER=1
-done
+resolve_config_layers "$REPO_ROOT"
 
 VOCAB="$DEFAULT_VOCAB"
 PHRASE_ADD=()
@@ -140,9 +133,6 @@ if [[ "${#CFG_LAYERS[@]}" -gt 0 ]]; then
   PHRASE_ADD_LAYER="$cascade_list_layer"
   cascade::list PHRASE_REMOVE phrase_remove "${CFG_LAYERS[@]}"
   PHRASE_REMOVE_LAYER="$cascade_list_layer"
-fi
-if [[ "$HAVE_JQ" -eq 0 && "$HAVE_JSON_LAYER" -eq 1 ]]; then
-  echo "Note: jq not found; JSON config layers present but unread, using defaults" >&2
 fi
 
 VOCAB_ERE="($(printf '%s' "$VOCAB" | tr ' ' '|'))"
@@ -202,7 +192,6 @@ if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   else
     for layer in "${CFG_LAYERS[@]}"; do echo "  $layer"; done
   fi
-  [[ -n "$OLD_PATH_NOTE" ]] && echo "$OLD_PATH_NOTE"
   for entry in "${DENSITY_RULES[@]}"; do
     IFS='|' read -r slug key default _ <<<"$entry"
     _val=""

@@ -30,7 +30,7 @@ function teachBlock(chunk) {
  * @param {Record<string, unknown>} model
  * @returns {string}
  */
-export function buildLessonPage(model) {
+export function buildLessonPage(model, { brandingOption = null } = {}) {
   const source = model && typeof model === "object" ? model : {};
   const concept = asText(source.concept) || "Lesson";
   const body = `<h1>Lesson: ${e(concept)}</h1>
@@ -43,7 +43,7 @@ ${quizBlock(source.practiceQuiz)}
 <h2 id="go-deeper">Go deeper</h2>
 ${paragraphs(source.goDeeper)}
 ${citationList(source.citations)}`;
-  return pageShell(concept, body, `<meta name="concept" content="${e(concept)}">`);
+  return pageShell(concept, body, `<meta name="concept" content="${e(concept)}">`, { brandingOption });
 }
 
 runCli(import.meta.url, "build-lesson", buildLessonPage);

@@ -1,5 +1,5 @@
 ---
-description: "Reverse term lookup for interface design and front-end behavior: the name for an effect, detail or behavior described without its name, and the line between near-synonyms. Use when someone asks what a thing is called ('the bouncy thing when a popover opens', 'the gap between two particular letters'), which of two close terms they mean ('clip or mask'), or a vague feel request ('make it snappier') needs named terms."
+description: "Reverse term lookup for interface design and front-end behavior: what an effect, detail, or behavior is called without its name, the line between close near-synonyms, and named terms for vague feel requests (e.g. make it snappier). Use when: 'the bouncy thing when a popover opens', 'the gap between two particular letters', 'clip or mask'."
 argument-hint: "[<description>]"
 user-invocable: true
 disable-model-invocation: false

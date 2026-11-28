@@ -66,14 +66,14 @@ assert_eq "path-key folds backslashes to slashes" \
   "$(bash "$ENGINE" --path-key "/a/b")" "$(bash "$ENGINE" --path-key "${BACKSLASH}a${BACKSLASH}b")"
 
 case "$(uname -s 2>/dev/null || true)" in
-MINGW* | MSYS* | CYGWIN*)
-  assert_eq "path-key reconciles the MSYS and Windows drive forms" \
-    "$(bash "$ENGINE" --path-key "D:/repos/<repo>")" "$(bash "$ENGINE" --path-key "/d/repos/<repo>")"
-  ;;
-*)
-  assert_eq "path-key leaves a POSIX /d/ path alone off Windows" \
-    "/d/repos/x" "$(bash "$ENGINE" --path-key "/d/repos/x")"
-  ;;
+  MINGW* | MSYS* | CYGWIN*)
+    assert_eq "path-key reconciles the MSYS and Windows drive forms" \
+      "$(bash "$ENGINE" --path-key "D:/repos/<repo>")" "$(bash "$ENGINE" --path-key "/d/repos/<repo>")"
+    ;;
+  *)
+    assert_eq "path-key leaves a POSIX /d/ path alone off Windows" \
+      "/d/repos/x" "$(bash "$ENGINE" --path-key "/d/repos/x")"
+    ;;
 esac
 
 W="$(mkfixture)"
@@ -283,16 +283,16 @@ assert_contains "notgit says why the naive probe is wrong" \
   "$(col "$R" $C_REASON)" "not-a-worktree-root"
 
 case "$(uname -s 2>/dev/null || true)" in
-MINGW* | MSYS* | CYGWIN*)
-  HUSK_WIN="$(bash "$ENGINE" --path-key "$HUSK")"
-  OUT="$(bash "$ENGINE" --worktree "$HUSK_WIN" --no-peers)"
-  R="$(row "$OUT" "husk-dir")"
-  assert_eq "notgit holds in the Windows drive-form spelling too" \
-    "notgit" "$(col "$R" $C_RISK)"
-  ;;
-*)
-  skip_case "Windows-form path pair — single path spelling on this platform"
-  ;;
+  MINGW* | MSYS* | CYGWIN*)
+    HUSK_WIN="$(bash "$ENGINE" --path-key "$HUSK")"
+    OUT="$(bash "$ENGINE" --worktree "$HUSK_WIN" --no-peers)"
+    R="$(row "$OUT" "husk-dir")"
+    assert_eq "notgit holds in the Windows drive-form spelling too" \
+      "notgit" "$(col "$R" $C_RISK)"
+    ;;
+  *)
+    skip_case "Windows-form path pair — single path spelling on this platform"
+    ;;
 esac
 
 BARE_HUB="$(mktemp -d "$TEST_TMPDIR/hubXXXXXX")/hub.bare"
@@ -450,16 +450,22 @@ cat >"$PR_BIN/gh" <<'STUB'
 #!/usr/bin/env bash
 [[ -n "${GH_STUB_LOG:-}" ]] && printf '%s\n' "$*" | tr '\n' ' ' >>"$GH_STUB_LOG" && echo >>"$GH_STUB_LOG"
 [[ -n "${GH_STUB_FAIL:-}" ]] && { printf 'gh stub:\tforced; failure\nsecond line\n' >&2; exit 1; }
-after='' expr='.'
+after='' head='' expr='.'
 while (($#)); do
   case "$1" in
-  -f) [[ "$2" == after=* ]] && after="${2#after=}"; shift ;;
+  -f)
+    [[ "$2" == after=* ]] && after="${2#after=}"
+    [[ "$2" == head=* ]] && head="${2#head=}"
+    shift
+    ;;
   --jq) expr="$2"; shift ;;
   esac
   shift
 done
 [[ -n "$after" && "$after" == "${GH_STUB_FAIL_AFTER:-}" ]] && { echo 'gh stub: page failed' >&2; exit 1; }
-f="${GH_STUB_OUT:-/dev/null}${after:+.$after}"
+[[ -n "$head" && -n "${GH_STUB_FAIL_HEAD:-}" ]] && { echo 'gh stub: API rate limit exceeded' >&2; exit 1; }
+f="${GH_STUB_OUT:-/dev/null}${after:+.$after}${head:+.head-$head}"
+[[ -f "$f.json" ]] && exec jq -r "$expr" "$f.json"
 [[ -f "$f" ]] || f=/dev/null
 jq -Rn '[inputs | split(" ")] as $l
   | {data: {repository: {pullRequests: {
@@ -510,7 +516,50 @@ assert_not_contains "pr proof: a short listing is not called full" "$(col "$R" $
 
 R="$(row "$(PATH="$PR_BIN:$PATH" GH_STUB_OUT="$TEST_TMPDIR/pr-other-branch" \
   bash "$ENGINE" --repo-dir "$W" --no-peers --merged-pr-proof --merged-pr-limit 1)" "wt-pr")"
-assert_contains "pr proof: a full listing says so" "$(col "$R" $C_REASON)" "no-merged-pr-into-main-for-branch-in-newest-1"
+assert_eq "pr proof: a branch absent from a full listing and from its own lookup is not landed" \
+  "no" "$(col "$R" $C_LANDED)"
+assert_contains "pr proof: the branch lookup's miss is named" "$(col "$R" $C_REASON)" "no-merged-pr-into-main-for-branch"
+assert_not_contains "pr proof: a lookup's miss is not blamed on the window" "$(col "$R" $C_REASON)" "in-newest-"
+
+R="$(row "$(PATH="$PR_BIN:$PATH" GH_STUB_OUT="$TEST_TMPDIR/pr-other-branch" GH_STUB_FAIL_HEAD=1 \
+  bash "$ENGINE" --repo-dir "$W" --no-peers --merged-pr-proof --merged-pr-limit 1)" "wt-pr")"
+assert_eq "pr proof: a failed branch lookup keeps the prior verdict" "no" "$(col "$R" $C_LANDED)"
+assert_contains "pr proof: the failed branch lookup is named" "$(col "$R" $C_REASON)" \
+  "merged-pr-read-failed:gh-pr-branch (gh stub: API rate limit exceeded)"
+
+W_REAL="$(mkfixture)"
+REAL_BRANCH="fix/pr-verify-cap-head-fail"
+WT_REAL="$TEST_TMPDIR/wt-real"
+git -C "$W_REAL" worktree add -q -b "$REAL_BRANCH" "$WT_REAL" main >/dev/null 2>&1
+commit_in "$WT_REAL" real.txt "real" "commit absent from the captured PR"
+REAL_HEAD="$(git -C "$WT_REAL" rev-parse HEAD)"
+REAL_JSON="$SCRIPT_DIR/fixtures/landed-work/branch-lookup-merged.json"
+REAL_OUT="$TEST_TMPDIR/pr-real"
+printf 'pr feat-other main\nhead %s\n' "$REAL_HEAD" >"$REAL_OUT"
+mkdir -p "$REAL_OUT.head-fix"
+cp "$REAL_JSON" "$REAL_OUT.head-$REAL_BRANCH.json"
+run_real() {
+  PATH="$PR_BIN:$PATH" GH_STUB_OUT="$REAL_OUT" \
+    bash "$ENGINE" --repo-dir "$W_REAL" --no-peers --merged-pr-proof "$@"
+}
+
+R="$(row "$(run_real --merged-pr-limit 1)" "wt-real")"
+assert_eq "pr proof: a captured out-of-window PR holding none of the local commits is not landed" \
+  "no" "$(col "$R" $C_LANDED)"
+assert_contains "pr proof: the captured lookup's PR is found and its commits compared" \
+  "$(col "$R" $C_REASON)" "local-commits-not-all-in-merged-pr"
+assert_not_contains "pr proof: the captured lookup's PR is not reported missing" \
+  "$(col "$R" $C_REASON)" "no-merged-pr-into-main-for-branch"
+
+jq --arg h "$REAL_HEAD" '.data.repository.pullRequests.nodes[0].headRefOid = $h' "$REAL_JSON" \
+  >"$REAL_OUT.head-$REAL_BRANCH.json"
+R="$(row "$(run_real --merged-pr-limit 1)" "wt-real")"
+assert_eq "pr proof: a PR merged before a full listing's window still proves its branch" \
+  "yes" "$(col "$R" $C_LANDED)"
+assert_eq "pr proof: the out-of-window PR proves by its head" "merged-pr-head" "$(col "$R" $C_METHOD)"
+
+R="$(row "$(run_real)" "wt-real")"
+assert_eq "pr proof: a short listing never looks a branch up on its own" "no" "$(col "$R" $C_LANDED)"
 
 printf 'pr feat-pr main\nhead %s\ncommit %s\ncommit %s\n' "0000000000000000000000000000000000000001" "$PR_C1" "$PR_C2" >"$TEST_TMPDIR/pr-commits-only"
 R="$(row "$(run_pr "$TEST_TMPDIR/pr-commits-only")" "wt-pr")"
@@ -605,9 +654,14 @@ assert_eq "pr paging: a PR on the first page still proves its branch" \
   "yes" "$(col "$(row "$OUT" "wt-many-1")" $C_LANDED)"
 
 OUT="$(run_paged --merged-pr-limit 1)"
-assert_eq "pr paging: a limit the first page fills makes one call" "1" "$(grep -c . "$GH_LOG")"
-assert_contains "pr paging: the page asks for no more than the limit" "$(cat "$GH_LOG")" "-F first=1 "
-assert_eq "pr paging: a PR past the limit proves nothing" \
+assert_eq "pr paging: a full first page stops the listing and looks up each missing branch" \
+  "3" "$(grep -c . "$GH_LOG")"
+assert_contains "pr paging: the page asks for no more than the limit" "$(head -n 1 "$GH_LOG")" "-F first=1 "
+assert_contains "pr paging: a missing branch is looked up by name" "$(cat "$GH_LOG")" "-f head=feat-many-2"
+assert_contains "pr paging: the branch lookup filters on the head branch" "$(cat "$GH_LOG")" "headRefName: \$head"
+assert_not_contains "pr paging: a branch in the listing is not looked up" "$(cat "$GH_LOG")" "-f head=feat-many-1"
+assert_contains "pr paging: the count includes the branch lookups" "$(cat "$MANY_ERR")" "merged-pr-proof made 3 gh call(s)"
+assert_eq "pr paging: a PR past the limit with no branch match proves nothing" \
   "no" "$(col "$(row "$OUT" "wt-many-2")" $C_LANDED)"
 
 OUT="$(run_paged --merged-pr-limit 3)"

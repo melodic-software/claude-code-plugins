@@ -75,6 +75,20 @@ on:
         required: false
         type: boolean
         default: true
+      model:
+        description: >-
+          Optional --model override for suite runs (full model ID such as
+          claude-opus-5-5). Empty uses EVAL_MODEL (claude-sonnet-5-5).
+        required: false
+        type: string
+        default: ""
+      effort:
+        description: >-
+          Optional CLAUDE_CODE_EFFORT_LEVEL for suite runs (low, medium, high,
+          xhigh, or max). Empty leaves the model's default effort unset.
+        required: false
+        type: string
+        default: ""
       mode:
         description: >-
           suite runs the target's suite as above. compare runs the target's
@@ -526,6 +540,8 @@ jobs:
           MAX_COST: ${{ inputs.max-cost-usd || 5 }}
           ALLOW_TOOLS: ${{ inputs.allow-tools }}
           REAL_SERVERS: ${{ inputs.allow-real-servers }}
+          MODEL: ${{ inputs.model }}
+          EFFORT: ${{ inputs.effort }}
           OUT: ${{ runner.temp }}/eval-results
         run: |
           if [ -n "${LANE_API_KEY:-}" ]; then
@@ -538,10 +554,25 @@ jobs:
             echo "::error::max-cost-usd must be a whole number from 1 to 12"
             exit 1
           fi
+          model="$EVAL_MODEL"
+          if [ "$DISPATCH" = true ]; then
+            if [ -n "$MODEL" ]; then
+              if ! [[ $MODEL =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]]; then
+                echo "::error::model must be a model ID or alias (letters, digits, '.', '_', '-', up to 64 characters, not starting with -)"
+                exit 1
+              fi
+              model="$MODEL"
+            fi
+            case "$EFFORT" in
+              "") ;;
+              low|medium|high|xhigh|max) export CLAUDE_CODE_EFFORT_LEVEL="$EFFORT" ;;
+              *) echo "::error::effort must be empty or one of low, medium, high, xhigh, max"; exit 1 ;;
+            esac
+          fi
           args=(
             --trust-plugin
             --no-publish
-            --model "$EVAL_MODEL"
+            --model "$model"
             --judge-model "$EVAL_JUDGE_MODEL"
             --max-cost-usd "$MAX_COST"
             --keep-temp
@@ -581,7 +612,7 @@ jobs:
             [ -n "$dir" ] || continue
             out="$OUT/$(basename "$dir")"
             mkdir -p "$out"
-            echo "== claude plugin eval $dir --eval-dir $eval_dir"
+            echo "== claude plugin eval $dir --eval-dir $eval_dir (model=$model effort=${CLAUDE_CODE_EFFORT_LEVEL:-default})"
             status=0
             if [ "$DISPATCH" = true ]; then
               claude plugin eval "$dir" --eval-dir "$eval_dir" --output-dir "$out" --json "$out/results.json" "${args[@]}" || status=$?
@@ -1247,6 +1278,8 @@ jobs:
           MAX_COST: ${{ inputs.max-cost-usd || 5 }}
           ALLOW_TOOLS: ${{ inputs.allow-tools }}
           REAL_SERVERS: ${{ inputs.allow-real-servers }}
+          MODEL: ${{ inputs.model }}
+          EFFORT: ${{ inputs.effort }}
           OUT: ${{ runner.temp }}/eval-results
         run: |
           if [ -n "${LANE_API_KEY:-}" ]; then
@@ -1259,10 +1292,25 @@ jobs:
             echo "::error::max-cost-usd must be a whole number from 1 to 12"
             exit 1
           fi
+          model="$EVAL_MODEL"
+          if [ "$DISPATCH" = true ]; then
+            if [ -n "$MODEL" ]; then
+              if ! [[ $MODEL =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]]; then
+                echo "::error::model must be a model ID or alias (letters, digits, '.', '_', '-', up to 64 characters, not starting with -)"
+                exit 1
+              fi
+              model="$MODEL"
+            fi
+            case "$EFFORT" in
+              "") ;;
+              low|medium|high|xhigh|max) export CLAUDE_CODE_EFFORT_LEVEL="$EFFORT" ;;
+              *) echo "::error::effort must be empty or one of low, medium, high, xhigh, max"; exit 1 ;;
+            esac
+          fi
           args=(
             --trust-plugin
             --no-publish
-            --model "$EVAL_MODEL"
+            --model "$model"
             --judge-model "$EVAL_JUDGE_MODEL"
             --max-cost-usd "$MAX_COST"
             --keep-temp
@@ -1302,7 +1350,7 @@ jobs:
             [ -n "$dir" ] || continue
             out="$OUT/$(basename "$dir")"
             mkdir -p "$out"
-            echo "== claude plugin eval $dir --eval-dir $eval_dir"
+            echo "== claude plugin eval $dir --eval-dir $eval_dir (model=$model effort=${CLAUDE_CODE_EFFORT_LEVEL:-default})"
             status=0
             if [ "$DISPATCH" = true ]; then
               claude plugin eval "$dir" --eval-dir "$eval_dir" --output-dir "$out" --json "$out/results.json" "${args[@]}" || status=$?

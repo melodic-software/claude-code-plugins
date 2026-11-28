@@ -36,14 +36,12 @@ Implements the tracked-rich-config extensibility contract in
 The retired team file `.claude/source-control.md` is not read; `/source-control:setup check` names
 it when it is still tracked. A YAML the shared reader rejects stops the lookup for that key instead
 of falling back to a lower layer. The personal override is
-`docs/conventions/source-control.local.yaml`, the same keys in the same YAML shape; the two old
-markdown locations are still read during the dual-read window in
-[The three layers](#the-three-layers). Every resolver reports the layer that supplied a value:
-`docs/conventions/source-control.yaml`, the personal override, an old location, `userConfig`, or
-the default. `lib/convention-key.sh` is the reader (`layer ROOT KEY` prints `yaml` or `none`;
-`value` and `list` print the team YAML value, `local-value` and `local-list` the personal YAML
-value, and `old-files ROOT` lists each old-location file present with where it moves), and
-`parse-branch-issue.sh --explain` prints the layer for `branch_issue_pattern`.
+`docs/conventions/source-control.local.yaml`, the same keys in the same YAML shape. Every resolver
+reports the layer that supplied a value: `docs/conventions/source-control.yaml`, the personal
+override, `userConfig`, or the default. `lib/convention-key.sh` is the reader (`layer ROOT KEY`
+prints `yaml` or `none`; `value` and `list` print the team YAML value, `local-value` and
+`local-list` the personal YAML value), and `parse-branch-issue.sh --explain` prints the layer for
+`branch_issue_pattern`.
 
 **Team-layer home of the loop-lane and babysit-prs keys.** Every `babysit_loop_*` key and the seven
 babysit-prs repository-policy keys take their team value from the same YAML only, with the same
@@ -60,12 +58,8 @@ pr_body_required_sections:
 branch_issue_pattern: '^[^/]+/([0-9]+)-'
 ```
 
-The sections below describe each key's value grammar; read "H2" there as "the key in a YAML
-layer, or its `## <key>` H2 in an old markdown location". A list value is a YAML sequence in a YAML
-layer and a bullet list in the H2.
-
-The two old locations are Markdown: one `## <key>` H2 per key, the value as the section body.
-Seven babysit-prs
+The sections below describe each key's value grammar in the YAML layers; a list value is a YAML
+sequence. Seven babysit-prs
 repository-policy keys (`babysit_merge_method`, `babysit_merge_block_labels`,
 `babysit_extra_dependency_manager_logins`, `babysit_approval_downgrade_logins`,
 `babysit_skip_downgrade_logins`, `babysit_review_gate_context`,
@@ -767,11 +761,10 @@ Resolve every read from the repo root: `${CLAUDE_PROJECT_DIR}` when set, otherwi
 
 When that root is `$HOME` or an ancestor of `$HOME`, or is not inside a git working
 tree, team and personal override are **not applicable** (config-cascade #4672): report both with
-that reason and resolve only the old user-global file, while it exists. `parse-branch-issue.sh`
+that reason and skip both repo layers. `parse-branch-issue.sh`
 skips both layers and prints `team and personal override not applicable: project root is the
 home directory (or an ancestor of it)` or `... project root is not inside a git
-repository` on stderr. An old personal override path that physically equals the user-global file
-is skipped even when the root is not home. `/source-control:setup apply` refuses to write in that
+repository` on stderr. `/source-control:setup apply` refuses to write in that
 state.
 
 `lib/config-root.sh` is the resolver for the scripts and skills that call it: `resolve`, `classify`
@@ -790,20 +783,8 @@ Layers, in resolution order, where a later layer refines an earlier one (the
    per-machine or per-operator deviation from team policy in one repository, never committed.
 
 There is no user-global file layer, and no `userConfig` option takes its place: the convention keys
-are per-repository conventions.
-
-**Dual-read window.** Two old locations are still read while they exist, each named on every run
-with where to move it:
-
-| Old location | Read as | Moves to |
-|---|---|---|
-| `~/.claude/source-control.md` | the lowest layer, below team | `docs/conventions/source-control.yaml` (team), or `docs/conventions/source-control.local.yaml` for one person in one repo |
-| `${REPO_ROOT}/.claude/source-control.local.md` | the personal override, only while `docs/conventions/source-control.local.yaml` is absent; beside it the old file is not read | `docs/conventions/source-control.local.yaml` |
-
-`parse-branch-issue.sh` prints one `old location` note per old file on stderr, naming the file, its
-new location and `/source-control:setup apply`, whose migration moves the keys, checks the new
-location resolves the same values and deletes the old file. Removing the old-location reads is a
-later change, made once no old file is reported.
+are per-repository conventions. Retired `.claude/source-control.md`, `.claude/source-control.local.md`,
+and `~/.claude/source-control.md` files are not read.
 
 Each layer is optional, and **fall-through is per key, not per file**. A key absent from every layer
 is unresolved even when some layer exists: a personal override contributing only `trailer_policy`
@@ -849,8 +830,7 @@ concern owns **enforcement**: how a zero-dependency guardrails hook decides whet
 purpose: enforcement reads the **team-tracked layer** (a gitignored personal file must never weaken
 a blocking gate), and only where it sets no `subject_pattern` falls back to the operator's
 git-ignored `docs/conventions/source-control.local.yaml`, never merged with a team pattern.
-Drafting reads that file as the personal override, which wins over team per key; the old
-`.claude/source-control.local.md` is a drafting input only. Enforcement resolves to **POSIX ERE
+Drafting reads that file as the personal override, which wins over team per key. Enforcement resolves to **POSIX ERE
 only**, and treats an unresolved key as **no enforcement**, never the bundled Conventional Commits
 default. That contract, the regex-dialect
 normalization, and the resolver (`lib/resolve-convention-pattern.sh`) live in the

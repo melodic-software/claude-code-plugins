@@ -581,36 +581,15 @@ if [[ -f "$PROJECT_ROOT/$TEAM_RECORD" ]]; then
 else
   note_layer team "$TEAM_RECORD" absent
 fi
-OLD_LOCATION_WARNINGS=()
-load_migrating_layer() {
-  local layer="$1" new_src="$2" new_file="$3" old_src="$4" old_file="$5" target="$6" warning
-  if [[ -n "$old_file" && -f "$old_file" ]] && ! [[ -n "$new_file" && "$old_file" -ef "$new_file" ]]; then
-    if [[ -n "$new_file" && -f "$new_file" ]]; then
-      warning="WARNING: $old_file is an old audit-pass suppression location and is not read, because $new_file supplies the $layer layer; run /harness-config:setup apply to merge it into $new_file and delete it"
-      load_markdown_layer "$layer" "$new_src" "$new_file"
-    else
-      warning="WARNING: $old_file is an old audit-pass suppression location, still read for now; run /harness-config:setup apply to move it to $target"
-      load_markdown_layer "$layer" "$old_src" "$old_file" "read from the old location"
-    fi
-    OLD_LOCATION_WARNINGS+=("$warning")
-    echo "$warning" >&2
-  elif [[ -n "$new_file" ]]; then
-    load_markdown_layer "$layer" "$new_src" "$new_file"
-  else
-    note_layer "$layer" "$new_src" unset
-  fi
-}
-
 USER_RECORD="$USER_SUPPRESSIONS_ARG"
 [[ "$USER_RECORD" == '${user_config.'* ]] && USER_RECORD=""
-OLD_USER_RECORD=""
-[[ -n "$USER_DIR" ]] && OLD_USER_RECORD="$USER_DIR/audit-pass.md"
-USER_TARGET="${USER_RECORD:-the file the audit_pass_suppressions_file userConfig option names}"
-load_migrating_layer userConfig "userConfig:audit_pass_suppressions_file" "$USER_RECORD" \
-  "user:audit-pass.md" "$OLD_USER_RECORD" "$USER_TARGET"
+if [[ -n "$USER_RECORD" ]]; then
+  load_markdown_layer userConfig "userConfig:audit_pass_suppressions_file" "$USER_RECORD"
+else
+  note_layer userConfig "userConfig:audit_pass_suppressions_file" unset
+fi
 PERSONAL_RECORD="$CONVENTION_HOME/audit-pass.local.md"
-load_migrating_layer personal "$PERSONAL_RECORD" "$PROJECT_ROOT/$PERSONAL_RECORD" \
-  ".claude/audit-pass.local.md" "$PROJECT_ROOT/.claude/audit-pass.local.md" "$PERSONAL_RECORD"
+load_markdown_layer personal "$PERSONAL_RECORD" "$PROJECT_ROOT/$PERSONAL_RECORD"
 
 DOCS_TMP="$(mktemp -d 2>/dev/null)"
 if [[ -z "$DOCS_TMP" || ! -d "$DOCS_TMP" ]]; then
@@ -2085,7 +2064,6 @@ lines_json() {
 }
 personal_json="$(lines_json ${PERSONAL_ONLY[@]+"${PERSONAL_ONLY[@]}"})"
 malformed_json="$(lines_json ${MALFORMED[@]+"${MALFORMED[@]}"})"
-old_locations_json="$(lines_json ${OLD_LOCATION_WARNINGS[@]+"${OLD_LOCATION_WARNINGS[@]}"})"
 layers_json="$(printf '%s\n' "${SUPPRESSION_LAYERS[@]}" | jq -Rcn '[inputs | split("\t") | {layer: .[0], source: .[1], state: .[2]}]')"
 
 inv_json="$(jq -c '{inventory:.inventory, levers:(.levers // []), mod_plane:(.mod_plane // []), unreadable:(.unreadable // []), divergence:(.divergence // [])}' <<<"$INVENTORY_JSON")"
@@ -2097,15 +2075,15 @@ DOC="$(printf '%s\n' \
   "${SCOPES_JSON:-null}" "${rows_json:-null}" "${findings_json:-null}" \
   "${suppressed_json:-null}" "${personal_json:-null}" "${malformed_json:-null}" \
   "${inv_json:-null}" "${COVERAGE_JSON:-null}" "${G_JSON:-null}" \
-  "${version_json:-null}" "${docs_json:-null}" "${layers_json:-null}" "${old_locations_json:-null}" |
+  "${version_json:-null}" "${docs_json:-null}" "${layers_json:-null}" |
   jq -s \
     --arg root "$PROJECT_ROOT" \
     --arg drift_state "$DRIFT_STATE" \
     --argjson errors "$ERROR_COUNT" \
-    '. as [$scopes,$rows,$findings,$suppressed,$personal,$malformed,$inv,$coverage,$listing,$version,$docs,$layers,$old_locations] |
+    '. as [$scopes,$rows,$findings,$suppressed,$personal,$malformed,$inv,$coverage,$listing,$version,$docs,$layers] |
      {engine:"harness-config/audit-engine/1",project_root:$root,claude_version:$version,docs:$docs,scopes:$scopes,
       hook_inventory:$inv,coverage_manifests:$coverage,drift:{state:$drift_state},skill_listing:$listing,
-      suppressions:{layers:$layers,applied:$suppressed,personal_only:$personal,malformed:$malformed,old_locations:$old_locations},
+      suppressions:{layers:$layers,applied:$suppressed,personal_only:$personal,malformed:$malformed},
       summary:{rows:($rows|length),findings:($findings|length),errors:$errors,
         warnings:([$findings[]|select(.severity=="warning")]|length),
         info:([$findings[]|select(.severity=="info")]|length)},

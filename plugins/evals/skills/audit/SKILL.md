@@ -1,5 +1,5 @@
 ---
-description: "Advisory health report for a plugin's eval suite: skills with no case or no deterministic triggering case, judged graders with no labeled samples, legacy-only skills, skills with no should-not-fire case, then judged findings on gate pairs, duplicate cases, grader fit and drift from the skill text. Edits nothing; each finding names where its fix goes. Use when: 'audit my evals', 'is my eval suite healthy', 'which skills have no eval case', 'which judges are uncalibrated', 'find duplicate eval cases', 'are my evals stale'. Not for load errors (/evals:validate) or running a suite (/evals:plugin-eval)."
+description: "Read-only advisory health report for a plugin eval suite (edits nothing; routes fix): skill with no case, triggering/no-fire/legacy case, uncalibrated judge/sample, gate pair, duplicate, grader fit, drift. Use when 'audit my evals', 'is my eval suite healthy', 'find duplicate eval cases'. Not for load: /evals:validate; runs: /evals:plugin-eval."
 argument-hint: "<plugin-dir|suite-dir>"
 user-invocable: true
 disable-model-invocation: false

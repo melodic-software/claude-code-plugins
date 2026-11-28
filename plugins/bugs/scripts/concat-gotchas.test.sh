@@ -111,46 +111,27 @@ CLAUDE_PROJECT_DIR="${FIXTURES}/repo-l"
 mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR"
 layer "$HOME/.claude/bugs.md" '## Gotchas
 
-- Old user: still applies.
+- Old user: ignored.
 '
 layer "$CLAUDE_PROJECT_DIR/.claude/bugs.local.md" '## Gotchas
 
-- Old personal: still applies.
+- Old personal: ignored.
 '
-# shellcheck disable=SC2016  # backticks are the literal markdown code spans in the expected warning, not substitution
-old_read() { printf 'Warning: bugs read `%s`, an old config path. Run `/bugs:setup apply` to %s, then delete the old file.' "$1" "$2"; }
-# shellcheck disable=SC2016  # backticks are the literal markdown code spans in the expected warning, not substitution
-superseded() { printf 'Warning: bugs no longer reads the gotchas in `%s`, because `%s` supplies the %s layer. Run `/bugs:setup apply` to %s, then delete the old file.' "$1" "$2" "$3" "$4"; }
-# shellcheck disable=SC2016  # backticks are the literal markdown code spans in the expected warning, not substitution
-user_move() { printf 'move its `## Gotchas` to %s and any `areas` (or a retired `lanes` key, moved as `areas`) or `filing_posture` to the homes `/bugs:setup check` names' "$1"; }
-# shellcheck disable=SC2016  # backticks are the literal markdown code spans in the expected warning, not substitution
-personal_move() { printf 'move what it holds into `%s`' "$1"; }
-# shellcheck disable=SC2016  # backticks are the literal markdown code spans in the expected warning, not substitution
-any_user_file='a file outside `~/.claude` that the bugs `gotchas_file` option names'
-
-# shellcheck disable=SC2016  # backticks are the literal markdown code spans in the expected fixture, not substitution
-run_case "old files only: values apply, one warning per old file" "$(printf '### Consumer gotchas (cascade)\n\n#### userConfig (old path) (`%s`)\n\n- Old user: still applies.\n\n#### personal override (old path) (`%s`)\n\n- Old personal: still applies.\n' "$HOME/.claude/bugs.md" "$CLAUDE_PROJECT_DIR/.claude/bugs.local.md")"$'\n\n'"$(old_read "$HOME/.claude/bugs.md" "$(user_move "$any_user_file")")"$'\n\n'"$(old_read "$CLAUDE_PROJECT_DIR/.claude/bugs.local.md" "$(personal_move "$CLAUDE_PROJECT_DIR/docs/conventions/bugs.local.md")")" --user-file '${user_config.gotchas_file}'
-
-# shellcheck disable=SC2016  # backticks are the literal markdown code spans in the expected fixture, not substitution
-run_case "empty option value is unset: old file read" "$(printf '### Consumer gotchas (cascade)\n\n#### userConfig (old path) (`%s`)\n\n- Old user: still applies.\n\n#### personal override (old path) (`%s`)\n\n- Old personal: still applies.\n' "$HOME/.claude/bugs.md" "$CLAUDE_PROJECT_DIR/.claude/bugs.local.md")"$'\n\n'"$(old_read "$HOME/.claude/bugs.md" "$(user_move "$any_user_file")")"$'\n\n'"$(old_read "$CLAUDE_PROJECT_DIR/.claude/bugs.local.md" "$(personal_move "$CLAUDE_PROJECT_DIR/docs/conventions/bugs.local.md")")" --user-file ''
+# shellcheck disable=SC2016  # literal placeholder passed to test the unexpanded option form
+run_case "retired old paths alone are ignored, no warning" $'(none)' --user-file '${user_config.gotchas_file}'
+run_case "empty option value is unset: retired old paths are ignored" $'(none)' --user-file ''
+run_case "option naming a missing file ignores retired old paths" $'(none)' --user-file "$HOME/notes/missing.md"
 
 layer "$HOME/notes/bugs-gotchas.md" '## Gotchas
 
-- New user: wins.
+- New user: read.
 '
 layer "$CLAUDE_PROJECT_DIR/docs/conventions/bugs.local.md" '## Gotchas
 
-- New personal: wins.
+- New personal: read.
 '
 # shellcheck disable=SC2016  # backticks are the literal markdown code spans in the expected fixture, not substitution
-run_case "both present: new wins, warning names both" "$(printf '### Consumer gotchas (cascade)\n\n#### userConfig (`%s`)\n\n- New user: wins.\n\n#### personal override (`%s`)\n\n- New personal: wins.\n' "$HOME/notes/bugs-gotchas.md" "$CLAUDE_PROJECT_DIR/docs/conventions/bugs.local.md")"$'\n\n'"$(superseded "$HOME/.claude/bugs.md" "$HOME/notes/bugs-gotchas.md" userConfig "$(user_move "\`$HOME/notes/bugs-gotchas.md\`")")"$'\n\n'"$(superseded "$CLAUDE_PROJECT_DIR/.claude/bugs.local.md" "$CLAUDE_PROJECT_DIR/docs/conventions/bugs.local.md" "personal override" "$(personal_move "$CLAUDE_PROJECT_DIR/docs/conventions/bugs.local.md")")" --user-file "$HOME/notes/bugs-gotchas.md"
-
-rm "$CLAUDE_PROJECT_DIR/docs/conventions/bugs.local.md" "$CLAUDE_PROJECT_DIR/.claude/bugs.local.md"
-# shellcheck disable=SC2016  # backticks are the literal markdown code spans in the expected fixture, not substitution
-run_case "option naming the old file reads it as the old path, with a warning" "$(printf '### Consumer gotchas (cascade)\n\n#### userConfig (old path) (`%s`)\n\n- Old user: still applies.\n' "$HOME/.claude/bugs.md")"$'\n\n'"$(old_read "$HOME/.claude/bugs.md" "$(user_move "$any_user_file")")" --user-file "$HOME/.claude/bugs.md"
-
-# shellcheck disable=SC2016  # backticks are the literal markdown code spans in the expected fixture, not substitution
-run_case "option naming a missing file leaves the old file read, warning names the option's file" "$(printf '### Consumer gotchas (cascade)\n\n#### userConfig (old path) (`%s`)\n\n- Old user: still applies.\n' "$HOME/.claude/bugs.md")"$'\n\n'"$(old_read "$HOME/.claude/bugs.md" "$(user_move "\`$HOME/notes/missing.md\`")")" --user-file "$HOME/notes/missing.md"
+run_case "new files beside retired old paths: only new files are read, no warning" "$(printf '### Consumer gotchas (cascade)\n\n#### userConfig (`%s`)\n\n- New user: read.\n\n#### personal override (`%s`)\n\n- New personal: read.\n' "$HOME/notes/bugs-gotchas.md" "$CLAUDE_PROJECT_DIR/docs/conventions/bugs.local.md")" --user-file "$HOME/notes/bugs-gotchas.md"
 
 HOME="${FIXTURES}/home-m"
 CLAUDE_PROJECT_DIR="${FIXTURES}/repo-m"

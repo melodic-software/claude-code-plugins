@@ -278,13 +278,12 @@
       "id": 22,
       "name": "check-at-home-root-reports-team-and-personal-override-not-applicable",
       "prompt": "/source-control:setup check\n\nThe session's project root is the operator's home directory, which contains ~/.claude/source-control.md and no repository of its own.",
-      "expected_output": "Resolves the config root, classifies it as home, and reports the team layer and the personal override as not applicable with the reason `project root is the home directory (or an ancestor of it)`. Resolves only the old user-global file ~/.claude/source-control.md and never presents it as the team layer. The effective-configuration table shows that old file as the only winning source, and a WARN names it as an old location with its new location (a repository's docs/conventions/source-control.yaml, or docs/conventions/source-control.local.yaml for one person) and apply, run from the repository that should hold the config, as the move. The git tracked/ignored probes are not run.",
+      "expected_output": "Resolves the config root, classifies it as home, and reports the team layer and the personal override as not applicable with the reason `project root is the home directory (or an ancestor of it)`. Does not read ~/.claude/source-control.md as a config layer or present it as the team layer; the effective-configuration table shows plugin defaults. The git tracked/ignored probes are not run.",
       "files": [],
       "expectations": [
         "Reports team and personal override as not applicable and names the reason: project root is the home directory (or an ancestor of it)",
-        "Resolves only the old user-global file and does not read ~/.claude/source-control.md a second time as the team layer",
-        "Shows the old user-global file as the only source that can win in the effective-configuration table",
-        "WARNs that ~/.claude/source-control.md is an old location, naming its new location in a repository and apply from that repository as the remediation",
+        "Does not read ~/.claude/source-control.md as a config layer or present it as the team layer",
+        "Shows plugin defaults in the effective-configuration table",
         "Runs no git ls-files, git check-ignore, or trackedness probe against the home directory"
       ]
     },

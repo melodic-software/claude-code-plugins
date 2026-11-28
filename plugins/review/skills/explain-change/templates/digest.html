@@ -5,32 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Change Digest</title>
 <style>
-:root {
-  --ivory: #faf9f5;
-  --slate: #141413;
-  --clay-deep: #a0512e;
-  --gray-300: #d1cfc5;
-  --gray-500: #87867f;
-  --serif: ui-serif, Georgia, serif;
-  --sans: system-ui, sans-serif;
-  --mono: ui-monospace, monospace;
-  --bg: var(--ivory);
-  --fg: var(--slate);
-  --muted: var(--gray-500);
-  --border: 1.5px solid var(--gray-300);
-  --focus: var(--clay-deep);
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: var(--slate);
-    --fg: var(--ivory);
-    --muted: var(--gray-300);
-    --border: 1.5px solid var(--gray-500);
-    --focus: #e89b7e;
-    color-scheme: dark;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
@@ -66,7 +40,7 @@ pre { margin: 0; padding: 0.6rem; overflow-x: auto; border: var(--border); borde
 .question { display: grid; gap: 0.35rem; }
 textarea { min-height: 5rem; resize: vertical; width: 100%; }
 .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-button { padding: 0.5rem 0.9rem; border: 1.5px solid var(--focus); border-radius: 6px; background: var(--focus); color: var(--bg); font: inherit; font-weight: 600; cursor: pointer; }
+button { padding: 0.5rem 0.9rem; border: 1.5px solid var(--link); border-radius: 6px; background: var(--link); color: var(--bg); font: inherit; font-weight: 600; cursor: pointer; }
 button + button { background: transparent; color: var(--fg); }
 a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
   outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 2px;
@@ -74,10 +48,23 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
 input:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .out, .answers li { white-space: pre-wrap; }
 .answers { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.35rem; }
+  /* rv-chrome:begin */
+  .rv-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: flex-end; }
+  .rv-theme { display: inline-flex; border: 1px solid var(--muted); border-radius: 8px; overflow: hidden; }
+  .rv-theme button { margin: 0; padding: 0.35rem 0.75rem; border: 0; border-radius: 0; background: transparent; color: var(--fg); font: inherit; font-weight: 500; cursor: pointer; }
+  .rv-theme button + button { border-left: 1px solid var(--muted); }
+  .rv-theme button[aria-pressed=true] { background: var(--fg); color: var(--bg); }
+  .rv-theme button:focus-visible { outline: 3px solid var(--fg); outline-offset: -3px; }
+  .rv-comment { display: grid; gap: 0.4rem; }
+  .rv-comment h2 { margin: 0; }
+  .rv-comment textarea { min-height: 5rem; padding: 0.6rem; border: 1px solid var(--muted); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; resize: vertical; }
+  .rv-comment textarea:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
+  /* rv-chrome:end */
 </style>
 </head>
 <body>
 <main class="page">
+<div class="rv-bar"><div class="rv-theme" role="group" aria-label="Theme"><button type="button" data-rv-theme="system" aria-pressed="true">System</button><button type="button" data-rv-theme="light" aria-pressed="false">Light</button><button type="button" data-rv-theme="dark" aria-pressed="false">Dark</button></div></div>
 <header>
 <p class="eyebrow">Change digest</p>
 <h1 data-rv-text="title">Change digest</h1>

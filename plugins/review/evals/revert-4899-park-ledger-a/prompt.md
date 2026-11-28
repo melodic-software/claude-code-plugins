@@ -1,11 +1,11 @@
 ---
-description: "Revert case from PR #4899, reverted by #5044 7e3a5c3dab5c: CI code review of the original change posts a finding on a line the revert later changed"
+description: "Revert case from PR #4899, reverted by #5044 7e3a5c3dab5c: high-signal CI code review names that the PR uses Closes #3612 while only adding a docs/out-of-scope park ledger without implementing the issue"
 tags: [review, code-review, revert]
-runs: 1
+runs: 3
 max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Agent]
-expected_outcome: "The review reports a finding at a line the revert later changed: docs/out-of-scope/playground-corpus-spec-conformance-fleet-sweep.md lines 1,3,5-6,8-13,15,17-20,22,24-25,27,29-30. Its other findings are recorded, not graded"
+expected_outcome: "A high-signal code review names the reverted problem: PR #4899 uses Closes #3612 while only adding docs/out-of-scope/playground-corpus-spec-conformance-fleet-sweep.md to park the playground-corpus spec-conformance fleet sweep instead of implementing the work (or closing an active issue without owner approval). Citing a specific line number is optional; other findings are recorded, not graded"
 ---
 
 /review:code-review

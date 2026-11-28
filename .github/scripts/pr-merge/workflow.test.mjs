@@ -318,6 +318,19 @@ test("dispatch-post-merge-runs reads the cover only while the lane is live", () 
   assert.doesNotMatch(job("dispatch-full-run"), /steps\.(kill|mode)\./);
 });
 
+test("the post-merge check reads default-branch files from the job's whole checkout of main's tip", () => {
+  for (const id of ["dispatch-post-merge-runs", "merge"]) {
+    const text = job(id);
+    const step = (name) => text.split(`\n      - name: ${name}\n`)[1]?.split("\n      - name: ")[0] ?? "";
+    const checkout = step("Check out the default branch tip");
+    assert.match(checkout, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n/, `${id} checks out main's tip into .base`);
+    assert.doesNotMatch(checkout, /sparse-checkout/, `${id}'s .base holds every file`);
+    const check = step("Check earlier lane merges");
+    assert.match(check, /\n {10}MAIN_TIP_SHA: \$\{\{ steps\.tip\.outputs\.sha \}\}\n/, `${id} passes main's tip`);
+    assert.match(check, /\n {10}BABYSIT_CONFIG_CHECKOUT: \$\{\{ github\.workspace \}\}\/\.base\n/, `${id} names .base as the config checkout`);
+  }
+});
+
 test("the dispatch job's token is actions: write and contents: read, and nothing else", () => {
   const dispatch = job("dispatch-full-run");
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(dispatch)[1];
