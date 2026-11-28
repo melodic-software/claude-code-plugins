@@ -52,6 +52,11 @@ EVAL_VISIBILITY_PY = os.path.join(HERE, "eval_visibility.py")
 SELECT_PLUGINS_MJS = (".github", "scripts", "plugin-eval", "select-plugins.mjs")
 SELECT_PLUGINS_HEADER = "a selected plugin changes more than"
 REFUSED_PLUGIN_RE = re.compile(r'^"?plugins/([^/:"\\]+)[/:]')
+COMPARE_DIRS = frozenset(["skills", "agents", "context", "evals"])
+SUITE_ONLY_REASON = (
+    "no file of this plugin under skills/, agents/, context/ or evals/ changed,"
+    " so a compare run refuses it; run these in a suite run on the default branch after merge"
+)
 COMPARE_REFUSED_ADVICE = (
     "a compare run refuses these, so run the cases in a suite run"
     " on the default branch after merge"
@@ -393,18 +398,9 @@ def load_all_suites(repo_root):
     return eval_dirs, cases_by_plugin
 
 
-def compare_refusals(repo_root, merge_base):
-    """Map each plugin name to the `<path>: <reason>` lines compare mode refuses.
-
-    Runs the repository's own select-plugins.mjs on the plugin paths changed
-    since merge_base, listed as compare-arms.sh lists them (git's default path
-    quoting, so a quoted path is refused the same way) and without each
-    plugin's tests/, which compare-arms.sh leaves out.
-    Returns {} when the repository has no such script, None when it cannot run.
-    """
-    script = os.path.join(repo_root, *SELECT_PLUGINS_MJS)
-    if not os.path.isfile(script):
-        return {}
+def plugin_diff_paths(repo_root, merge_base):
+    """List the plugin paths changed since merge_base as compare-arms.sh lists
+    them (no renames, git's default path quoting), or None when git fails."""
     diff = subprocess.run(
         ["git", "-C", repo_root, "diff", "--no-renames", "--name-only", merge_base, "HEAD", "--", "plugins"],
         capture_output=True,
@@ -414,11 +410,33 @@ def compare_refusals(repo_root, merge_base):
     )
     if diff.returncode != 0:
         return None
-    paths = [
-        path
-        for path in diff.stdout.split("\n")
-        if path and path.split("/")[2:3] != ["tests"]
-    ]
+    return [path for path in diff.stdout.split("\n") if path]
+
+
+def compare_plugins(diff_paths):
+    """Return the plugins a compare run takes: compare-arms.sh refuses a
+    plugin with no changed path under its skills/, agents/, context/ or evals/."""
+    return {
+        parts[1]
+        for parts in (path.split("/") for path in diff_paths)
+        if len(parts) >= 4 and parts[2] in COMPARE_DIRS
+    }
+
+
+def compare_refusals(repo_root, merge_base, diff_paths):
+    """Map each plugin name to the `<path>: <reason>` lines compare mode refuses.
+
+    Runs the repository's own select-plugins.mjs on diff_paths, the plugin
+    paths changed since merge_base, without each plugin's tests/, which
+    compare-arms.sh leaves out.
+    Returns {} when the repository has no such script, None when it cannot run.
+    """
+    script = os.path.join(repo_root, *SELECT_PLUGINS_MJS)
+    if not os.path.isfile(script):
+        return {}
+    if diff_paths is None:
+        return None
+    paths = [path for path in diff_paths if path.split("/")[2:3] != ["tests"]]
     if not paths:
         return {}
     node = shutil.which("node")
@@ -450,7 +468,9 @@ def select_cases(repo_root, diff_base, merge_base):
     entries = select_mapping.changed_entries(repo_root, diff_base)
     if entries is None:
         return None
-    refused = compare_refusals(repo_root, merge_base)
+    diff_paths = plugin_diff_paths(repo_root, merge_base)
+    comparable = None if diff_paths is None else compare_plugins(diff_paths)
+    refused = compare_refusals(repo_root, merge_base, diff_paths)
     if refused is None:
         sys.stderr.write(
             "warning: select-plugins.mjs gave no readable result; compare-mode refusals are unchecked\n"
@@ -770,6 +790,9 @@ def select_cases(repo_root, diff_base, merge_base):
         det_cases = sorted({c.name for c in run_set if not c.judged_only})
         judged = sorted({c.name for c in run_set if c.judged_only})
         run_names = set(det_cases) | set(judged)
+        suite_only = []
+        if comparable is not None and plugin not in comparable:
+            suite_only, det_cases = det_cases, []
 
         ram_set = {
             c for c in after_merge_cases.get(plugin, set()) if c.name not in run_names
@@ -794,6 +817,7 @@ def select_cases(repo_root, diff_base, merge_base):
         if not any(
             (
                 det_cases,
+                suite_only,
                 judged,
                 no_run_names,
                 exempt_list,
@@ -814,6 +838,7 @@ def select_cases(repo_root, diff_base, merge_base):
 
         result["plugins/" + plugin] = {
             "cases": det_cases,
+            "suite-only": suite_only,
             "judged": judged,
             "affected-no-run": no_run_names,
             "no-run-exempt": exempt_list,
@@ -855,6 +880,10 @@ def format_text(result):
                     "no-run-exempt: %s; %s"
                     % (" ".join(data["no-run-exempt"]), NO_RUN_EXEMPT_REASON)
                 )
+        if data.get("suite-only"):
+            lines.append(
+                "suite-only: %s; %s" % (" ".join(data["suite-only"]), SUITE_ONLY_REASON)
+            )
         if data.get("compare-refused"):
             lines.append(
                 "compare-refused: %s; %s"

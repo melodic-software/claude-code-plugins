@@ -316,7 +316,8 @@ class SelectCasesMappingTest(unittest.TestCase):
         self.assertEqual(0, res.returncode, res.stderr)
         blocks = _parse_blocks(res.stdout)
         self.assertEqual(["plugins/beta"], list(blocks))
-        self.assertEqual("check", blocks["plugins/beta"]["cases"])
+        self.assertNotIn("cases", blocks["plugins/beta"])
+        self.assertTrue(blocks["plugins/beta"]["suite-only"].startswith("check; "))
 
     def test_finding_07_relative_reference_path_with_spaces(self):
         _write(

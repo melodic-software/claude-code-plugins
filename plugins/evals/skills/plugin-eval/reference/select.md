@@ -73,6 +73,7 @@ A diff that affects nothing prints `no affected cases`. Otherwise one block per 
 | Line | Meaning | What to do |
 |---|---|---|
 | `cases:` | Cases with at least one deterministic grader that this change must run | Pass the list as the run's case filter (an eval workflow with a `cases` input takes it as is) |
+| `suite-only:` | Deterministic run-requiring cases of a plugin with no changed file under its `skills/`, `agents/`, `context/` or `evals/` (a case whose grader reads another plugin's changed skill, or a change to only the plugin's `reference/`), then the reason; a compare run refuses such a plugin | Dispatch no compare run for them; merge first, then run them in a suite run on the default branch |
 | `judged:` | Run-requiring cases whose graders are all judged | Run them where a judge grades them, and check that judge against labeled samples first |
 | `run-after-merge:` | Triggering and no-fire cases of an additive-only `description` or `when_to_use` edit | Merge first, then run them on the default branch |
 | `affected-no-run:` | Cases the change touches that the policy runs nothing for (added body text, scripts, samples) | Nothing; they are listed so the author sees them |
@@ -82,7 +83,7 @@ A diff that affects nothing prints `no affected cases`. Otherwise one block per 
 | `unmapped:` | A changed file no rule maps to a case | Judge it by hand |
 | `unread-graders:` | A Skill or Agent grader whose `input_match` names no skill the shared rule can read | Rewrite the grader so it names its skill, or check it by hand |
 | `compare-refused:` | Each changed path of the plugin that the repository's `.github/scripts/plugin-eval/select-plugins.mjs` refuses, with its reason; printed only where that script exists and Node runs it | Dispatch no compare run; merge first, then run the cases in a suite run on the default branch |
-| `agent-runs:` | Each run-requiring case's runs times two arms, summed | State it with the case list before dispatch |
+| `agent-runs:` | Each run-requiring case's runs times two arms, summed, `suite-only:` and `run-after-merge:` cases included | State it with the case list before dispatch |
 
 A triggering or no-fire case is one that leaves the choice of skill to the model (its prompt does
 not open with a `/plugin:skill` command) and checks a Skill call, or one tagged `triggering`,
