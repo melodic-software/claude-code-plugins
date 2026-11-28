@@ -1,5 +1,5 @@
 ---
-description: "Verify or configure an ai-briefing profile and, only when explicitly requested, install the deterministic HTML/PDF/PPTX build toolchain. Use when: 'set up ai-briefing', 'configure ai-briefing', 'add an ai-briefing profile', 'is ai-briefing working', or 'ai-briefing setup'. Actions: check (read-only verification, default) | apply (scaffold the profile) | apply install-build-deps (also install the build toolchain). Idempotent, safe to re-run."
+description: "Verify (check) or scaffold (apply) an ai-briefing profile, and optionally install the HTML/PDF/PPTX build toolchain (apply install-build-deps)."
 argument-hint: "[check|apply] [install-build-deps] [--profile <name>]"
 user-invocable: true
 disable-model-invocation: true

@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: setup-check-old-file-not-read
+description: 'Bare /codebase-health:setup runs the read-only check on a repository whose only leftover files are the retired .claude/codebase-health.md and .claude/codebase-health.local.md, with no docs/conventions/codebase-health*.md. Because codebase-health-r001 and codebase-health-r002 are demoted to report-only, the retirement helper reports both records as INFO history (reports-retirement-records), and the old files are no longer read as config layers (old-not-applied), leaving effective config absent. It neither writes, edits nor deletes anything (no-write, no-edit, old-file-kept). Slash-invoked (disable-model-invocation), so there is no Skill-fired grader. Needs --scaffold and --allow-tools Write Edit so the write graders can fail.'
+tags: [setup, check, config-cascade, retired, no-network]
+expected_outcome: 'A PASS/FAIL/WARN/INFO report in which no canonical config layer exists (absent), codebase-health-r001 and codebase-health-r002 are reported as report-only INFO history, and neither .claude/codebase-health.md nor .claude/codebase-health.local.md supplies any audit dimension. Nothing is written or deleted.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/codebase-health:setup'
+  allowed_tools: [Read, Glob, Grep, Bash, Skill, Write, Edit]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: old-file-kept
+    type: file_exists
+    path: '.claude/codebase-health.md'
+    exists: true
+  - name: reports-retirement-records
+    type: regex
+    pattern: '(?=[\s\S]*codebase-health-r001)[\s\S]*codebase-health-r002'
+    target: last_message
+    arm: both
+  - name: old-not-applied
+    type: regex
+    pattern: '^(?![\s\S]*\bapi-contracts\b[^\n]{0,120}?\.claude/codebase-health\.md)(?![\s\S]*\.claude/codebase-health\.md[^\n]{0,120}?\bapi-contracts\b)(?=[\s\S]*\b(?:INFO|report-only)\b)[\s\S]*\b(?:absent|no (?:canonical )?(?:config|layer)|not read|no longer read)\b'
+    flags: 'i'
+    target: last_message
+    arm: both

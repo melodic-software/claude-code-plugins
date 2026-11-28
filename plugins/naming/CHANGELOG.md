@@ -3,6 +3,12 @@
 All notable changes to the `naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.9] - 2026-11-28
+
+### Changed
+
+- Trimmed `/naming:name-it-better` frontmatter description (650 -> 380 chars) while preserving blind-lens naming, `tournament` criteria for high-stakes names, human-pick posture, undecided/rejected/wrong triggers, and `/docs-hygiene:rename-references` exclusion.
+
 ## [0.7.8] - 2026-11-24
 
 ### Changed
