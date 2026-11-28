@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.3.3] - 2026-11-28
+
+### Changed
+
+- `worktree-include.sh diff` compares carried files against the main checkout with two batched `git hash-object` calls in place of one `cmp` per file, in the default diff and in the `--worktree-only` check of a worktree with no carried manifest. Rows and exit codes are unchanged; it falls back to `cmp` when the two repositories use different object formats or a file changes during the run.
+
+- The babysit-prs verdict reader shares a FAIL index's run artifacts across one pr-merge run's gate processes (`BABYSIT_RUN_CACHE`, section `run-artifacts`, for `run_cache.MAX_AGE`) when the set holds a FAIL, noting when it was read. A set with no FAIL is read by every process, since a re-run keeps the run's id. One Merge job made 40 `runs/{id}/artifacts` reads, none shared.
+
 ## [15.3.2] - 2026-11-28
 
 ### Changed
