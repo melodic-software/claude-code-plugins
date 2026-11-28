@@ -32,7 +32,7 @@ export const titleKey = (title) => title.trim().replace(/\s+/g, " ").toLowerCase
 
 const isTitles = (value) => Array.isArray(value) && value.every((title) => typeof title === "string");
 
-export function planFiling({ label, labelExists, cap, open, existingTitles = [], candidates, runCap }) {
+export function planFiling({ label, labelExists, cap, open, existingTitles, candidates, runCap }) {
   if (typeof labelExists !== "boolean") throw new Error("labelExists must be true or false");
   if (!isCap(cap) || !isCap(open)) throw new Error("cap and open must be non-negative integers");
   if (runCap !== undefined && !isCap(runCap)) throw new Error("runCap, when given, must be a non-negative integer");

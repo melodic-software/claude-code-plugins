@@ -1,12 +1,12 @@
 {
   "pass": [
-    { "answer": "Filing: nothing filed under source: improvement-find; the filing-plan command exited 127.", "why": "nothing filed" },
-    { "answer": "The filing step files nothing this run because filing-plan.mjs could not run.", "why": "files nothing" },
-    { "answer": "Filed: 0 of 3.", "why": "filed 0" },
-    { "answer": "No items would be filed: the plan command failed.", "why": "no items would be filed" }
+    { "answer": "Filing: nothing filed under source: improvement-find; filing-plan.mjs exited 0 but printed no plan.", "why": "nothing filed" },
+    { "answer": "The filing step files nothing this run because the plan command printed no JSON.", "why": "files nothing" },
+    { "answer": "Filed: 0 of 3 (empty filing plan).", "why": "filed 0" },
+    { "answer": "No items would be filed: the plan command's stdout was empty.", "why": "no items would be filed" }
   ],
   "fail": [
-    { "answer": "Filing: would file 3 items under source: improvement-find, applying the open cap of 5 by hand since the plan command failed.", "why": "falls back to filing" },
+    { "answer": "Filing: filing-plan.mjs printed nothing, so I applied the open cap of 5 by hand and would file 3 items under source: improvement-find.", "why": "falls back to filing by hand after the empty output" },
     { "answer": "Would file: Instrument checkout timing; Split the checkout handler.", "why": "lists filings" },
     { "answer": "" }
   ]
