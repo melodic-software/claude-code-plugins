@@ -47,7 +47,7 @@ new_repo() {
   git -C "$REPO" config user.name t
   git -C "$REPO" config user.email t@example.invalid
   mkdir -p "$REPO/docs/conventions"
-  printf '%s\n' "$@" >"$REPO/docs/conventions/code-tidying.yaml"
+  printf '%s\n' "$@" >"$REPO/docs/conventions/comment-policy.yaml"
   printf 'x=1\n' >"$REPO/seed.sh"
   git -C "$REPO" add -A
   git -C "$REPO" commit -q -m seed --no-verify
@@ -321,15 +321,22 @@ expect "comment_adr_dir: docs/decisions holds the record ADR-0007 names" "0|" "$
 
 new_repo 'comment_lint: block'
 mkdir -p "$REPO/docs/conventions"
-printf 'comment_posture: none\n' >"$REPO/docs/conventions/code-tidying.local.yaml"
+printf 'comment_posture: none\n' >"$REPO/docs/conventions/comment-policy.local.yaml"
 git -C "$REPO" add -A
 stage_fixture shape8.sh.txt src/a.sh
 expect "the personal override's posture is read too: none fails the link" 1 "$(got="$(check "$REPO")"; printf '%s' "${got%%|*}")"
 
 new_repo 'comment_lint: block'
-printf 'comment_lint: off\n' >"$REPO/docs/conventions/code-tidying.local.yaml"
+printf 'comment_lint: off\n' >"$REPO/docs/conventions/comment-policy.local.yaml"
 stage_fixture shape6.sh.txt src/a.sh
 expect "comment_lint in the personal override does not lower the level" "1|$(finding src/a.sh 3 necessary)" "$(check "$REPO")"
+
+new_repo
+printf 'comment_lint: block\n' >"$REPO/docs/conventions/code-tidying.yaml"
+stage_fixture shape6.sh.txt src/a.sh
+expect "comment_lint in code-tidying.yaml is still read, named as a key to move" \
+  "1|comment-settings: docs/conventions/code-tidying.yaml sets comment_lint; move them to docs/conventions/comment-policy.yaml
+$(finding src/a.sh 3 necessary)" "$(check "$REPO")"
 
 new_repo 'comment_lint: block' 'comment_lint_allow:' '  - "silent-skip-ok:"' '  - "^# (test|case)-scope:"'
 printf 'x=1 # silent-skip-ok: output discarded by design\n# test-scope: a b\n# plain note\n' >"$REPO/src.sh"
@@ -383,7 +390,7 @@ for setting in unset 'comment_lint_exclude:'; do
 done
 
 new_repo 'comment_lint: block'
-printf 'comment_lint_exclude:\n  - "vendor/**"\n' >"$REPO/docs/conventions/code-tidying.local.yaml"
+printf 'comment_lint_exclude:\n  - "vendor/**"\n' >"$REPO/docs/conventions/comment-policy.local.yaml"
 stage_fixture shape6.sh.txt vendor/a.sh
 expect "comment_lint_exclude in the personal override is not read" \
   "1|$(finding vendor/a.sh 3 necessary)" "$(check "$REPO")"
@@ -416,7 +423,7 @@ $(finding evals/case-a/scaffold.sh 7 necessary)" "$(check "$REPO")"
 done
 
 new_repo 'comment_lint: block'
-printf 'comment_lint_keep_opening:\n  - "**"\n' >"$REPO/docs/conventions/code-tidying.local.yaml"
+printf 'comment_lint_keep_opening:\n  - "**"\n' >"$REPO/docs/conventions/comment-policy.local.yaml"
 scaffold evals/case-a/scaffold.sh
 expect "comment_lint_keep_opening in the personal override is not read" \
   "1|$(finding evals/case-a/scaffold.sh 4 necessary)

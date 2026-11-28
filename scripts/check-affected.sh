@@ -411,7 +411,7 @@ fi
 
 comment_lint=plugins/code-tidying/git-hooks/comment-lint.sh
 comment_lint_merge_base_diff() {
-  local d="$out.cl" f home head
+  local d="$out.cl" f files home head
   head="$(git rev-parse HEAD)" &&
     git -c init.defaultBranch=lint init --quiet --template= "$d" &&
     printf '%s\n' "$(cd "$(git rev-parse --git-common-dir)/objects" && pwd -P)" >"$d/.git/objects/info/alternates" &&
@@ -425,9 +425,10 @@ comment_lint_merge_base_diff() {
   copy_from_merge_base AGENTS.md && copy_from_merge_base CLAUDE.md || return 2
   home="$(bash "$tools/plugins/code-tidying/lib/resolve-convention-home.sh" --root "$d" --ref "$merge_base" 2>/dev/null)" || home=""
   [[ -n "$home" && "$home" != /* && "$home" != *..* ]] || home=docs/conventions
-  for f in comment-policy.yaml comment-policy.local.yaml code-tidying.yaml code-tidying.local.yaml; do
+  files="$(bash "$tools/plugins/code-tidying/scripts/comment-settings.sh" --files)" || return 2
+  while IFS= read -r f; do
     copy_from_merge_base "${home%/}/$f" || return 2
-  done
+  done <<<"$files"
   (cd "$d" && AI_AGENT=ci sh "$tools/$comment_lint")
 }
 if ((${#changed[@]} == 0)); then

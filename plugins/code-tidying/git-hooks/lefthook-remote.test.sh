@@ -21,7 +21,7 @@ ln -s "$PY" "$WORK/py/python3"
 export PATH="$WORK/py:$PATH"
 
 mkdir -p "$REPO/docs/conventions"
-printf 'comment_lint: block\n' >"$REPO/docs/conventions/code-tidying.yaml"
+printf 'comment_lint: block\n' >"$REPO/docs/conventions/comment-policy.yaml"
 git -C "$REPO" add -A
 lr_commit config
 lr_expect_pass "pre-commit: a commit with no comment passes"
@@ -33,7 +33,7 @@ lr_expect_block "pre-commit: an added comment outside the posture blocks, naming
   code-tidying-remote-comment-lint '^run\.sh:2: comment outside the necessary posture'
 lr_skip pre-commit code-tidying-remote-comment-lint commit
 
-printf 'comment_lint: report\n' >"$REPO/docs/conventions/code-tidying.yaml"
+printf 'comment_lint: report\n' >"$REPO/docs/conventions/comment-policy.yaml"
 printf 'y=1\n# another planted note\n' >"$REPO/two.sh"
 git -C "$REPO" add -A
 lr_commit report
