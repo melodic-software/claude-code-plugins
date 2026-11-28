@@ -7,6 +7,8 @@ import { createGitHub } from "../lib/github-client.mjs";
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA = /^[0-9a-f]{40}$/;
 export const QUEUE_PREFIX = "gh-readonly-queue/";
+const BASE = "main";
+const CANDIDATE_PREFIX = `${QUEUE_PREFIX}${BASE}/`;
 export const MIN_AGE_MS = 60_000;
 export const MAX_CANCELS = 20;
 export const MAX_PAGES = 3;
@@ -23,7 +25,7 @@ export function orphans(runs, branches, nowMs, { minAgeMs = MIN_AGE_MS, max = MA
         Number.isSafeInteger(run.id) &&
         run.id > 0 &&
         typeof run.head_branch === "string" &&
-        run.head_branch.startsWith(QUEUE_PREFIX) &&
+        run.head_branch.startsWith(CANDIDATE_PREFIX) &&
         !live.has(run.head_branch) &&
         nowMs - Date.parse(run.created_at) > minAgeMs &&
         (merged === null || (SHA.test(run.head_sha ?? "") && !merged.has(run.head_sha))),
@@ -67,7 +69,7 @@ export async function listQueueBranches(github, repo) {
 }
 
 export async function mainShas(github, repo) {
-  const commits = await github("GET", `/repos/${repo}/commits?sha=main&per_page=100`);
+  const commits = await github("GET", `/repos/${repo}/commits?sha=${BASE}&per_page=100`);
   if (!Array.isArray(commits)) {
     throw new Error("main's commit listing is not an array");
   }

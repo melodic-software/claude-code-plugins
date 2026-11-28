@@ -3,11 +3,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
+import { createGitHub } from "../lib/github-client.mjs";
 import { main } from "./cancel-orphaned-runs.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
-const recorded = (name) => JSON.parse(readFileSync(new URL(`./fixtures/cancel-orphaned-runs-${name}.json`, import.meta.url), "utf8")).response;
+const capture = (name) => JSON.parse(readFileSync(new URL(`./fixtures/cancel-orphaned-runs-${name}.json`, import.meta.url), "utf8"));
+const recorded = (name) => capture(name).response;
 const RUNS = recorded("merge-group-runs");
+const listing = (runs, all = runs) => ({ ...structuredClone(RUNS), total_count: RUNS.total_count - RUNS.workflow_runs.length + all.length, workflow_runs: runs });
 const REFS = recorded("queue-refs");
 const COMMITS = recorded("main-commits");
 const NOW = Date.parse("2026-11-28T06:30:00Z");
@@ -33,8 +36,7 @@ async function sweep({ queued = [], running = [], branches = [], onMain = [], fa
       if (failRuns) {
         throw new Error("GET runs failed with status 502");
       }
-      const runs = path.includes("status=queued") ? queued : running;
-      return { total_count: runs.length, workflow_runs: runs };
+      return listing(path.includes("status=queued") ? queued : running);
     }
     if (path.includes("/git/matching-refs/")) {
       if (failRefs) {
@@ -112,6 +114,17 @@ test("a run on a branch outside gh-readonly-queue/, or from another event, is ne
   assert.deepEqual(posts(r.calls), []);
 });
 
+test("a run in another base's queue whose ref is gone is kept, while main's is cancelled", async () => {
+  const OTHER = GONE.replace("gh-readonly-queue/main/", "gh-readonly-queue/release/x/");
+  const r = await sweep({ queued: [run(1, OTHER), run(2, GONE)] });
+  assert.deepEqual(posts(r.calls), [cancel(2)]);
+});
+
+test("with only another base's orphaned run, nothing is cancelled and main's commits are not read", async () => {
+  const r = await sweep({ queued: [run(1, GONE.replace("gh-readonly-queue/main/", "gh-readonly-queue/release/x/"))] });
+  assert.deepEqual(r.calls, [LIST_QUEUED, LIST_RUNNING, LIST_REFS]);
+});
+
 test("one sweep cancels at most 20 runs, the oldest first", async () => {
   const queued = Array.from({ length: 25 }, (_, i) => run(100 + i, `${GONE}-${i}`, 1000 - i));
   const r = await sweep({ queued });
@@ -130,8 +143,8 @@ test("a cancel the API refuses is reported and the next one still goes", async (
   const calls = [];
   const github = async (method, path) => {
     calls.push(`${method} ${path}`);
-    if (path.includes("status=queued")) return { total_count: 2, workflow_runs: [run(1, GONE, 400), run(2, `${GONE}-b`, 300)] };
-    if (path.includes("/actions/runs?")) return { total_count: 0, workflow_runs: [] };
+    if (path.includes("status=queued")) return listing([run(1, GONE, 400), run(2, `${GONE}-b`, 300)]);
+    if (path.includes("/actions/runs?")) return listing([]);
     if (path.includes("/git/matching-refs/")) return structuredClone(REFS);
     if (path.includes("/commits?")) return structuredClone(COMMITS);
     if (path.endsWith("/1/cancel")) throw new Error("POST cancel failed with status 409");
@@ -149,33 +162,37 @@ test("a cancel the API refuses is reported and the next one still goes", async (
   assert.match(lines.join("\n"), /run 1 not cancelled: POST cancel failed with status 409[\s\S]*cancelled=\[2\]/);
 });
 
-test("a paged ref listing cancels nothing", async () => {
+test("a ref listing whose Link header names a next page cancels nothing", async () => {
+  const next = `<https://api.github.com${capture("queue-refs").request.replace(/^GET /, "")}?page=2>; rel="next"`;
   const calls = [];
-  const github = async (method, path) => {
-    calls.push(`${method} ${path}`);
-    if (path.includes("status=queued")) return { total_count: 1, workflow_runs: [run(1, GONE)] };
-    if (path.includes("/actions/runs?")) return { total_count: 0, workflow_runs: [] };
-    const refs = structuredClone(REFS);
-    Object.defineProperty(refs, Symbol.for("github.link"), { value: '<https://api.github.com/x?page=2>; rel="next"' });
-    return refs;
+  const fetchImpl = async (url, init) => {
+    calls.push(`${init.method} ${new URL(url).pathname}`);
+    if (url.includes("/git/matching-refs/")) return new Response(JSON.stringify(REFS), { headers: { link: next } });
+    if (url.includes("/commits?")) return new Response(JSON.stringify(COMMITS));
+    if (init.method === "POST") return new Response(null, { status: 202 });
+    return new Response(JSON.stringify(listing(url.includes("status=queued") ? [run(1, GONE)] : [])));
   };
+  const lines = [];
   const log = console.log;
-  console.log = () => {};
+  console.log = (line) => lines.push(line);
   try {
-    await main({ env: { GITHUB_REPOSITORY: REPO }, github, now: () => NOW });
+    await main({ env: { GITHUB_REPOSITORY: REPO }, github: createGitHub({ token: "t", fetchImpl }), now: () => NOW });
   } finally {
     console.log = log;
   }
-  assert.deepEqual(calls.filter((call) => call.startsWith("POST")), []);
+  assert.deepEqual(posts(calls), []);
+  assert.match(lines.join("\n"), /nothing more cancelled: the queue ref listing is paged/);
 });
 
 test("a full page of queued runs reads the next page, up to three", async () => {
   const calls = [];
-  const page = (offset) => Array.from({ length: 100 }, (_, i) => run(offset + i, LIVE));
+  const captured = RUNS.workflow_runs;
+  const all = Array.from({ length: 450 }, (_, i) => ({ ...structuredClone(captured[i % captured.length]), id: 1000 + i }));
   const github = async (method, path) => {
     calls.push(`${method} ${path}`);
-    if (path.includes("status=queued")) return { total_count: 450, workflow_runs: page(Number(/page=(\d+)/.exec(path)[1]) * 1000) };
-    if (path.includes("/actions/runs?")) return { total_count: 0, workflow_runs: [] };
+    const page = Number(/&page=(\d+)/.exec(path)?.[1]);
+    if (path.includes("status=queued")) return listing(all.slice((page - 1) * 100, page * 100), all);
+    if (path.includes("/actions/runs?")) return listing([]);
     return structuredClone(REFS);
   };
   const log = console.log;
