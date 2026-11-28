@@ -2,8 +2,7 @@ schema_version: "1.1"
 name: recall-still-reports-reverted-fix
 description: Recall on a topic whose bug fix closed an item and was then reverted lists that item under Still reported, citing the revert, and finds the topic's postmortem in the tracked markdown
 tags: [recall, git-history, still-reported]
-expected_outcome: >-
-  The git history holds a postmortem of a CSV export crash on quoted cells, a fix whose message says Fixes #42, and a revert of that fix because quoting broke spreadsheet imports and the crash came back. The answer searches git for the topic and its reverts, searches the tracked markdown for postmortems, and lists item #42 under Still reported because its fix was reverted, citing the revert's commit SHA and saying the item's tracker state is unconfirmed when the tracker cannot be read. It names the postmortem docs/postmortems/2026-09-csv-export-crash.md and any source it could not use.
+expected_outcome: 'The git history holds a postmortem of a CSV export crash on quoted cells, a fix whose message says Fixes #42, and a revert of that fix because quoting broke spreadsheet imports and the crash came back. The answer searches git for the topic and its reverts, searches the tracked markdown for postmortems, and lists item #42 under Still reported because its fix was reverted, citing the revert''s commit SHA and saying the item''s tracker state is unconfirmed when the tracker cannot be read. It names the postmortem docs/postmortems/2026-09-csv-export-crash.md and any source it could not use.'
 context:
   scaffold_script: scaffold.sh
 execution:
