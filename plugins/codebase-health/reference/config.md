@@ -3,7 +3,7 @@
 The single home for where the `codebase-health` audit-dimension config lives and how its layers
 merge. The surface resolves through the layers of the marketplace's
 [config-cascade contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/config-cascade/README.md#the-layers).
-`/codebase-health:audit` reads it; `/codebase-health:setup` checks it, moves old files and writes
+`/codebase-health:audit` reads it; `/codebase-health:setup` checks it and writes
 the team file. Every layer is optional: with none, the audit infers its targets from the repository
 each run.
 
@@ -47,32 +47,13 @@ content, so each skill that reads this surface carries the option's value in its
 Set it through Claude Code's plugin configuration (`/plugin configure codebase-health@<marketplace>`);
 no skill writes `pluginConfigs` or user settings.
 
-## Old locations (dual-read window)
+## Retired locations
 
-Before this surface adopted these layers it read three other files. While one of them exists, it
-is still read, and a run that finds one prints **one** warning line, status token `WARN`, naming
-each old file found, the location to move it to, and `/codebase-health:setup apply`, which moves it:
-
-| Old path | Read as | Moves to |
-|---|---|---|
-| `~/.claude/codebase-health.md`: one Read of that literal path, `~` kept; never Glob for it, spell out a home directory, or search the home tree | the `userConfig` layer, while `dimensions_file` is unset | a file of yours that `dimensions_file` names |
-| `<root>/.claude/codebase-health.md` | the team layer, when `<home>/codebase-health.md` is absent | `<home>/codebase-health.md` |
-| `<root>/.claude/codebase-health.local.md` | the personal layer, when `<home>/codebase-health.local.md` is absent | `<home>/codebase-health.local.md` |
-
-Old files use the same format as the new ones. When the new location also supplies that layer, the
-new one wins, and the warning names both files and lists each dimension the old file declares that
-therefore does not apply, so no old setting is dropped silently. The old team and personal files
-take the root rule and the tracked and ignored verdicts of the layer they stand in for, so at a
-root that is `$HOME` they are not read as team or personal layers.
-
-The repository-scope window is declared by the plugin's retirement records,
-[`retirements.yaml`](../retirements.yaml): `codebase-health-r001` (`.claude/codebase-health.md`)
-and `codebase-health-r002` (`.claude/codebase-health.local.md`), both `migrate`, evaluated by
-`lib/check-retirements.sh` from `/codebase-health:setup`, always with `--root <root>` so the helper
-checks the same root as every other read (left out, it checks `${CLAUDE_PROJECT_DIR}` first).
-`~/.claude/codebase-health.md` is machine scope, outside that mechanism, so the skills detect it
-with their own Read. Removing these reads is a separate later change (demoting the records to
-`report-only`), made once no run reports an old file.
+Old `~/.claude/codebase-health.md`, `.claude/codebase-health.md`, and
+`.claude/codebase-health.local.md` files are not read. The repository-scope retirement records in
+[`retirements.yaml`](../retirements.yaml) (`codebase-health-r001` and `codebase-health-r002`) are
+demoted to `report-only`: `/codebase-health:setup check` runs `lib/check-retirements.sh` with
+`--root <root>` and reports any leftover as INFO history only.
 
 ## Merge semantics
 
@@ -102,6 +83,5 @@ This recursive line ignores the personal file, written out for the default home:
 docs/conventions/**/*.local.*
 ```
 
-Write the bound `<home>` in place of `docs/conventions`. While an old
-`.claude/codebase-health.local.md` exists, `.claude/**/*.local.*` keeps it ignored.
-`/codebase-health:setup` recommends these lines; no plugin writes the consumer's `.gitignore`.
+Write the bound `<home>` in place of `docs/conventions`. `/codebase-health:setup` recommends this
+line; no plugin writes the consumer's `.gitignore`.

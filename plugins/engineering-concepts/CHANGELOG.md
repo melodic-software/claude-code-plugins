@@ -3,6 +3,12 @@
 All notable changes to the `engineering-concepts` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.5] - 2026-11-28
+
+### Changed
+
+- Backfilled invocation probe file (`probes/adopt.json`) and trimmed skill frontmatter descriptions (`adopt`: 439 -> 336 chars, `lookup`: 380 -> 320 chars; `load` unchanged at 329 chars; changed total 819 -> 656 chars, saving 163 chars) while preserving explicit-yes write gating, exclusions, and probe parity.
+
 ## [0.2.4] - 2026-11-28
 
 ### Changed

@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [16.4.0] - 2026-11-28
+
+### Added
+
+- Adopt the shared rendered-views token layer (`reference/html-tokens.css`), chrome theme toggle, comment box, and branding overrides (palette, type stacks, logo slot, and `branding` `userConfig` option) in the morning-brief and triage-board HTML views.
+
 ## [16.3.2] - 2026-11-28
 
 ### Changed

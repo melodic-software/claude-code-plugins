@@ -3,6 +3,12 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.0] - 2026-11-28
+
+### Added
+
+- Adopt the shared rendered-views token layer (`reference/html-tokens.css`), `lib/view-settings.mjs`, chrome theme toggle, and branding overrides (palette, type stacks, logo slot, and `branding` `userConfig` option) in the checkup HTML view.
+
 ## [0.28.3] - 2026-11-28
 
 ### Changed
