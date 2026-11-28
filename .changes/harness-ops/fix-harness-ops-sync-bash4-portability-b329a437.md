@@ -4,4 +4,4 @@ bump: patch
 
 ### Fixed
 
-- `/harness-ops:plugins` scripts run on bash 4.x: `cache-content-check.sh` no longer uses a negative array subscript (bash 4.3+), and `sync-run.sh` no longer aborts under `set -u` on bash before 5.0 when `fleet-state.sh --fingerprint` prints nothing.
+- `/harness-ops:plugins sync` no longer aborts with `unbound variable` on bash 4.4 when `fleet-state.sh --fingerprint` fails or prints nothing: `sync-run.sh`'s fallback snapshot key guards `EPOCHREALTIME`, which exists only from bash 5.0.

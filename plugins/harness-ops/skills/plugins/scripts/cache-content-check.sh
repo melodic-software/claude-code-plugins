@@ -639,7 +639,7 @@ while IFS= read -r line; do
       mp_errs+=("$mp_err")
       mp_recs+=("")
       ;;
-    R$'\x1f'*) ((${#mp_recs[@]} == 0)) || mp_recs[${#mp_recs[@]} - 1]+="${line#R$'\x1f'}"$'\n' ;;
+    R$'\x1f'*) ((${#mp_recs[@]} == 0)) || mp_recs[-1]+="${line#R$'\x1f'}"$'\n' ;;
     *) ;;
   esac
 done <<<"$FS_LINES"
