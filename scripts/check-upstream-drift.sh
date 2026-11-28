@@ -218,14 +218,19 @@ anon_tree() {
   esac
   OUT_TREE="$(anon_git -C "$ANON_REPO" ls-tree -r -z --full-tree "$3" |
     awk -v RS='\0' '
-      { i = index($0, "\t"); split(substr($0, 1, i - 1), m, " "); p = substr($0, i + 1) }
-      p ~ /[[:cntrl:]]/ { control = 1 }
-      !control && m[2] == "blob" { print m[3] " " p }
-      END { if (control) print "control" }')" ||
+      { i = index($0, "\t"); split(substr($0, 1, i - 1), m, " "); p = substr($0, i + 1); c = gsub(/[[:cntrl:]]/, "\001", p) }
+      m[2] == "blob" || c { print m[3] " " p }')" ||
     die "git ls-tree $1/$2@$3 failed"
-  [[ "$OUT_TREE" != control && "$OUT_TREE" != *$'\n'control ]] ||
-    die "$1/$2@${3:0:12}: a tree path holds a control character"
   return 0
+}
+
+declare -A GIT=() REST=()
+use_git() { [[ -n "${ANON[$1]:-}" || -n "${GIT[$1/$2]:-}" ]]; }
+git_to_rest() {
+  [[ -z "${ANON[$1]:-}" ]] || return 1
+  unset "GIT[$1/$2]"
+  REST[$1/$2]=1
+  PAGE_UNREACH=""
 }
 
 check_tree_lines() {
@@ -250,18 +255,22 @@ head_sha() {
     sha="$(tr -d '[:space:]' <"$FIXTURE/$1__$2/HEAD")"
   else
     local rc=6
-    [[ -n "${ANON[$1]:-}" ]] || {
+    use_git "$1" "$2" || {
       api "$1" "repos/$1/$2/commits/HEAD"
       rc=$?
     }
     case $rc in
     0) sha="$(jq -r '.sha // empty' <<<"$OUT_API")" ;;
     6)
-      anon_head "$1" "$2" || {
+      if anon_head "$1" "$2"; then
+        sha="$OUT_SHA"
+      elif git_to_rest "$1" "$2"; then
+        head_sha "$1" "$2"
+        return
+      else
         OUT_SHA=""
         return 0
-      }
-      sha="$OUT_SHA"
+      fi
       ;;
     *) die "gh api repos/$1/$2/commits/HEAD failed${API_STATUS:+ (HTTP $API_STATUS)}" ;;
     esac
@@ -330,10 +339,15 @@ tree_list() {
       check_tree_lines "${FIXTURE_FILES[$file]}" "$o/$r@${sha:0:12}"
     fi
     OUT_TREE="$(filter_under "${FIXTURE_FILES[$file]}" "$p")"
-  elif [[ -n "${ANON[$o]:-}" ]]; then
+  elif use_git "$o" "$r"; then
     if [[ -n "$p" ]]; then
       tree_list "$o" "$r" "$sha" ""
+      if [[ -n "$PAGE_UNREACH" ]] && git_to_rest "$o" "$r"; then
+        tree_list "$o" "$r" "$sha" "$p"
+        return 0
+      fi
       OUT_TREE="$(filter_under "$OUT_TREE" "$p")"
+      ! grep -q '[[:cntrl:]]' <<<"$OUT_TREE" || die "$o/$r@${sha:0:12}: a tree path holds a control character"
     else
       anon_tree "$o" "$r" "$sha" || OUT_TREE=""
     fi
@@ -422,11 +436,20 @@ for page in ${GIT_PAGES[@]+"${GIT_PAGES[@]}"}; do
   o="$P_OWNER" r="$P_REPO" pin="$P_PIN" scope="$P_SCOPE"
   PAGE_UNREACH=""
   if [[ -z "$FIXTURE" ]]; then
-    rc=6
-    [[ -n "${ANON[$o]:-}" ]] || {
-      api "$o" "repos/$o/$r/git/commits/$pin"
+    OUT_API="" API_STATUS="" rc=5
+    [[ -n "${REST[$o/$r]:-}" ]] || {
+      anon_fetch "$o" "$r" "$pin"
       rc=$?
     }
+    if ((rc == 0)); then
+      GIT[$o/$r]=1
+    elif ((rc == 5)); then
+      REST[$o/$r]=1 PAGE_UNREACH="" rc=6
+      [[ -n "${ANON[$o]:-}" ]] || {
+        api "$o" "repos/$o/$r/git/commits/$pin"
+        rc=$?
+      }
+    fi
     if ((rc == 6)); then
       OUT_API="" API_STATUS=""
       anon_fetch "$o" "$r" "$pin"

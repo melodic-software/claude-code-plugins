@@ -400,27 +400,89 @@ tmp_clean() {
   if [[ -z "$(ls -A "$f/tmp")" ]]; then ok "$1: temporary directory removed"; else fail "$1: left $(ls -A "$f/tmp")"; fi
 }
 
+no_gh() {
+  if [[ ! -s "$f/gh.log" ]]; then pass "$1: gh never called"; else bad "$1: gh never called" "$(cat "$f/gh.log")"; fi
+}
+
 stub_api
 run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" -- --report
-want_rc "allow list, git read works" 0
-want_out_line "allow list, git read works" "page repo=acme/widgets pin=${GPIN:0:12} head=${GHEAD:0:12} status=untracked path=$PAGE"
-want_err "allow list, git read works" "acme: IP allow list refused the token; reading anonymously over git"
-if [[ "$(wc -l <"$f/gh.log")" -eq 1 ]]; then pass "allow list: later calls skip gh"; else bad "allow list: later calls skip gh" "$(cat "$f/gh.log")"; fi
-tmp_clean "allow list, git read works"
+want_rc "public upstream, git read works" 0
+want_out_line "public upstream, git read works" "page repo=acme/widgets pin=${GPIN:0:12} head=${GHEAD:0:12} status=untracked path=$PAGE"
+no_err "public upstream, git read works"
+no_gh "public upstream, git read works"
+tmp_clean "public upstream, git read works"
 
 scoped_page
 run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" --
-want_rc "allow list, git read finds drift" 1
-no_out "allow list, git read finds drift"
-want_err "allow list, git read finds drift" "$PAGE:5: acme/widgets M skills/alpha/SKILL.md"
-want_err "allow list, git read finds drift" "$PAGE: acme/widgets new unit skills/gamma/SKILL.md"
-tmp_clean "allow list, git read finds drift"
+want_rc "public upstream, git read finds drift" 1
+no_out "public upstream, git read finds drift"
+want_err "public upstream, git read finds drift" "$PAGE:5: acme/widgets M skills/alpha/SKILL.md"
+want_err "public upstream, git read finds drift" "$PAGE: acme/widgets new unit skills/gamma/SKILL.md"
+no_gh "public upstream, git read finds drift"
+tmp_clean "public upstream, git read finds drift"
+GIT_ERR="$ERR"
 
 run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" -- --links
-want_rc "allow list, git read checks links" 0
-want_out "allow list, git read checks links" "1 links ok"
+want_rc "public upstream, git read checks links" 0
+want_out "public upstream, git read checks links" "1 links ok"
+no_gh "public upstream, git read checks links"
+
+rest_json() {
+  ugit ls-tree -r -t "$1:$2" |
+    jq -Rs --arg sha "$1" '{sha: $sha, truncated: false, tree: [split("\n")[] | select(. != "") |
+      capture("^(?<mode>[0-9]+) (?<type>[a-z]+) (?<sha>[0-9a-f]+)\t(?<path>.*)$")]}'
+}
+mkdir -p "$f/rest"
+for sha in "$GPIN" "$GHEAD"; do
+  rest_json "$sha" skills >"$f/rest/$sha:skills" || exit 2
+done
+cat >"$f/bin/gh" <<EOS
+#!/usr/bin/env bash
+echo "\$*" >>"$f/gh.log"
+case "\$2" in
+*/commits/HEAD) printf '{"sha":"%s"}\n' "$GHEAD" ;;
+*/git/commits/*) printf '{"sha":"%s"}\n' "\${2##*/}" ;;
+*/git/trees/*'?recursive=1') u="\${2##*/git/trees/}" && cat "$f/rest/\${u%%\\?*}" ;;
+*) echo '{"message":"Not Found","status":"404"}' && exit 1 ;;
+esac
+EOS
+: >"$f/gh.log"
+run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/nowhere" --
+want_rc "private upstream, REST read finds drift" 1
+if [[ "$ERR" == "$GIT_ERR" ]]; then
+  pass "private upstream: REST findings match the git read's"
+else
+  bad "private upstream: REST findings match the git read's" "git=$(printf '%q' "$GIT_ERR") rest=$(printf '%q' "$ERR")"
+fi
+if grep -qxF "api repos/acme/widgets/git/trees/$GHEAD:skills?recursive=1" "$f/gh.log"; then
+  pass "private upstream: trees read over REST"
+else
+  bad "private upstream: trees read over REST" "$(cat "$f/gh.log")"
+fi
+tmp_clean "private upstream, REST read finds drift"
 
 REAL_GIT=$(command -v git)
+stub_api
+mkdir -p "$f/fail-first-fetch"
+cat >"$f/fail-first-fetch/git" <<EOS
+#!/usr/bin/env bash
+for arg in "\$@"; do
+  if [[ "\$arg" == fetch && ! -e "$f/fetched-once" ]]; then
+    : >"$f/fetched-once"
+    echo "fatal: unable to access remote" >&2
+    exit 128
+  fi
+done
+exec "$REAL_GIT" "\$@"
+EOS
+chmod +x "$f/fail-first-fetch/git"
+run_env PATH="$f/fail-first-fetch:$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" -- --report
+want_rc "git fails, allow list refuses REST, git retry works" 0
+want_out_line "git fails, allow list refuses REST, git retry works" "page repo=acme/widgets pin=${GPIN:0:12} head=${GHEAD:0:12} status=untracked path=$PAGE"
+want_err "git fails, allow list refuses REST, git retry works" "acme: IP allow list refused the token; reading anonymously over git"
+if [[ "$(wc -l <"$f/gh.log")" -eq 1 ]]; then pass "allow list: later calls skip gh"; else bad "allow list: later calls skip gh" "$(cat "$f/gh.log")"; fi
+tmp_clean "git fails, allow list refuses REST, git retry works"
+
 log_git() {
   mkdir -p "$f/gitbin"
   : >"$f/git.log"
@@ -431,20 +493,21 @@ exec "$REAL_GIT" "\$@"
 EOS
   chmod +x "$f/gitbin/git"
 }
+scoped_page
 log_git
 run_env PATH="$f/gitbin:$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" --
-want_rc "allow list, git reads fetch each commit once at depth 1" 1
+want_rc "git reads fetch each commit once at depth 1" 1
 fetches=$(grep -c ' fetch ' "$f/git.log")
 deep=$(grep ' fetch ' "$f/git.log" | grep -cv -- '--depth=1')
 if [[ "$fetches" -eq 2 && "$deep" -eq 0 ]]; then
-  pass "allow list: two depth-1 fetches, pin and HEAD"
+  pass "git read: two depth-1 fetches, pin and HEAD"
 else
-  bad "allow list: two depth-1 fetches, pin and HEAD" "$(cat "$f/git.log")"
+  bad "git read: two depth-1 fetches, pin and HEAD" "$(cat "$f/git.log")"
 fi
 if ! grep -q -e cat-file -e '^GIT_NO_LAZY_FETCH= ' "$f/git.log"; then
-  pass "allow list: no existence probe, lazy fetch off on every call"
+  pass "git read: no existence probe, lazy fetch off on every call"
 else
-  bad "allow list: no existence probe, lazy fetch off on every call" "$(cat "$f/git.log")"
+  bad "git read: no existence probe, lazy fetch off on every call" "$(cat "$f/git.log")"
 fi
 
 stub_api
@@ -529,28 +592,44 @@ mkdir -p "$f/control-remote/acme"
 git clone -q --bare "$f/src" "$f/control-remote/acme/widgets.git" || exit 2
 
 run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/control-remote" -- --report
-want_rc "allow list, control in tree path, --report" 2
-no_out "allow list, control in tree path, --report"
-want_err "allow list, control in tree path, --report" "acme/widgets@${control_head:0:12}: a tree path holds a control character"
-tmp_clean "allow list, control in tree path, --report"
+want_rc "git read, control in tree path, --report" 2
+no_out "git read, control in tree path, --report"
+want_err "git read, control in tree path, --report" "acme/widgets@${control_head:0:12}: a tree path holds a control character"
+tmp_clean "git read, control in tree path, --report"
 
 run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/control-remote" --
-want_rc "allow list, control in tree path, default mode" 2
-no_out "allow list, control in tree path, default mode"
-want_err "allow list, control in tree path, default mode" "acme/widgets@${control_head:0:12}: a tree path holds a control character"
-tmp_clean "allow list, control in tree path, default mode"
+want_rc "git read, control in tree path, default mode" 2
+no_out "git read, control in tree path, default mode"
+want_err "git read, control in tree path, default mode" "acme/widgets@${control_head:0:12}: a tree path holds a control character"
+tmp_clean "git read, control in tree path, default mode"
+
+outside_path=$'control\tpath'
+ugit rm -q -- "$control_path" || exit 2
+echo malformed >"$f/src/$outside_path"
+ugit add -- "$outside_path" && ugit commit -qm outside || exit 2
+rm -rf "${f:?}/control-remote"
+mkdir -p "$f/control-remote/acme"
+git clone -q --bare "$f/src" "$f/control-remote/acme/widgets.git" || exit 2
+run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/control-remote" --
+want_rc "git read, control outside the read path" 1
+want_err "git read, control outside the read path" "$PAGE:5: acme/widgets M skills/alpha/SKILL.md"
+if [[ "$ERR" != *"control character"* ]]; then
+  pass "git read, control outside the read path: not refused"
+else
+  bad "git read, control outside the read path: not refused" "$ERR"
+fi
 
 stub_api '{"message":"Not Found","status":"404"}'
 log_git
-run_env PATH="$f/gitbin:$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" -- --report
-want_rc "other gh failure does not retry" 2
-no_out "other gh failure does not retry"
-want_err "other gh failure does not retry" "Not Found (HTTP 404)"
-if [[ "$ERR" != *"over git"* ]]; then pass "other gh failure: no git read"; else bad "other gh failure: no git read" "$ERR"; fi
-if grep -Eq ' (ls-remote|fetch)( |$)' "$f/git.log"; then
-  bad "other gh failure: no ls-remote or fetch" "$(cat "$f/git.log")"
+run_env PATH="$f/gitbin:$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/nowhere" -- --report
+want_rc "private upstream, other gh failure does not retry" 2
+no_out "private upstream, other gh failure does not retry"
+want_err "private upstream, other gh failure does not retry" "Not Found (HTTP 404)"
+if [[ "$ERR" != *"over git"* ]]; then pass "other gh failure: no git retry"; else bad "other gh failure: no git retry" "$ERR"; fi
+if [[ "$(grep -c ' fetch ' "$f/git.log")" -eq 1 ]] && ! grep -q ' ls-remote ' "$f/git.log"; then
+  pass "other gh failure: one git fetch before REST, no ls-remote"
 else
-  pass "other gh failure: no ls-remote or fetch"
+  bad "other gh failure: one git fetch before REST, no ls-remote" "$(cat "$f/git.log")"
 fi
 
 setup
