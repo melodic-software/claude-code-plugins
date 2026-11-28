@@ -6879,7 +6879,8 @@ def _git(root: Path, *args: str) -> str | None:
 
 
 def _git_file_at(root: Path, path: str, sha: str) -> str | None:
-    """The file's text at `sha` in the clone at `root`, or None when absent
+    """The file's text at `sha` in the clone at `root`, its bytes decoded as
+    `_file_at` decodes them with no newline translation, or None when absent
     from a readable tree."""
     entry = _git(root, "ls-tree", "-z", sha, "--", path)
     if entry is None:
@@ -6891,10 +6892,20 @@ def _git_file_at(root: Path, path: str, sha: str) -> str | None:
         raise _SymlinkAt(f"{path} at {sha} is a symlink")
     if kind != "blob":
         raise PolicyReadError(f"{path} at {sha} is not a file")
-    text = _git(root, "cat-file", "blob", f"{sha}:{path}")
-    if text is None:
-        raise PolicyReadError(f"{path} at {sha} is unreadable")
-    return text
+    try:
+        proc = run_command(
+            ["git", "--no-replace-objects", "-C", str(root)]
+            + ["cat-file", "blob", f"{sha}:{path}"],
+            allowed_executables=("git",),
+            check=False,
+            env_overrides=HISTORY_GIT_ENV,
+            binary=True,
+        )
+        if proc.returncode != 0:
+            raise ValueError(f"git cat-file exited {proc.returncode}")
+        return proc.stdout.decode("utf-8")
+    except (RuntimeError, ValueError, OSError) as exc:
+        raise PolicyReadError(f"{path} at {sha} is unreadable") from exc
 
 
 def _full_history_root(checkout: Path) -> Path | None:

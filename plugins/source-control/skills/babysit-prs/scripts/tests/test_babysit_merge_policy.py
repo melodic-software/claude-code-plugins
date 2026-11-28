@@ -11714,6 +11714,8 @@ class StandardsFromTheJobCheckout(unittest.TestCase):
     commit or no checkout reads through the contents API as before."""
 
     LISTED = '{"version": 1, "actors": [{"id": 7, "login": "octo", "kind": "user"}]}\n'
+    CRLF_PATH = "crlf.json"
+    CRLF = '{"version": 1,\r\n "actors": []}\r\n'
 
     def setUp(self) -> None:
         standards_cleared(self)
@@ -11722,6 +11724,7 @@ class StandardsFromTheJobCheckout(unittest.TestCase):
         listed = self.checkout / policy.STANDARDS_TRUSTED_ACTORS
         listed.parent.mkdir(parents=True)
         listed.write_text(self.LISTED)
+        (self.checkout / self.CRLF_PATH).write_bytes(self.CRLF.encode())
         env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
         for args in (["init", "-q"], ["add", "-A"],
                      ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false",
@@ -11747,6 +11750,24 @@ class StandardsFromTheJobCheckout(unittest.TestCase):
         text = policy.standards_file(STANDARDS_REPO, policy.STANDARDS_TRUSTED_ACTORS)
         self.assertEqual(text, self.LISTED)
         self.assertEqual(self.gh.calls, [])
+
+    def test_a_crlf_file_reads_byte_for_byte_as_the_contents_api_reads_it(self) -> None:
+        policy._STANDARDS_SHA[STANDARDS_REPO] = self.sha
+        local = policy.standards_file(STANDARDS_REPO, self.CRLF_PATH)
+        self.assertEqual(self.gh.calls, [])
+        endpoint = self.contents(self.CRLF_PATH, self.sha)
+        self.gh.rest[endpoint] = file_payload(self.CRLF)
+        api = policy._file_at(*STANDARDS_REPO.split("/"), self.CRLF_PATH, self.sha)
+        self.assertEqual((local, api), (self.CRLF, self.CRLF))
+        blob = subprocess.run(
+            ["git", "-C", str(self.checkout), "hash-object", "--stdin"],
+            input=local.encode(), check=True, capture_output=True,
+        ).stdout.decode().strip()  # fmt: skip
+        committed = subprocess.run(
+            ["git", "-C", str(self.checkout), "rev-parse", f"HEAD:{self.CRLF_PATH}"],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()  # fmt: skip
+        self.assertEqual(blob, committed)
 
     def test_a_file_the_checkout_lacks_reads_the_contents_api(self) -> None:
         policy._STANDARDS_SHA[STANDARDS_REPO] = self.sha
