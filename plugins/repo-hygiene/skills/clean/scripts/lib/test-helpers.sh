@@ -26,6 +26,11 @@ _fail_with() {
   FAILED=$((FAILED + 1))
 }
 
+test_native_path() {
+  command -v cygpath >/dev/null 2>&1 && cygpath -m -- "$1" 2>/dev/null && return 0
+  printf '%s\n' "$1"
+}
+
 skip_case() {
   printf 'SKIP: %s\n' "$1" >&2
 }

@@ -6,7 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/test-helpers.sh"
 
 AUDIT="$SCRIPT_DIR/git-stash-audit.sh"
-TEST_TMPDIR="$(mktemp -d)"
+PATH_TMPDIR="$(mktemp -d)"
+TEST_TMPDIR="$(test_native_path "$PATH_TMPDIR")"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 
@@ -14,7 +15,7 @@ rc=0
 bash "$AUDIT" --help >/dev/null 2>&1 || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 
-STUB_BIN="$TEST_TMPDIR/stub-bin"
+STUB_BIN="$PATH_TMPDIR/stub-bin"
 mkdir -p "$STUB_BIN"
 printf '#!/usr/bin/env bash\nexit 1\n' >"$STUB_BIN/gh"
 chmod +x "$STUB_BIN/gh"
@@ -68,7 +69,7 @@ assert_contains "failed lookup is announced, not swallowed" "$out" "PRDataUnavai
 assert_not_contains "failed lookup reports no count" "$out" "PRCount:"
 
 if command -v jq >/dev/null 2>&1; then
-  PR_BIN="$TEST_TMPDIR/pr-bin"
+  PR_BIN="$PATH_TMPDIR/pr-bin"
   mkdir -p "$PR_BIN"
   cat >"$PR_BIN/gh" <<'PRGH'
 #!/usr/bin/env bash
@@ -88,7 +89,7 @@ PRGH
   trunc_out="$(PATH="$PR_BIN:$PATH" CLEAN_PR_LIST_LIMIT=1 bash -c "cd '$REPO' && bash '$AUDIT'")"
   assert_contains "truncated map is announced here too" "$trunc_out" "PRDataTruncated:"
 
-  EMPTY_BIN="$TEST_TMPDIR/empty-pr-bin"
+  EMPTY_BIN="$PATH_TMPDIR/empty-pr-bin"
   mkdir -p "$EMPTY_BIN"
   cat >"$EMPTY_BIN/gh" <<'EMPTYGH'
 #!/usr/bin/env bash
