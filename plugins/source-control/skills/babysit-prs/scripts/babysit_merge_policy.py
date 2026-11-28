@@ -6906,9 +6906,7 @@ def _config_checkout(sha: str, env: str = CONFIG_CHECKOUT_ENV) -> Path | None:
     return None
 
 
-def checkout_file_at(
-    path: str, sha: str, env: str = CONFIG_CHECKOUT_ENV
-) -> str | None:
+def checkout_file_at(path: str, sha: str, env: str = CONFIG_CHECKOUT_ENV) -> str | None:
     """The file's text at `sha` from an `env` checkout whose HEAD is `sha`
     (`_config_checkout`), or None when no checkout holds it, so the caller
     reads it through the API."""

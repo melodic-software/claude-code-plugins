@@ -1885,9 +1885,7 @@ def _cost_reasons(
     if charges and not inp.cost_decision:
         hint = _decision_record_hint()
         row_clause = (
-            f"link its row in the owner-decisions record ({hint}) and "
-            if hint
-            else ""
+            f"link its row in the owner-decisions record ({hint}) and " if hint else ""
         )
         detail = "; ".join(charges) + (
             "; cite the owner's `**Decision recorded.** Cost:` comment on the "

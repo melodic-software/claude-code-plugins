@@ -13,8 +13,8 @@ strict=0 list=0 has_ref=0 ref=""
 pos=()
 while (($#)); do
   case "$1" in
-  -h | --help)
-    cat <<'EOF'
+    -h | --help)
+      cat <<'EOF'
 Resolve one value from a YAML concern file, or the fallback when the key is absent or empty.
 Usage: parse-concern-value.sh [--strict] [--list] [--ref <ref>] <file|-> <key> [fallback]
   <file|->     the concern file; - reads the document from stdin
@@ -28,21 +28,21 @@ Exit codes:
   2  usage error, an invalid key or ref, or a ref that does not resolve
   3  --strict and the document does not parse
 EOF
-    exit 0
-    ;;
-  --strict) strict=1 ;;
-  --list) list=1 ;;
-  --ref)
-    (($# >= 2)) || usage
-    has_ref=1 ref="$2"
-    shift
-    ;;
-  --)
-    shift
-    pos+=("$@")
-    break
-    ;;
-  *) pos+=("$1") ;;
+      exit 0
+      ;;
+    --strict) strict=1 ;;
+    --list) list=1 ;;
+    --ref)
+      (($# >= 2)) || usage
+      has_ref=1 ref="$2"
+      shift
+      ;;
+    --)
+      shift
+      pos+=("$@")
+      break
+      ;;
+    *) pos+=("$1") ;;
   esac
   shift
 done
