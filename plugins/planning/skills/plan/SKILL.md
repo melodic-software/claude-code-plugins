@@ -1,5 +1,5 @@
 ---
-description: "Produce structured implementation plans with goal, approach, test strategy, blast radius, parallelism, and a user approval gate before any code is written, persisted as PLAN.md for fresh-session handoff. Use when: 'plan this', 'architect this', 'how should we implement', 'implementation plan', 'write a plan for this', 'what's the approach here', 'review this plan' (audits an existing plan's completeness), or proactively before executing without a formalized plan."
+description: "Produce structured implementation plans (goal, approach, test strategy, blast radius, parallelism, approval gate before code) in PLAN.md for fresh-session handoff, plus `review` and `close-out`. Use when: 'plan this', 'architect this', 'review this plan', writing a plan, or how to implement. Not for rough options: /planning:brainstorm."
 argument-hint: "[task description|review|close-out] [--unattended] [--reader guardrails|standard|step-by-step]"
 user-invocable: true
 disable-model-invocation: false

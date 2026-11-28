@@ -1,5 +1,5 @@
 ---
-description: "Verify and configure the planning plugin for this repository. check inspects read-only the standards index, the interview-rendering toggle and docs/conventions/planning.yaml; apply bootstraps the standards index (docs/standards/ and, on relocation, .claude/standards.yaml), and apply with key=value pairs writes docs/conventions/planning.yaml after confirmation. Use when: 'set up planning', 'is planning configured', 'configure the planning plugin', 'planning setup', 'set up standards', 'bootstrap the standards index', 'set phase_order for this repo', 'set plan_store for the team', or a planning skill reports missing or thin config. Re-runnable."
+description: "Check (read-only) or apply repo planning config: standards index (docs/standards/) and confirmed docs/conventions/planning.yaml. Re-runnable."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
