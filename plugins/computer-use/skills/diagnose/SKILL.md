@@ -1,5 +1,5 @@
 ---
-description: "Diagnose why computer-use MCP desktop screen control failed (read-only): why screenshot is blurry/low resolution, screenshot zoom/pixel budget, screenshot capture failed/empty, click wrong place, keystroke/input failure, escape menu, screensaver killed session, allowed/unattended desktop app. Use when 'computer use', 'control my screen', 'UIPI'."
+description: "Diagnose why computer-use screen control failed (read-only): blurry/low-res screenshot, pixel budget, empty capture, misplaced click, keystroke/UIPI failure, stuck menu, screensaver ended session; or size up hazards before driving a desktop app unattended. Use when a screenshot, click or keystroke in computer use did not do what was expected. Not for browser work (Claude in Chrome) or shell work (Bash)."
 argument-hint: "[screenshots|failures|quirks]"
 user-invocable: true
 disable-model-invocation: false
