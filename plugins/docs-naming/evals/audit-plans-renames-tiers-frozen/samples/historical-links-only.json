@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {"answer":"| historical (`docs/adr/`) | `links-and-paths` | Markdown links and backtick paths are repointed. Prose is left as written. |"},
+    {"answer":"| `links-and-paths` (ADRs, historical) | markdown links, backtick paths, absolute URLs | running prose and bare stems |"},
+    {"answer":"Historical prose is left untouched; links-and-paths updates only links and paths."},
+    {"answer":"`docs/adr/**` is `historical`, which is `links-and-paths`, so ADR prose stays as written."},
+    {"answer":"| historical (`docs/adr/`) | `links-and-paths` | rewrites links and paths only; prose and bare stems stay as written |"},
+    {"answer":"Historical links-and-paths never edits prose; only links and paths are updated."},
+    {"answer":"Historical links-and-paths updates links and paths only, leaving prose untouched."},
+    {"answer":"Under links-and-paths, historical prose is never rewritten and stays as written."},
+    {"answer":"| `links-and-paths` | markdown links, backtick paths, and absolute URLs | running prose and bare stems, so the narrative reads as it was written |"},
+    {"answer":"- `docs/adr/` (historical): `links-and-paths`. Only links and paths are rewritten; prose is left as written."},
+    {"answer":"| historical | `links-and-paths` | rewrites links and paths only; prose and bare stems stay as written |"},
+    {"answer":"ADRs use `links-and-paths`: their links get updated but the prose stays as written."},
+    {"answer":"`links-and-paths` (ADRs): links are rewritten while the prose is left untouched."},
+    {"answer":"`links-and-paths` (historical): prose stays as written, links are rewritten."},
+    {"answer":"Historical (`docs/adr/**`): `links-and-paths`. Links and paths are repointed; prose is not rewritten."},
+    {"answer":"Historical ADRs use `links-and-paths`, so links still resolve and the narrative stays as written."},
+    {"answer":"| `links-and-paths` | markdown links, backtick paths, absolute URLs | running prose and bare stems | historical (`docs/adr/**`) |"},
+    {"answer":"Under `links-and-paths`, ADR prose is preserved and only links and paths change."}
+  ],
+  "fail": [
+    {"answer":"| historical | `links-and-paths` | 2 sites |"},
+    {"answer":"The ADR prose stays as written."},
+    {"answer":"Historical: links-and-paths rewrites links, paths, and prose."},
+    {"answer":"| `links-and-paths` | links, paths and prose | nothing |"},
+    {"answer":"| historical | `links-and-paths` | links, paths and prose are rewritten |"},
+    {"answer":"Under links-and-paths, ADR prose is rewritten; CHANGELOG is left as written."},
+    {"answer":"| historical | `links-and-paths` | updates only the prose and leaves links alone |"},
+    {"answer":"| historical | `links-and-paths` | rewrites links, paths and prose |"},
+    {"answer":"| historical | `links-and-paths` | rewrites only links, paths, and prose |"},
+    {"answer":"Historical: `links-and-paths` rewrites links, paths and prose; CHANGELOG is left alone."},
+    {"answer":"historical (`links-and-paths`): links, paths and prose are repointed; the released tier stays frozen."},
+    {"answer":"`links-and-paths`: links, paths and prose all get touched; CHANGELOG stays as written."},
+    {"answer":"ADR prose stays as written."},
+    {"answer":"`links-and-paths` leaves links alone and rewrites prose."},
+    {"answer":"`links-and-paths` rewrites links and the narrative; CHANGELOG is left alone."},
+    {"answer":"Historical (`links-and-paths`): links stay, prose is rewritten."},
+    {"answer":"`links-and-paths` touches links, paths and sentences alike; nothing else is left."}
+  ]
+}

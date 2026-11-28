@@ -1,5 +1,5 @@
 ---
-description: "Film production from a brief and one or more style packs: boards for the user to approve, then a shot list, rendered frames, a delivered file, and a review against the pack. Use when: 'produce this film', 'animate this brief', 'storyboard then render', 'make a short in this style', 'boards for approval', 'shot list for this film'. Not for copying a reference clip (/animation:rotoscope) or measuring a new style (/animation:learn-style)."
+description: "Produce an animated film or short from a brief and style packs: approval boards, shot list, rendered frames, delivered file, and pack review. Use when: 'produce this film', 'animate this brief', 'storyboard then render'. Not for copying a reference clip: /animation:rotoscope; not for measuring a new style: /animation:learn-style."
 argument-hint: "<production dir>"
 user-invocable: true
 disable-model-invocation: false

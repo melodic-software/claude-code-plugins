@@ -1,5 +1,5 @@
 ---
-description: "Improve one thing in any target, from a method or a doc to a whole feature, measured against the repo's written standards and, when a focus asks for it, current upstream guidance. Ships the smallest complete improvement as one small PR. With no arguments it reads the conversation for a target and focus and confirms both with the user before acting. Use when: 'improve this', 'improve X', 'make this faster', 'fix one thing', 'make this match our standards', 'bring this up to current upstream guidance', 'find something small and fix it', or a scheduled improve-one-thing run. Skip: a ranked list of options ('what should we improve') is /improvement:find; a structure-only lane sweep is /code-tidying:tidy; an observed failure is /debugging:debug."
+description: "Improve one thing in any target (method, doc, feature) to match written repo standards or current upstream guidance; ships the smallest complete improvement as one small PR (bare call confirms target/focus). Use when: 'improve this', 'fix one thing', 'make this faster', or a scheduled improve-one-thing run. Not for ranked lists: /improvement:find."
 argument-hint: "[dry-run] [target ...] [--focus <lens>] [--unattended] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

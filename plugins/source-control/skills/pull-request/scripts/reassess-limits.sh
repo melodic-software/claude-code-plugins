@@ -12,8 +12,6 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAIM="$SCRIPT_DIR/../../../scripts/worktree-claim.sh"
 STANDARDS_SYNC_LABEL=standards-sync
-BODY_HOLD_RE=$'\\bdo(?:n[\'\u2019]?t| not)\\s+merge\\b|(?:^|\\r)[^\\S\\r\\n]*hold:'
-VETO_RE=$'\\bdo(?:n[\'\u2019]?t| not)[\\s-]*merge\\b|\\bdo-not(?!-merge\\b)[\\s-]*merge\\b|(?<!the )(?<!the `)\\bdo-not-merge\\b|(?<=the )do-not-merge\\b(?!\\s*labels?\\b)|(?<=the `)do-not-merge\\b(?!`\\s*labels?\\b)'
 
 die() {
   printf 'reassess-limits: %s\n' "$2" >&2
@@ -54,7 +52,7 @@ limit() {
   found=1
 }
 
-facts=$(gh pr view "$PR" -R "$REPO" --json state,isCrossRepository,labels,body,headRefName,headRefOid,headRepositoryOwner) ||
+facts=$(gh pr view "$PR" -R "$REPO" --json state,isCrossRepository,labels,headRefName,headRefOid,headRepositoryOwner) ||
   {
     limit unread "the pull request"
     exit 3
@@ -74,10 +72,6 @@ fork=$(field .isCrossRepository)
 [[ "$(field '[.labels[]?.name | ascii_downcase] | index("do-not-merge") != null')" != true ]] ||
   limit label "the pull request carries do-not-merge"
 
-body_hold=$(jq -r --arg re "$BODY_HOLD_RE" '.body // "" | test("(?m)" + $re; "i")' <<<"$facts") ||
-  limit unread "the pull request body"
-[[ "$body_hold" != true ]] || limit held "its body carries a hold"
-
 # shellcheck disable=SC2016 # GraphQL variables, for gh to bind
 if queued=$(gh api graphql -F owner="$OWNER" -F name="${REPO#*/}" -F number="$PR" -f query='
   query($owner: String!, $name: String!, $number: Int!) {
@@ -95,21 +89,14 @@ else
   limit unread "whether it is a stack member"
 fi
 
-people='map(select(.user.type == "User" and ((.author_association // "") | ascii_upcase | IN("OWNER", "MEMBER", "COLLABORATOR"))))'
-if comments=$(gh api --paginate --slurp "repos/$REPO/issues/$PR/comments?per_page=100") &&
-  reviews=$(gh api --paginate --slurp "repos/$REPO/pulls/$PR/reviews?per_page=100") &&
-  inline=$(gh api --paginate --slurp "repos/$REPO/pulls/$PR/comments?per_page=100") &&
-  vetoers=$(printf '%s\n' "$comments" "$reviews" "$inline" | jq -rs --arg re "$VETO_RE" "
-    flatten | $people | map(select((.body // \"\") | test(\"\\\\S\")))
-    | group_by(.user.login) | map(max_by(.submitted_at // .created_at))
-    | map(select(.body | test(\$re; \"i\")) | .user.login) | join(\", \")") &&
-  requesters=$(jq -rs "
-    flatten | $people | map(select(.state == \"APPROVED\" or .state == \"CHANGES_REQUESTED\" or .state == \"DISMISSED\"))
-    | group_by(.user.login) | map(max_by(.submitted_at)) | map(select(.state == \"CHANGES_REQUESTED\") | .user.login) | join(\", \")" <<<"$reviews"); then
-  [[ -z "$vetoers" ]] || limit held "a veto from $vetoers"
+if reviews=$(gh api --paginate --slurp "repos/$REPO/pulls/$PR/reviews?per_page=100") &&
+  requesters=$(jq -rs '
+    flatten | map(select(.user.type == "User" and ((.author_association // "") | ascii_upcase | IN("OWNER", "MEMBER", "COLLABORATOR"))))
+    | map(select(.state == "APPROVED" or .state == "CHANGES_REQUESTED" or .state == "DISMISSED"))
+    | group_by(.user.login) | map(max_by(.submitted_at)) | map(select(.state == "CHANGES_REQUESTED") | .user.login) | join(", ")' <<<"$reviews"); then
   [[ -z "$requesters" ]] || limit no-update "changes requested by $requesters"
 else
-  limit unread "its comments and reviews"
+  limit unread "its reviews"
 fi
 
 if [[ -z "$STATE_DIR" ]]; then

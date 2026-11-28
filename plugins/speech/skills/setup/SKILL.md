@@ -1,5 +1,5 @@
 ---
-description: "Set up the speech plugin's text-to-speech prerequisites: check reports Python, espeak-ng, the hook-installed Python packages and the Kokoro model files; apply install-model downloads the pinned Kokoro-82M model, tokenizer and English voices (about 340 MB) into the plugin data directory, or the model_dir option's folder. Use when: 'set up speech', 'set up text to speech', 'download the kokoro model', 'is narrate ready', or /speech:narrate stopped with exit 2. Never installs espeak-ng."
+description: "Check speech TTS prerequisites (Python, espeak-ng, packages, Kokoro) or run apply install-model to fetch Kokoro-82M assets; never installs espeak-ng."
 argument-hint: "[check|apply] [install-model]"
 user-invocable: true
 disable-model-invocation: true

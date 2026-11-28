@@ -1,5 +1,5 @@
 ---
-description: "Shape the user experience of the app being built, idea to legacy: states its stage and the project's own evidence, then chains research, synthesis, flows and evaluation. Use when: 'start UX work on this app', 'who are the users and what do they need', 'users drop off at checkout, why'. One job alone: /user-experience:plan-user-research, synthesize, structure or evaluate."
+description: "Shape app UX (idea to legacy): states stage and project evidence, then chains research, synthesis, flows, and evaluation. Use when: 'start UX work on this app', 'who are the users and what do they need', 'users drop off at checkout, why'. Not for one job: /user-experience:plan-user-research, synthesize, structure, or evaluate."
 argument-hint: "[the app or the UX question]"
 user-invocable: true
 disable-model-invocation: false

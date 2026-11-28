@@ -1,5 +1,5 @@
 ---
-description: "Accept the recommendations in the agent's latest message after a full evidence check: each is re-grounded in the affected code and current sources, changed or unconfirmable ones come back as old, new and why, and plain-word exceptions override single items. Use when: 'go with recommendations', 'go with your recommendations', 'approve', 'accept all', 'do what you recommended'."
+description: "Accept the agent's latest recommendations after re-grounding each in code/sources, surfacing changed or unconfirmable items; supports exceptions."
 argument-hint: "[exception ...]"
 user-invocable: true
 disable-model-invocation: true

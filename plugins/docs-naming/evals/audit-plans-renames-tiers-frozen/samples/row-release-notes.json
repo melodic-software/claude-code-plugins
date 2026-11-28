@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {"answer":"| `FN-c60eb30e` | `docs/Release_Notes.md` → `docs/release-notes.md` | 5 in 4 files | 2 current (edit), 1 historical (edit), 1 historical (report), 1 released (report) |"},
+    {"answer":"- **FN-c60eb30e:** `docs/Release_Notes.md` → `docs/release-notes.md`. It has 5 sites in 4 files: 2 current (edit), 1 historical (edit), 1 historical (report) and 1 released (report)."},
+    {"answer":"finding FN-c60eb30e `docs/Release_Notes.md` to `docs/release-notes.md`: 5 site(s) in 4 file(s); by tier: 2 current (edit), 1 historical (edit), 1 historical (report), 1 released (report); review: 0; generated: none"},
+    {"answer":"| `FN-c60eb30e` | `docs/Release_Notes.md` → `docs/release-notes.md` | 5 sites in 4 files | 2 current (edit), 1 historical (edit), 1 historical (report), 1 released (report) |"},
+    {"answer":"- **FN-c60eb30e**: `docs/Release_Notes.md` to `docs/release-notes.md`. It has 5 sites in 4 files: 2 current (edit), 1 historical (edit), 1 historical (report), 1 released (report)."},
+    {"answer":"**FN-c60eb30e** (5 sites in 4 files): `docs/Release_Notes.md` → `docs/release-notes.md`; 2 current (edit), 1 historical (edit), 1 historical (report), 1 released (report)"},
+    {"answer":"`docs/Release_Notes.md` → `docs/release-notes.md`: 5 sites in 4 files; 2 current (`edit`), 1 historical (`edit`), 1 historical (`report`), 1 released (`report`)"},
+    {"answer":"| `docs/Release_Notes.md` | `docs/release-notes.md` | 5 | 2 current (edit), 1 historical (edit), 1 historical (report), 1 released (report) |"},
+    {"answer":"`docs/Release_Notes.md` -> `docs/release-notes.md`: **5 sites** in 4 files (2 current (edit), 1 historical (edit), 1 historical (report), 1 released (report))"}
+  ],
+  "fail": [
+    {"answer":"| `docs/Release_Notes.md` | `docs/release-notes.md` |"},
+    {"answer":"`docs/Release_Notes.md` → `docs/release-notes.md`: 5 sites in 4 files, 3 current and 2 released."},
+    {"answer":"`docs/Release_Notes.md` → `docs/release-notes.md`\n5 sites: 2 current, 1 historical, 1 released"},
+    {"answer":"`docs/Release_Notes.md` → `docs/release-notes.md`: 5 sites, 2 current (edit), 2 historical (edit), 1 released (report)"},
+    {"answer":"`docs/Release_Notes.md` → `docs/release-notes.md`: 5 sites, 2 current (report), 1 historical (edit), 1 historical (report), 1 released (edit)"},
+    {"answer":"`docs/Release_Notes.md` → `docs/release-notes.md`: 6 sites in 4 files; 2 current (edit), 1 historical (edit), 1 historical (report), 1 released (report)"},
+    {"answer":"`docs/Release_Notes.md` → `docs/release-notes.md`: 5 sites in 4 files; 2 current (edit), 2 historical (edit), 1 released (report)"},
+    {"answer":"`docs/Release_Notes.md` → `docs/release-notes.md`: 5 sites in 4 files; 2 current (edit), 1 historical (edit), 1 released (report)"},
+    {"answer":"`docs/Release_Notes.md` → `docs/release-notes.md`: 4 sites in 5 files; 2 current (edit), 1 historical (edit), 1 historical (report), 1 released (report)"},
+    {"answer":"| `docs/Release_Notes.md` | `docs/release-notes.md` | 4 | 5 files | 2 current (edit), 1 historical (edit), 1 historical (report), 1 released (report) |"}
+  ]
+}

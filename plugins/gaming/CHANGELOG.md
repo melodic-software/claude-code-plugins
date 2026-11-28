@@ -3,6 +3,12 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.37] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across both `gaming` skills (1,312 -> 476 chars, -836 / -63.7%): `dlss5` (693 -> 336) and `setup` (619 -> 140, `disable-model-invocation: true`), while preserving all eight mod actions, Windows-only scope, typed anti-cheat acknowledgement gate, byte-exact removal, and setup provisioning checks.
+
 ## [0.10.36] - 2026-11-27
 
 ### Fixed

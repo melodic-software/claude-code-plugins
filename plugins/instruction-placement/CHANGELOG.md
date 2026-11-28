@@ -3,6 +3,18 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.1] - 2026-11-28
+
+### Changed
+
+- Trimmed `instruction-placement` skill frontmatter descriptions (`audit` 488 -> 342 chars, `check` 467 -> 342 chars, `delta` 405 -> 326 chars, `establish-hub` 385 -> 314 chars, `migrate` 490 -> 337 chars, `realign` 458 -> 345 chars, `setup` 962 -> 138 chars; total 3655 -> 2144 chars, -1511 chars) and backfilled 20-query invocation probes for all 6 model-invoked skills (`audit`, `check`, `delta`, `establish-hub`, `migrate`, and `realign`).
+
+## [3.0.0] - 2026-11-28
+
+### Removed
+
+- **Dropped legacy `.claude/` and `~/.claude/` suppression dual-reads and `/instruction-placement:setup apply migrate-config`.** `audit`, `delta`, `realign`, and `setup` now read only the canonical suppression cascade (`<home>/instruction-placement.yaml` and `<home>/instruction-placement.local.yaml`) and ignore `.claude/instruction-placement.md`, `.claude/instruction-placement.local.md`, and `~/.claude/instruction-placement.md`.
+
 ## [2.0.5] - 2026-11-28
 
 ### Changed

@@ -3,6 +3,18 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions for `/overengineering:audit` (393 -> 350 chars), `/overengineering:justify` (468 -> 349 chars), and `/overengineering:realign` (379 -> 325 chars; total 1240 -> 1024 chars, -216 chars) while preserving read-only vs mutating posture, protected-class caps, rollback ladder, and sibling exclusions.
+
+## [2.0.0] - 2026-11-28
+
+### Removed
+
+- **Dropped legacy `.claude/` and `~/.claude/` dual-reads.** `/overengineering:audit`, `/overengineering:delta`, and `/overengineering:realign` now read only `<home>/overengineering.yaml` and `<home>/overengineering.local.yaml` and no longer read `~/.claude/overengineering.md`, `.claude/overengineering.md`, or `.claude/overengineering.local.md`.
+
 ## [1.0.3] - 2026-11-28
 
 ### Changed
