@@ -177,6 +177,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `research_recency_guide_days` | number<br>*min 1* | `90` | Recency window /discovery:research applies to a tool- or vendor-specific architecture guide. Default 90. docs/conventions/discovery.yaml overrides this. |
 | `medium` | string | `"auto"` | Where the /discovery:blindspot view goes. auto (default): a local file. terminal: no page; file: a local file; artifact: a private Artifact; hosted = artifact. A terminal or file value in any rendered-views setting wins over this option. |
 | `webfetch_truncation_enabled` | boolean | `true` | Add a context note after a truncated WebFetch result naming /discovery:read-docs. Default true. Set false to stop the note; overrides docs/conventions/discovery.yaml for this user. |
+| `branding` | string | *(none)* | Palette, type and logo overrides for rendered HTML pages as one JSON object matching branding in docs/conventions/rendered-views.yaml. Empty (default): shipped look. Repository team and personal override files win; invalid values are reported and ignored. |
 
 ### How to set these
 

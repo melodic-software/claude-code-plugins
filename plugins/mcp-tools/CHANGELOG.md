@@ -3,6 +3,12 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.9] - 2026-11-28
+
+### Changed
+
+- Trimmed `mcp-tools` skill frontmatter descriptions (`audit` 941 -> 347 chars, `audit-posture` 963 -> 374 chars; total 1904 -> 721 chars, -1183 chars) while preserving scorecard scope, the P1-P4 scored supply-chain checks and the P5 inventory (P1 now names `npx @latest` as one floating-version case), never-executes/never-prints-env safety posture, and sibling boundaries.
+
 ## [0.9.8] - 2026-11-27
 
 ### Changed

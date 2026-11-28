@@ -25,4 +25,9 @@ if ! "$PY" -c 'import pytest' 2>/dev/null; then
   exit 0
 fi
 
-exec "$PY" -m pytest tests -q -p no:cacheprovider
+workers=()
+if "$PY" -c 'import xdist' 2>/dev/null; then
+  workers=(-n 2)
+fi
+
+exec "$PY" -m pytest tests -q -p no:cacheprovider ${workers[@]+"${workers[@]}"}

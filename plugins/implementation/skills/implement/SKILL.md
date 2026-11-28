@@ -1,5 +1,5 @@
 ---
-description: "Inline code changes with incremental validation: TDD by default, a build and test check after each logical block, commits at green checkpoints, and a route back to planning when the approach breaks. Use when executing an approved plan, fixing a bug, refactoring, rewriting, migrating or porting code, changing config, or whenever code is about to be written: 'implement this', 'execute the plan', 'fix this bug', 'refactor', 'build this', 'write the code', 'make this change', 'apply the plan'."
+description: "Inline code changes with validation: TDD, build/test check, green commits, route to planning if approach breaks. Use when about to write code, refactor, fix a bug, rewrite, migrate, port, change config, or execute/apply an approved plan ('implement this', 'fix this bug', 'make this change'). Not for workers: /implementation:implement-dispatch."
 argument-hint: "[feature|fix|refactor|replace|config] [task]"
 user-invocable: true
 disable-model-invocation: false

@@ -5,13 +5,14 @@
 
 With no argument the candidates are every direct child of $HOME/.ev (a missing
 $HOME/.ev has none) except the docker-links state files, and every legacy run
-root: a direct child of $HOME whose name starts with .ev, other than $HOME/.ev
-itself. A candidate is removed only when all of these hold:
+root: a direct child of $HOME whose name is .ev or ev followed by at least one
+more character (so eval* too), other than $HOME/.ev itself. A candidate is removed only when all of these hold:
 
 - it is a directory, not a symlink, and its realpath is a direct child of the
   realpath of $HOME/.ev, or a legacy run root: a direct child of the realpath
-  of $HOME named .ev*, and not the realpath of $HOME/.ev;
-- it holds at least one claude-eval-* directory;
+  of $HOME named .ev?* or ev?*, and not the realpath of $HOME/.ev;
+- it holds at least one claude-eval-* directory, and an undotted legacy root
+  holds nothing else directly inside it;
 - nothing in it changed for 3 days: the root and every entry under it, read
   without following symlinks, has an mtime older than 3 days (a directory it
   cannot open, such as a mode-000 sealed/, counts by its own mtime);
@@ -24,8 +25,8 @@ directory below the root, then the root is removed. A symlink is never opened.
 
 One line per candidate: `removed: <path>`, `kept (<reason>): <path>`,
 `refused (<reason>): <path>`, or `left behind (<error>): <path>`. A legacy
-.ev* entry that is a symlink or holds no sandbox is left, and its line says
-what removing it by hand takes.
+entry that is a symlink or holds no sandbox is left, and its line says what
+removing it by hand takes.
 
 Exit: 0 every candidate was removed, kept or refused; 1 a removal failed and
 left a path; 2 nothing was checked: $HOME is unset, $HOME or $HOME/.ev resolves
@@ -43,7 +44,7 @@ import time
 MIN_PYTHON = (3, 8)
 MAX_IDLE_SECONDS = 3 * 24 * 60 * 60
 SANDBOX_PREFIX = "claude-eval-"
-LEGACY_PREFIX = ".ev"
+LEGACY_PREFIXES = (".ev", "ev")
 STATE_PREFIX = ".docker-link-swap"
 
 
@@ -89,12 +90,18 @@ def newest_mtime(root):
     return newest
 
 
+def is_sandbox(entry):
+    return entry.name.startswith(SANDBOX_PREFIX) and entry.is_dir(follow_symlinks=False)
+
+
 def has_sandbox(root):
     with os.scandir(root) as entries:
-        return any(
-            e.name.startswith(SANDBOX_PREFIX) and e.is_dir(follow_symlinks=False)
-            for e in entries
-        )
+        return any(is_sandbox(e) for e in entries)
+
+
+def only_sandboxes(root):
+    with os.scandir(root) as entries:
+        return all(is_sandbox(e) for e in entries)
 
 
 def add_owner_rwx(path):
@@ -106,11 +113,7 @@ def add_owner_rwx(path):
 def remove(root):
     add_owner_rwx(root)
     with os.scandir(root) as entries:
-        sandboxes = [
-            e.path
-            for e in entries
-            if e.name.startswith(SANDBOX_PREFIX) and e.is_dir(follow_symlinks=False)
-        ]
+        sandboxes = [e.path for e in entries if is_sandbox(e)]
     for sandbox in sandboxes:
         add_owner_rwx(sandbox)
         sealed = os.path.join(sandbox, "sealed")
@@ -122,13 +125,12 @@ def remove(root):
     shutil.rmtree(root)
 
 
+def is_legacy_name(name):
+    return any(name.startswith(p) and len(name) > len(p) for p in LEGACY_PREFIXES)
+
+
 def is_legacy(path, home_root):
-    name = os.path.basename(path)
-    return (
-        os.path.dirname(path) == home_root
-        and name.startswith(LEGACY_PREFIX)
-        and name != ".ev"
-    )
+    return os.path.dirname(path) == home_root and is_legacy_name(os.path.basename(path))
 
 
 def classify(path, ev_root, home_root, now):
@@ -149,10 +151,10 @@ def classify(path, ev_root, home_root, now):
         return "refused", "%s itself, which holds every run's root" % ev_root
     legacy = is_legacy(real, home_root)
     if os.path.dirname(real) != ev_root and not legacy:
-        return "refused", "not directly under %s and not a legacy %s/%s* root" % (
+        return "refused", "not directly under %s and not a legacy %s/.ev* or %s/ev* root" % (
             ev_root,
             home_root,
-            LEGACY_PREFIX,
+            home_root,
         )
     try:
         if not has_sandbox(real):
@@ -162,6 +164,11 @@ def classify(path, ev_root, home_root, now):
                     "only after checking its contents" % SANDBOX_PREFIX
                 )
             return "kept", "holds no %s* sandbox" % SANDBOX_PREFIX
+        if legacy and not os.path.basename(real).startswith(".") and not only_sandboxes(real):
+            return "kept", (
+                "holds entries other than %s* sandboxes, so not a run root; remove it "
+                "by hand only after checking its contents" % SANDBOX_PREFIX
+            )
     except OSError as err:
         return "kept", "cannot open it: %s" % err.strerror
     if now - newest_mtime(real) <= MAX_IDLE_SECONDS:
@@ -213,7 +220,7 @@ def main(argv=None):
         paths += sorted(
             os.path.join(home, name)
             for name in os.listdir(home_root)
-            if name.startswith(LEGACY_PREFIX) and name != ".ev"
+            if is_legacy_name(name)
         )
 
     now = time.time()

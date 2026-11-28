@@ -3,6 +3,12 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.10.12] - 2026-11-28
+
+### Changed
+
+- Backfilled invocation probe file (`probes/codify.json`) and trimmed `codify` skill frontmatter description (1,014 -> 349 chars, saving 665 chars) while preserving all modes, never-auto-installs posture, and probe parity.
+
 ## [1.10.11] - 2026-11-27
 
 ### Fixed

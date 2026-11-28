@@ -1,5 +1,5 @@
 ---
-description: "Built-in engineering-concept catalog lookup: finds a principle, pattern, practice or architecture by name, alias, id or tag and returns pointers to official sources, no definitions. Use when asked which concepts fit a concern or stage, or for a concept's source or counterweights. Interface terms: /user-interface:glossary; domain terms: /domain-driven-design:ubiquitous-language."
+description: "Look up built-in engineering concepts by name, alias, id, or tag; returns official source pointers and counterweights, no definitions. Use when: 'which concepts fit a concern or stage', 'concept counterweights'. Not for UI terms: /user-interface:glossary; not for domain terms: /domain-driven-design:ubiquitous-language."
 argument-hint: "[<term>] [--concern <c>] [--kind <k>] [--stage <s>] [--reversibility <r>]"
 user-invocable: true
 disable-model-invocation: false
