@@ -94,16 +94,32 @@ async function checkRuns(reader, repo, head) {
   return null;
 }
 
+function headCheckRuns(client, repo) {
+  const byHead = new Map();
+  return (head) => {
+    if (!byHead.has(head)) {
+      byHead.set(
+        head,
+        checkRuns(client, repo, head).catch((error) => {
+          byHead.delete(head);
+          throw error;
+        }),
+      );
+    }
+    return byHead.get(head);
+  };
+}
+
 const REQUIRED_WORKFLOW = "pr-require-checks.yml";
 
-async function headFailing({ checks, repo, pull }) {
+async function headFailing({ checks, repo, pull, checkRunsAt }) {
   try {
     const required = (await checks("GET", `/repos/${repo}/actions/workflows/${REQUIRED_WORKFLOW}/runs?head_sha=${pull.head.sha}&per_page=100`))?.workflow_runs;
     if (!Array.isArray(required) || required.length >= 100) {
       return false;
     }
     const suites = new Set(required.map((run) => run.check_suite_id));
-    const runs = await checkRuns(checks, repo, pull.head.sha);
+    const runs = await checkRunsAt(pull.head.sha);
     if (runs === null) {
       return false;
     }
@@ -207,12 +223,12 @@ async function ciPasses(context) {
   if (moved === null) {
     return { held: "no trusted push alone moved the head off the resume key" };
   }
-  const held = await checksHeld(context.read, context.repo, context.pull.head.sha);
+  const head = context.pull.head.sha;
+  const held = checksHeld(await context.read(() => context.checkRunsAt(head)), head);
   return held === null ? `${moved}, and no check other than ${AGGREGATE} fails, runs or was cancelled at it` : { held };
 }
 
-async function checksHeld(read, repo, head) {
-  const runs = await read((reader) => checkRuns(reader, repo, head));
+function checksHeld(runs, head) {
   const others = (runs ?? []).filter((run) => !AGGREGATE_JOBS.has(run?.name));
   const latest = new Map();
   for (const run of others) {
@@ -982,7 +998,7 @@ async function staleHoldMoved({ github, repo, number, label, result, check }) {
   return holds.length !== result.holds || holds.some((sha) => sha === undefined || sha === result.head) ? "a review lane wrote a hold since it was judged" : null;
 }
 
-async function verdict({ github, checks, repo, number, label, bot, mainSha, lanePrs, verify, reads, reader, trusted, checkerFor }) {
+async function verdict({ github, checks, checkRunsAt, repo, number, label, bot, mainSha, lanePrs, verify, reads, reader, trusted, checkerFor }) {
   const timeline = await laneTimeline(github, repo, number, checkerFor(number));
   const { labeled, since, lifted, reviewLabeled } = labelHistory(timeline, label, trusted ?? new Set());
   if (LANE_LABELERS.some((login) => isApp(labeled?.actor, login))) {
@@ -1071,7 +1087,7 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
     why.push(`its escalation names head \`${[...new Set(merged.map(({ head }) => head))].join("`, `")}\`, and the head is now \`${pull.head.sha}\``);
   } else {
     let red;
-    const failing = () => (red ??= headFailing({ checks, repo, pull }));
+    const failing = () => (red ??= headFailing({ checks, repo, pull, checkRunsAt }));
     const read = async (fn) => {
       if (reader === null) {
         return null;
@@ -1087,7 +1103,7 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
     let movedOnce;
     let threadsOnce;
     let speakerOnce;
-    const context = { github, repo, pull, mainSha, read, escalations, bot, timeline, appComments, lifted };
+    const context = { github, repo, pull, mainSha, read, checkRunsAt, escalations, bot, timeline, appComments, lifted };
     context.keysOf = (reason) => keys.filter((_, i) => reasonOf(escalations[i]) === reason);
     context.moved = () => (movedOnce ??= trustedMove({ read, repo, pull, keys, since, trusted }));
     context.threads = () => (threadsOnce ??= unresolvedThreads(context));
@@ -1264,7 +1280,7 @@ async function verifierMend({ github, repo, pull, stops, bot, trusted, verify, r
   return { why: `pr-verify passed ${head} after a trusted body edit superseded its FAIL, and no review thread is open` };
 }
 
-async function sessionVerdict({ github, checks, repo, number, label, bot, trusted = null, verify, reads = { left: 0 } }) {
+async function sessionVerdict({ github, checks, checkRunsAt, repo, number, label, bot, trusted = null, verify, reads = { left: 0 } }) {
   const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
   const { labeled, since } = labelHistory(timeline, label, new Set());
   if (!isApp(labeled?.actor, bot)) {
@@ -1351,7 +1367,7 @@ async function sessionVerdict({ github, checks, repo, number, label, bot, truste
     }
     why.push(`${reason} stopped at ${head}, and no ${context} status fails at the new head ${current}`);
   }
-  const held = await checksHeld((fn) => guarded(() => fn(checks)), repo, current);
+  const held = checksHeld(await guarded(() => checkRunsAt(current)), current);
   if (held !== null) {
     return { reason: `${label} stays at the new head: ${held}` };
   }
@@ -1365,7 +1381,7 @@ async function labeledPulls(github, repo, label) {
   );
 }
 
-async function clearSessionLabels({ github, checks, repo, bot, runNumber, trusted, verify, reads, mended }) {
+async function clearSessionLabels({ github, checks, checkRunsAt, repo, bot, runNumber, trusted, verify, reads, mended }) {
   let failed = 0;
   for (const label of SESSION_LABELS) {
     for (const [index, { number }] of rotated(await labeledPulls(github, repo, label), runNumber).entries()) {
@@ -1374,7 +1390,7 @@ async function clearSessionLabels({ github, checks, repo, bot, runNumber, truste
         continue;
       }
       try {
-        const result = await sessionVerdict({ github, checks, repo, number, label, bot, trusted, verify, reads });
+        const result = await sessionVerdict({ github, checks, checkRunsAt, repo, number, label, bot, trusted, verify, reads });
         if (result.reason !== null) {
           console.log(`clear-escalations: #${number} ${label} kept: ${result.reason}`);
           continue;
@@ -1419,6 +1435,7 @@ export async function main({ env = process.env, github, checks, verify, reader, 
     const client = (token) => createGitHub({ token, apiUrl: env.GITHUB_API_URL || undefined });
     github ??= client(env.GH_TOKEN);
     checks ??= client(env.CHECKS_TOKEN);
+    const checkRunsAt = headCheckRuns(checks, repo);
     const download = artifactDownload({ token: env.CHECKS_TOKEN, repo, apiUrl: env.GITHUB_API_URL || undefined });
     const checkers = new Map();
     const checkerFor = (number) => {
@@ -1449,7 +1466,7 @@ export async function main({ env = process.env, github, checks, verify, reader, 
       }
       try {
         const readAt = Date.now();
-        const result = await verdict({ github, checks, repo, number, label, bot, mainSha, lanePrs: env.LANE_PRS, verify, reads, reader, trusted, checkerFor });
+        const result = await verdict({ github, checks, checkRunsAt, repo, number, label, bot, mainSha, lanePrs: env.LANE_PRS, verify, reads, reader, trusted, checkerFor });
         if (result.reason !== null) {
           console.log(`clear-escalations: #${number} kept: ${result.reason}`);
           continue;
@@ -1479,7 +1496,7 @@ export async function main({ env = process.env, github, checks, verify, reader, 
       }
     }
     const mended = [];
-    failed += await clearSessionLabels({ github, checks, repo, bot, runNumber: Number(env.GITHUB_RUN_NUMBER), trusted, verify, reads, mended });
+    failed += await clearSessionLabels({ github, checks, checkRunsAt, repo, bot, runNumber: Number(env.GITHUB_RUN_NUMBER), trusted, verify, reads, mended });
     if (mended.length > 0 && env.GITHUB_OUTPUT) {
       appendFileSync(env.GITHUB_OUTPUT, `${MENDED_OUTPUT}=${mended.join(" ")}\n`);
     }
