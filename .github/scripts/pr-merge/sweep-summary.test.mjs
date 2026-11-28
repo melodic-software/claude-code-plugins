@@ -222,7 +222,7 @@ test("an empty sweep is all zeros, not an error", () => {
 test("held candidates count once each, under their prefilter reason", () => {
   const rows = [
     held(8201, "do-not-merge"),
-    held(8202, "body-hold"),
+    held(8202, "pr-verify-failed"),
     held(8203, "do-not-merge"),
     row(8204),
   ];
@@ -238,7 +238,7 @@ test("held candidates count once each, under their prefilter reason", () => {
   assert.equal(out.held, 3);
   assert.deepEqual(out.refusal_counts, {
     "prefilter:do-not-merge": 2,
-    "prefilter:body-hold": 1,
+    "prefilter:pr-verify-failed": 1,
     "not ready": 1,
   });
   assert.equal(out.budget_stop, null);

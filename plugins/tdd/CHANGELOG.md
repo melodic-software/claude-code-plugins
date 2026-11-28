@@ -3,6 +3,12 @@
 All notable changes to the `tdd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.13] - 2026-11-28
+
+### Changed
+
+- Trimmed `/tdd:principles` frontmatter description (418 -> 348 chars) to <= 350 chars while preserving Beck/Khorikov test-design WHY topics, triggers, non-execution exclusion, and probe parity.
+
 ## [0.6.12] - 2026-11-28
 
 ### Changed

@@ -1,5 +1,5 @@
 ---
-description: "Start, restart, stop, and check loop lanes as named background Claude Code sessions seeded from canonical prompt files, the scripted replacement for the manual morning refresh (cancel loop, clear, re-paste the canonical prompt) across N lanes on a machine. `start`/`restart` first pull the repo and refresh the plugin marketplace, then launch each configured lane with its per-lane model/effort. `consume-restarts` reads each configured lane's telemetry `restart_request` and relaunches the stopped lanes that asked, the scheduled headless reader. `run-once` and `print-schedule` are the scheduled single-pass entry. Use when: 'launch my lanes', 'restart the loop lanes', 'start the work lanes', 'morning lane refresh', 'stop a lane', 'which lanes are running', 'lane status', 'consume restart requests', 'lane restart consumer', 'relaunch the lanes that asked', 'schedule the work-loop drain'. Mutating and operator-initiated; never touches a session whose name is not a configured lane."
+description: "Start, restart, stop, check, or schedule configured loop lanes (start, restart, stop, status, consume-restarts, run-once, print-schedule); mutating."
 argument-hint: "[start|restart|status|stop|run-once|print-schedule|consume-restarts] [lane...]"
 user-invocable: true
 disable-model-invocation: true

@@ -1,5 +1,5 @@
 ---
-description: "Hub repository where every agent session starts: discovers the estate, asks only what discovery left open, and writes the hub's own instruction files, each write behind a yes; plan reports each hub section present, missing or drifted. Use when setting up a hub for cross-repository work, or checking an existing one: 'set up a hub repo', 'where should sessions start', 'check our hub'."
+description: "Set up or check the cross-repo hub repository where agent sessions start: plan (default, read-only) reports present/missing/drifted hub sections; apply discovers the estate, asks only open questions, and gates every write behind a yes. Use when: 'set up a hub repo', 'where should sessions start', 'check our hub'."
 argument-hint: "[plan|apply]"
 user-invocable: true
 disable-model-invocation: false

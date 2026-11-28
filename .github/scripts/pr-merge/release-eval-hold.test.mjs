@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 
-import { EVAL_GATED_LABEL as REPORT_OUTCOME_EVAL_GATED_LABEL } from "../work-resolve-issue/report-outcome.mjs";
+import { EVAL_GATED_LABEL as REPORT_OUTCOME_EVAL_GATED_LABEL, evalHoldComment as laneHoldComment } from "../work-resolve-issue/report-outcome.mjs";
 import {
   CANNOT_START_CAUSES,
   CANNOT_START_JOB,
@@ -70,7 +70,7 @@ const holdComment = () => comment(`Held for eval.\n${holdLine("eval")}`, { at: "
 const recordComment = (head = HEAD, options = {}) => comment(`Paired eval: no loss.\n\n${recordLine(head)}\n`, options);
 
 const run = (overrides = {}) =>
-  decide({ pull: pull(), comments: [holdComment(), recordComment()], reviews: [], events, humans: HUMANS, ...overrides });
+  decide({ pull: pull(), comments: [holdComment(), recordComment()], events, humans: HUMANS, ...overrides });
 
 test("a listed human's VALID no-loss record at the current head releases an eval hold", () => {
   const result = run();
@@ -154,10 +154,12 @@ test("a pull request without the label is left alone", () => {
   assert.deepEqual(run({ pull: pull({ labels: [] }) }), { release: false, reason: "no-label" });
 });
 
-test("a body hold or a member veto keeps the hold", () => {
-  assert.equal(run({ pull: pull({ body: "Closes #1\n\nHold: waiting on the desk" }) }).reason, "body-hold");
+test("body hold phrases and a member's comment keep nothing; only the hold reason line does", () => {
+  assert.equal(run({ pull: pull({ body: "Closes #1\n\nHold: waiting on the desk" }) }).release, true);
   const veto = comment(`Paired eval: no loss, but do not merge yet.\n${recordLine(HEAD)}`);
-  assert.match(run({ comments: [holdComment(), veto] }).reason, /^member-veto-/);
+  assert.equal(run({ comments: [holdComment(), veto] }).release, true);
+  const other = comment(holdLine("superseded"), { at: "2026-11-06T10:02:00Z" });
+  assert.equal(run({ comments: [holdComment(), recordComment(), other] }).reason, "hold-reason-superseded");
 });
 
 test("ownLines drops fenced and quoted lines and keeps the rest", () => {
@@ -629,6 +631,18 @@ test("a compare run that recorded it cannot start at the current head releases a
   }
 });
 
+test("a lane PR held for a person as well as for the eval keeps its label after a VALID record or a cannot-start record; an eval-only one releases", () => {
+  const laneHold = (personHold) => comment(laneHoldComment(77, personHold), { user: APP, at: "2026-11-06T10:01:00Z", app: { id: 1, slug: "lanes" } });
+  for (const [name, evidence] of [
+    ["a VALID record", { comments: [laneHold(true), recordComment()] }],
+    ["a cannot-start record", { comments: [laneHold(true)], cannotStart: cannotStart() }],
+  ]) {
+    assert.deepEqual(run(evidence), { release: false, reason: "hold-reason-person" }, name);
+  }
+  assert.equal(run({ comments: [laneHold(false), recordComment()] }).release, true, "an eval-only lane hold releases on a VALID record");
+  assert.equal(run({ comments: [laneHold(false)], cannotStart: cannotStart() }).release, true, "an eval-only lane hold releases on a cannot-start record");
+});
+
 test("a missing record alone, or a cannot-start record for another head or with an unknown cause, keeps the hold", () => {
   assert.equal(run({ comments: [holdComment()] }).reason, "no-record");
   assert.equal(run({ comments: [holdComment()], cannotStart: cannotStart(OLD) }).reason, "no-record");
@@ -637,14 +651,14 @@ test("a missing record alone, or a cannot-start record for another head or with 
   assert.equal(run({ comments: [holdComment()], cannotStart: { ...cannotStart(), cause: "evals-disabled" } }).reason, "no-record");
 });
 
-test("a cannot-start record lifts only an eval hold: another reason, a body hold or a veto still keeps it", () => {
+test("a cannot-start record lifts only an eval hold: another reason still keeps it, body text and comments do not", () => {
   const superseded = comment(holdLine("superseded"), { at: "2026-11-06T10:02:00Z" });
   assert.equal(run({ comments: [holdComment(), superseded], cannotStart: cannotStart() }).reason, "hold-reason-superseded");
   const split = comment(holdLine("eval-split"), { at: "2026-11-06T10:02:00Z" });
   assert.equal(run({ comments: [holdComment(), split], cannotStart: cannotStart() }).reason, "hold-reason-eval-split");
-  assert.equal(run({ pull: pull({ body: "Closes #1\n\nHold: waiting on the desk" }), comments: [holdComment()], cannotStart: cannotStart() }).reason, "body-hold");
+  assert.equal(run({ pull: pull({ body: "Closes #1\n\nHold: waiting on the desk" }), comments: [holdComment()], cannotStart: cannotStart() }).release, true);
   const veto = comment("Do not merge yet.", { at: "2026-11-06T10:05:00Z" });
-  assert.match(run({ comments: [holdComment(), veto], cannotStart: cannotStart() }).reason, /^member-veto-/);
+  assert.equal(run({ comments: [holdComment(), veto], cannotStart: cannotStart() }).release, true);
 });
 
 test("a VALID no-loss record at the head still wins over a cannot-start record", () => {

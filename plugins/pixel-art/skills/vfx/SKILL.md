@@ -1,5 +1,5 @@
 ---
-description: "Pixel-art effects (particles, hit sparks, spells, explosions) as sprite-sheet animations; RPG Maker gets the MV-style img/animations cell sheet. Use when asked for a 'hit spark', 'pixel effect', 'spell animation', 'explosion', 'particle sheet', or 'MZ animation cells'. A character cycle: /pixel-art:animate; a still sprite: /pixel-art:sprite; a cutscene: /pixel-art:scene. Not for Effekseer .efkefc files."
+description: "Pixel-art effects (particles, hit sparks, spells, explosions) as sprite-sheet animations or RPG Maker MV-style img/animations cell sheets. Use when: 'hit spark', 'spell animation', 'particle sheet'. Not for character cycles: /pixel-art:animate; stills: /pixel-art:sprite; scenes: /pixel-art:scene; or Effekseer .efkefc."
 argument-hint: "<effect> [frame count] [engine]"
 user-invocable: true
 disable-model-invocation: false

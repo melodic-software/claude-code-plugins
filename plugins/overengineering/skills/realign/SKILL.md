@@ -1,5 +1,5 @@
 ---
-description: "Executes an enforcement-surface audit's findings one at a time behind an explicit per-item human gate, down the rollback ladder: config-disable first, observe, delete last. The only skill in this plugin that changes the surface; it never scans or re-judges. Use when the user wants accepted audit findings carried out, a judged gate or hook retired, or one disabled and observed."
+description: "Executes enforcement-surface audit findings one at a time behind a per-item human gate down the rollback ladder: config-disable, observe, delete last. Only skill here that changes the surface; never scans or re-judges. Use when having accepted audit findings carried out, a gate or hook retired, or one disabled and observed."
 argument-hint: "[finding-id ...] [layer ...]"
 user-invocable: true
 disable-model-invocation: false

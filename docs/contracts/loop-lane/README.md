@@ -534,22 +534,16 @@ it separately because the two acts fail differently: a tracker escalation waits 
 queue, while a merge-capable lane may act on a PR within minutes, so a hold carries a hard
 real-time deadline. A hold that lands after the merge is not a hold.
 
-- **The `do-not-merge` label is the only cross-lane hold.** A lanes App hold line, a member's veto
-  comment on a lanes App pull request and a person merging by hand use it; ci-status reads no body
-  hold text or `pr-unblock/*` stop status. pr-merge's enable-auto-merge job labels a member's veto
-  on the next scheduled run that reads the pull request's discussion, at the latest before any
-  run arms it, and takes that label off once a later comment by each vetoing member
-  lifts it, never a `do-not-merge` anyone else added. ci-status's merge-holds step still fails a
-  lanes App pull request on the veto comment itself, so the veto holds before the label lands and
-  if the label is removed. The label is the one hold mechanism enforced
+- **The `do-not-merge` label is the only cross-lane hold.** Lanes, sessions and people set it; a
+  PR held from creation opens with it (`gh pr create --label do-not-merge`). ci-status reads no
+  body or comment text and no `pr-unblock/*` stop status. The label is enforced
   server-side: the org ruleset requires the `ci-status` check, whose `check-contract` step fails on the
   `do-not-merge` label and re-evaluates on `labeled`/`unlabeled`, so applying the label flips a
   SHA-bound required check with no bypass actors. A PR already in the merge queue is held by the
   same check: its merge-group run's `ci-status` re-reads the label and fails, and the queue removes
   the PR. A label that lands after that run's `ci-status` passed does not stop the merge, so on a
   queued PR also dequeue it (the `dequeuePullRequest` command under **Hold a PR** in
-  [§7](#7-operator-steering-through-github-state)). A PR **comment is advisory, except a member's
-  veto comment, which holds a lanes App pull request and gets the label** (above): an escalation
+  [§7](#7-operator-steering-through-github-state)). A PR **comment is advisory**: an escalation
   comment on the PR obliges nothing until the label is on.
 - **Hold first, explain second.** The moment a lane decides a PR must not merge, it applies
   `do-not-merge`, before drafting the escalation comment and before assembling the supporting
@@ -577,7 +571,7 @@ real-time deadline. A hold that lands after the merge is not a hold.
   default branch with this PR and this head in its run name and its Compare Record job run to
   success (the author alone counts for nothing),
   the reason line by a listed human or the lanes App, both on a
-  line of their own outside a quote or fence, and no other reason, body hold or member veto stands
+  line of their own outside a quote or fence, and no other reason stands
   ([`release-eval-hold.mjs`](../../../.github/scripts/pr-merge/release-eval-hold.mjs)). With no
   record at the head, the same step also removes it when, for every plugin whose skill, agent or
   context text the PR changes (or, when it changes none, every plugin it changes), the newest compare run naming this PR, its head and that plugin as
@@ -586,7 +580,6 @@ real-time deadline. A hold that lands after the merge is not a hold.
   its comment carries `<!-- eval-hold-released head=<sha> cannot-start=<cause> run=<run ids> -->`,
   and the PR merges first and owes the default-branch run in
   [evals.md](../../review/evals.md#where-and-on-what). A missing record alone releases nothing.
-  Keep "do not merge" and `do-not-merge` out of the record comment: they read as a veto.
 
 ### Escalation record write
 
