@@ -1330,7 +1330,7 @@ SNAPSHOT_KEY=""
 snapshot_key() {
   [[ -z "$SNAPSHOT_KEY" ]] || return 0
   SNAPSHOT_KEY=$("$FLEET_STATE" --fingerprint 2>/dev/null) && [[ -n "$SNAPSHOT_KEY" ]] ||
-    SNAPSHOT_KEY="unread fingerprint $$ $EPOCHREALTIME"
+    SNAPSHOT_KEY="unread fingerprint $$ ${EPOCHREALTIME:-$RANDOM}"
 }
 STORE_MARGIN_S=2
 [[ ! "${SYNC_FLEET_STATE_STORE_MARGIN_S:-}" =~ ^[0-9]{1,6}$ ]] || STORE_MARGIN_S=$((10#$SYNC_FLEET_STATE_STORE_MARGIN_S))

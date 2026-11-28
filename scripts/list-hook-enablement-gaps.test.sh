@@ -13,7 +13,6 @@ SCRIPT="$SELF_DIR/list-hook-enablement-gaps.sh"
 PENDING=(
   discovery
   fleet
-  toolchain
 )
 
 f=""
