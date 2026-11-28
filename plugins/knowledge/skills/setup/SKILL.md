@@ -122,7 +122,7 @@ prerequisite, and the exact next action (`/plugin configure knowledge` for `libr
 or `apply install-deps` for provisioning). A `library_dir` change takes effect in a fresh session,
 not this one. Do not claim it this session.
 
-## Boundaries
+## What this skill does not do
 
 - Do not run an ingestion pipeline. Provisioning dependencies is not the same as running one.
 - Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`.

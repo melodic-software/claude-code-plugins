@@ -222,7 +222,7 @@ and again after it, and compare the two.
 ## Next
 
 - Target met on a drift-immune counter, to lock the win in (after the field read, when it shipped
-  behind a flag): `/performance:protect`, which then hands off to `/source-control:pull-request`.
+  behind a flag): `/performance:protect`.
 - Target met on a duration only: `/source-control:pull-request`.
 - Target met with a large realistic-to-ideal gap (re-scan), not met with another candidate due, or
   a field read showing no gain (flag turned off): `/performance:target`.

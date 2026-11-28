@@ -117,7 +117,7 @@ it writes only for a check that ends `in sync` or `updated` with its seeded brea
   at which you last confirmed that the verification describes them. When the covered code changes
   after that commit, the next agent can see that the verification needs another look.
 
-## Boundaries
+## What this skill does not do
 
 - Never installs a verification tool, Java or a runtime. `/formal-verification:setup` installs only
   what this plugin declares, and only on a typed request.

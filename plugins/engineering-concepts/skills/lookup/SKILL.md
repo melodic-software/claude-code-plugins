@@ -48,7 +48,7 @@ counterweights and conflicts by name; say which filters you applied.
 The catalog holds no positions: a record says what a concept is called and where its source is,
 never whether to use it. A team's or person's stances live in their standards layers.
 
-## Boundaries
+## What this skill does not do
 
 - The name for an interface effect or front-end behavior: `/user-interface:glossary` (if enabled).
 - A project's own domain terms: `/domain-driven-design:ubiquitous-language` (if enabled).

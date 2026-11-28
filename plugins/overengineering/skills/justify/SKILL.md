@@ -1,5 +1,5 @@
 ---
-description: "Judges, on evidence, whether one named artifact (a file, doc section, dependency, component) had and still has a reason to exist, or whether a proposal (a plan step, design option, or mechanism to add) is needed at all. Read-only. Use when the user asks whether a thing needs to exist or still earns its keep, or of a proposal whether it is overengineered, whether we need X, or whether there is a simpler way. Not for the enforcement surface (overengineering:audit)."
+description: "Judges, on evidence, whether one named artifact (a file, doc section, dependency, component) had and still has a reason to exist, or whether a proposal (a plan step, design option, or mechanism to add) is needed at all. Read-only. Use when the user asks whether a thing needs to exist or still earns its keep, or of a proposal whether it is overengineered, whether we need X, or whether there is a simpler way. Not for the enforcement surface (/overengineering:audit)."
 argument-hint: "[path|path#heading|kind:identifier|proposal]"
 user-invocable: true
 disable-model-invocation: false
