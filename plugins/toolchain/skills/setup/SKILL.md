@@ -1,5 +1,5 @@
 ---
-description: "Report (check, the default) or write (apply) this repository's tracked docs/conventions/ecosystems/ECOSYSTEM.yaml build, test and lint commands, which /toolchain:check and /toolchain:lint resolve first. Re-runnable."
+description: "Check (default, read-only) or write (apply) tracked docs/conventions/ecosystems/ECOSYSTEM.yaml build, test, and lint commands. Re-runnable."
 argument-hint: "[check|apply] [<ecosystem>]"
 user-invocable: true
 disable-model-invocation: true

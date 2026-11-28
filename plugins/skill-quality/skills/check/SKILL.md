@@ -1,5 +1,5 @@
 ---
-description: "Static quality gate for Claude Code skills. Use when checking or linting a SKILL.md or its frontmatter before shipping a skill or plugin, validating a skill's legacy evals.json (new cases: /evals:validate), checking whether the shared skill listing budget overflows, or measuring description auto-invocation against probes. Not for writing new skills, or running model-graded evals."
+description: "Static quality gate for skills. Use when linting a SKILL.md or frontmatter before shipping, validating legacy evals.json (new cases: /evals:validate), checking shared listing budget overflow, or measuring auto-invocation against probes. Not for writing skills or running model-graded evals."
 argument-hint: "[check|validate-evals|listing-budget|measure-invocation] [<skill-or-root> ...]"
 user-invocable: true
 disable-model-invocation: false
