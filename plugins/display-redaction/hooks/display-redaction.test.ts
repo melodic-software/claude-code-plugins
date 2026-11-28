@@ -629,3 +629,106 @@ test('every hook the module registers carries a .catch', () => {
   expect(registrations.length).toBeGreaterThan(0)
   expect(registrations.filter((r) => !r.caught)).toEqual([])
 })
+
+const stubRedactionLayers = (
+  on: On,
+  {
+    repoYaml,
+    userConfig,
+    policyConfig,
+  }: { repoYaml?: string; userConfig?: Record<string, unknown>; policyConfig?: Record<string, unknown> } = {},
+) => {
+  const repoFile = '/repo/docs/conventions/display-redaction.yaml'
+  const registered: string[] = []
+  on('command.register', ($, e) => {
+    registered.push(e.name)
+    return { value: { command: e.name } }
+  })
+  on('session.start', ($, e) => ({ cwd: e.cwd }))
+  on('settings.read', ($, e) => {
+    if (e.source === 'policy' && policyConfig) {
+      return { value: { pluginConfigs: { 'display-redaction@melodic-software': { options: policyConfig } } } }
+    }
+    if (e.source === 'user' && userConfig) {
+      return { value: { pluginConfigs: { 'display-redaction@melodic-software': { options: userConfig } } } }
+    }
+    return { value: {} }
+  })
+  on('fs.stat', ($, e) => {
+    if (e.path === repoFile && repoYaml !== undefined) {
+      return { value: { kind: 'file', size: repoYaml.length, mtimeMs: 0, isLink: false } }
+    }
+    return { deny: `ENOENT: ${e.path}` }
+  })
+  on('fs.read', ($, e) => {
+    if (e.path === repoFile && repoYaml !== undefined) return { value: repoYaml }
+    return { deny: `ENOENT: ${e.path}` }
+  })
+  return { registered }
+}
+
+test('enablement: user false turns masking off whatever docs/conventions/display-redaction.yaml says', {
+  options: { display_redaction_enabled: false, mask_style: 'text' },
+}, async ($, on) => {
+  const seen = capture(on, 'AssistantMessage')
+  const { registered } = stubRedactionLayers(on, {
+    repoYaml: 'display_redaction_enabled: true\n',
+    userConfig: { display_redaction_enabled: false },
+  })
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  await $.ui.render({
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    requestId: 'm1',
+    props: { text: `Write to ${EMAIL} today.`, isFirstOfReply: true },
+  })
+  expect(registered).toEqual([])
+  expect(seen.props).toEqual({ text: `Write to ${EMAIL} today.`, isFirstOfReply: true })
+})
+
+test('enablement (security floor): user unset and repository false is ignored so masking stays on', TEXT_MODE, async ($, on) => {
+  const seen = capture(on, 'AssistantMessage')
+  const { registered } = stubRedactionLayers(on, { repoYaml: 'display_redaction_enabled: false\n' })
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  await $.ui.render({
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    requestId: 'm1',
+    props: { text: `Write to ${EMAIL} today.`, isFirstOfReply: true },
+  })
+  expect(registered).toEqual(['display-redaction'])
+  expect(seen.props).toEqual({ text: `Write to ${M} today.`, isFirstOfReply: true })
+})
+
+test('enablement: user unset and repository true masks normally', TEXT_MODE, async ($, on) => {
+  const seen = capture(on, 'AssistantMessage')
+  const { registered } = stubRedactionLayers(on, { repoYaml: 'display_redaction_enabled: true\n' })
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  await $.ui.render({
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    requestId: 'm1',
+    props: { text: `Write to ${EMAIL} today.`, isFirstOfReply: true },
+  })
+  expect(registered).toEqual(['display-redaction'])
+  expect(seen.props).toEqual({ text: `Write to ${M} today.`, isFirstOfReply: true })
+})
+
+test('enablement (security floor): managed policy true overrides user false', {
+  options: { display_redaction_enabled: false, mask_style: 'text' },
+}, async ($, on) => {
+  const seen = capture(on, 'AssistantMessage')
+  const { registered } = stubRedactionLayers(on, {
+    userConfig: { display_redaction_enabled: false },
+    policyConfig: { display_redaction_enabled: true },
+  })
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  await $.ui.render({
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    requestId: 'm1',
+    props: { text: `Write to ${EMAIL} today.`, isFirstOfReply: true },
+  })
+  expect(registered).toEqual(['display-redaction'])
+  expect(seen.props).toEqual({ text: `Write to ${M} today.`, isFirstOfReply: true })
+})

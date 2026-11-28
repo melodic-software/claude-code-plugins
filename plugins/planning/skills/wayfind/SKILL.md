@@ -1,5 +1,5 @@
 ---
-description: "Chart a too-big, still-foggy effort as a map of decision items on the work-item tracker and work its frontier one decision at a time until it closes to a PRD, decomposed work items or one work item. Use when an interview outgrew one session: 'turn this into a map', 'this is a huge foggy effort', 'I don't even know the questions yet', 'map this out', 'plan-the-plan'. New efforts start at /planning:interview, which may offer this. Already sharp tickets: /work-items."
+description: "Chart a large, foggy effort as a map of decision items on the work-item tracker and work its frontier one decision at a time toward a PRD or work items. Use when an effort outgrew one session: 'turn this into a map', 'map this out', 'plan-the-plan'. Not for new efforts (/planning:interview) or sharp tickets (/work-items)."
 argument-hint: "[chart|work|<item link>] [topic|map] [item]"
 user-invocable: true
 disable-model-invocation: false

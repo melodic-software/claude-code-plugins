@@ -600,6 +600,9 @@ run_check as-of-recheck "scripts/check-as-of-recheck.sh --check" \
 run_check cost-figures "scripts/check-cost-figures.sh --check" \
   "$tools/scripts/check-cost-figures.sh" --check
 
+run_check token-literals "scripts/check-token-literals.sh --base $merge_base" \
+  "$tools/scripts/check-token-literals.sh" --base "$merge_base"
+
 rv=plugins/guardrails/git-hooks/reference-verify.sh
 if [[ -f "$tools/$rv" ]]; then
   run_check reference-verify "sh $rv --base $base" sh "$tools/$rv" --base "$base"

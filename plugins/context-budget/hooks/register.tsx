@@ -3,6 +3,7 @@ import type { EngineInterface, Register, SessionContextUsage } from 'claude-code
 
 import type { LiveMode, LiveState, LiveView } from '../types'
 import { DesktopBand } from './desktop-band'
+import { createModEnablement, refreshModEnablement } from './mod-hook-enabled'
 import { Band, PaneBody } from './parts'
 
 const COMMAND = 'context-budget'
@@ -82,9 +83,17 @@ const registerCommand = ($: EngineInterface) =>
   })
 
 export const register: Register = (on, options) => {
+  const gate = createModEnablement(options, {
+    plugin: 'context-budget',
+    key: 'context_budget_enabled',
+    defaultValue: true,
+  })
+  if (gate.isDisabledAtLoad()) return
+
   const mode = atom({ plugin: 'context-budget', key: 'mode' } as const, isMode(options.live_display) ? options.live_display : 'pane')
 
   on('session.start', async ($, e, next) => {
+    if (!(await refreshModEnablement($, gate, e.cwd))) return next(e)
     await registerCommand($)
     return next(e)
   }).catch(($, e, next) => next(e))
@@ -92,6 +101,7 @@ export const register: Register = (on, options) => {
   let reregister = false
 
   on('session.end', async ($, e, next) => {
+    if (!gate.isEnabled()) return next(e)
     reregister = true
     latest++
     await update($, live, () => ({ view: null, error: null }))
@@ -99,6 +109,7 @@ export const register: Register = (on, options) => {
   }).catch(($, e, next) => next(e))
 
   on('prompt.submit', async ($, e, next) => {
+    if (!gate.isEnabled()) return next(e)
     if (reregister) {
       reregister = false
       await registerCommand($).catch(() => undefined)
@@ -106,7 +117,8 @@ export const register: Register = (on, options) => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  on('command.run', { command: COMMAND }, async ($, e) => {
+  on('command.run', { command: COMMAND }, async ($, e, next) => {
+    if (!gate.isEnabled()) return next(e)
     const [sub, arg, ...rest] = e.args.trim().split(/\s+/)
     if (sub !== 'live' || rest.length > 0 || (arg !== undefined && !isMode(arg))) {
       $.ui.toast(USAGE)
@@ -133,15 +145,19 @@ export const register: Register = (on, options) => {
   }).catch(($, e, next) => next(e))
 
   on('session.measure', async ($, e, next) => {
+    if (!gate.isEnabled()) return next(e)
     if (e.changed.includes('context') && ((await read($, mode)) === 'band' || (await paneOpen($)))) await refresh($)
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => PaneBody($.ui.resolve(e), await read($, live), e.props.bodyColumns))
+  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e, next) => {
+    if (!gate.isEnabled()) return next(e)
+    return PaneBody($.ui.resolve(e), await read($, live), e.props.bodyColumns)
+  })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const theirs = await next(e)
-    if (e.props.hasSurvey || (await read($, mode)) !== 'band') return theirs
+    if (!gate.isEnabled() || e.props.hasSurvey || (await read($, mode)) !== 'band') return theirs
     const { view: v, error } = await read($, live)
     if (v === null || v.categories.length === 0 || error !== null) return theirs
     const draw = $.ui.resolve(e)

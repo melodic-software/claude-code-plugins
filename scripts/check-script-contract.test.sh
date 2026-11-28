@@ -78,6 +78,7 @@ REGISTRY=(
   "check-stale-base-overlap.sh|-|-|-"
   "check-standards-contract-bump.sh|-|-|-"
   "check-test-tmp-cleanup.sh|git|-|-"
+  "check-token-literals.sh|node|-|token_literals"
   "check-upstream-drift.sh|gh|-|upstream_drift"
   "check-vendor-version-bump.sh|-|-|-"
   "check-workflow-template-size.sh|node|-|-"
@@ -368,6 +369,17 @@ HTML
     bash "$f/scripts/check-html-assets.sh"
 }
 
+recipe::token_literals() {
+  local value="var(--clay)"
+  [[ "$1" == violation ]] && value="#123456"
+  fixture_tree::build f --sut "$SELF_DIR/check-token-literals.sh" --git --plugins || return 2
+  mkdir -p "$f/lib" "$f/plugins/demo/templates"
+  cp "$REPO_ROOT/lib/html-tokens.css" "$f/lib/html-tokens.css"
+  : >"$f/scripts/shared-copies.txt"
+  printf ':root { --accent: %s; }\n' "$value" >"$f/plugins/demo/templates/view.html"
+  capture run_in "$f" bash scripts/check-token-literals.sh
+}
+
 recipe::changelog_parity() {
   fixture_tree::build f --sut "$SELF_DIR/check-changelog-parity.sh" --plugins || return 2
   mkdir -p "$f/plugins/alpha/.claude-plugin"
@@ -460,6 +472,7 @@ declare -A VIOLATION_NEEDLE=(
   [killswitch_hoist]='VIOLATION:'
   [queue_front_matter]='VIOLATION:'
   [html_assets]='MISSING:'
+  [token_literals]='TOKEN LITERAL: plugins/demo/templates/view.html:1:'
   [changelog_parity]='MISSING CHANGELOG:'
   [changelog_fragments]='NOT IN FRAGMENT MODE:'
   [docs_naming]='is not lower-kebab-case'
