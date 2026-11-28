@@ -3,6 +3,16 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.20] - 2026-11-28
+
+### Changed
+
+- Trimmed `/autonomy:setup` user-invoked frontmatter description (511 -> 138 chars) to a one-line summary without trigger phrasing.
+
+### Fixed
+
+- Updated the retired `code.claude.com/docs/en/slack#access-and-permissions` pointer in `trigger-adapters.md` to link the live Slack retirement page and Claude Tag migration guide.
+
 ## [5.2.19] - 2026-11-26
 
 ### Changed

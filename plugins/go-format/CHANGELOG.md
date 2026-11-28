@@ -3,6 +3,12 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.9] - 2026-11-28
+
+### Changed
+
+- Trimmed `/go-format:setup` user-invoked frontmatter description (439 -> 140 chars) to a one-line summary without trigger phrasing.
+
 ## [2.3.8] - 2026-11-28
 
 ### Changed
