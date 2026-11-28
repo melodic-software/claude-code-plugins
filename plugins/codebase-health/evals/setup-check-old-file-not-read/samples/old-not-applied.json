@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "INFO: no canonical config layers present (docs/conventions/codebase-health.md absent). Retired conventions (report-only, INFO): codebase-health-r001 (.claude/codebase-health.md) and codebase-health-r002 (.claude/codebase-health.local.md) are no longer read.",
+      "why": "reports INFO/report-only and absent/not read"
+    },
+    {
+      "answer": "Layer presence: all canonical layers absent. Retired records report-only: codebase-health-r001, codebase-health-r002 (not read as config).",
+      "why": "paraphrase naming report-only and absent"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "WARN: .claude/codebase-health.md is still read and supplies api-contracts.",
+      "why": "still reads the old file"
+    },
+    {
+      "answer": "INFO: no canonical layer (docs/conventions/codebase-health.md absent). Retired conventions (report-only): codebase-health-r001; codebase-health-r002. Still read .claude/codebase-health.md for api-contracts.",
+      "why": "still applies api-contracts from .claude/codebase-health.md while mentioning INFO and absent"
+    },
+    {
+      "answer": "PASS: codebase-health-r001 active.",
+      "why": "omits INFO/report-only and absent/not read"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}
