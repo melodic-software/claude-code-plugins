@@ -3,6 +3,12 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0] - 2026-11-28
+
+### Added
+
+- Adopt the shared rendered-views token layer (`reference/html-tokens.css`), `lib/view-settings.mjs`, and branding overrides (palette, type stacks, logo slot, and `branding` `userConfig` option) in the bounded-context HTML view.
+
 ## [0.10.3] - 2026-11-28
 
 ### Changed

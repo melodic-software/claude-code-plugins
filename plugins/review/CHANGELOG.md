@@ -3,6 +3,16 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.1.0] - 2026-11-28
+
+### Added
+
+- Adopt the shared rendered-views token layer (`reference/html-tokens.css`), chrome theme toggle, and `--team-ref`-scoped branding overrides (palette, type stacks, logo slot, and `branding` `userConfig` option) in the `explain-change` HTML digest.
+
+### Changed
+
+- Shared `README.md` synced to standards contract 1.3.2 (carriers of the ecosystem-resolution contract named as paved-path readers; merged pull request counts as acceptance for ecosystem records only); no change to this plugin's reference.
+
 ## [12.0.0] - 2026-11-28
 
 ### Removed

@@ -3,6 +3,12 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.0] - 2026-11-28
+
+### Removed
+
+- Stop reading retired `~/.claude/bugs.md` and `.claude/bugs.local.md` files; demote `bugs-r001` to `report-only` and remove the `/bugs:setup` old-file migration path.
+
 ## [1.0.5] - 2026-11-28
 
 ### Changed

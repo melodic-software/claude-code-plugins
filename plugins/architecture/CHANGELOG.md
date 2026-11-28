@@ -3,6 +3,16 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.2.0] - 2026-11-28
+
+### Added
+
+- Take rendered-page tokens and branding from the shared token layer across `map-view.html` and the deepening report, and expose the `branding` plugin option.
+
+### Fixed
+
+- **An unattended `/architecture:improve deepening` run writes the candidate file once, `security-defect: withheld` lines included.** It no longer adds a placeholder afterwards with Edit or a shell command, and it reports the number of placeholder lines it actually wrote. In 2 of 10 eval runs the reply counted one withheld line that no Write of the file carried ([#17196](https://github.com/melodic-software/claude-code-plugins/issues/17196)).
+
 ## [7.1.5] - 2026-11-28
 
 ### Changed

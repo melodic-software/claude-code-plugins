@@ -3,6 +3,28 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [17.0.0] - 2026-11-28
+
+### Changed
+
+- The post-merge check reads default-branch files (the tracker binding, the pipeline config) from the checkout `BABYSIT_CONFIG_CHECKOUT` names when its HEAD is main's tip the workflow step passed in `MAIN_TIP_SHA`, and through the contents API otherwise.
+
+- babysit-prs: the run cache shares only a "not a draft" judgment of a FAIL between one pr-merge run's gate processes; a judgment that the FAIL came from a draft run, which dismisses it, is read fresh by each process and never stored or served, so a stored answer can keep a FAIL counted but never dismiss one.
+
+- The babysit-prs unattended merge gate refuses a pull request with `rung-off:<input>` as soon as it reads the effective rung as off, before the in-flight, eligibility and verify-evidence reads, so a demoted lane's scheduled sweep no longer reads each candidate's evidence; the refusal, blockers, queue writes and AI-review re-runs are unchanged, and a Dependabot pull request still has its class read for the dependency hold.
+
+### Removed
+
+- Stop reading retired `~/.claude/source-control.md` and `.claude/source-control.local.md` files in `parse-branch-issue.sh`, `commit`, and `setup`, and remove `convention-key.sh old-files` and the `/source-control:setup` old-location migration path.
+
+### Fixed
+
+- Point the GitHub `review-venue` failure-class annotation reference at the live `pr-review-cli.yml` workflow and `publish-review/publish.cjs` action after `pr-review.yml` was retired.
+
+- `merge-readiness.sh` now refuses a merge (`BLOCKED verify-fail`) at a head pr-verify failed when no PASS or PASS-NOTES was judged after the FAIL, instead of letting it through after the 30-minute no-verdict wait. An approving review of the head by a person on the trusted-actor list lifts it, as the merge queue does. A head with no verdict keeps the 30-minute wait.
+
+- `landed-work.sh --merged-pr-proof` looks up a branch's merged pull requests by name when the newest-1000 listing is full and the branch is not in it, so in a busy repository a worktree whose PR merged at its head before that window is proven landed instead of sent to `worktree-reap` review.
+
 ## [16.0.1] - 2026-11-28
 
 ### Changed

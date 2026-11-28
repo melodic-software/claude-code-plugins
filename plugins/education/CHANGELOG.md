@@ -3,6 +3,12 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.2.0] - 2026-11-28
+
+### Added
+
+- Adopt the shared rendered-views token layer (`reference/html-tokens.css`), chrome theme toggle, and branding overrides (palette, type stacks, logo slot, and `branding` `userConfig` option) across `page-kit.mjs`, `quiz-me`, and `illustrate` HTML views.
+
 ## [3.1.6] - 2026-11-28
 
 ### Changed
