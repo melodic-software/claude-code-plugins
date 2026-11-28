@@ -3,6 +3,12 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1] - 2026-11-28
+
+### Changed
+
+- Trimmed `/fleet:reach` frontmatter description (495 -> 343 chars, -152 / -30.7%). It keeps the cross-host/cross-platform verbs (`run`, `prompt`, `query`, `message`, `start`) and WSL/Windows targeting. The quoted triggers are cut to three (`'run this on HOST'`, `'from WSL to Windows'`, `'remote agent'`) and the others are dropped. The exclusions are `ListAgents`/`SendMessage` and `/session-flow:continue-in-background`, and repository fleets now route to `/repo-fleet-hygiene:audit` only.
+
 ## [0.7.0] - 2026-11-28
 
 ### Added
