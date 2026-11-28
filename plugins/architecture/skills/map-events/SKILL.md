@@ -1,5 +1,5 @@
 ---
-description: "Async message topology from committed C# publish, send, and consumer registrations. Orphan publishers and consumers are findings; one short name in two namespaces is two messages. Use when 'map events', 'who publishes this message', 'message topology', 'orphan consumer', 'publish subscribe'. Skip when the question is an in-process call trace (map-flow) or broker hosts and replicas (a deployment view)."
+description: "Async message topology from committed C# publish, send and consumer registrations (orphan publishers/consumers flagged; one name, two namespaces: two messages). Use for 'map events', 'message topology', who publishes messages, or publish/subscribe. Not for call traces (/architecture:map-flow), broker hosts/replicas (/architecture:map-deployment)."
 argument-hint: "[--unrouted-only] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false

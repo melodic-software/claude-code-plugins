@@ -839,8 +839,8 @@ A lane-pinned invocation (above) merges only through the merge gate's `--unatten
 the repository does not configure that path, the gate refuses and the invocation reports the PR
 merge-ready for a human. The lane's partition is the only class check, so the PR is already C2
 (mechanical), or C3 (scoped) or C4 (structural) at a C3 rung. A C5 (untrusted-provenance) PR the
-work lane opens carries the body hold line the lane writes for untrusted provenance and waits for
-the user; it is never handed to this invocation.
+work lane opens carries the `do-not-merge` label the lane sets for untrusted provenance and waits
+for the user; it is never handed to this invocation.
 
 The AI review checks are the names the `review_lane_checks` setting gives each lane's `merge`
 entries (`claude-review:merge=<name>`, `claude-security-review:merge=<name>`), read by
@@ -1169,7 +1169,7 @@ any refusal is the blocker `unattended merge refused: <reason>`:
 Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With
 `--merge`, under the identity only: a kill-switch, unreadable-default-branch, post-merge or rung
 refusal dequeues every entry the identity enqueued; a queued identity entry that gained a hold
-(`do-not-merge` or the human-gated label, `needs-human` by default, a body hold, a blocking
+(`do-not-merge` or the human-gated label, `needs-human` by default, a blocking
 comment from an owner, member or collaborator, the opt-in label removed, or put back after the
 enqueue by anyone but a human in person) leaves the queue, as
 does the assessed pull request's own entry when this run finds it ineligible, unpromoted for its

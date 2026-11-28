@@ -162,9 +162,9 @@ Each `text` is 1-4000 characters of plain prose and lists, without the heading l
 job puts the text in place only after the fix lands, and drops the whole refresh, leaving the
 body as it was, when any text holds:
 
-- a line a merge, ready or linkage check reads: a `Hold:`, `Draft:`, `Refs:`, `Relates to:`,
-  `Siblings:` or `Merge-Risk:` line, a `No related issue` or `No linked issue` line, a closing
-  keyword with an issue number or URL, or a request to hold the merge in any wording;
+- a line a merge, ready or linkage check reads: a `Draft:`, `Refs:`, `Relates to:`,
+  `Siblings:` or `Merge-Risk:` line, a `No related issue` or `No linked issue` line, or a closing
+  keyword with an issue number or URL;
 - a `#` or `##` heading line, or a code fence;
 - `Pre-existing (advisory):`, the word `committer`, or an @-mention (put a package name such as
   `@types/node` in backticks);

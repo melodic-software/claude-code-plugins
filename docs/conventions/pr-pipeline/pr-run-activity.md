@@ -62,7 +62,7 @@ permissions, and passes no App key.
 | `issue-dimensions` | `''` | Issue mode: the `models.issue-dimensions` dimensions the caller resolved for `timeout-minutes`; the run takes them instead of reading the issue's fields again |
 | `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` or `pr-dispatch-feedback.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
 | `trusted-base` | `pr-base` | `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
-| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting, or `outside-author`, the check-admission job's stop on an issue neither a listed human nor the lanes App wrote; any other value, or one outside issue mode, fails step 1 |
+| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting, `outside-author`, the check-admission job's stop on an issue neither a listed human nor the lanes App wrote, `workflow-stale`, or `closed-by-open-pr`, the read run's `issue-prior` stop on a trusted open closing PR; any other value, or one outside issue mode, fails step 1 |
 | `collect-refused` | `''` | Write file, issue mode, `report-outcome`: the model run's `scan-collect-refused`; only `true` counts, and stops the issue on the `collect-refused` route, which holds it for a person |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the select job's `run.json` and the model run's replies |
@@ -2305,9 +2305,19 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `GITHUB_TOKEN`, and reads the issue's lane branches (`git/matching-refs` on
   `work-resolve-issue/issue-<n>-`), their PRs, their tip commits, their commits ahead of the
   default branch, the issue's open closing PRs and the lanes App's outcome markers on it. It skips
-  the run `not-applicable`, with no model and no comment, when a lanes-App PR from a
-  lane branch is open, or when an open PR in this repository closes the issue and the lanes App or
-  a listed human (`trusted-actors.json`) opened it; anyone's other closing PR is ignored. It also
+  the run, with no model and no comment, `not-applicable` when a lanes-App PR from a lane branch
+  is open, and `closed-by-open-pr` when an open PR in this repository closes the issue and the
+  lanes App or a listed human (`trusted-actors.json`) opened it; anyone's other closing PR is
+  ignored. The run job's `skip-reason` output carries that reason, and once the scan job's decode
+  step has checked it against the closed-name shape, so does the read file's `scan-skip-reason`
+  output; no PR number crosses. `work-resolve-issue.yml` then runs its `report-outcome` job with
+  `dimension-skip: closed-by-open-pr` (`workflow-stale` wins when both apply) and no lease to end,
+  since the read file's report job already ended it. `report-outcome` reads the issue's open
+  closing PRs itself, with the same trust rule, and stops `closed-by-open-pr` on the `wait` route
+  naming the one it finds (below), in a comment in the
+  [lane output format](../../contracts/loop-lane/lane-output-format.md) under the outcome marker, or
+  posts nothing when none closes the issue now; a failed read
+  fails the job and posts nothing. It also
   skips `not-applicable` and sets the `reuse-branch` output to the first lane branch, newest run
   and attempt first, that has commits ahead, a tip commit GitHub verified whose author is the
   lanes App bot and whose committer is `web-flow`, as the App's API commits are (a branch name
@@ -2408,17 +2418,16 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   body starts `Closes #<n>` (or `Refs: #<n>`, with a `## Remaining work` section listing them,
   when the outcome's `remaining` names parts of the issue the PR leaves for later work; a
   `remaining` that is not 1 to 20 strings with text counts as none, and the run's `link` field
-  decides nothing), and adds
-  `Hold: a human merges this` for untrusted-provenance work, for a diff that
+  decides nothing), and holds it with the `do-not-merge` label for untrusted-provenance work, for a diff that
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
   resolved config; unreadable holds every PR), or, while some path is denied, for one too large
-  for the compare listing to show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
+  for the compare listing to show whole. It holds it the same way when the issue carries `merge: human` whose newest `labeled`
   event is a listed human's or the lanes App's, or when the trusted list that judges it cannot be
   read, and never for anyone else's. When the issue's events cannot be read, a run that would open
   a PR opens none, posts nothing and ends green with a notice: the branch stays unreported, and
   the next run work-unblock's sweep starts opens the PR from it.
-  A PR with that line also gets the `do-not-merge` label right after it opens, or when the run
-  reuses its open PR; the work class stays on the issue. A PR the label cannot reach is closed
+  The label goes on right after the PR opens, or when the run reuses its open PR; the work class
+  stays on the issue. A PR the label cannot reach is closed
   and the issue retried (`hold-label-failed`).
   The run's own summary is quoted with issue references broken, so squash-merging the PR closes only `#<n>`. Every stop takes the route its reason has in
   `.github/scripts/work-resolve-issue/stop-routes.json`, one row per reason with a `why`; a
@@ -2554,11 +2563,11 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   model text. Otherwise the PR has fixed text naming the earlier run and none of the model's text.
   Either way its Fix section lists the files `GET /compare` names, those on a
   `merge.diff-check.denied-paths` glob marked and listed first; a failed compare says the list is
-  unavailable and still opens the PR. The PR carries the hold line on the same conditions as a
+  unavailable and still opens the PR. The PR carries the hold label on the same conditions as a
   `done` run's (one check, `mustHold` in `report-outcome.mjs`), `merge: human` included, plus
   two of its own: the compare failed, or the leak scan `run-checks` ran on the branch (its
   `scan` word in the checks record) is missing or not `clean`, since `lint-repo`'s gitleaks scan
-  does not cover what that scan flags. Runner checks add no hold line of their own, failed or not
+  does not cover what that scan flags. Runner checks add no hold of their own, failed or not
   reported (missing or another tip): the Verification section lists each result, and `ci-status`
   reruns them on the head. The summary never decides the hold or reaches a status:
   `report-statuses` then posts only `pipeline/report-outcome` on that branch, so any statuses the

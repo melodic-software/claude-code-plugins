@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] - 2026-11-28
+
+### Changed
+
+- Trim skill frontmatter descriptions across `audit` (905 -> 347 chars) and `setup` (693 -> 144 chars), reducing changed description length from 1,598 to 491 characters (-1,107 chars; plugin total 1,801 -> 694 chars with `report` unchanged at 203 chars).
+
 ## [1.0.5] - 2026-11-28
 
 ### Changed

@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub, paginate } from "../lib/github-client.mjs";
 import { loadTrustedList, trustedListPath } from "../lib/trusted-actors.mjs";
-import { bodyHolds, fromRest, LANES_APP_LOGIN, vetoers } from "./merge-holds.mjs";
+import { LANES_APP_LOGIN } from "./merge-holds.mjs";
 
 export const LABEL = "do-not-merge";
 export const RELEASES_PER_RUN = 5;
@@ -200,7 +200,7 @@ export function heldAt(events) {
   return times.length === 0 ? null : times.sort().at(-1);
 }
 
-export function decide({ pull, comments, reviews = [], events, humans, vouched = new Map(), cannotStart = null }) {
+export function decide({ pull, comments, events, humans, vouched = new Map(), cannotStart = null }) {
   const keep = (reason) => ({ release: false, reason });
   if (pull?.state !== "open") {
     return keep("not-open");
@@ -232,13 +232,6 @@ export function decide({ pull, comments, reviews = [], events, humans, vouched =
     if (!byHuman(comment, humans) && !byLanesApp(comment)) {
       return keep("hold-reason-unlisted-author");
     }
-  }
-  if (bodyHolds(pull.body, true)) {
-    return keep("body-hold");
-  }
-  const vetoing = vetoers([...(comments ?? []), ...(reviews ?? [])].map(fromRest));
-  if (vetoing.length > 0) {
-    return keep(`member-veto-${vetoing.join(",")}`);
   }
   const newest = newestRecord(recent, humans, vouched, pull.number);
   if (newest !== undefined && newest.heads[0] === head) {
@@ -430,7 +423,6 @@ async function readAll(github, repo, number, humans, runsGitHub = github, listRu
     return { early };
   }
   const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
-  const reviews = await paginate(github, `/repos/${repo}/pulls/${number}/reviews`);
   const defaultBranch = pull?.base?.repo?.default_branch;
   const vouched = await readRuns(runsGitHub, repo, comments, defaultBranch);
   if (since !== null && !listed.complete) {
@@ -438,7 +430,7 @@ async function readAll(github, repo, number, humans, runsGitHub = github, listRu
   }
   const plugins = listed.complete && named.length > 0 ? await readEvalPlugins(github, repo, number, pull?.changed_files) : null;
   const cannotStart = plugins === null ? null : await readCannotStart(runsGitHub, repo, named, vouched, since, pull?.head?.sha, defaultBranch, plugins);
-  return { pull, comments, events, reviews, vouched, cannotStart };
+  return { pull, comments, events, vouched, cannotStart };
 }
 
 async function readEvalPlugins(github, repo, number, changedFiles) {

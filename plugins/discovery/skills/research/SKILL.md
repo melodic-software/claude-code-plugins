@@ -1,5 +1,5 @@
 ---
-description: "Multi-source external research with source tiers, recency checks, and a coverage ledger. Use when: 'research this', 'verify a technical claim', 'evaluate libraries or approaches', 'compare X vs Y', 'is this still current', 'find the authoritative source', 'what do the official docs say', 'deep research', 'research these N topics', 'migration research', 'exhaustive research on X'. Also a local folder outside any repository, or machine state. breadth=low narrows; deep or multi-topic asks take the deep tier."
+description: "Multi-source external research (or non-repo dirs, machine state): source tiers, recency, coverage ledger; breadth=low narrows, deep or multi-topic asks take the deep tier. Use when: 'research this', 'compare X vs Y', 'verify a claim', 'deep research', 'research these N topics'. Not for one page: /discovery:read-docs; local code: /discovery:explore."
 argument-hint: "[breadth=low|medium] [deep] [--unattended] [topic]"
 user-invocable: true
 disable-model-invocation: false

@@ -173,6 +173,7 @@ wit_case_if_unsupported link-blocks "$FAKE_ID" --blocked-by "$FAKE_ID"
 wit_case_if_unsupported add-sub-item "$FAKE_ID" --parent "$FAKE_ID"
 wit_case_if_unsupported label-provenance "$FAKE_ID" --label agent-ready
 wit_case_if_unsupported set-fields "$FAKE_ID" --field 1=2
+wit_case_if_unsupported set-native-status "$FAKE_ID" --status Done
 wit_case_if_unsupported get-field-options --field Size
 wit_case_if_unsupported get-statuses --field "Work status" "$FAKE_ID"
 wit_case_if_unsupported add-recurrence "$FAKE_ID" --source-link https://example.com/1 --note seen
@@ -317,6 +318,8 @@ if verb_supported list-items && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
       or (.created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")))] | all')"
   assert_eq "list-items rows carry milestone as a name or null" "true" \
     "$(wit_out '[.items[] | .milestone == null or (.milestone | type == "string" and length > 0)] | all')"
+  assert_eq "list-items rows carry native_status as a name or null" "true" \
+    "$(wit_out '[.items[] | .native_status == null or (.native_status | type == "string" and length > 0)] | all')"
   wit_case "list-items --label nobody carries" 0 list-items --label "$RUN_TAG-absent" "${repo_args[@]+"${repo_args[@]}"}"
   assert_truncated_flag "list-items --label"
   assert_eq "list-items --label nobody carries holds no items" "0" "$(wit_out '.items | length')"

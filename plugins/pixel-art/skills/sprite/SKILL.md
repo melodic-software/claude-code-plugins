@@ -1,5 +1,5 @@
 ---
-description: "Static pixel-art sprites (characters, items, icons, portraits, faces, battlers, props) as engine-ready PNG sheets, rendered with no external tools and reviewed until they read. Use when asked to 'make a sprite', 'pixel art of X', 'draw a 32x32 icon', 'character portrait', 'RPG Maker face', 'item icons', or 'pixel-art character design'. Movement cycles: /pixel-art:animate; composed scenes: /pixel-art:scene."
+description: "Static pixel-art sprites (characters, items, icons, portraits, faces, battlers, props) as engine-ready PNG sheets, rendered natively and reviewed until they read. Use when: 'make a sprite', 'draw a 32x32 icon', 'character portrait', or RPG Maker face. Not for movement cycles: /pixel-art:animate; scenes: /pixel-art:scene."
 argument-hint: "<what to draw> [size] [palette] [engine]"
 user-invocable: true
 disable-model-invocation: false

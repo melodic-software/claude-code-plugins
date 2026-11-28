@@ -58,7 +58,7 @@ lib/docs-cache.test.sh 32
 lib/exec-bash.resolver.test.sh 1
 lib/fetch-docs.test.sh 25
 lib/hook-test-sink.test.sh 1
-lib/hook-utils.test.sh 48
+lib/hook-utils.test.sh 138
 lib/html-escape.test.sh 1
 lib/index-regen.test.sh 1
 lib/media-render/media-render.test.sh 16
@@ -319,7 +319,7 @@ plugins/harness-config/skills/audit-permission-state/scripts/no-writes.test.sh 1
 plugins/harness-config/skills/audit-permission-state/scripts/permission-merge.test.sh 1
 plugins/harness-config/skills/audit-permission-state/scripts/permission-plane-lint.test.sh 1
 plugins/harness-config/skills/audit-permission-state/scripts/permission-state.test.sh 3
-plugins/harness-config/skills/audit/scripts/audit-engine.test.sh 147
+plugins/harness-config/skills/audit/scripts/audit-engine.test.sh 84
 plugins/harness-config/skills/audit/scripts/check-doc-citations.test.sh 1
 plugins/harness-config/skills/audit/scripts/check-effort-pins.test.sh 2
 plugins/harness-config/skills/audit/scripts/check-hook-coverage.test.sh 2
@@ -569,7 +569,7 @@ plugins/session-flow/scripts/tests/test_tidy_work.py 5
 plugins/session-flow/scripts/tests/test_transcript_reader_first_cwd.py 1
 plugins/session-flow/scripts/tidy_work.test.sh 8
 plugins/session-flow/skills/audit-friction/scripts/tests/test_friction.py 3
-plugins/session-flow/skills/audit-sessions/scripts/audit-sessions.test.sh 37
+plugins/session-flow/skills/audit-sessions/scripts/audit-sessions.test.sh 117
 plugins/session-flow/skills/audit-sessions/scripts/tests/test_collect.py 16
 plugins/session-flow/skills/audit-sessions/scripts/tests/test_drift.py 1
 plugins/session-flow/skills/audit-sessions/scripts/tests/test_friction_scan.py 1
@@ -803,7 +803,7 @@ scripts/check-purged-em-dashes.test.sh 2
 scripts/check-queue-front-matter.test.sh 1
 scripts/check-script-contract.test.sh 26
 scripts/check-shell-portability.test.sh 23
-scripts/check-silent-revert.test.sh 20
+scripts/check-silent-revert.test.sh 31
 scripts/check-silent-skips.test.sh 1
 scripts/check-skill-count-claims.test.sh 1
 scripts/check-skill-leaf-names.test.sh 1

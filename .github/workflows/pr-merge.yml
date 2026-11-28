@@ -2518,6 +2518,9 @@ jobs:
           sparse-checkout: |
             /.github/actions/log-api-budget/
             /lib/publish-gate.mjs
+            /.github/scripts/pr-merge/cancel-orphaned-runs.mjs
+            /.github/scripts/lib/github-client.mjs
+            /.node-version
           sparse-checkout-cone-mode: false
 
       - name: Read main's full-run cover
@@ -2672,6 +2675,24 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
+      - name: Set up Node
+        id: node
+        if: ${{ !cancelled() && steps.tip.outputs.sha != '' }}
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Cancel merge_group runs whose queue group is gone
+        if: >-
+          !cancelled() && steps.node.outcome == 'success'
+          && steps.cover.outputs.rate-limited != 'true' && steps.dispatch.outputs.rate-limited != 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node .base/.github/scripts/pr-merge/cancel-orphaned-runs.mjs
+
       - name: Log the API budget at the end
         if: always()
         continue-on-error: true
@@ -2747,11 +2768,10 @@ jobs:
             # Kept in step with pr-verify.yml's wake-pr-merge: the broker
             # mints for this wake on a lanes App pull request and on a
             # trusted person's (a User whose id is kind "human" on the
-            # trusted-actor list), whose draft or body Hold: line waits for
-            # the sweep.
+            # trusted-actor list), whose draft waits for the sweep.
             if ! answer=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" \
-              --jq '"\(.user.id) \(.user.type) \(.auto_merge != null) \([.labels[].name] | index("do-not-merge") != null) \(.draft) \((.body // "") | test("(^|[\\r\\n])[ \\t]*hold:"; "i"))"') ||
-              ! read -r id type armed held draft hold <<<"$answer" ||
+              --jq '"\(.user.id) \(.user.type) \(.auto_merge != null) \([.labels[].name] | index("do-not-merge") != null) \(.draft)"') ||
+              ! read -r id type armed held draft <<<"$answer" ||
               [ -z "${id:-}" ] || [ -z "${type:-}" ]; then
               echo "::warning::wake-eval-released: pr=$pr pull request could not be read; nothing woken (the next scheduled run arms it)"
               continue
@@ -2780,10 +2800,6 @@ jobs:
             fi
             if [ "$type" = User ] && [ "$draft" = true ]; then
               echo "::notice title=eval-release wake::pr=$pr a draft; nothing woken"
-              continue
-            fi
-            if [ "$type" = User ] && [ "$hold" = true ]; then
-              echo "::notice title=eval-release wake::pr=$pr held (body Hold: line); nothing woken"
               continue
             fi
             woken=$((woken + 1))
