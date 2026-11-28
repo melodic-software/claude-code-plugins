@@ -1,5 +1,5 @@
 ---
-description: "Read-only audit of tracked markdown (rule/skill/convention doc) for nine noise shapes: stale historical citation, ghost ref, preamble, tracker back-ref, negation without positive, conversational residue. Use when 'audit markdown noise', 'find ghost refs', 'declutter', sweep for noise. Not for code comments: /code-tidying:remove-comments."
+description: "Read-only audit of tracked markdown (rule/skill/convention doc) for nine noise shapes: stale historical citation, ghost ref, preamble, tracker back-ref, negation without positive, conversational residue. Use when 'audit markdown noise', 'find ghost refs', 'declutter', sweep for noise. Not for code comments: /code-tidying:remove-comments. Load it before listing a doc's leftover lines to cut before sharing it."
 argument-hint: "[audit] [target] [--persist-findings] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

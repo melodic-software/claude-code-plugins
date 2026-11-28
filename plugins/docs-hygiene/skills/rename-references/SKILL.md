@@ -52,6 +52,8 @@ Parse `$ARGUMENTS` first token to determine action. Subsequent tokens are the re
 
 **Every sweep runs off the pattern library**, the full form registry in [context/patterns.md](context/patterns.md); read it before any sweep. A sweep runs through the Grep tool with the patterns.md regexes over the tracked tree, covering every form the action sweeps (every form in patterns.md for apply, preview, audit and Blast; the forms [Audit Orphans](context/audit-modes.md#audit-orphans) names for Orphans). One Grep may combine forms in an alternation as long as every form's regex is in it; never let one token grep stand in for them. Attribute each hit to its form, and a form whose regex no call ran is a form the sweep missed. Reading files one by one is not a sweep; use Read only to confirm a Grep hit in its surrounding context before classifying or editing it. Triage logic is in [context/triage.md](context/triage.md). Audit sub-mode detail (Blast / Half-rename / Orphans) is in [context/audit-modes.md](context/audit-modes.md).
 
+A small tree, or a bare-token search that already shows every hit, excuses no form: run each form's regex as patterns.md writes it, the numbered-row and frontmatter forms included, and name the forms run in the report.
+
 ## Override flags (audit modes)
 
 Six flags. Four widen the sweep; two override the rename-mode resolution. Defaults preserve safety (rename-documenting plan docs / frozen historical notes / memory entries excluded). Long-form only, position-agnostic.

@@ -1,5 +1,5 @@
 ---
-description: "Write human-facing prose (README, RFC, design doc, release note, changelog, tutorial, how-to, reference, explanation) per style guide. Use when 'write the README', 'write a how-to for X', 'document this for users', asking what kind of doc to write, or fixing machine-written doc. Not for agent markdown: /docs-hygiene:write-for-agents."
+description: "Write human-facing prose (README, RFC, design doc, release note, changelog, tutorial, how-to, reference, explanation) per style guide. Use when 'write the README', 'write a how-to for X', 'document this for users', asking what kind of doc to write, or fixing machine-written doc. Not for agent markdown: /docs-hygiene:write-for-agents. Load it before drafting any such doc, even a short one from pasted notes."
 argument-hint: "[<doc or section being written>]"
 user-invocable: true
 disable-model-invocation: false
@@ -59,6 +59,12 @@ Two cases the third rule's test misses:
   fail the search test. Write what the thing is in plain words: "a limit that can only go down",
   "the goal", "the base", "add". A document may name a pattern, as long as the sentence where the
   name first appears says what it means.
+
+Check the fourth rule on the finished draft, term by term: find the first sentence that uses the
+term and put its gloss right after the term in that sentence ("ships every line to a collector,
+the server that receives your logs"), not in the sentence after it ("ships every line to a
+collector. The collector is the server…"). The opening summary line is where a term most often
+slips in first.
 
 ## Pick the mode first
 
@@ -141,6 +147,10 @@ The table follows the Before text from its first word to its last:
 - **Check for AI-writing tells.** Invoke `/ai-slop:audit` (if enabled) on the files you wrote via the Skill tool in the session; it reports filler, stacked hedging, negative parallelism,
   and promotional tone by line. When it is not available, report that the AI-tell check did not
   run.
+- **No AI-tell check available?** Reread the draft yourself before replying, and rewrite each of
+  these as a plain statement: an opener that announces a point ("Here's the thing:"), an "isn't X,
+  it's Y" contrast, a run of two- or three-word fragment sentences, and a "from X to Y" range used
+  as a sweep. Notes and marketing copy carry these shapes: keep their facts, not their slogans.
 - **Swapped out a figurative noun that ai-slop's catalog lacks?** With `/ai-slop:audit` (if enabled) among the
   available skills, end the reply with a candidate line for `rule-abstract-metaphor-jargon` giving
   the noun, its sentence, and your literal replacement. Only a person who accepts the candidate

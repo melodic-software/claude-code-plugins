@@ -1,5 +1,5 @@
 ---
-description: "Audit skill encapsulation and boundary leak where external citation reaches private skill surface (.claude/skills/X/, plugins/*/skills/X/) beyond slash invocation; read-only, explicit fix FILE:LINE. Use when 'audit encapsulation', 'find skill leaks', 'check skill boundaries', skill boundary violation, reaching into SKILL, API drift, refactor skill."
+description: "Audit skill encapsulation and boundary leak where external citation reaches private skill surface (.claude/skills/X/, plugins/*/skills/X/) beyond slash invocation; read-only, explicit fix FILE:LINE. Use when 'audit encapsulation', 'find skill leaks', 'check skill boundaries', skill boundary violation, reaching into SKILL, API drift, refactor skill. Load it to ask what depends on another plugin's internals."
 argument-hint: "[detect|sweep|fix <file>:<line>|file-issues] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
