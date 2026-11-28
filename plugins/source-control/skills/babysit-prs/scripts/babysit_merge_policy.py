@@ -5235,11 +5235,17 @@ def standards_sha(repo: str) -> str:
 
 def standards_file(repo: str, path: str) -> str | None:
     """`path` in the standards repository `repo` at `standards_sha`, or None
-    when absent; each path read once a process."""
+    when absent; each path read once a process, from the job's standards
+    checkout (`STANDARDS_CHECKOUT_ENV`) when its HEAD is that commit, else
+    through the contents API."""
     key = (repo, path)
     if key not in _STANDARDS_TEXT:
         owner, name = _split_repo(repo)
-        _STANDARDS_TEXT[key] = _file_at(owner, name, path, standards_sha(repo))
+        sha = standards_sha(repo)
+        text = checkout_file_at(path, sha, STANDARDS_CHECKOUT_ENV)
+        _STANDARDS_TEXT[key] = (
+            text if text is not None else _file_at(owner, name, path, sha)
+        )
     return _STANDARDS_TEXT[key]
 
 
@@ -6907,15 +6913,16 @@ def _full_history_root(checkout: Path) -> Path | None:
 
 
 CONFIG_CHECKOUT_ENV = "BABYSIT_CONFIG_CHECKOUT"
+STANDARDS_CHECKOUT_ENV = "STANDARDS_DIR"
 
 
-def _config_checkout(sha: str) -> Path | None:
+def _config_checkout(sha: str, env: str = CONFIG_CHECKOUT_ENV) -> Path | None:
     """The top of the first `CONFIG_CHECKOUT_ENV` checkout (`os.pathsep`-
     separated, shallow or sparse: ci-status's base-config and .base) whose
     HEAD is `sha`, else None. A file it cannot answer (a symlink, a blob a
     sparse partial checkout lacks, which is never fetched) is read through the
     API."""
-    for raw in os.environ.get(CONFIG_CHECKOUT_ENV, "").split(os.pathsep):
+    for raw in os.environ.get(env, "").split(os.pathsep):
         raw = raw.strip()
         if not raw or not Path(raw).is_dir():
             continue
@@ -6927,17 +6934,27 @@ def _config_checkout(sha: str) -> Path | None:
     return None
 
 
-def checkout_file_at(path: str, sha: str) -> str | None:
-    """The file's text at `sha` from a `CONFIG_CHECKOUT_ENV` checkout whose
-    HEAD is `sha` (`_config_checkout`), or None when no checkout holds it, so
-    the caller reads it through the API."""
-    root = _config_checkout(sha) if SHA_RE.fullmatch(sha or "") else None
+def checkout_file_at(
+    path: str, sha: str, env: str = CONFIG_CHECKOUT_ENV
+) -> str | None:
+    """The file's text at `sha` from an `env` checkout whose HEAD is `sha`
+    (`_config_checkout`), or None when no checkout holds it, so the caller
+    reads it through the API."""
+    root = _config_checkout(sha, env) if SHA_RE.fullmatch(sha or "") else None
     if root is None:
         return None
     try:
         return _git_file_at(root, path, sha)
     except PolicyReadError:
         return None
+
+
+def checkout_lacks(path: str, sha: str) -> bool:
+    """Whether a `CONFIG_CHECKOUT_ENV` checkout whose HEAD is `sha` shows
+    `path` absent from that commit's tree, which a shallow sparse partial
+    clone still holds whole; False when no checkout can tell."""
+    root = _config_checkout(sha) if SHA_RE.fullmatch(sha or "") else None
+    return root is not None and _git(root, "ls-tree", "-z", sha, "--", path) == ""
 
 
 def _clones_holding(sha: str) -> Iterator[Path]:

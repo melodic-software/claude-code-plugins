@@ -8741,6 +8741,26 @@ class TheTrustedListMustBeTheJudgedOne(unittest.TestCase):
         )
         self.assertEqual(self.refusal(LIST_V1, copy=None, changed=RUN_STARTED), ve.SPEC_CHANGED)
 
+    def test_a_copy_the_tip_checkout_lacks_reads_no_contents_for_it(self) -> None:
+        copy_reads = (
+            f"repos/{REPO}/contents/{ve.TRUSTED_ACTORS_PATH}?ref={MAIN_SHA}",
+            f"repos/{REPO}/contents?ref={MAIN_SHA}",
+        )
+        for lacks, expected_reads in ((True, []), (False, list(copy_reads))):
+            with self.subTest(lacks=lacks):
+                fake = passing()
+                fake.records[named(HEAD, "pass")] = record()
+                fake.team_yaml, fake.actors, fake.standards_actors = OPTED_IN, None, LIST_V1
+                fake.standards_list_changed = "2026-10-20T00:00:00Z"
+                with (
+                    mock.patch.object(policy, "_STANDARDS_SHA", {}),
+                    mock.patch.object(policy, "_STANDARDS_TEXT", {}),
+                    mock.patch.object(policy, "checkout_lacks", return_value=lacks),
+                ):
+                    self.assertEqual(read(fake).refusal, ve.SPEC_CHANGED)
+                reads = [c[-1] for c in fake.calls if c[-1] in copy_reads]
+                self.assertEqual(reads, expected_reads)
+
     def test_a_repository_that_does_not_opt_in_compares_no_blob(self) -> None:
         stale = ve.git_blob(json.dumps(LIST_V2).encode())
         self.assertIsNone(self.refusal(LIST_V1, team="", trusted_actors_blob=stale))

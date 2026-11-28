@@ -5105,7 +5105,9 @@ class Reader:
             if "trusted_actors_blob" in record:
                 return record["trusted_actors_blob"] != self._list_blob
             if self._list_copy is None:
-                self._list_copy = (
+                self._list_copy = not merge_policy.checkout_lacks(
+                    TRUSTED_ACTORS_PATH, tip
+                ) and (
                     merge_policy.checkout_file_at(TRUSTED_ACTORS_PATH, tip) is not None
                     or merge_policy._file_at(owner, name, TRUSTED_ACTORS_PATH, tip)
                     is not None
