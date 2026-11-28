@@ -7,7 +7,7 @@ export const DEFAULT_OPEN_CAP = 5;
 
 const isCap = (value) => Number.isSafeInteger(value) && value >= 0;
 
-export function openCap({ team, personal, names = { team: "team layer", personal: "personal layer" } }) {
+export function openCap({ team, user, personal, names = { team: "team layer", user: "userConfig", personal: "personal layer" } }) {
   const warnings = [];
   let cap = DEFAULT_OPEN_CAP;
   let source = "default";
@@ -19,10 +19,11 @@ export function openCap({ team, personal, names = { team: "team layer", personal
   };
   const t = valid(team, names.team);
   if (t !== undefined) [cap, source] = [t, "team"];
-  const p = valid(personal, names.personal);
-  if (p !== undefined) {
-    if (p < cap) [cap, source] = [p, "personal"];
-    else if (p > cap) warnings.push(`${names.personal} find_open_item_cap ${p} is above the ${source} cap ${cap}; a personal layer only lowers it`);
+  for (const [layer, value] of [["user", user], ["personal", personal]]) {
+    const v = valid(value, names[layer] ?? layer);
+    if (v === undefined) continue;
+    if (v < cap) [cap, source] = [v, layer];
+    else if (v > cap) warnings.push(`${names[layer] ?? layer} find_open_item_cap ${v} is above the ${source} cap ${cap}; a personal layer only lowers it`);
   }
   return { cap, source, warnings };
 }
@@ -55,7 +56,7 @@ export function planFiling({ label, labelExists, cap, open, existingTitles = [],
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
     const request = JSON.parse(readFileSync(0, "utf8"));
-    const { cap, source, warnings } = openCap({ team: request.team, personal: request.personal });
+    const { cap, source, warnings } = openCap({ team: request.team, user: request.user, personal: request.personal });
     process.stdout.write(`${JSON.stringify({ cap, source, warnings, ...planFiling({ ...request, cap }) })}\n`);
   } catch (error) {
     process.stderr.write(`filing-plan: ${error.message}\n`);

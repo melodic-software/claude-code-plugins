@@ -207,8 +207,9 @@ Steps 2 and 3 run once per source label the ranked candidates need ("Source labe
    that decision: every filed item goes through intake, and triage marks a duplicate it finds.
 
    Then **the filing plan picks what to file**. Per source label, pipe one JSON request to
-   `node <plugin-root>/scripts/filing-plan.mjs` with `label`, `labelExists` (step 2), `team` and
-   `personal` (each layer's `find_open_item_cap`, left out when unset), `open` (step 3's count),
+   `node <plugin-root>/scripts/filing-plan.mjs` with `label`, `labelExists` (step 2), `team`, `user`
+   and `personal` (the team layer's, the `userConfig`'s and the personal layer's
+   `find_open_item_cap`, each left out when unset), `open` (step 3's count),
    `existingTitles` (the titles `/work-items:track list --label "<source label>" --state all`
    returns), `candidates` (the titles step 5 kept, in rank order) and `runCap` (what the run's
    adaptive cap leaves). File the candidates at the positions its `file` list names, in that

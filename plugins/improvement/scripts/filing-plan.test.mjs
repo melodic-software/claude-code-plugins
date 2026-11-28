@@ -13,6 +13,8 @@ test("the open cap defaults to 5, a team layer sets it, and a personal layer onl
   assert.deepEqual(openCap({}), { cap: DEFAULT_OPEN_CAP, source: "default", warnings: [] });
   assert.deepEqual(openCap({ team: 2 }), { cap: 2, source: "team", warnings: [] });
   assert.deepEqual(openCap({ team: 3, personal: 1 }), { cap: 1, source: "personal", warnings: [] });
+  assert.deepEqual(openCap({ team: 5, user: 1 }), { cap: 1, source: "user", warnings: [] }, "a lower userConfig value lowers the cap");
+  assert.deepEqual(openCap({ team: 5, user: 2, personal: 3 }).cap, 2, "the effective cap is the smallest of the three");
   const raised = openCap({ team: 2, personal: 9 });
   assert.equal(raised.cap, 2);
   assert.match(raised.warnings[0], /only lowers it/);
@@ -47,5 +49,7 @@ test("a missing label files nothing, since neither caller creates one", () => {
 test("the command reads one request on stdin and prints the cap and the plan", () => {
   const out = JSON.parse(execFileSync(process.execPath, [SCRIPT], { input: JSON.stringify({ label, labelExists: true, team: 2, personal: 1, open: 0, candidates: ["a", "b"] }), encoding: "utf8" }));
   assert.deepEqual([out.cap, out.source, out.file], [1, "personal", [0]]);
+  const user = JSON.parse(execFileSync(process.execPath, [SCRIPT], { input: JSON.stringify({ label, labelExists: true, team: 5, user: 1, open: 0, candidates: ["a", "b", "c"], runCap: 3 }), encoding: "utf8" }));
+  assert.deepEqual([user.cap, user.file], [1, [0]], "Codex's case: userConfig 1, team 5, run cap 3 files one item");
   assert.throws(() => execFileSync(process.execPath, [SCRIPT], { input: "not json", stdio: "pipe" }), (error) => error.status === 2);
 });
