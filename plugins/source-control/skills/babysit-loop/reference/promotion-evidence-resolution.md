@@ -134,7 +134,7 @@ exclusion at the rungs that need the demoted cell only.
 ## Partition interaction
 
 Promotion resolution is a **gate on top of** the existing rung partition, not a substitute for it.
-A PR still requires a close-linked work item, the C5 hold and diff check, the do-not-merge veto,
+A PR still requires a close-linked work item, the C5 hold and diff check, the do-not-merge label,
 human blocking feedback withholdings, and every other step-3 rule. Effective-unpromoted
 `C2-auto-merge` makes every PR ineligible at each rung that needs that cell, exactly as if the rung
 were too low; such a PR routes to the `safe` per-PR pass, never a merge-capable invocation.

@@ -146,11 +146,12 @@ never routed around. Advisory-only fix attempts are bounded per PR (the fix-roun
 never merged autonomously by this skill in any tier (a pr-merge lane with its Dependabot class on owns those merges);
 the merge gate refuses it absent `--allow-dependency`, passed only on an explicit user instruction to merge that specific PR.
 
-**Do-not-merge hold:** a PR whose body says "do not merge" (or "don't merge"), or has a line
-starting `Hold:`, is held in any tier: the merge gate reads the live body and reports a blocker, and a PR carrying a `do-not-merge`
-label is held the same way: the gate blocks on that label unconditionally (an `--unattended` run or the autopilot merge
-tier also on the human-gated label, `needs-human` by default), and `--block-labels` adds further labels in the autopilot
-merge tier. The PR is reported and left unmerged. The hyphenated label name in a body is not a hold.
+**Do-not-merge hold:** a PR carrying a `do-not-merge` label is held in any tier: the merge gate
+blocks on that label unconditionally (an `--unattended` run or the autopilot merge tier also on the
+human-gated label, `needs-human` by default), and `--block-labels` adds further labels in the
+autopilot merge tier. The PR is reported and left unmerged. No wording in a PR body or comment is
+a hold. Two comment readers remain, neither a hold: a member's blocking-defect comment (`blocking`,
+`regression`, `CRITICAL`, and the like) refuses the autopilot tier, the Dependabot gate and a queued entry off pr-merge as review feedback; "do not merge" from a maintainer revokes a decision-default ratification.
 
 **Draft policy (per tier).** Drafts enter evaluation scope in every tier. There is no blanket
 draft skip. Safe: evaluate and report draft status, never flip a draft ready. Worker and

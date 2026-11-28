@@ -916,7 +916,7 @@ test("openLanePrs counts only open, non-draft, unheld PRs by agentIdentity and r
     ...routes(),
   ]);
   const data = await collect(input(api));
-  assert.equal(data.openLanePrs, 1);
+  assert.equal(data.openLanePrs, 2, "a Hold: body line holds nothing; only a hold label does");
 
   const ownerOnly = fakeApi([
     [/\/pulls\?state=open/, [open[0]]],

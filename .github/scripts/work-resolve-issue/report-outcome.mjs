@@ -19,11 +19,12 @@ import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securi
 
 export { doneEvidence, REFINE_MARKER };
 
-export const HOLD_LINE = "Hold: a human merges this";
 export const HOLD_LABEL = "do-not-merge";
 export const EVAL_GATED_LABEL = "eval-gated";
-export const evalHoldComment = (issueNumber) =>
-  `Held for the before-and-after eval that cut item #${issueNumber} needs. The pr-merge release step lifts this hold when an eval-pair record exists for the current head.\n\n<!-- pr-hold reason=eval -->`;
+export const evalHoldComment = (issueNumber, personHold = false) =>
+  personHold
+    ? `Held for the before-and-after eval that cut item #${issueNumber} needs, and for a person to merge: the eval record alone does not lift this hold.\n\n<!-- pr-hold reason=eval -->\n<!-- pr-hold reason=person -->`
+    : `Held for the before-and-after eval that cut item #${issueNumber} needs. The pr-merge release step lifts this hold when an eval-pair record exists for the current head.\n\n<!-- pr-hold reason=eval -->`;
 const EXITS = new Set(["done", "pushback", "stopped"]);
 const PUSHBACK_CAUSES = new Set(["intent", "intent-change"]);
 const PUSHBACK_LANE_ROUTES = new Set(["host-run", "attended"]);
@@ -938,7 +939,6 @@ export function reusePlan({
     `Closes #${issueNumber}`,
     ...linkage,
     "",
-    ...(hold ? [HOLD_LINE, ""] : []),
     "## Summary",
     "",
     ...about,
@@ -1143,7 +1143,6 @@ export function decide({
   const body = [
     refs ? `Refs: #${issueNumber}` : `Closes #${issueNumber}`,
     ...linkage.filter((line) => !(refs && line.startsWith("Refs:"))),
-    ...(hold ? ["", HOLD_LINE] : []),
     "",
     "## Summary",
     "",
@@ -2105,7 +2104,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
             },
           ));
         if (labeled && evalGated) {
-          const body = evalHoldComment(issueNumber);
+          const body = evalHoldComment(issueNumber, plan.hold);
           const posted =
             alreadyHeld &&
             (await paginate(github, `${repo}/issues/${pull.number}/comments`).then(

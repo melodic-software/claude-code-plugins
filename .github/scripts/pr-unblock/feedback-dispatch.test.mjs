@@ -3317,17 +3317,10 @@ test("an active owner PR with auto-merge armed is dispatched without waiting idl
     assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" }, `${label}: ${lines.join("\n")}`);
     assert.deepEqual(api.calls.commits, [], label);
   }
-  const held = ownerApi({ pulls: ownerPull({ ...ARMED, body: "Hold: mine" }) });
-  const { result, lines } = await decideOwner(held);
-  assert.equal(result, null);
-  assert.match(lines.at(-1), /held by a Hold: line/);
-});
-
-test("an owner PR with a Hold: body line is not dispatched", async () => {
-  const api = ownerApi({ pulls: ownerPull({ body: "Summary\n  hold: I am still on this" }) });
-  const { result, lines } = await decideOwner(api);
-  assert.equal(result, null);
-  assert.match(lines.at(-1), /held by a Hold: line/);
+  const texted = ownerApi({ pulls: ownerPull({ ...ARMED, body: "Hold: mine" }) });
+  assert.deepEqual((await decideOwner(texted)).result, { number: 42, workflowRunId: "38779200001" }, "body text holds nothing");
+  const held = ownerApi({ pulls: ownerPull({ ...ARMED, body: "Hold: mine", labels: [{ name: "do-not-merge" }] }) });
+  assert.equal((await decideOwner(held)).result, null, "the do-not-merge label holds");
 });
 
 test("a person's PR is not served without an adoption section, or when the person is not on the trusted list", async () => {
@@ -3529,7 +3522,7 @@ test("the sweep clears an idle owner PR's failing stop once no thread is left, p
   assert.equal(result?.number, 42);
   assert.deepEqual(api.calls.dispatch[0].inputs, { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID });
   for (const [label, held] of [
-    ["a Hold: line", stopped({ body: "Hold: mine" })],
+    ["the do-not-merge label", stopped({ body: "Hold: mine", labels: [{ name: "do-not-merge" }] })],
     ["a recent head commit", stopped({}, "2026-10-28T11:30:00Z")],
   ]) {
     assert.equal(await ownerSweep(held), null, label);
