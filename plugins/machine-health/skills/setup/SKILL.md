@@ -1,5 +1,5 @@
 ---
-description: "Configure the machine-health plugin for this machine. check (default): report the effective catalog overlay, remediation approvals, finding mutes, pending proposals and the last monthly run; its one write refreshes a stale monthly wrapper copy, only on the owner's yes. apply: write the machine-local overlay (disable/deprecate/demote checks, register custom ones), approve or revoke remediations, unmute findings, and exclude services from restart. picks: resolve the picks pasted from an audit run's decision page and write the mutes and approvals the owner confirms. schedule: create the monthly unattended checkup task, only on the owner's yes. Use when: 'set up machine-health', 'configure machine health', 'disable a health check', 'approve a remediation', 'revoke a remediation', 'unmute a finding', 'paste checkup picks', 'schedule the monthly checkup', 'add a custom health check', or the audit skill proposes catalog changes needing approval. Re-runnable and safe."
+description: "Configure machine-health locally: check (default), apply (overlay/approvals/mutes/services), picks (decision-page imports), schedule (monthly task)."
 argument-hint: "[check|apply|picks|schedule] [disable=<check>|approve=<remediation>|exclude-service=<name>…]"
 user-invocable: true
 disable-model-invocation: true
