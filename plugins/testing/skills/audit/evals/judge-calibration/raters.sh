@@ -61,8 +61,6 @@ merge() {
     }' "${files[@]}" "$labels"
 }
 
-# rate <rater> <id> <file> <test> <note>: one line, id, label, reason; false
-# when the row failed.
 rate() {
   local r="$1" id="$2" fx="$3" test="$4" note="$5" t="$TMPD/repo" cid s n rel name ord changed prompt answer=""
   rm -rf "${t:?}" "$TMPD/out" "$TMPD/answer"

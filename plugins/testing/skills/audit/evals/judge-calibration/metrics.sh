@@ -89,7 +89,6 @@ SKILL=plugins/testing/skills/test-value/SKILL.md
 CALMD=plugins/testing/skills/audit/evals/judge-calibration/calibration.md
 ARMS="sonnet-low sonnet-medium sonnet-high sonnet-xhigh opus-low opus-medium opus-high haiku-low haiku-medium haiku-high"
 
-# FNR == 1 of the labels: col[] by header name, R[1..nr] the rater columns;
 # need() exits 2 naming a missing column.
 # shellcheck disable=SC2016 # an awk program
 AWK_LIB='
@@ -118,8 +117,6 @@ marks() {
   grep -E '^holdout-only: [0-9a-f]+$' "$top/$CALMD" 2>/dev/null
 }
 
-# holdout <labels>: 1, saying so on stderr, when a prompt change limits
-# scoring to holdout rows.
 holdout() {
   [[ -n "$(marks "$1")" ]] || return 0
   echo "holdout rows only: calibration.md has a holdout-only line" >&2
@@ -250,12 +247,8 @@ now() {
   printf '%s' "${t/,/.}"
 }
 
-# arm <labels> <dir> <runs file>: one judge pass over every case, one line
-# per row: id, verdict, the ledger's model and effort, reason. Appends each
-# run's cost and wall seconds to <runs file>.
 arm() {
   local labels="$1" dir="$2" runs="$3" fx id t target s n rows names lines info r tid test ord name kh o hit t0
-  # fd 3: the judge and scanner children inherit stdin and may read it.
   while IFS= read -r fx <&3; do
     t="$TMPD/repo"
     rm -rf "${t:?}" "$DATA/verdicts"
@@ -314,8 +307,6 @@ judge_env() {
   TEST_JUDGE_CMD="$SELF"
 }
 
-# run_arm <labels> <model> <effort> <name>: sweep/<name>.tsv and .runs.tsv;
-# false when a verdict came from another model or effort.
 run_arm() {
   local labels="$1" m="$2" e="$3" swdir
   swdir="$(cd "$(dirname "$labels")" && pwd -P)/sweep"

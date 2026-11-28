@@ -15,7 +15,6 @@ set -euo pipefail
 here="$(dirname "${BASH_SOURCE[0]}")"
 ci_requirements="$here/../../../../.github/requirements-ci.txt"
 
-# The pygments and tree-sitter* requirement blocks of $1, each with its hash lines.
 requirements() {
   awk '
     !cont {
@@ -41,12 +40,6 @@ pins="$(mktemp)"
 trap 'rm -f "$pins"' EXIT
 requirements "$ci_requirements" >"$pins"
 
-# --user installs into the invoking interpreter's own user site. The scaffold's python3 must take
-# the tooling: a failure there fails the run. /usr/bin/python3, the sandbox's fallback when the
-# operator's interpreter is hidden, is best-effort: a failure there only warns, and the in-sandbox
-# probe-environment case catches a fallback that never got it. The pinned tree-sitter wheels cover
-# CPython 3.11, 3.12 and 3.14 only (.github/requirements-ci.txt), so another minor fails at the
-# install. The 3.12 wheel is Linux x64 only, for the hosted eval runner's system Python.
 install() {
   "$1" -m pip install --user --break-system-packages --require-hashes --only-binary=:all: \
     --no-deps --no-cache-dir --disable-pip-version-check --no-warn-script-location --quiet \

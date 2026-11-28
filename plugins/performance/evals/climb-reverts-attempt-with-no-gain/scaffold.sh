@@ -58,8 +58,6 @@ printf '{"counter": "parses", "direction": "lower", "gain_floor": 0}\n' >"$slice
 printf 'id\thypothesis\tchange\tbefore\tafter\tdelta\ttests\tverdict\tnote\n' >"$slice/log.tsv"
 printf 'a1\tnav is parsed for pages that never show it\tskip nav for pages without a menu\t15\t15\t0\tpass\treverted\tdropped 0f3c2aa\n' >>"$slice/log.tsv"
 
-# The two worktrees sit in an ignored directory inside the eval workspace, so removing the
-# workspace at the end of the run removes them too; nothing is left under the system temp.
 root="$PWD/climb-worktrees"
 git worktree add -q -b climb/template-parses "$root/climb" "$start"
 git worktree add -q --detach "$root/baseline" "$start"

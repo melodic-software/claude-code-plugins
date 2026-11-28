@@ -23,7 +23,6 @@ tracker:
 YAML
 
 item() {
-  # item <number> <title> <assignees-json> <labels-json> <parent-json> <body>
   cat >"$store/$1.md" <<MD
 ---
 id: "local-markdown:local/markdown#$1"

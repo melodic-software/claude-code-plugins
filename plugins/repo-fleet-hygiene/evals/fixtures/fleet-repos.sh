@@ -12,8 +12,6 @@
 # explicit scope still resolves to this fleet rather than to the no-scope ladder.
 set -euo pipefail
 
-# The scaffold runs as the operator, outside the sandbox: keep their global and system Git config
-# (hooks, signing, URL rewrites) out of every command below.
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
 g() { git -c user.email=eval@example.invalid -c user.name=eval -c commit.gpgsign=false "$@"; }
@@ -25,7 +23,6 @@ commit() {
   g -C "$dir" commit -q -m "$msg"
 }
 
-# new_repo <name>: an empty bare remote plus a clone under fleet/ with one commit on main pushed.
 new_repo() {
   local name="$1"
   g init -q --bare -b main "remotes/$name.git"
