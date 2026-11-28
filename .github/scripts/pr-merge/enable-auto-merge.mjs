@@ -901,7 +901,7 @@ export function decideTrusted(pull, humanGated, facts = {}, bot = undefined) {
     if (!pinned(facts.comments, bot, pull.headRefOid, undefined, true)) {
       return none("already armed");
     }
-    const held = trustedHoldReason(pull, humanGated) ?? discussionUnread(facts.discussion);
+    const held = trustedHoldReason(pull, humanGated) ?? discussionUnread(facts.discussion) ?? trustedHoldReason({ ...pull, labels: facts.discussion?.labels }, humanGated);
     if (held !== null) {
       return { action: "disarm", reason: held };
     }

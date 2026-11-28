@@ -620,6 +620,13 @@ test("a lanes App arm at the head is disarmed and unpinned once a hold label goe
   }
 });
 
+test("an armed, pinned trusted pull request that gets do-not-merge after the listing is disarmed in the same sweep", async () => {
+  const armed = lanesArmed();
+  const earlier = clean({ number: 499, id: "PR_499" });
+  const result = await run([earlier, armed], { laneSource: () => { armed.labels = DO_NOT_MERGE.labels; return []; } });
+  disarmedAndUnpinned(result, "it carries do-not-merge");
+});
+
 test("a lanes App arm at the head is disarmed and unpinned once pr-verify no longer passes it", async () => {
   disarmedAndUnpinned(await run([lanesArmed()], { verdicts: { 500: { ...pass(CLEAN_HEAD), atHead: [] } } }), "pr-verify has no PASS or PASS-NOTES at its head");
   disarmedAndUnpinned(await run([lanesArmed()], { verdicts: { 500: refused(CLEAN_HEAD, "verify:fail") } }), ".*\\(verify:fail\\)");
@@ -894,4 +901,19 @@ test("a do-not-merge label added while the lane-source or verdict check runs ref
   const verified = await run([late], { verdicts });
   assert.equal(armedHeads(verified), 0, verified.lines.join("\n"));
   assert.match(leftLine(verified, 500), /left: it carries do-not-merge$/);
+});
+
+test("decideTrusted refuses the arm when the discussion read returns no labels, or labels cut short", () => {
+  const none = { totalCount: 0, nodes: [] };
+  const facts = (labels) => ({ files: { paths: CLEAN_FILES, capped: false }, laneSources: [], verify: pass(CLEAN_HEAD), comments: [], discussion: { comments: none, reviews: none, ...(labels === undefined ? {} : { labels }) } });
+  const bot = "melodic-automation-lanes";
+  assert.deepEqual(decideTrusted(clean(), "needs-human", facts(undefined), bot), { action: "none", reason: "its labels could not all be read" });
+  assert.deepEqual(decideTrusted(clean(), "needs-human", facts({ totalCount: 101, nodes: PLAIN_LABELS }), bot), { action: "none", reason: "its labels could not all be read" });
+});
+
+test("labels that grow past 100 after the listing, with the whole read failing, refuse the trusted arm", async () => {
+  const during = clean();
+  const result = await run([during], { laneSource: () => { during.labels = { totalCount: 101, nodes: PLAIN_LABELS }; return []; } });
+  assert.equal(armedHeads(result), 0, result.lines.join("\n"));
+  assert.match(leftLine(result, 500), /left: its labels could not all be read$/);
 });
