@@ -1,5 +1,3 @@
-# Eval fixture: a repository's docs/conventions/source-control.yaml team layer declaring
-# Conventional Commits with the bundled type list and a Co-Authored-By trailer template.
 subject_pattern: Conventional Commits
 type_list:
   - build
