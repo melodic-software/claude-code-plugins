@@ -420,7 +420,7 @@ citations() {
 
 drift() {
   awk -F'\t' '
-    FNR == NR { old[$1] = $2; next }
+    FILENAME == ARGV[1] { old[$1] = $2; next }
     { new[$1] = $2 }
     END {
       for (i in new) if (!(i in old)) added[i] = new[i]
@@ -639,18 +639,17 @@ subscription() {
   [[ "$last" =~ $SHA_RE ]] || last=""
   if [[ -n "$last" ]] && [[ "$last" != "$sha" ]] && clear_links "$CACHE/$repo@$last"; then
     for k in 0 1; do
-      [[ -n "${idx[k]}" ]] || continue
       old=$(concern_ok "$CACHE/$repo@$last" 2>/dev/null && index_of "$CACHE/$repo@$last" "${keys[k]}" 2>/dev/null) || old=""
-      [[ -n "$old" ]] || continue
+      [[ -n "$old${idx[k]}" ]] || continue
       if [[ -n "$ref" ]]; then
         [[ -n "$said" ]] || note "$at: ref of $repo changed from ${last:0:12} to ${sha:0:12}; review the index diff below"
         said=1
-        diff -u --label "$repo@${last:0:12} ${labels[k]}index" --label "$repo@${sha:0:12} ${labels[k]}index" "$old" "${idx[k]}" \
+        diff -u --label "$repo@${last:0:12} ${labels[k]}index" --label "$repo@${sha:0:12} ${labels[k]}index" "${old:-/dev/null}" "${idx[k]:-/dev/null}" \
           | awk "$ESCAPE"'{ print esc($0, 1) }' >&2 || true
       fi
       while IFS= read -r change; do
         [[ -z "$change" ]] || note "$repo: ${labels[k]}index drift since ${last:0:12}: $change"
-      done < <(drift "$old" "${idx[k]}")
+      done < <(drift "${old:-/dev/null}" "${idx[k]:-/dev/null}")
     done
   fi
   [[ "$last" == "$sha" ]] || printf '%s\n' "$sha" | write_atomic "$laststate" || true

@@ -177,6 +177,24 @@ changed=$(bash "$SCRIPT" subscriptions --root "$tp2" 2>&1 >/dev/null)
 assert_eq "a ref change prints the guidance index diff for review, labeled as the guidance index" "1|1|1" \
   "$(grep -c "ref of stranger/advice changed from ${ADVICE:0:12} to ${ADVICE2:0:12}" <<<"$changed")|$(grep -cxF -- "+++ stranger/advice@${ADVICE2:0:12} guidance index" <<<"$changed")|$(grep -cxF '+| new.thing | x | new.md |' <<<"$changed")"
 
+user_index $'trusted_owners:\n  - acme\nstandards_repositories:\n  - repo: acme/guided\n'
+GUIDED2=$(head_of acme/guided)
+: >"$TEST_TMPDIR/work/acme/guided/docs/conventions/standards.yaml"
+push_main acme/guided "no guidance"
+GUIDED3=$(head_of acme/guided)
+gone=$(ORG_STANDARDS_TTL=0 bash "$SCRIPT" subscriptions --root "$tp2" 2>&1 >/dev/null)
+assert_eq "guidance drift: a live layer's guidance index that disappears reports each of its rows removed" "1|1" \
+  "$(grep -cxF "org-standards: acme/guided: guidance index drift since ${GUIDED2:0:12}: removed design.coupling" <<<"$gone")|$(grep -cxF "org-standards: acme/guided: guidance index drift since ${GUIDED2:0:12}: removed testing.doubles" <<<"$gone")"
+printf 'guidance_dir: guidance\n' >"$TEST_TMPDIR/work/acme/guided/docs/conventions/standards.yaml"
+push_main acme/guided "guidance back"
+GUIDED4=$(head_of acme/guided)
+pin acme/guided "$GUIDED3"
+run subscriptions --root "$tp2" >/dev/null
+pin acme/guided "$GUIDED4"
+back=$(bash "$SCRIPT" subscriptions --root "$tp2" 2>&1 >/dev/null)
+assert_eq "a ref change to a commit whose guidance index first appears prints its diff from empty and reports each row added" "1|1|1" \
+  "$(grep -cxF -- "+++ acme/guided@${GUIDED4:0:12} guidance index" <<<"$back")|$(grep -cxF '+| design.coupling | splitting modules | design/coupling.md |' <<<"$back")|$(grep -cxF "org-standards: acme/guided: guidance index drift since ${GUIDED3:0:12}: added design.coupling" <<<"$back")"
+
 export ORG_STANDARDS_CACHE="$TEST_TMPDIR/list-cache"
 ORG_CO="$ORG_STANDARDS_CACHE/acme/guide-org"
 HANDBOOK_NOW=$(head_of acme/handbook)
