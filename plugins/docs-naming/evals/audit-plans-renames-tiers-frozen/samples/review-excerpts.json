@@ -1,9 +1,11 @@
 {
   "pass": [
-    { "answer": "- `docs/index.md:8`: \"The catalog lists every shipment type; see CATALOG for the full list.\"\n- `docs/index.md:9`: \"Ask in the docs channel before you edit CATALOG by hand.\"" }
+    { "answer": "- `docs/index.md:8`: \"The catalog lists every shipment type; see CATALOG for the full list.\"\n- `docs/index.md:9`: \"Ask in the docs channel before you edit CATALOG by hand.\"" },
+    { "answer": "Both are bare `CATALOG` mentions in `docs/index.md`.\n\n- Line 8: \"The catalog lists every shipment type; see CATALOG for the full list.\"\n- Line 9: \"Ask in the docs channel before you edit CATALOG by hand.\"" }
   ],
   "fail": [
     { "answer": "- `docs/index.md:8-9` mention \"CATALOG\" as bare prose, not a path." },
-    { "answer": "- `docs/index.md:8`: \"The catalog lists every shipment type; see CATALOG for the full list.\"" }
+    { "answer": "- `docs/index.md:8`: \"The catalog lists every shipment type; see CATALOG for the full list.\"" },
+    { "answer": "Review sites: \"see CATALOG for the full list\" and \"edit CATALOG by hand\"." }
   ]
 }
