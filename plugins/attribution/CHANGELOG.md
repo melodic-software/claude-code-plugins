@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.23.0] - 2026-11-28
+
+### Removed
+
+- Drop legacy `~/.claude/attribution.json` dual-read, warning, and migration section from audit config resolution and `/attribution:setup`.
+
 ## [0.22.13] - 2026-11-28
 
 ### Changed

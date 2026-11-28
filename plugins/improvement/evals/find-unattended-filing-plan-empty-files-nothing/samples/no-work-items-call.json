@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": "src/checkout.js" } },
+        { "tool": "Skill", "input": { "skill": "improvement:find", "args": "--unattended" } }
+      ],
+      "why": "only the skill under test"
+    },
+    { "answer": [], "why": "no tool calls" }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Skill", "input": { "skill": "work-items:track", "args": "add --label \"source: improvement-find\" \"Instrument checkout timing\"" } }
+      ],
+      "why": "files by hand after the plan failed"
+    },
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": "src/checkout.js" } },
+        { "tool": "Skill", "input": { "skill": "/work-items:track", "args": "labels \"source: improvement-find\"" } }
+      ],
+      "why": "calls the tracker the prompt switched off"
+    }
+  ]
+}

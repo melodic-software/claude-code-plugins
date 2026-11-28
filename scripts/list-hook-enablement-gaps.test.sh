@@ -10,11 +10,7 @@ SCRIPT="$SELF_DIR/list-hook-enablement-gaps.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh" || exit 2
 
-PENDING=(
-  context-budget
-  display-redaction
-  themes
-)
+PENDING=()
 
 f=""
 OUT=""

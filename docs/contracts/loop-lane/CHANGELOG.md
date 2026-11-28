@@ -5,6 +5,19 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [21.0.1] - 2026-11-28
+
+Patch. An implementation fix the Cross-lane PR hold now states; no topology, escalation-contract
+mechanism, capability-tier or §4 invariant changed.
+
+- **Eval release takes only its own label.** pr-merge's eval release removes `do-not-merge` only
+  when the newest label event and an eval reason line are by the same listed human or by the lanes
+  App, the line posted within 10 minutes after the label. A label a person or a lane added for
+  another reason stays, even when an eval-only reason line follows it.
+- **Person holds record their reason.** work-resolve-issue posts a `reason=person` line on every
+  lane PR it holds for a person, eval-gated or not, so a later eval-only reason line cannot
+  release it.
+
 ## [21.0.0] - 2026-11-27
 
 Major. The Cross-lane PR hold narrows to one mechanism; no topology, escalation-contract mechanism

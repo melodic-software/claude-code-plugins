@@ -1,5 +1,5 @@
 ---
-description: "Write a Product Requirements Document that locks product intent (problem, users, success metrics) before any engineering plan, in three tiers with a review mode. Use when: 'write a PRD', 'spec out a feature', 'product brief', 'product requirements doc', 'define the requirements', 'what are we actually building', 'acceptance criteria', 'how will we know it worked', or a user-facing change needs written alignment. Engineering-internal work: /planning:interview or /planning:plan."
+description: "Write Product Requirements Document (product requirements doc) locking product intent (problem, users, success metrics, acceptance criteria) before engineering plans, 3 tiers + review. Use when: 'write a PRD', 'spec out a feature', 'define the requirements', product brief, what we are building. Not for internal: /planning:interview, /planning:plan."
 argument-hint: "[tier] [task description|#<map>]"
 user-invocable: true
 disable-model-invocation: false

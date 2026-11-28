@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.0.0] - 2026-11-28
+
+### Removed
+
+- Drop legacy `~/.claude/review-digest.json` and `.claude/review-digest.local.json` dual-reads, warnings, and `digest-migrate.mjs` migration helper from `review-digest` config resolution and `/review:setup`.
+
 ## [11.1.5] - 2026-11-28
 
 ### Changed
