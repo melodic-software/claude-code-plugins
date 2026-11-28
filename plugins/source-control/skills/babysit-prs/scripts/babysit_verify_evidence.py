@@ -3758,18 +3758,20 @@ class Reader:
         it for `run_cache.MAX_AGE`, each noting when it was read; a set with
         no FAIL is read by each process, since a re-run keeps the run's id
         and may upload one."""
+
+        def holds_fail(found: list[dict[str, Any]]) -> bool:
+            return any(FAIL_PREFIX_RE.match(str(a.get("name") or "")) for a in found)
+
         key = f"{self.repo}|{run_id}"
         shared = run_cache.get_dated(RUN_ARTIFACTS_SECTION, key, run_cache.MAX_AGE)
         if (
             shared is not None
             and is_json_array(shared[0])
             and all(map(_listed_entry, shared[0]))
+            and holds_fail(shared[0])
         ):
             run_cache.note(shared[1])
             return shared[0]
-
-        def holds_fail(found: list[dict[str, Any]]) -> bool:
-            return any(FAIL_PREFIX_RE.match(str(a.get("name") or "")) for a in found)
 
         def read() -> list[dict[str, Any]]:
             answer = self._api_object(
@@ -4519,9 +4521,9 @@ class Reader:
         return max(times, default=None)
 
     def _fresh_created(self, run_id: int) -> datetime | None:
-        """When the run was created, from a record this process read from
-        GitHub: a cached or carried record could be forged, so it is read
-        again. A re-attempt keeps `created_at` and moves `run_started_at`
+        """When the run was created, from the record this process reads from
+        GitHub, never from the run cache; the draft judgment resting on it is
+        shared only once read whole (`_draft_judged`). A re-attempt keeps `created_at` and moves `run_started_at`
         later, so a re-run of an old judgment never looks newer than a FAIL
         that followed it. None when the record holds no time; raises
         `_Unreadable` when the read fails."""
