@@ -246,7 +246,7 @@ YAML
 **primary-sources:**
 
 MD
-    printf -- '- `%s`\n' "${doc_glob}"
+    printf -- "- \`%s\`\n" "${doc_glob}"
     cat <<'MD'
 - `README.md`
 
