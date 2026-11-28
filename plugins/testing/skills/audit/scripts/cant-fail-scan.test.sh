@@ -2065,7 +2065,9 @@ printf 'paths:\n  exclude: [src/sum_test.go]\n' >"$CFG/.claude/testing.yaml"
 printf 'paths:\n  exclude: [src/sum_test.go]\n' >"$CFG/.claude/testing.local.yaml"
 cfg_scan
 assert_finding_count "retired ~/.claude/testing.yaml and .claude/testing*.yaml are ignored" 3
-assert_not_contains "with no old-location warning" "$out" "resolve-config: warning"
+assert_contains "with a retired-file notice for .claude/testing.yaml" "$out" "retired config file $CFG/.claude/testing.yaml is not read"
+assert_contains "with a retired-file notice for .claude/testing.local.yaml" "$out" "retired config file $CFG/.claude/testing.local.yaml is not read"
+assert_contains "with a retired-file notice for ~/.claude/testing.yaml" "$out" "retired config file $CFG_HOME/.claude/testing.yaml is not read"
 rm -f "$CFG_HOME/.claude/testing.yaml" "$CFG/.claude/testing.yaml" "$CFG/.claude/testing.local.yaml"
 mkdir -p "$CFG/docs/conventions"
 printf 'e2e_driver: run\npaths:\n  exclude: [src/sum_test.go]\n' >"$CFG/docs/conventions/testing.yaml"
@@ -2094,7 +2096,7 @@ cfg_scan
 assert_finding_count "new team file beside retired .claude team file: only new file applies" 2
 assert_contains "the Go finding remains, so the retired team exclude is ignored" "$out" "sum_test.go"
 assert_not_contains "and the weak oracle is off, so the new team file applies" "$out" "weak.test.ts"
-assert_not_contains "with no warning" "$out" "resolve-config: warning"
+assert_contains "with a retired-file notice for .claude/testing.yaml" "$out" "retired config file $CFG/.claude/testing.yaml is not read"
 rm -f "$CFG/.claude/testing.yaml" "$CFG/docs/conventions/testing.yaml"
 printf '%s\n' "$OFF_WEAK" >"$CFG/docs/conventions/testing.local.yaml"
 cfg_scan
@@ -2103,7 +2105,7 @@ assert_not_contains "and draws no warning" "$out" "resolve-config: warning"
 printf '%s\n' "$EXCL_GO" >"$CFG/.claude/testing.local.yaml"
 cfg_scan
 assert_finding_count "new personal file beside retired .claude personal file: only new file applies" 2
-assert_not_contains "with no warning" "$out" "resolve-config: warning"
+assert_contains "with a retired-file notice for .claude/testing.local.yaml" "$out" "retired config file $CFG/.claude/testing.local.yaml is not read"
 rm -f "$CFG/.claude/testing.local.yaml"
 rm -rf "$CFG/docs"
 
