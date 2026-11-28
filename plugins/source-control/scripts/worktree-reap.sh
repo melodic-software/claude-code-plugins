@@ -38,7 +38,7 @@ verdict (remove, keep or review), reason and outcome, and one closing
 {"type":"run"} line. Run and reviews/ files older than 14 days are deleted at
 start. The closing summary is the report for the run's own file.
 
-Platforms: Linux and macOS. Under Windows bash (uname -s MINGW*, MSYS* or
+Platforms: Linux, WSL included. Under Windows bash (uname -s MINGW*, MSYS* or
 CYGWIN*) /proc lists only that bash's own processes, so a native Windows
 process holding a worktree is invisible: a reap or --dry-run there refuses with
 exit 3; --report still runs. Without GNU realpath -e, find -printf or timeout
@@ -310,21 +310,22 @@ with_timeout() {
   local secs="$1" pid dog rc
   shift
   if [[ -n "$timeout_bin" ]]; then
-    "$timeout_bin" "$secs" "$@"
+    "$timeout_bin" "$secs" "$@" 9>&-
     return
   fi
   set -m
-  "$@" </dev/null &
+  "$@" </dev/null 9>&- &
   pid=$!
-  set +m
   (
     sleep "$secs"
     kill -TERM -- "-$pid"
-  ) >/dev/null 2>&1 &
+    kill -CONT -- "-$pid"
+  ) </dev/null >/dev/null 2>&1 9>&- &
   dog=$!
+  set +m
   wait "$pid"
   rc=$?
-  kill "$dog" 2>/dev/null
+  kill -- "-$dog" 2>/dev/null
   wait "$dog" 2>/dev/null
   return "$rc"
 }

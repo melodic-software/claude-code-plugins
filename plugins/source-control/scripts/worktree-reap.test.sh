@@ -582,6 +582,7 @@ WIN_REPORT="$(reap_env env PATH="$shim:$PATH" bash "$REAP" --report "$RUN_DRY" 2
 assert_contains "Windows bash: --report still prints a run's report" "$WIN_REPORT" "would remove 4 worktrees"
 reap_env env WORKTREE_REAP_PROC_ROOT="$PROC_OK" bash "$REAP" --root "$ROOT_WIN" --no-log --no-pr-proof >/dev/null 2>&1
 assert_dir_absent "control: the same reap off Windows removes the landed worktree" "$ROOT_WIN/wt"
+assert_contains "--help keeps 'Windows bash', which the provisioning Windows runner checks before it runs the reap""$(bash "$REAP" --help 2>&1)" "Windows bash"
 
 path_without() {
   local farm="$1" d f n
@@ -656,12 +657,26 @@ reap_env env PATH="$FARM_NOPERL" WORKTREE_REAP_PROC_ROOT="$PROC_OK" \
   bash "$REAP" --root "$ROOT_NOGNU_HELD" --no-log --dry-run --no-pr-proof >/dev/null 2>&1
 assert_exit "no flock or perl: --no-log still runs" 0 "$?"
 
+pid_gone() {
+  local i s
+  for ((i = 0; i < 20; i++)); do
+    s="$(ps -o stat= -p "$1" 2>/dev/null)"
+    [[ -z "$s" || "$s" == Z* ]] && return 0
+    sleep 0.1
+  done
+  return 1
+}
 HANG_BIN="$TEST_TMPDIR/hang-fetch-bin"
+HANG_PIDS="$TEST_TMPDIR/hang-fetch.pids"
 mkdir -p "$HANG_BIN"
 cat >"$HANG_BIN/git" <<EOF
 #!/usr/bin/env bash
 case " \$* " in
-*" fetch "*) sleep 30 & wait ;;
+*" fetch "*)
+  sleep 30 &
+  echo \$! >>"$HANG_PIDS"
+  wait
+  ;;
 *) exec "$REAL_GIT" "\$@" ;;
 esac
 EOF
@@ -670,15 +685,49 @@ landed_root root-hang >/dev/null
 ROOT_HANG="$TEST_TMPDIR/root-hang"
 for lane in "GNU timeout:$HANG_BIN:$PATH" "shell watchdog:$HANG_BIN:$NO_GNU_PATH"; do
   label="${lane%%:*}"
+  BEFORE_HANG="$(latest_run)"
   t_start=$SECONDS
   RUN_HANG="$(
     reap_env env PATH="${lane#*:}" WORKTREE_REAP_PROC_ROOT="$PROC_OK" WORKTREE_REAP_FETCH_TIMEOUT=1 \
       bash "$REAP" --root "$ROOT_HANG" --no-log --no-pr-proof 2>&1 | cat >/dev/null
     latest_run
   )"
+  assert_eq "$label: the run wrote its own run file" yes "$([[ "$RUN_HANG" != "$BEFORE_HANG" ]] && echo yes || echo no)"
   assert_eq "$label: a fetch past the timeout is fetch-failed" "keep fetch-failed kept" "$(row "$RUN_HANG" /root-hang/wt)"
   assert_eq "$label: the timeout ends the 30-second fetch within 15 seconds" yes "$( ((SECONDS - t_start < 15)) && echo yes || echo no)"
+  assert_eq "$label: the timeout ends the fetch's child process" yes "$(pid_gone "$(tail -n 1 "$HANG_PIDS")" && echo yes || echo no)"
 done
 assert_dir_exists "a timed-out fetch leaves the worktree" "$ROOT_HANG/wt"
+
+landed_root root-dog-lock >/dev/null
+DOG_LOG="$TEST_TMPDIR/dog-lock.log"
+for n in 1 2; do
+  OUT_DOG="$(reap_env env PATH="$NO_GNU_PATH" WORKTREE_REAP_PROC_ROOT="$PROC_OK" WORKTREE_REAP_FETCH_TIMEOUT=30 \
+    bash "$REAP" --root "$TEST_TMPDIR/root-dog-lock" --log "$DOG_LOG" --no-pr-proof 2>&1)"
+done
+assert_not_contains "shell watchdog: a fetch that ends in time leaves no timer holding the log lock" "$OUT_DOG" "another reap run holds"
+assert_not_contains "shell watchdog: ending the timer prints no job status" "$OUT_DOG" "Terminated"
+
+if command -v timeout >/dev/null 2>&1 && script -qec true /dev/null >/dev/null 2>&1; then
+  TTY_BIN="$TEST_TMPDIR/tty-fetch-bin"
+  mkdir -p "$TTY_BIN"
+  cat >"$TTY_BIN/git" <<EOF
+#!/usr/bin/env bash
+case " \$* " in
+*" fetch "*) stty -F /dev/tty -echo; sleep 30 ;;
+*) exec "$REAL_GIT" "\$@" ;;
+esac
+EOF
+  chmod +x "$TTY_BIN/git"
+  landed_root root-tty >/dev/null
+  TTY_CMD="$(printf '%q ' env CLAUDE_CONFIG_DIR="$CFG" HOSTNAME="$HOST_NAME" WORKTREE_REAP_NOW="$NOW_TS" \
+    PATH="$TTY_BIN:$NO_GNU_PATH" WORKTREE_REAP_PROC_ROOT="$PROC_OK" WORKTREE_REAP_FETCH_TIMEOUT=1 \
+    bash "$REAP" --root "$TEST_TMPDIR/root-tty" --no-log --no-pr-proof)"
+  timeout 20 script -qec "$TTY_CMD" /dev/null >/dev/null 2>&1
+  assert_exit "shell watchdog: a fetch the terminal stopped still ends at the deadline" 0 "$?"
+  assert_eq "shell watchdog: the stopped fetch is fetch-failed" "keep fetch-failed kept" "$(row "$(latest_run)" /root-tty/wt)"
+else
+  skip_case "no timeout or util-linux script for the terminal-stop case"
+fi
 
 [[ $FAILED -eq 0 ]] || exit 1
