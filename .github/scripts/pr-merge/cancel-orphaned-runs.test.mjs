@@ -1,15 +1,22 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { main } from "./cancel-orphaned-runs.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
-const NOW = Date.parse("2026-11-28T12:00:00Z");
+const recorded = (name) => JSON.parse(readFileSync(new URL(`./fixtures/cancel-orphaned-runs-${name}.json`, import.meta.url), "utf8")).response;
+const RUNS = recorded("merge-group-runs");
+const REFS = recorded("queue-refs");
+const COMMITS = recorded("main-commits");
+const NOW = Date.parse("2026-11-28T06:30:00Z");
 const ago = (seconds) => new Date(NOW - seconds * 1000).toISOString();
-const GONE = "gh-readonly-queue/main/pr-19486-1403eabc73b7919623f2e1f401b46fcc78bb511a";
-const LIVE = "gh-readonly-queue/main/pr-19486-269c6432aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const LIVE = RUNS.workflow_runs[0].head_branch;
+const GONE = LIVE.replace("pr-19610-", "pr-19486-");
 const sha = (id) => id.toString(16).padStart(40, "0");
-const run = (id, head_branch, seconds = 300, event = "merge_group") => ({ id, event, head_branch, head_sha: sha(id), created_at: ago(seconds) });
+const run = (id, head_branch, seconds = 300, event = "merge_group") => ({ ...structuredClone(RUNS.workflow_runs[0]), id, event, head_branch, head_sha: sha(id), created_at: ago(seconds) });
+const refOf = (branch) => ({ ...structuredClone(REFS[0]), ref: `refs/heads/${branch}` });
+const commitOf = (value) => ({ ...structuredClone(COMMITS[0]), sha: value });
 const LIST_QUEUED = `GET /repos/${REPO}/actions/runs?event=merge_group&status=queued&per_page=100&page=1`;
 const LIST_RUNNING = `GET /repos/${REPO}/actions/runs?event=merge_group&status=in_progress&per_page=100&page=1`;
 const LIST_REFS = `GET /repos/${REPO}/git/matching-refs/heads/gh-readonly-queue/`;
@@ -32,13 +39,13 @@ async function sweep({ queued = [], running = [], branches = [], onMain = [], fa
       if (failRefs) {
         throw new Error("GET matching-refs failed with status 502");
       }
-      return branches.map((branch) => ({ ref: `refs/heads/${branch}` }));
+      return [...structuredClone(REFS), ...branches.map(refOf)];
     }
     if (path.includes("/commits?")) {
       if (failCommits) {
         throw new Error("GET commits failed with status 502");
       }
-      return onMain.map((value) => ({ sha: value }));
+      return [...structuredClone(COMMITS), ...onMain.map(commitOf)];
     }
     return null;
   };
@@ -124,8 +131,8 @@ test("a cancel the API refuses is reported and the next one still goes", async (
     calls.push(`${method} ${path}`);
     if (path.includes("status=queued")) return { total_count: 2, workflow_runs: [run(1, GONE, 400), run(2, `${GONE}-b`, 300)] };
     if (path.includes("/actions/runs?")) return { total_count: 0, workflow_runs: [] };
-    if (path.includes("/git/matching-refs/")) return [];
-    if (path.includes("/commits?")) return [];
+    if (path.includes("/git/matching-refs/")) return structuredClone(REFS);
+    if (path.includes("/commits?")) return structuredClone(COMMITS);
     if (path.endsWith("/1/cancel")) throw new Error("POST cancel failed with status 409");
     return null;
   };
@@ -147,7 +154,7 @@ test("a paged ref listing cancels nothing", async () => {
     calls.push(`${method} ${path}`);
     if (path.includes("status=queued")) return { total_count: 1, workflow_runs: [run(1, GONE)] };
     if (path.includes("/actions/runs?")) return { total_count: 0, workflow_runs: [] };
-    const refs = [];
+    const refs = structuredClone(REFS);
     Object.defineProperty(refs, Symbol.for("github.link"), { value: '<https://api.github.com/x?page=2>; rel="next"' });
     return refs;
   };
@@ -168,7 +175,7 @@ test("a full page of queued runs reads the next page, up to three", async () => 
     calls.push(`${method} ${path}`);
     if (path.includes("status=queued")) return { total_count: 450, workflow_runs: page(Number(/page=(\d+)/.exec(path)[1]) * 1000) };
     if (path.includes("/actions/runs?")) return { total_count: 0, workflow_runs: [] };
-    return [{ ref: `refs/heads/${LIVE}` }];
+    return structuredClone(REFS);
   };
   const log = console.log;
   console.log = () => {};
@@ -182,7 +189,7 @@ test("a full page of queued runs reads the next page, up to three", async () => 
 });
 
 test("a run whose head commit is on main belongs to a merged group and is kept", async () => {
-  const r = await sweep({ queued: [run(1, GONE), run(2, `${GONE}-b`)], onMain: [sha(1)] });
+  const r = await sweep({ queued: [{ ...run(1, GONE), head_sha: COMMITS[0].sha }, run(2, `${GONE}-b`), run(3, `${GONE}-c`)], onMain: [sha(3)] });
   assert.deepEqual(posts(r.calls), [cancel(2)]);
 });
 
@@ -201,4 +208,17 @@ test("with runs but no orphan candidate, main's commits are not read", async () 
 test("a candidate with no readable head commit is kept", async () => {
   const r = await sweep({ queued: [{ ...run(1, GONE), head_sha: undefined }] });
   assert.deepEqual(posts(r.calls), []);
+});
+
+test("the captured responses, every run's queue ref still listed, cancel nothing and read no commits", async () => {
+  const r = await sweep({ running: structuredClone(RUNS.workflow_runs) });
+  assert.deepEqual(r.calls, [LIST_QUEUED, LIST_RUNNING, LIST_REFS]);
+  assert.match(r.out, /listed=4 cancelled=\[\] calls=3/);
+});
+
+test("a captured run whose group ref was deleted is cancelled", async () => {
+  const [kept, ...rest] = structuredClone(RUNS.workflow_runs);
+  const orphan = { ...kept, head_branch: GONE };
+  const r = await sweep({ running: [orphan, ...rest] });
+  assert.deepEqual(posts(r.calls), [cancel(kept.id)]);
 });
