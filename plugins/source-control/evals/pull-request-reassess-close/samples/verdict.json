@@ -7,6 +7,10 @@
     {
       "answer": "**Verdict:** `close`",
       "why": "markdown"
+    },
+    {
+      "answer": "The verdict is `close`.",
+      "why": "the expected-outcome prose"
     }
   ],
   "fail": [
@@ -17,6 +21,14 @@
     {
       "answer": "reassess: no verdict: no goal",
       "why": "no verdict at all"
+    },
+    {
+      "answer": "The verdict is continue.",
+      "why": "another verdict in prose"
+    },
+    {
+      "answer": "The verdict is not close.",
+      "why": "denies the verdict"
     }
   ]
 }

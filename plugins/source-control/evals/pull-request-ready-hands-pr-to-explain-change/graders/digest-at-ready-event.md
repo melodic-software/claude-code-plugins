@@ -1,6 +1,5 @@
 ---
-type: tool_used
-tool: Skill
-input_match: 'explain-change"[\s\S]*--event\s+ready'
-min: 1
+type: tool_order
+before: { tool: Bash, input_match: 'gh pr ready' }
+after: { tool: Skill, input_match: 'explain-change"[\s\S]*--event\s+ready' }
 ---

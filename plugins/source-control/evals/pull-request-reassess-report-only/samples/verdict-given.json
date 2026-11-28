@@ -3,12 +3,20 @@
     {
       "answer": "{ \"verdict\": \"close\" }",
       "why": "the shape"
+    },
+    {
+      "answer": "The verdict is `rework`.",
+      "why": "the expected-outcome prose"
     }
   ],
   "fail": [
     {
       "answer": "reassess: no verdict: x",
       "why": "no verdict"
+    },
+    {
+      "answer": "The verdict is not given: the goal could not be read.",
+      "why": "names no verdict"
     }
   ]
 }

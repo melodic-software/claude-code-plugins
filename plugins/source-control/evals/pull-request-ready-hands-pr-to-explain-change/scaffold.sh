@@ -16,7 +16,3 @@ printf 'export const me = () => ({});\n' >src/app.ts
 git commit -q -am "fix: return an empty user"
 
 bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/gh-forge/install.sh" 512 fix/null-user main "fix: return an empty user"
-
-gate="$(git rev-parse --path-format=absolute --git-common-dir)/ready-verify"
-mkdir -p "$gate"
-printf 'pass\n' >"$gate/$(git rev-parse HEAD)"
