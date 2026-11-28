@@ -1,4 +1,4 @@
-# test-scope: plugins/planning/shared/web/app.js plugins/planning/shared/web/app.css plugins/planning/shared/web/proto.js
+# test-scope: plugins/planning/shared/web/index.html plugins/planning/shared/web/app.js plugins/planning/shared/web/app.css plugins/planning/shared/web/proto.js
 # test-scope: plugins/planning/reference/html-chrome.html
 """The shared-session page carries the canonical chrome's theme toggle, comment box and rules.
 

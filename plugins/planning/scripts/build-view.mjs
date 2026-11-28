@@ -5,7 +5,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyBranding } from "../lib/html-branding.mjs";
 import { escapeHtml } from "../lib/html-escape.mjs";
-import { managedSettingsFiles, readOperatorOptions, resolveInstall } from "../lib/plugin-options.mjs";
+import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall } from "../lib/plugin-options.mjs";
 import { publishGate } from "../lib/publish-gate.mjs";
 import { buildView, VIEW_KINDS, ViewBuildError } from "../lib/view-builder.mjs";
 import { producerOf, MEDIUMS, mediumOf, NO_PAGE, NO_PREFERENCE, reportLines } from "../lib/view-registry.mjs";
@@ -16,17 +16,22 @@ const PLUGIN_ROOT = resolve(fileURLToPath(new URL("../", import.meta.url)));
 const TOKENS_PATH = fileURLToPath(new URL("../reference/html-tokens.css", import.meta.url));
 
 const readBrandingOption = (flagValue, env = process.env) => {
-  if (flagValue !== undefined) return flagValue;
+  if (typeof flagValue === "string" && flagValue !== "" && !/^\$\{user_config\./.test(flagValue)) {
+    return flagValue;
+  }
+  if (env.CLAUDE_PLUGIN_OPTION_BRANDING) {
+    return env.CLAUDE_PLUGIN_OPTION_BRANDING;
+  }
   try {
     const install = resolveInstall(PLUGIN_ROOT);
-    const configDir = env.CLAUDE_CONFIG_DIR;
-    const managed = configDir ? [] : managedSettingsFiles();
-    const userSettings = install.userSettings ?? (configDir ? join(configDir, "settings.json") : null);
-    const opts = readOperatorOptions({ ...install, userSettings }, managed, ["branding"]);
-    return opts.branding?.value ?? null;
+    const userSettings = install.userSettings ?? (env.CLAUDE_CONFIG_DIR ? join(env.CLAUDE_CONFIG_DIR, "settings.json") : null);
+    return readOperatorOptions({ ...install, userSettings }, managedSettingsFiles(), ["branding"]).branding?.value ?? null;
   } catch (err) {
-    console.error(`notice: userConfig branding could not be read (${err.message}); ignored`);
-    return null;
+    if (err instanceof OptionsError) {
+      console.error(`notice: branding userConfig: ${err.message}`);
+      return null;
+    }
+    throw err;
   }
 };
 
