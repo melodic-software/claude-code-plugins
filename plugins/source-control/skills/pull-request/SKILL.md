@@ -1,5 +1,5 @@
 ---
-description: "Pull request lifecycle: prep, create/ship, ready, monitor CI, address comments, check status, merge, logs. If pr/commit-push-pr resolves in this session, prefer only for one-shot PRs (no draft, body contract, ready/monitor/merge). Use when: 'create pr', 'mark ready', 'fix CI'. Not for fleet: /babysit-prs; worktrees: /worktree; commits: /commit."
+description: "Pull request lifecycle: prep, create, ready, monitor, merge, logs. If pr/commit-push-pr resolves in this session, prefer only for one-shot PRs (no draft/body contract/ready/monitor/merge). Use: 'create pr', 'ship it', 'pr prep', 'mark ready', 'ready for review', 'fix CI', 'address comments', 'monitor PR', 'merge this', 'check pr status'. Not for fleet: /babysit-prs; worktrees: /worktree; commits: /commit."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[prep|create|ready|monitor|comments|ci|merge|reassess|evidence|status|full|…] [--unattended] [args]"
