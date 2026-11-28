@@ -12,7 +12,7 @@ HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
-from hop_chain import between_rails  # noqa: E402
+from hop_chain import between_rails, frontmatter_value  # noqa: E402
 
 WHOLE_MAX = 60_000
 PAGED_MAX = 100_000
@@ -154,7 +154,12 @@ def seed_history(
     paste = between_rails(newest.read_text(encoding="utf-8"))
     if paste is None:
         raise ValueError(f"{newest.name}: no resume region between rails")
-    reads = read_turns(newest, (seed.get("reads") or {}).get("pattern"))
+    pattern = (seed.get("reads") or {}).get("pattern")
+    standing_rel = frontmatter_value(newest, "standing_rules")
+    reads: list[dict] = []
+    if standing_rel:
+        reads += read_turns(newest.parent / standing_rel, pattern)
+    reads += read_turns(newest, pattern)
     subs = {"repo": str(repo), "handoff": str(newest)}
     history = seed.get("history") or {}
     work = _expand(list(history.get("work", [])), subs)

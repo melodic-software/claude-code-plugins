@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "handoff": "## Decisions in force\n\n- [D3] A failing required check on a release PR is re-run once with `gh run rerun <run-id> --failed`; on a second failure the PR gets the needs-human label (`gh pr edit <n> --add-label needs-human`) and is never re-run again, because repeated re-runs exhausted the Actions quota on the 3.x line.\n"
+    },
+    {
+      "handoff": "## Decisions in force\n\n- Standing rules: standing-rules/20261020T080000Z-handoff-release-monitor.md#Decisions in force\n",
+      "files": {
+        ".work/handoffs/standing-rules/20261020T080000Z-handoff-release-monitor.md": "## Decisions in force\n\n- [D3] A failing required check on a release PR is re-run once with `gh run rerun <run-id> --failed`; on a second failure the PR gets the needs-human label (`gh pr edit <n> --add-label needs-human`) and is never re-run again, because repeated re-runs exhausted the Actions quota on the 3.x line.\n"
+      }
+    }
+  ],
+  "fail": [
+    {
+      "handoff": "## Decisions in force\n\n- [D3] A failing required check on a release PR is re-run once with `gh run rerun <run-id> --failed`.\n"
+    },
+    {
+      "handoff": "## Decisions in force\n\n- [D1] Cap each drain batch at 10 items from hop 10 on.\n",
+      "files": {
+        ".work/handoffs/standing-rules/20261020T080000Z-handoff-release-monitor.md": "## Decisions in force\n\n- [D1] Cap each drain batch at 10 items from hop 10 on.\n"
+      }
+    }
+  ]
+}
