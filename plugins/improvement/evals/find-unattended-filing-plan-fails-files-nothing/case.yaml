@@ -1,0 +1,43 @@
+schema_version: "1.1"
+name: find-unattended-filing-plan-fails-files-nothing
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-ask-tool
+    type: tool_used
+    tool: 'AskUserQuestion'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-repo-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path"\s*:\s*"(?!(?:[^"\\]|\\.)*?(?:plugins[\\/]+data|CLAUDE_PLUGIN_DATA))'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-work-items-call
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"/?work-items:'
+    min: 0
+    max: 0
+    arm: both
+  - name: files-nothing
+    type: regex
+    pattern: '\b(?:fil(?:e|es|ed|ing) nothing|nothing (?:is |was |would be |will be |gets )?filed|no (?:work )?items? (?:is |are |was |were |would be |will be )?filed|filed:? (?:0|none|no items?)\b|0 (?:items? )?filed)'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: gap-names-node
+    type: regex
+    pattern: '^\W*gap:[^\n]*\bnode\b'
+    flags: 'im'
+    target: last_message
+    arm: both

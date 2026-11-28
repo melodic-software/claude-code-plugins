@@ -7,7 +7,7 @@ git init -q
 git config user.email eval@example.invalid
 git config user.name eval
 mkdir -p src/api docs/conventions .claude
-printf '.claude/**/*.local.*\n' >.gitignore
+printf 'docs/conventions/**/*.local.*\n.claude/**/*.local.*\n' >.gitignore
 printf '# Service\n' >README.md
 printf 'export const ping = () => "pong";\n' >src/api/ping.ts
 cat >docs/conventions/bugs.yaml <<'YAML'
@@ -19,7 +19,7 @@ YAML
 printf 'filing_posture: allowed\n' >docs/conventions/work-items.yaml
 git add -A
 git commit -q -m "chore: initial commit"
-cat >.claude/bugs.local.md <<'MD'
+cat >docs/conventions/bugs.local.md <<'MD'
 # My bugs override
 
 I hunt nothing on this machine for now.
@@ -28,3 +28,4 @@ I hunt nothing on this machine for now.
 areas: []
 ```
 MD
+printf '# Retired leftover\n' >.claude/bugs.local.md

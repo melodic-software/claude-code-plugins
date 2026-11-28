@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Report path: ...\ngap: improvement-find filing — node is not on PATH, so filing-plan.mjs did not run; nothing filed", "why": "gap line names node" },
+    { "answer": "- `gap: source: improvement-find — filing plan exited 127 (node: command not found)`", "why": "bulleted, backticked gap line" }
+  ],
+  "fail": [
+    { "answer": "gap: improvement-find filing — the filing plan exited non-zero; nothing filed", "why": "gap line does not name node" },
+    { "answer": "Nothing filed because node is missing.", "why": "names node but writes no gap: line" },
+    { "answer": "gap: filing skipped\nnode was not found", "why": "node only on a later line" }
+  ]
+}

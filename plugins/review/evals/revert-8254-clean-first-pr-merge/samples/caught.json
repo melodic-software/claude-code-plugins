@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | Blocking | Adding `mergeStateStatus` to `gh pr list --limit 500` asks GitHub's GraphQL API to compute mergeability and branch-protection status for up to 500 open PRs in a single paginated query, which routinely triggers GraphQL 502 timeouts and will break the entire sweep. | .github/workflows/pr-merge.yml:337 |\n\nSummary: avoid requesting `mergeStateStatus` in bulk `gh pr list` queries.",
+      "why": "blocking finding naming GraphQL 502 timeout risk of bulk mergeStateStatus"
+    },
+    {
+      "answer": "Blocking finding: requesting `mergeStateStatus` in `.github/workflows/pr-merge.yml`'s `gh pr list --limit 500` call is a known GitHub GraphQL timeout hazard because GitHub computes merge state per PR on demand; a 502 error on the list call will abort the whole merge sweep.",
+      "why": "names the bulk mergeStateStatus timeout defect without a line number"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Findings: none. No blocking or advisory findings. The sort in `babysit_merge_prefilter.py` is stable and well tested.",
+      "why": "approves with no findings"
+    },
+    {
+      "answer": "| 1 | Advisory | `babysit_merge_prefilter.py:56` could use a `NamedTuple` or explicit helper instead of returning a 3-tuple from `sweep_order`. | plugins/source-control/skills/babysit-prs/scripts/babysit_merge_prefilter.py:56 |\n\nSummary: minor readability suggestion.",
+      "why": "cites a reverted line for a Python style nit while missing the bulk mergeStateStatus timeout defect"
+    }
+  ]
+}

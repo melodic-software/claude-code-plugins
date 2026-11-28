@@ -278,7 +278,7 @@ default_ref() {
 }
 
 cmd_config() {
-  local repo="" user="" have_user=0 ref team_name file personal old i name best=-1 n v team_reason="" reason
+  local repo="" user="" have_user=0 ref team_name file personal i name best=-1 n v team_reason="" reason
   while (($#)); do
     case "$1" in
       --repo)
@@ -313,20 +313,8 @@ cmd_config() {
     team_name="team (working tree, no origin)"
     read_tree_layer team "$repo/$file" "$repo"
   fi
-  personal="$repo/docs/conventions/testing.local.yaml" old="$repo/.claude/testing.local.yaml"
-  if [[ -f "$personal" ]]; then
-    [[ ! -f "$old" ]] ||
-      warn "$personal and $old both exist; using $personal, ignoring the old file: move any setting it still holds into $personal"
-  elif [[ -f "$old" ]]; then
-    warn "$old is an old location, still read for now; move it to $personal"
-    personal="$old"
-  fi
+  personal="$repo/docs/conventions/testing.local.yaml"
   read_tree_layer personal-override "$personal" "$repo"
-  file="${HOME:-}/.claude/testing.yaml"
-  if [[ -n "${HOME:-}" && -f "$file" ]]; then
-    warn "$file is an old location, still read for now: there is no user-global file layer; move each setting to its testing userConfig option, else to $repo/docs/conventions/testing.local.yaml"
-    read_layer user-global "$file" "$repo" "$file"
-  fi
   # An unrendered ${user_config.pixel_tolerance}, or an empty one, is unset.
   # shellcheck disable=SC2016 # the placeholder's opening is literal text
   if ((have_user)) && [[ -n "$user" && "$user" != '${'* ]]; then
@@ -340,7 +328,7 @@ cmd_config() {
     fi
   done
   v="$cap" n="$cap_name" reason="$team_reason"
-  for name in personal-override user-global user-option; do
+  for name in personal-override user-option; do
     for i in "${!L_NAME[@]}"; do
       [[ "${L_NAME[i]}" == "$name" ]] || continue
       if ((L_PIXELS[i] > cap)); then

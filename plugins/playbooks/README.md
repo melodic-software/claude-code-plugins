@@ -73,6 +73,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `described_problem` | string | `"report"` | What the fable-5 playbook does when you describe a problem without asking for a change: report (default, assess and offer the fix) or fix (make the change and show the result). A repository's docs/conventions/playbooks.yaml described_problem key overrides this value. |
+| `branding` | string | *(none)* | Palette, type and logo overrides for rendered HTML pages as one JSON object matching branding in docs/conventions/rendered-views.yaml. Empty (default): shipped look. Repository team and personal override files win; invalid values are reported and ignored. |
 
 ### How to set these
 

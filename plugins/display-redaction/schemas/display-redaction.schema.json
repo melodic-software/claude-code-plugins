@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Display-redaction team config",
+  "description": "Schema for docs/conventions/display-redaction.yaml, the repository layer of display-redaction settings. Display redaction is a security control under docs/contracts/hook-enablement/README.md: a repository false is ignored, and only the user's own setting or managed policy turns masking off.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "display_redaction_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Repository setting for the screen masking module. Security control policy floor: a repository false is ignored; only an explicit userConfig false (or managed policy) turns masking off."
+    }
+  }
+}

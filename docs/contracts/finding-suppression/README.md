@@ -33,7 +33,7 @@ The consuming plugin names its own surface. The first adopter, `harness-config`'
 | 2 | team (tracked) | `<home>/harness-config.yaml` (`<home>` from the convention-home pointer line, default `docs/conventions`) |
 | 3 | personal override (gitignored) | `<home>/audit-pass.local.md` |
 
-The plugin still reads the old `~/.claude/audit-pass.md` and `.claude/audit-pass.local.md`, each with a warning, while no new file supplies that layer; `/harness-config:setup apply` moves them where [config locations](../config-cascade/locations.md) says.
+Retired `~/.claude/audit-pass.md` and `.claude/audit-pass.local.md` files are not read; see [config locations](../config-cascade/locations.md).
 
 In a YAML concern file the `suppressions` mapping sits at the root with the entry shape below; a
 reader that uses the shared YAML-subset parser needs the `"anchor/v1":` key quoted.
@@ -257,11 +257,7 @@ A skill reading this surface:
   the fix attempt. `needs-reconfirmation` is what makes carrying-forward safe. Tiered matching over a
   fingerprint that is *stable enough* rather than exact is the prior art here. SARIF devotes
   Appendix B (Normative) to it, and GitHub's documented mismatch behavior is close-and-reopen.
-- **Claude-specific location for the user and personal layers, for now.** Every surface the first
-  adopter audits is a Claude Code artifact, so those layers live under `.claude/`; the team layer
-  lives in the plugin's concern file under `<home>` (ADR 0064). A cross-vendor instruction surface
-  entering scope would break that premise, and the location argument must then be re-derived rather
-  than inherited.
+- **Convention-home and `userConfig` locations.** The team layer lives in `<home>/harness-config.yaml`, the personal layer in `<home>/audit-pass.local.md`, and the user layer in the file `audit_pass_suppressions_file` names (ADR 0064, ADR 0075).
 
 ## Implementers
 

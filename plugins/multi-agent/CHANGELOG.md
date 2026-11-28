@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.0.0] - 2026-11-28
+
+### Removed
+
+- Drop legacy `~/.claude/multi-agent.yaml` and `.claude/multi-agent.local.yaml` dual-reads, warnings, and `/multi-agent:setup apply --migrate` from role resolution and setup.
+
 ## [5.2.5] - 2026-11-28
 
 ### Changed

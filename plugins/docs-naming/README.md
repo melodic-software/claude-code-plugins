@@ -48,17 +48,9 @@ The JSON files under `.claude/` the team layer and personal override used to liv
 (`docs-naming.json`, `docs-naming.local.json`, and their `docs-hygiene` names)
 are not read. `/docs-naming:setup check` names each one it finds, and while the
 team YAML is absent `/docs-naming:setup apply` copies the old team file's keys
-into it.
-
-The user-global files `~/.claude/docs-naming.json` and
-`~/.claude/docs-hygiene.json` are retired in favor of the `file_names` option.
-While the option is unset or invalid, the first of them that exists is still read, and
-every run warns about each one. `/docs-naming:setup check` names them, and
-`/docs-naming:setup apply` previews copying their keys into the option and gives
-the command that saves it. The options reference below says how to set the
-option.
-
-This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](reference/config-locations.md) says.
+into it. The retired user-global files `~/.claude/docs-naming.json` and
+`~/.claude/docs-hygiene.json` are not read; set personal defaults through the
+`file_names` option below.
 
 ## Renames are gated per file
 

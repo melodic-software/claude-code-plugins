@@ -15,10 +15,8 @@ usage() {
   cat <<'EOF'
 setup.sh — the deterministic half of /testing:setup.
 
-check prints five sections and changes nothing:
+check prints four sections and changes nothing:
   config        the resolved testing config cascade (scripts/resolve-config.sh)
-  old paths     each testing config file at an old path, its new location,
-                and a preview of what --copy-old would write there
   lint          per language the repository's tracked test files use, whether
                 its lint config turns on the rules that catch can't-fail tests.
                 A missing rule is a FINDING; Bash, PowerShell and Go have no
@@ -32,26 +30,16 @@ apply writes the answer flags to the team layer in use: the whole of
 <root>/<home>/testing.yaml when it exists (its top-level run-e2e
 keys are kept), else the body of the config block in
 <root>/<home>/testing.md when that file holds one (its other text
-stays), else the whole of <root>/.claude/testing.yaml when it exists, else a
-new <root>/<home>/testing.yaml. <home> is the convention home the pointer
-region binds, else docs/conventions. It keeps the result only when it
-resolves, writes no other file, and refuses when the target or its directory
-is a symlink. It then prints the old paths section.
-
-apply --copy-old <old file> copies that file, as the old paths section names
-it, into its new location and writes nothing else: a whole file into a new
-location that does not exist yet, else the old file's top-level YAML keys the
-new file lacks. A key both files hold, a key of ~/.claude/testing.yaml with a
-userConfig option, and a Markdown file whose new location exists are named,
-not copied. The old file
-stays in place. A copy into a .local. file needs that file gitignored first.
+stays), else a new <root>/<home>/testing.yaml. <home> is the convention home
+the pointer region binds, else docs/conventions. It keeps the result only when
+it resolves, writes no other file, and refuses when the target or its
+directory is a symlink.
 
 Usage:
   setup.sh check [--root <dir>]
   setup.sh apply [--root <dir>] [--include <glob>]... [--exclude <glob>]...
                  [--enable <id>]... [--disable <id>]... [--adapter-dir <dir>]...
                  [--extend <id>.<field>=<value>]... [--rule <rule>=off|warn|error]...
-  setup.sh apply [--root <dir>] --copy-old <old file>...
 
 Exit: check 0 no finding, 1 a lint finding; apply 0 written; 2 usage error,
 no repository, or a config that does not resolve.
@@ -65,7 +53,7 @@ if [[ "$ACTION" == -h || "$ACTION" == --help ]]; then
 fi
 shift || true
 ROOT=""
-inc=() exc=() ena=() dis=() dirs=() ext=() rules=() olds=()
+inc=() exc=() ena=() dis=() dirs=() ext=() rules=()
 while [[ $# -gt 0 ]]; do
   [[ $# -gt 1 ]] || die "$1 needs a value"
   case "$1" in
@@ -77,7 +65,6 @@ while [[ $# -gt 0 ]]; do
   --adapter-dir) dirs+=("$2") ;;
   --extend) ext+=("$2") ;;
   --rule) rules+=("$2") ;;
-  --copy-old) olds+=("$2") ;;
   *) die "unknown argument '$1'" ;;
   esac
   shift 2
@@ -103,154 +90,10 @@ flow() {
   printf '[%s]' "$s"
 }
 plain_text() { LC_ALL=C sed -e $'1s/^\xef\xbb\xbf//' -e 's/\r$//' "$1"; }
-strip_control_bytes() { LC_ALL=C tr -d '\000-\010\013-\037\177'; }
-
-linked_inside_root() {
-  local p="$1"
-  while [[ "$p" == "$ROOT"/* ]]; do
-    [[ ! -L "$p" ]] || return 0
-    p="${p%/*}"
-  done
-  return 1
-}
-
-old_files() {
-  local h="$ROOT/$HOME_REL" u="${HOME:+$HOME/.claude}" row
-  for row in "$ROOT/.claude/testing.yaml"$'\t'"$h/testing.yaml"$'\t'yaml \
-    "$ROOT/.claude/testing.local.yaml"$'\t'"$h/testing.local.yaml"$'\t'yaml \
-    "${u:+$u/testing.yaml}"$'\t'"$h/testing.local.yaml"$'\t'user \
-    "$ROOT/.claude/testing/e2e.md"$'\t'"$h/testing/e2e.md"$'\t'doc \
-    "$ROOT/.claude/testing/e2e.local.md"$'\t'"$h/testing/e2e.local.md"$'\t'doc \
-    "${u:+$u/testing/e2e.md}"$'\t'"$h/testing/e2e.local.md"$'\t'doc \
-    "$ROOT/.claude/testing/worst-case.md"$'\t'"$h/testing/worst-case.md"$'\t'doc; do
-    [[ ! -f "${row%%$'\t'*}" ]] || printf '%s\n' "$row"
-  done
-}
-
-top_keys() { plain_text "$1" | sed -n 's/^\([A-Za-z_][A-Za-z0-9_.-]*\)[[:blank:]]*:.*/\1/p'; }
-
-old_plan() {
-  local old="$1" new="$2" kind="$3" skip=" " opts=" " k
-  plan=none text="" notes=""
-  if linked_inside_root "$old" || linked_inside_root "$new"; then
-    notes="  not copied: it or its new location is a symlink inside the repository"$'\n'
-    return
-  fi
-  if [[ "${new##*/}" == *.local.* ]] && ! git -C "$ROOT" check-ignore -q -- "$new" 2>/dev/null; then
-    notes="  not copied: $new is not gitignored; add the line $HOME_REL/**/*.local.* to .gitignore first"$'\n'
-    return
-  fi
-  local repo_old=""
-  if [[ -n "${HOME:-}" ]]; then
-    case "$old" in
-    "$HOME/.claude/testing.yaml") repo_old="$ROOT/.claude/testing.local.yaml" ;;
-    "$HOME/.claude/testing/e2e.md") repo_old="$ROOT/.claude/testing/e2e.local.md" ;;
-    *) ;;
-    esac
-  fi
-  if [[ -n "$repo_old" && ! -e "$new" && -f "$repo_old" ]]; then
-    notes="  not copied: copy $repo_old first; creating $new stops it being read"$'\n'
-    return
-  fi
-  if [[ "$kind" == doc ]]; then
-    if [[ -e "$new" ]]; then
-      notes="  not copied: $new exists and is read in its place; copy what you still need by hand"$'\n'
-    else
-      plan=create text="$(plain_text "$old")"
-    fi
-    return
-  fi
-  if [[ ! -e "$new" && "$new" == "$ROOT/$HOME_REL/testing.yaml" && -f "$ROOT/$HOME_REL/testing.md" ]] &&
-    grep -q '^```yaml config[[:space:]]*$' "$ROOT/$HOME_REL/testing.md"; then
-    notes="  not copied: the yaml config block in $HOME_REL/testing.md is the team layer and this file is not read; move that block to $new first"$'\n'
-    return
-  fi
-  [[ ! -f "$new" ]] || skip+="$(top_keys "$new" | tr '\n' ' ')"
-  [[ "$kind" != user ]] ||
-    opts+="$(awk '/"userConfig"/ { u = 1; next } u && /^  }/ { exit }
-      u && match($0, /^    "[a-z0-9_]+"/) { print substr($0, 6, RLENGTH - 6) }' "$PLUGIN/.claude-plugin/plugin.json" 2>/dev/null | tr '\n' ' ')"
-  while IFS= read -r k; do
-    if [[ "$skip" == *" $k "* ]]; then
-      notes+="  not copied: $k, which $new already sets; merge the two by hand"$'\n'
-    elif [[ "$opts" == *" $k "* ]]; then
-      notes+="  not copied: $k, which has a userConfig option of that name; set it there"$'\n'
-      skip+="$k "
-    fi
-  done < <(top_keys "$old")
-  text="$(plain_text "$old" | awk -v skip="$skip" '/^[^ \t#]/ { k = $0; sub(/[ \t]*:.*/, "", k); on = !index(skip, " " k " ") } on')"
-  if [[ -n "$text" && -f "$new" ]]; then plan=append; elif [[ -n "$text" ]]; then plan=create; fi
-}
-
-old_section() {
-  local old new kind rows
-  printf '\n== old paths ==\n'
-  rows="$(old_files)"
-  if [[ -z "$rows" ]]; then
-    printf 'no testing config file at an old path\n'
-    return
-  fi
-  while IFS=$'\t' read -r old new kind; do
-    old_plan "$old" "$new" "$kind"
-    if [[ "$kind" == user ]]; then
-      printf '%s\n  move to: its userConfig options, else %s\n' "$old" "$new"
-    else
-      printf '%s\n  move to: %s\n' "$old" "$new"
-    fi
-    case "$plan" in
-    create) printf '  copy would create %s with:\n' "$new" ;;
-    append) printf '  copy would append to %s:\n' "$new" ;;
-    *) ;;
-    esac
-    [[ "$plan" == none ]] || printf '    %s\n' "${text//$'\n'/$'\n'    }"
-    printf '%s' "$notes"
-    [[ "$plan" == none ]] ||
-      printf '  to copy, once the user says yes: setup.sh apply --copy-old %q (the old file stays)\n' "$old"
-  done <<<"$rows" | strip_control_bytes
-}
-
-copy_old() {
-  local old new kind row d tmp bak=""
-  row="$(old_files | awk -F'\t' -v o="$1" '$1 == o')"
-  [[ -n "$row" ]] || die "--copy-old names no old-path file the old paths section lists: $1"
-  IFS=$'\t' read -r old new kind <<<"$row"
-  old_plan "$old" "$new" "$kind"
-  [[ "$plan" != none ]] || die "nothing to copy from $old:"$'\n'"$notes"
-  [[ ! -e "$new" || -f "$new" ]] || die "$new is not a regular file"
-  d="${new%/*}"
-  mkdir -p "$d" || die "cannot create $d"
-  [[ "$(cd "$d" && pwd -P)" == "$(cd "$ROOT" && pwd -P)"/* ]] || die "$d resolves outside $ROOT"
-  if [[ -f "$new" ]]; then
-    bak="$(mktemp "$d/.${new##*/}.XXXXXX")" || die "cannot create a temporary file in $d"
-    cp -p "$new" "$bak" || die "cannot back up $new"
-  fi
-  tmp="$(mktemp "$d/.${new##*/}.XXXXXX")" || die "cannot create a temporary file in $d"
-  chmod "$(printf '%o' $((0666 & ~0$(umask))))" "$tmp"
-  {
-    if [[ "$plan" == append ]]; then
-      cat "$new"
-      [[ -z "$(tail -c1 "$new")" ]] || printf '\n'
-    fi
-    printf '%s\n' "$text"
-  } >"$tmp"
-  mv -f "$tmp" "$new" || die "cannot write $new"
-  if [[ "$kind" != doc ]] &&
-    ! env -u CLAUDE_PROJECT_DIR bash "$RESOLVER" --root "$ROOT" --home "$ROOT/.claude/nonexistent-home" >/dev/null; then
-    if [[ -n "$bak" ]]; then mv -f "$bak" "$new"; else rm -f "$new"; fi
-    die "the copied keys do not resolve (see above); $new is unchanged"
-  fi
-  [[ -z "$bak" ]] || rm -f "$bak"
-  printf 'copied %s into %s; the old file stays in place\n%s' "$old" "$new" "$notes"
-}
 
 apply() {
-  local new="$ROOT/$HOME_REL/testing.yaml" docs="$ROOT/$HOME_REL/testing.md" yaml="$ROOT/.claude/testing.yaml"
+  local new="$ROOT/$HOME_REL/testing.yaml" docs="$ROOT/$HOME_REL/testing.md"
   local d f bak="" tmp y="" e id field r blk from="" to="" l keep=""
-  if ((${#olds[@]})); then
-    ((${#inc[@]} + ${#exc[@]} + ${#ena[@]} + ${#dis[@]} + ${#dirs[@]} + ${#ext[@]} + ${#rules[@]} == 0)) ||
-      die "--copy-old takes no answer flags; pass those in their own apply"
-    for e in "${olds[@]}"; do copy_old "$e"; done
-    return
-  fi
   for l in "$ROOT/${HOME_REL%%/*}" "$ROOT/$HOME_REL" "$docs" "$new"; do
     [[ ! -L "$l" ]] || die "refusing to read or write through a symlink: $l"
   done
@@ -266,8 +109,6 @@ apply() {
     fi
     if [[ -n "$from" ]]; then
       f="$docs"
-    elif [[ -f "$yaml" ]]; then
-      f="$yaml"
     else
       f="$new"
     fi
@@ -276,7 +117,7 @@ apply() {
   for l in "$d" "$f"; do
     [[ ! -L "$l" ]] || die "refusing to write through a symlink: $l"
   done
-  [[ "$f" == "$yaml" || ! -L "$ROOT/docs" ]] || die "refusing to write through a symlink: $ROOT/docs"
+  [[ ! -L "$ROOT/docs" ]] || die "refusing to write through a symlink: $ROOT/docs"
   [[ ! -e "$f" || -f "$f" ]] || die "$f is not a regular file"
   if [[ ${#ena[@]} -gt 0 || ${#dis[@]} -gt 0 ]]; then
     y+=$'adapters:\n'
@@ -346,7 +187,7 @@ apply() {
         done | LC_ALL=C tr -d '\000-\010\013-\037\177' >&2
   fi
   mv -f "$tmp" "$f" || die "cannot write $f"
-  if ! got="$(env -u CLAUDE_PROJECT_DIR bash "$RESOLVER" --root "$ROOT" --home "$ROOT/.claude/nonexistent-home")" ||
+  if ! got="$(env -u CLAUDE_PROJECT_DIR bash "$RESOLVER" --root "$ROOT")" ||
     ! grep -qxF "layer"$'\t'"$f" <<<"$got"; then
     if [[ -n "$bak" ]]; then mv -f "$bak" "$f"; else rm -f "$f"; fi
     die "the answers do not resolve as a layer (see above, or an unclosed code fence hides the block); $f is unchanged"
@@ -354,7 +195,6 @@ apply() {
   [[ -z "$bak" ]] || rm -f "$bak"
   printf 'wrote %s\n' "$f"
   if [[ "$f" == "$docs" ]]; then printf '%s' "$y"; else cat "$f"; fi
-  old_section
 }
 
 check() {
@@ -366,7 +206,6 @@ check() {
   else
     printf '%s\n' "$cfg"
   fi
-  old_section
 
   local k v extra=() ext_files=""
   while IFS=$'\t' read -r k v; do

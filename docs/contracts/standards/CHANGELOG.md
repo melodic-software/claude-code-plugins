@@ -1,5 +1,14 @@
 # Changelog for the standards convention
 
+## 1.3.2 - 2026-11-28
+
+Clarification. Paved paths now names every carrier of the ecosystem-resolution contract among the
+readers of the `paved-path` entry. The Resolution ladder notes that under the ecosystem-resolution
+contract, a merged pull request counts as acceptance of a lane's proposed record for ecosystem
+records (`docs/conventions/ecosystems/<ecosystem>.yaml`) only; every standards index, standards
+file and paved-path entry still requires a person's explicit yes. The layers, the schema, the index
+shape, the rungs and the migration rules are unchanged.
+
 ## 1.3.1 - 2026-11-26
 
 Clarification. The Resolution ladder gains "Adopted shipped concepts": a consuming stage that loads

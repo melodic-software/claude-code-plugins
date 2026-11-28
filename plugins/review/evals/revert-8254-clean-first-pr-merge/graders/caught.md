@@ -1,5 +1,9 @@
 ---
-type: regex
-pattern: '(?<![\w.-])perf-pr-merge-clean-first-1544e854\.md`?(?::L?|#L|,? \(?lines? )(?:1|2|3|5|7)(?!\d)|(?<![\w.-])pr-merge\.yml`?(?::L?|#L|,? \(?lines? )(?:337|340)(?!\d)|(?<![\w.-])babysit_merge_prefilter\.py`?(?::L?|#L|,? \(?lines? )(?:16|17|18|19|20|21|23|24|25|26|55|56|57|58|66)(?!\d)|(?<![\w.-])test_babysit_merge_prefilter\.py`?(?::L?|#L|,? \(?lines? )(?:7|104|105|106|108|109|110|112|113|114|115|116|117|118|119|121|122|123|124|125|126|127|128|129|130|131|133|134|135|137|138|139|140|141|142|143|144|145|146|147|148|149|150|151|153|154|155|156|157|158|159|160|161|162|163|164|165)(?!\d)'
-flags: i
+type: llm
 ---
+
+The answer is a code review of PR #8254, which adds `mergeStateStatus` to the bulk `gh pr list --limit 500 --json ...` query in `.github/workflows/pr-merge.yml` (and sorts by `mergeStateStatus == "CLEAN"` in `babysit_merge_prefilter.py`). PR #8303 reverted it because requesting `mergeStateStatus` across a large `gh pr list` page triggers GitHub GraphQL 502 timeout errors and breaks the merge sweep.
+
+PASS if a finding in the review (blocking or advisory) flags the reliability, timeout, or GraphQL cost problem of requesting `mergeStateStatus` on the bulk `gh pr list --limit 500` query in `.github/workflows/pr-merge.yml` (for example: GitHub GraphQL 502 / timeout failures when computing `mergeStateStatus` across a large list of PRs, expensive per-PR mergeability evaluation on a 500-item page, or `mergeStateStatus` failing/timing out or returning stale/UNKNOWN values in bulk list queries). Citing a specific file or line number is optional; findings on other grounds do not disqualify it.
+
+FAIL if the review answers with no findings (such as "Findings: none" or a clean approval), reports only unrelated Python style, docstring, or test-naming nits without flagging the bulk `mergeStateStatus` query risk in `pr-merge.yml`, or holds no review.

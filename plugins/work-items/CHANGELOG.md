@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [16.5.0] - 2026-11-28
+
+### Added
+
+- `work-item-tracker` and `/work-items:morning-brief` add phase-2 dual-write and dual-read support for native GitHub Issue Statuses (`set-native-status` verb, best-effort `create-item`, `claim`, and `done` transitions, `native_status` on `get-item` and `list-items`, and REST `Native statuses (open)` counts in `morning-brief`), degrading cleanly when un-enrolled or `null` while keeping `Work status` and trusted-actor verification untouched.
+
 ## [16.4.1] - 2026-11-28
 
 ### Changed

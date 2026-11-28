@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "```bash\n\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan \\\n  --target \"/opt/eval/home/scratch\" \\\n  --output \"/opt/eval/data/runs/r1/snapshot.json\" \\\n  --user-policy \"/opt/eval/home/.config/disk-hygiene/policy.json\" \\\n  --project-dir \"/opt/eval/work/proj\" --data-root \"/opt/eval/data\"\n```"
+    },
+    {
+      "answer": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan --target /opt/eval/home/scratch --user-policy /opt/eval/home/.config/disk-hygiene/policy.json --project-dir /opt/eval/work/proj --data-root /opt/eval/data"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```bash\n\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan \\\n  --target \"/opt/eval/home/scratch\" \\\n  --output \"/opt/eval/data/runs/r1/snapshot.json\" \\\n  --project-dir \"/opt/eval/work/proj\" --data-root \"/opt/eval/data\"\n```"
+    },
+    {
+      "answer": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan --target /opt/eval/home/scratch --policy /opt/eval/home/.config/disk-hygiene/policy.json --data-root /opt/eval/data"
+    }
+  ]
+}

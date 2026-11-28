@@ -3,6 +3,12 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0] - 2026-11-28
+
+### Removed
+
+- Drop legacy `.claude/mutation-testing.local.md` dual-read, warning, and move flow from `/mutation-testing:setup` and multi-repo audit context.
+
 ## [0.23.10] - 2026-11-28
 
 ### Changed
