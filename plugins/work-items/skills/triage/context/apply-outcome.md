@@ -76,6 +76,8 @@ dimensions: skip this rule. Any other non-zero exit stops the outcome with no la
 reported with the script's message, since the issue lane refuses an item whose fields are empty.
 The lane counts a value only when its last setter is a listed human or the lanes App, so report
 when the seam writes as any other account.
+A report of the outcome, a dry run included, names that call with its `<dimension>=<key>` pairs
+(such as `size=<key>`), never option or field ids.
 
 An item whose size is `split`, or whose uncertainty mode is not `run`, is not
 autonomous-eligible: in one edit, apply `status: ready` and the human-gated role label (default

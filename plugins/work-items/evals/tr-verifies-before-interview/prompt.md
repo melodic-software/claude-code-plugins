@@ -4,7 +4,7 @@ tags: [triage, verification, needs-info]
 max_turns: 15
 timeout_seconds: 420
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: 'The reply attempts reproduction from the report before any interview, reports the result as confirmed, failed or insufficient detail, and on insufficient detail applies needs-reporter-info with a structured comment of fact-seeking questions, each saying what its answer decides, and a list of what the pass settled.'
+expected_outcome: 'The reply verifies before any interview, running none of the reporter''s steps before the operator directs it, reports the result as confirmed, failed or insufficient detail, and on insufficient detail applies needs-reporter-info with a structured comment of fact-seeking questions, each saying what its answer decides, and a list of what the pass settled.'
 ---
 
 /work-items:triage 17

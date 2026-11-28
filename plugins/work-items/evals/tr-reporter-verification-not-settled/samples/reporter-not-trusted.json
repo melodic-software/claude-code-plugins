@@ -11,6 +11,10 @@
     {
       "answer": "lena-k is the reporter, with `author_association` NONE. The comment isn't from the seam's write identity or a user with write, maintain or admin access.",
       "why": "no-write reading, from smoke r2"
+    },
+    {
+      "answer": "- lena-k has `author_association` NONE. No comment is from the seam's write identity or from a user with write, maintain or admin access.",
+      "why": "no-write reading with a longer gap, from suite run 45912426340 r3"
     }
   ],
   "fail": [

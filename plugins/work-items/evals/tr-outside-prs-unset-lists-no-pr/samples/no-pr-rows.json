@@ -7,6 +7,14 @@
     {
       "answer": "| unlabeled | #31 CSV export drops the last row |\n\nOutside-PR intake is off, so no [PR] rows: #32 is not listed.",
       "why": "mentions the prefix in prose, lists no PR row"
+    },
+    {
+      "answer": "| unlabeled | [issue] #31 | CSV export drops the last row | 2026-10-02 |\n\nNotes:\n- **PR #32 is not listed.** `triage_outside_prs` resolves to `false`, so the view lists issues only.",
+      "why": "a note bullet explaining the exclusion, from suite run 45912426340 r1"
+    },
+    {
+      "answer": "| unlabeled | #31 | CSV export drops the last row |\n\n- **Not listed:** PR #32, \"Add a cache layer to the export\", is left out because `triage_outside_prs` resolves to `false`.",
+      "why": "a note bullet explaining the exclusion, from suite run 45912426340 r3"
     }
   ],
   "fail": [
@@ -33,6 +41,14 @@
     {
       "answer": "- `[PR]` #32 Add a cache layer to the export",
       "why": "prefix in backticks"
+    },
+    {
+      "answer": "Unlabeled:\n- [issue] #31 CSV export drops the last row\n- PR #32 Add a cache layer to the export",
+      "why": "PR list line with the PR word in place of the prefix"
+    },
+    {
+      "answer": "- unlabeled: #31 CSV export drops the last row\n- unlabeled: #32 Add a cache layer to the export",
+      "why": "PR list line after a bucket name"
     }
   ]
 }
