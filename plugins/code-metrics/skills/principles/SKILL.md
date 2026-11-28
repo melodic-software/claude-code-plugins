@@ -1,5 +1,5 @@
 ---
-description: "Metric literacy for what this plugin reports: what each measure means, where each reference value comes from, and what none of them can tell a reader. Use when: 'what does cyclomatic complexity mean', 'is CRAP a real metric', 'why is the cyclomatic reference 20', 'what is a good coverage number', 'which metric should I look at', 'code metrics principles'. The numbers themselves: the /code-metrics:audit-* skills."
+description: "Metric literacy for code-metrics: what each measure means, where reference values come from, and what none of them tell a reader; measures nothing. Use when: 'what does cyclomatic complexity mean', 'is CRAP a real metric', 'what is a good coverage number'. Not for running measurements: /code-metrics:audit."
 argument-hint: "[question or concept]"
 user-invocable: true
 disable-model-invocation: false

@@ -1,5 +1,5 @@
 ---
-description: "Read coverage artifacts a build already wrote (lcov, Cobertura, coverage.py JSON, a Go cover profile) and report line coverage per file and function, plus CRAP per function, for a change, a path, or the tree. Runs no tests, never gates. Use when: 'coverage of this change', 'coverage per function', 'CRAP score', 'which functions are complex and untested', 'read the lcov report', 'coverage.xml', 'how covered is this file'. Complexity alone: /code-metrics:audit complexity."
+description: "Read coverage artifacts a build already wrote (lcov, Cobertura, coverage.py JSON, Go cover profile) to report line coverage and CRAP per file and function for a change, path, or tree; runs no tests, never gates. Use when 'coverage per function', 'CRAP score', 'read the lcov report'. Not for complexity alone: /code-metrics:audit."
 argument-hint: "[--json] [--all] [--base <ref>] [--artifacts <path>]... [<path>...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
