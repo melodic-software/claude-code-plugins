@@ -1,5 +1,5 @@
 ---
-description: "Keep-or-revert loop on a frozen baseline harness in a worktree: one change and commit at a time, re-measuring both arms by a pre-written rule logged outside the tree. Use when: 'hill-climb this benchmark', 'run an optimization loop', 'keep trying changes until this counter drops'. Not for single A/B: /performance:snapshot."
+description: "Keep-or-revert loop on a frozen baseline harness in a worktree: one change and commit at a time, re-measuring both arms by a pre-written rule logged outside the tree. Use when: 'hill-climb this benchmark', 'run an optimization loop', 'keep trying changes until this counter drops'. Not for an LLM app's eval-set score: /claude-api hillclimb."
 user-invocable: true
 argument-hint: "[<goal-slug>]"
 disable-model-invocation: false
