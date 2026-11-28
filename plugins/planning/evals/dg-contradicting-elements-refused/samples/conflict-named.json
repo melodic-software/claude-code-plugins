@@ -12,7 +12,11 @@
     {"answer": "The goal as you stated it can't be met. The required status check fails any PR that has the hold label, so a PR with the label on and every required check green can't exist. Which of these do you mean?", "why": "'can't exist' with the cause"},
     {"answer": "Problem: requirement 1 (hold label on) forces the required check to fail, and requirement 2 needs that check green. No run satisfies both. I'll wait for you to choose which gives way.", "why": "numbered requirements, 'no run satisfies both'"},
     {"answer": "Heads up: these can't coexist. Hold label → required check fails → not every required check is green. I can draft either half on its own.", "why": "arrow chain shows the cause"},
-    {"answer": "The hold label conflicts with every required check being green, because CI Status fails on that label. Do not hide this conflict by silently dropping a requirement; which one should give way?", "why": "names the conflict, then warns not to hide it"}
+    {"answer": "The hold label conflicts with every required check being green, because CI Status fails on that label. Do not hide this conflict by silently dropping a requirement; which one should give way?", "why": "names the conflict, then warns not to hide it"},
+    {"answer": "I can't write this goal without resolving the conflict between the hold label and the CI Status check.", "why": "without governs resolving, not the conflict"},
+    {"answer": "No: the hold label conflicts with the required CI Status check.", "why": "No answers the request; the conflict is affirmed"},
+    {"answer": "The hold label conflicts with the CI Status check. The other elements don't conflict: the branch and the open PR are fine.", "why": "names the conflict, then clears the other elements"},
+    {"answer": "There is no clean way around this conflict: the hold label fails CI Status, a required check.", "why": "no governs clean way, not the conflict"}
   ],
   "fail": [
     {"answer": "", "why": "empty"},
