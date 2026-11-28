@@ -176,11 +176,11 @@ manifest_rows() {
 hash_paths() {
   local root="$1" rel
   shift
-  for rel; do printf '%s/%s\n' "$root" "$rel"; done | git -C "$root" hash-object --no-filters --stdin-paths 2>/dev/null
+  for rel; do printf './%s\n' "$rel"; done | git -C "$root" hash-object --no-filters --stdin-paths 2>/dev/null
 }
 
 main_rows() {
-  local wt_top="$1" main_root="$2" wt_list="$3" rel i j=0
+  local wt_top="$1" main_root="$2" wt_list="$3" rel i j=0 cmp_rc
   local -a rows=() both=() wt_oids=() main_oids=()
   while IFS= read -r -d '' rel; do
     [[ -n "$rel" ]] || continue
@@ -188,12 +188,19 @@ main_rows() {
     [[ "$rel" != *$'\t'* && "$rel" != *$'\n'* ]] || die "diff: carried file path holds a tab or newline: $rel" 3
     [[ -f "$wt_top/$rel" ]] || continue
     [[ -r "$wt_top/$rel" ]] || die "diff: unreadable worktree file: $wt_top/$rel" 3
-    if [[ -e "$main_root/$rel" ]]; then
-      [[ -f "$main_root/$rel" && -r "$main_root/$rel" ]] || die "diff: unreadable main file: $main_root/$rel" 3
+    if [[ ! -e "$main_root/$rel" ]]; then
+      rows+=("N$rel")
+      continue
+    fi
+    [[ -f "$main_root/$rel" && -r "$main_root/$rel" ]] || die "diff: unreadable main file: $main_root/$rel" 3
+    if [[ "$rel" == *$'\r' ]]; then
+      cmp -s -- "$wt_top/$rel" "$main_root/$rel"
+      cmp_rc=$?
+      ((cmp_rc <= 1)) || die "diff: failed comparing $rel" 3
+      ((cmp_rc == 0)) || rows+=("M$rel")
+    else
       both+=("$rel")
       rows+=("")
-    else
-      rows+=("$rel")
     fi
   done <"$wt_list"
   if ((${#both[@]} > 0)); then
@@ -202,16 +209,23 @@ main_rows() {
     ((${#wt_oids[@]} == ${#both[@]} && ${#main_oids[@]} == ${#both[@]})) || die "diff: failed hashing carried files" 3
   fi
   for i in "${!rows[@]}"; do
-    if [[ -n "${rows[$i]}" ]]; then
-      diff_status+=("NEW")
-      diff_rel+=("${rows[$i]}")
-    else
-      [[ "${wt_oids[$j]}" == "${main_oids[$j]}" ]] || {
+    case "${rows[$i]}" in
+      N*)
+        diff_status+=("NEW")
+        diff_rel+=("${rows[$i]#N}")
+        ;;
+      M*)
         diff_status+=("MODIFIED")
-        diff_rel+=("${both[$j]}")
-      }
-      ((j += 1))
-    fi
+        diff_rel+=("${rows[$i]#M}")
+        ;;
+      *)
+        [[ "${wt_oids[$j]}" == "${main_oids[$j]}" ]] || {
+          diff_status+=("MODIFIED")
+          diff_rel+=("${both[$j]}")
+        }
+        ((j += 1))
+        ;;
+    esac
   done
 }
 
