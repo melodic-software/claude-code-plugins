@@ -3,8 +3,8 @@ import { test } from "node:test";
 
 import { specSource } from "./spec-source.mjs";
 
-const NONE = { written: false, body: "issue body", splitChild: undefined, splitMarked: false, ownFiling: false, briefed: false, recurring: null, drift: null, incident: null };
-const EVERY = { splitChild: "child body", ownFiling: true, briefed: true, recurring: "schedule row", drift: "drift spec", incident: "main red spec" };
+const NONE = { written: false, body: "issue body", splitChild: undefined, splitMarked: false, ownFiling: false, briefed: false, recurring: null, drift: null, incident: null, monitor: null, deadLinks: null, demotion: null };
+const EVERY = { splitChild: "child body", ownFiling: true, briefed: true, recurring: "schedule row", drift: "drift spec", incident: "main red spec", monitor: "monitor spec", deadLinks: "dead links spec", demotion: "demotion spec" };
 
 const ROWS = [
   ["a written issue's own body wins over every other source", { written: true, ...EVERY }, { body: "issue body" }],
@@ -18,6 +18,9 @@ const ROWS = [
   ["the recurring row wins over drift and incident", { recurring: "schedule row", drift: "drift spec", incident: "main red spec" }, { source: "recurring-schedule", body: "schedule row" }],
   ["the drift spec wins over the incident", { drift: "drift spec", incident: "main red spec" }, { source: "upstream-drift", body: "drift spec" }],
   ["a main-red incident alone takes the incident spec", { incident: "main red spec" }, { source: "main-red-incident", body: "main red spec" }],
+  ["a monitor signal incident takes the monitor-incident source", { monitor: "monitor spec", deadLinks: "dead links spec", demotion: "demotion spec" }, { source: "monitor-incident", body: "monitor spec" }],
+  ["a dead-link rollup takes the dead-link-rollup source", { deadLinks: "dead links spec", demotion: "demotion spec" }, { source: "dead-link-rollup", body: "dead links spec" }],
+  ["a demotion alert takes the demotion-alert source", { demotion: "demotion spec" }, { source: "demotion-alert", body: "demotion spec" }],
   ["beside an own-agent body the drift spec still marks the source", { ownFiling: true, drift: "drift spec" }, { source: "upstream-drift", body: "issue body" }],
   ["beside a briefed body the incident still marks the source", { briefed: true, incident: "main red spec" }, { source: "main-red-incident", body: "issue body" }],
   ["an issue no source claims has no spec", {}, { body: null }],

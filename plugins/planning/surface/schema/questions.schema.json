@@ -195,6 +195,7 @@
         "setInRound": {"type": "integer"},
         "pluginVersion": {"description": "The planning plugin version that first wrote this file; `round.sh doctor` compares it with the running version.", "type": "string"},
         "emojiMarkers": {"type": "boolean"},
+        "style": {"description": "The `set-style` op's value: under `lightning` the page shows each question as a condensed card the user can expand. Absent is standard.", "enum": ["standard", "lightning"]},
         "questionPacing": {"description": "The `question_pacing` setting `ensure-running --pacing` recorded: under `single` the session posts one question at a time.", "enum": ["round", "single"]},
         "displayName": {"type": "string"},
         "seededFrom": {"$ref": "#/$defs/seededFrom"},
@@ -356,6 +357,10 @@
         "addedInRound": {
           "type": "integer",
           "description": "The newest round when this question was added, written only when that is above its own round: it was asked after a later round was posted."
+        },
+        "major": {
+          "description": "A major question (problem, intent, vision, goals, quality bar, or another consequential call): a lightning card tags it (major). Absent is not major.",
+          "enum": [true]
         },
         "binary": {
           "type": "boolean",

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "**Problem**: expired tokens pile up.\n...\nConfirm this, or name the Q numbers to change.",
+      "why": "the restatement opens with the problem and asks to confirm"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "❓ Q3 (owner): **Who owns the job?**\n➡️ **platform team** - (or: a app team)",
+      "why": "another condensed round, no restatement"
+    }
+  ]
+}

@@ -3,6 +3,19 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## Self-styled page migrations and harness-chrome exceptions, 2026-11-27
+
+- **Self-styled pages adopt `reference/html-tokens.css` and record apart-staying surfaces.**
+  `playbooks`'s `/playbooks:repo-sweep` plan page (`reference/repo-sweep-plan-page.html`) and
+  `formal-verification`'s chart theme (`skills/chart/reference/render-theme.css`) take their palette
+  and type stacks from `lib/html-tokens.css` and resolved `branding` overrides; `formal-verification`
+  and `playbooks` gain generated copies of `lib/view-settings.mjs`.
+- **Recorded exceptions under `The rendered-views settings`.** `prototype`'s three UI-feedback
+  harness-chrome assets (`notes-bridge/host.html`, `notes-bridge/proto-pin.js`,
+  `skills/explore-directions/assets/variant-switcher.html`) stay on their neutral `--uif-*` palette
+  so harness chrome never blends into the consumer's prototype under review, and `formal-verification`'s
+  standalone SVG chart stylesheet stays free of HTML chrome bar, toggle, logo slot and comment markup.
+
 ## The `branding` setting, schema and resolver, 2026-11-27
 
 - **`rendered-views` gains the `branding` key and schema.** `SCHEMA` and `BRANDING_SCHEMA` in

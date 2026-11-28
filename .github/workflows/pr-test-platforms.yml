@@ -369,6 +369,15 @@ jobs:
       - name: Test the worktree root scan on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/source-control/scripts/worktree-root-scan.test.sh')
         run: bash plugins/source-control/scripts/worktree-root-scan.test.sh
+      - name: Test the worktree reap refusal on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/source-control/scripts/worktree-reap.test.sh')
+        run: bash plugins/source-control/scripts/worktree-reap.test.sh
+      - name: Test the worktree carried-file helper on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/source-control/scripts/worktree-include.test.sh')
+        run: bash plugins/source-control/scripts/worktree-include.test.sh
+      - name: Test the landed-work engine on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/source-control/scripts/landed-work.test.sh')
+        run: bash plugins/source-control/scripts/landed-work.test.sh
       - name: Test the repo-sweep tick script on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/playbooks/skills/repo-sweep/scripts/tick.test.sh')
         run: bash plugins/playbooks/skills/repo-sweep/scripts/tick.test.sh
@@ -386,6 +395,62 @@ jobs:
       - name: Test the shared session tunnel on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/planning/shared/tests/test_server.py')
         run: python -m unittest discover -v -s plugins/planning/shared/tests -p 'test_tunnel.py'
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: $/.github/actions/log-api-budget
+        with:
+          tokens: github-token
+
+  test-windows-hygiene:
+    name: Test Windows Hygiene
+    needs: [select-tests-windows]
+    if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-windows-hygiene') }}
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Test clean-build on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/repo-hygiene/skills/clean/scripts/clean-build.test.sh')
+        run: bash plugins/repo-hygiene/skills/clean/scripts/clean-build.test.sh
+      - name: Test clean-caches on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/repo-hygiene/skills/clean/scripts/clean-caches.test.sh')
+        run: bash plugins/repo-hygiene/skills/clean/scripts/clean-caches.test.sh
+      - name: Test git-prune on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/repo-hygiene/skills/clean/scripts/git-prune.test.sh')
+        run: bash plugins/repo-hygiene/skills/clean/scripts/git-prune.test.sh
+      - name: Test git-branch-delete on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/repo-hygiene/skills/clean/scripts/git-branch-delete.test.sh')
+        run: bash plugins/repo-hygiene/skills/clean/scripts/git-branch-delete.test.sh
+      - name: Test git-tree-reset on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/repo-hygiene/skills/clean/scripts/git-tree-reset.test.sh')
+        run: bash plugins/repo-hygiene/skills/clean/scripts/git-tree-reset.test.sh
+      - name: Test git-tree-reset-batch on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/repo-hygiene/skills/clean/scripts/git-tree-reset-batch.test.sh')
+        run: bash plugins/repo-hygiene/skills/clean/scripts/git-tree-reset-batch.test.sh
+      - name: Test preflight on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/repo-hygiene/skills/clean/scripts/preflight.test.sh')
+        run: bash plugins/repo-hygiene/skills/clean/scripts/preflight.test.sh
+      - name: Test remove-path on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/repo-hygiene/skills/clean/scripts/remove-path.test.sh')
+        run: bash plugins/repo-hygiene/skills/clean/scripts/remove-path.test.sh
+      - name: Test resolve-clean-action on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/repo-hygiene/skills/clean/scripts/resolve-clean-action.test.sh')
+        run: bash plugins/repo-hygiene/skills/clean/scripts/resolve-clean-action.test.sh
+      - name: Test scan on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/repo-hygiene/skills/clean/scripts/scan.test.sh')
+        run: bash plugins/repo-hygiene/skills/clean/scripts/scan.test.sh
+      - name: Test cleanup-paths on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/repo-hygiene/skills/clean/scripts/lib/cleanup-paths.test.sh')
+        run: bash plugins/repo-hygiene/skills/clean/scripts/lib/cleanup-paths.test.sh
 
       - name: Log the API budget at the end
         if: always()

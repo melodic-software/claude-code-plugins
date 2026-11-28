@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | Blocking | PR #4961 uses `Closes #2954` while only adding `docs/out-of-scope/context-budget-unpaid-measurements.md` to declare the unpaid context-budget measurements parked. Merging this closes #2954 without implementing the requested work or recorded owner sign-off to close it. | docs/out-of-scope/context-budget-unpaid-measurements.md:1 |\n\nSummary: do not close #2954 with a park-only ledger.",
+      "why": "blocking finding citing the file and naming the Closes park-ledger defect"
+    },
+    {
+      "answer": "Blocking finding: this PR uses `Closes #2954` but implements none of the unpaid context-budget measurements; it only checks in an out-of-scope park document. Remove `Closes #2954` or obtain explicit owner approval before closing the issue.",
+      "why": "high-signal finding naming the reverted park-ledger problem without a line number"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Findings: none. No blocking or advisory findings. The park document is clear and well structured.",
+      "why": "reports no findings on a park PR that closes an active issue without doing the work"
+    },
+    {
+      "answer": "| 1 | Advisory | `context-budget-unpaid-measurements.md:5` wraps awkwardly at 90 columns; consider tightening the rationale bullets for readability. | docs/out-of-scope/context-budget-unpaid-measurements.md:5 |\n\nSummary: minor prose polish only.",
+      "why": "cites a line in the ledger for an unrelated style nit while missing the Closes park-ledger defect"
+    }
+  ]
+}

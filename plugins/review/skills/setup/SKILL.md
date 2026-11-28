@@ -161,7 +161,7 @@ what the operator picks:
 
 Plugin-side notes on top of the binding's procedure:
 
-1. **State reading order:** `.claude/standards.yaml` → index presence test at the resolved
+1. **State reading order:** `docs/conventions/standards.yaml` → index presence test at the resolved
    `<standards_dir>/README.md` → inference sources (existing review docs such as a repo-root
    `REVIEW.md` or `docs/review*` directory, other docs directories, ecosystem configs, a root
    `CODING_STANDARDS.md` and `CONTRIBUTING.md`, ambient `CLAUDE.md` content). Pre-existing review documentation is an inference source for proposing
@@ -169,7 +169,7 @@ Plugin-side notes on top of the binding's procedure:
 2. **Bootstrap writes** (interactive, user-accepted. No silent writes): the skeleton index with
    its `standards-contract` frontmatter at the binding's version, and the setup-owned
    `<standards_dir>/.gitignore` containing `*.local.md` (the personal override ignore). Write
-   `.claude/standards.yaml` only when the user relocates the root from the documented default.
+   `docs/conventions/standards.yaml` only when the user relocates the root from the documented default.
    After a bootstrap write, run the tracked-file pair on each written team file:
    `git check-ignore -v` reports no match (a match is FAIL with the pattern) and
    `git ls-files --error-unmatch` exits 0 (non-zero right after a fresh write means "written but

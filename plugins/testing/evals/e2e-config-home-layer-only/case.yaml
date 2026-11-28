@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: e2e-config-home-layer-only
-description: 'Dual-read window, new layer only: recording comes from docs/conventions/testing/e2e.md and no old-location warning is printed, since no old file exists. home-source reads the reply; meets-expectations (llm) checks the value, its source and the absent warning. Read-only tools, graded on the reply.'
+description: 'Home layer only: recording comes from docs/conventions/testing/e2e.md and no old-location warning is printed. home-source reads the reply; meets-expectations (llm) checks the value, its source and the absent warning. Read-only tools, graded on the reply.'
 tags: [testing, run-e2e, no-network]
 expected_outcome: 'Reports recording video from docs/conventions/testing/e2e.md and no old-location warning.'
 execution:

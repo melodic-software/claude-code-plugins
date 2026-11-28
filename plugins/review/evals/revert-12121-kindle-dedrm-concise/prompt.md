@@ -1,11 +1,11 @@
 ---
-description: "Revert case from PR #12121, reverted by #12247 bee196a5e2fd: CI code review of the original change posts a finding on a line the revert later changed"
+description: "Revert case from PR #12121, reverted by #12247 bee196a5e2fd: high-signal CI code review names that the kindle-dedrm manage body cut lacks a negative/detection control proving the outcome suite detects a body loss"
 tags: [review, code-review, revert]
-runs: 1
+runs: 3
 max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Agent]
-expected_outcome: "The review reports a finding at a line the revert later changed: plugins/kindle-dedrm/skills/manage/SKILL.md lines 10,16,29,35,49-52,77,96,98-99,106,108-109,123. Its other findings are recorded, not graded"
+expected_outcome: "A high-signal code review names the reverted problem: PR #12121 trims plugins/kindle-dedrm/skills/manage/SKILL.md claiming measured no-loss without a negative/detection control showing the outcome suite can detect a degraded body (and with md-installer-popup unmeasured on Opus). Citing a specific line number is optional; other findings are recorded, not graded"
 ---
 
 /review:code-review

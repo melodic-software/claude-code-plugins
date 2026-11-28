@@ -281,6 +281,7 @@ def mention_texts(doc):
 
 PREF_ROUND = re.compile(r"all|[1-9][0-9]{0,3}")
 
+STYLES = ("standard", "lightning")
 DEFAULT_SETTINGS = {
     "voting": True,
     "signoff": False,
@@ -292,7 +293,7 @@ DEFAULT_SETTINGS = {
     "claudeTake": "answerFirst",
     "theme": {"mode": "system", "accent": "teal"},
 }
-OPTIONAL_SETTINGS = {"approveJoins": False, "reviewAnswers": True, "guestPopups": None, "prototypeTiers": None, "roundCap": None}
+OPTIONAL_SETTINGS = {"approveJoins": False, "reviewAnswers": True, "guestPopups": None, "prototypeTiers": None, "roundCap": None, "style": "standard"}
 GUEST_POPUPS = ("request", "mention", "round")
 PROTOTYPE_TIERS = ("screenshot", "snapshot", "live")
 DEFAULT_PROTOTYPE_TIERS = ("screenshot", "snapshot")
@@ -300,6 +301,7 @@ LAST_SCHEMA_VERSION = 7
 SETTING_VALUES = {
     "names": ("full", "initials", "someone"),
     "claudeTake": ("answerFirst", "always"),
+    "style": STYLES,
 }
 THEME_VALUES = {
     "mode": ("system", "light", "dark"),
@@ -2320,8 +2322,12 @@ class Session:
 
     @property
     def round_max(self):
-        """The most questions a round holds: the host's roundCap setting, never above MAX_ROUND."""
-        return min(self.state["session"]["settings"].get("roundCap", MAX_ROUND), MAX_ROUND)
+        """The most questions a round holds: the host's roundCap setting, never above MAX_ROUND; MAX_ROUND under the
+        lightning style."""
+        settings = self.state["session"]["settings"]
+        if settings.get("style") == "lightning":
+            return MAX_ROUND
+        return min(settings.get("roundCap", MAX_ROUND), MAX_ROUND)
 
     def _question(self, qid, field="qid"):
         if not isinstance(qid, str):
@@ -2422,6 +2428,8 @@ class Session:
             raise _bad(f"{field}.purpose", "A poll needs options: use a choice, confirm or prototype format.")
         q["format"] = self._parse_format(fmt, f"{field}.format", made)
         q["answerScope"] = qi.get("answerScope", "person")
+        if qi.get("major") is True:
+            q["major"] = True
         refs = qi.get("references", [])
         if len(refs) > MAX_REFERENCES:
             raise DomainError(400, "too-long", f"A question holds at most {MAX_REFERENCES} references.", field=f"{field}.references", max=MAX_REFERENCES)
@@ -5865,6 +5873,11 @@ class Session:
     def _op_set_intro(self, op):
         """Claude sets "Why you're here" once the owner said yes to its draft in the terminal."""
         return self._put_intro(_text(op, "intro", limit=MAX_INTRO, empty_ok=True))
+
+    def _op_set_style(self, op):
+        """Claude sets how the pages show a round: standard cards, or lightning's condensed ones."""
+        _settings_patch(self.state["session"]["settings"], {"style": op["style"]})
+        return {"style": op["style"]}
 
     def _op_ack_round(self, op):
         r = self._step("ack", CLAUDE)

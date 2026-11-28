@@ -236,13 +236,7 @@ invocation-specific choice and replaces every standing layer. Every overlay can 
 and add protected globs, and `version: 2` adds `rules` and `elevation`; none can weaken hard guards.
 The [overlay schema](reference/policy-overlay.schema.json) lists every field; version 1 files load
 unchanged. The scan output names its `policy_sources`, its `policy_warnings` and the effective
-`elevation`. Scan errors and unvisited protected roots are coverage gaps, not clean. A hint's `entry_types` and the snapshot's `empty_directory_paths` are in [scan-flags.md](reference/scan-flags.md#coverage-and-hint-fields).
-
-The old files `~/.claude/disk-hygiene.json` and `<project>/.claude/disk-hygiene.json` are still
-read, each in place of its layer (the `policy_file` file, then the team file) while no new file
-supplies that layer. Each one found adds a `policy_warnings` line naming the file and where it
-moves. Relay every line, and point at `/disk-hygiene:setup apply`, which moves the files. Other
-locations: [config locations](../../reference/config-locations.md).
+`elevation`. Scan errors and unvisited protected roots are coverage gaps, not clean. A hint's `entry_types` and the snapshot's `empty_directory_paths` are in [scan-flags.md](reference/scan-flags.md#coverage-and-hint-fields). Other locations: [config locations](../../reference/config-locations.md).
 
 The scan output may also carry an `os_autoclean` advisory when the target overlaps a zone an OS
 mechanism (Windows Storage Sense, systemd-tmpfiles) should own. Surface its recommendation in the

@@ -38,22 +38,23 @@ case $LANE_PATH in
   exit 1
   ;;
 esac
-waited=0 etag_path='' etag='' etag_body=''
+waited=0
+declare -A etags=() etag_bodies=()
 read_api() {
   local attempt out hdr status left reset after wait cond
   for attempt in 1 2 3; do
     cond=()
-    [[ $3 != "$etag_path" || -z $etag ]] || cond=(-H "If-None-Match: $etag")
+    [[ -z ${etags[$3]:-} ]] || cond=(-H "If-None-Match: ${etags[$3]}")
     if out=$(gh api -i "$3" "${cond[@]}"); then
       printf -v "$1" '%s' "$(sed '1,/^\r\?$/d' <<<"$out")"
-      etag_path=$3 etag_body=${!1}
-      etag=$(sed '/^\r\?$/q' <<<"$out" | tr -d '\r' | awk -F': *' 'tolower($1) == "etag" { print $2; exit }')
+      etag_bodies[$3]=${!1}
+      etags[$3]=$(sed '/^\r\?$/q' <<<"$out" | tr -d '\r' | awk -F': *' 'tolower($1) == "etag" { print $2; exit }')
       return 0
     fi
     hdr=$(sed '/^\r\?$/q' <<<"$out")
     status=$(awk 'NR == 1 { print $2 }' <<<"$hdr")
     if [[ $status == 304 && ${#cond[@]} -gt 0 ]]; then
-      printf -v "$1" '%s' "$etag_body"
+      printf -v "$1" '%s' "${etag_bodies[$3]}"
       return 0
     fi
     read -r left reset after < <(tr -d '\r' <<<"$hdr" | awk -F': *' '{ h[tolower($1)] = $2 }

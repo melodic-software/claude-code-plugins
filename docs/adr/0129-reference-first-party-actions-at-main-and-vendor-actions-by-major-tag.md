@@ -2,8 +2,8 @@
 
 - Status: accepted
 - Date: 2026-11-23
-- Related: architecture `docs/owner-decisions.md`, row "Action pinning (D3)"
-  ([melodic-software/architecture#198](https://github.com/melodic-software/architecture/pull/198));
+- Related: retired `melodic-software/architecture` `docs/owner-decisions.md`, row "Action pinning (D3)"
+  (retired `melodic-software/architecture#198`);
   [standards#1098](https://github.com/melodic-software/standards/pull/1098) (the zizmor `ref-pin`
   policy); supersedes Decision 4 of
   [ADR 0085](0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)
@@ -41,7 +41,7 @@ don't want pinned".
 4. **ci-workflows keeps today's rulesets** (pull request, `CI Status`, signed commits) and gains no
    CODEOWNERS gate now that callers track its main (owner decision, 2026-11-23).
 5. **ci-workflows itself stays SHA-pinned internally** (owner decision recorded in
-   [architecture#198](https://github.com/melodic-software/architecture/pull/198)); this record
+   retired `melodic-software/architecture#198`); this record
    covers its callers only.
 6. **No allowed-SHA list for ci-workflows.** ADR 0085 Decision 4 is withdrawn: when lanes move to
    ci-workflows reusables, the broker cannot bind them to a listed commit that callers no longer

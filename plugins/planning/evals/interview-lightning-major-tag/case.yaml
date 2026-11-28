@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: interview-lightning-major-tag
+description: "Under lightning a major question (problem, intent, goals, quality bar, consequential) is tagged in its topic and keeps its basis line. Why hard: condensing invites treating every question alike."
+tags: [interview, lightning, no-network]
+expected_outcome: "At least one round 1 question is tagged major in its topic, and recommended questions print a bold answer with its basis after a dash."
+execution:
+  prompt: "/planning:interview lightning I want to add search to the product."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: major-tag
+    type: regex
+    pattern: "^\\S*\\s*Q[0-9]+ \\([^()\\n]*\\bmajor\\)"
+    flags: m
+    arm: with-only
+  - name: condensed-answer-line
+    type: regex
+    pattern: "^\\S*\\s*\\*\\*[^*\\n]{1,80}\\*\\* - \\S"
+    flags: m
+    arm: with-only

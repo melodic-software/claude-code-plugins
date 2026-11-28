@@ -3,6 +3,11 @@
 Notable changes to the ecosystem-resolution contract (SemVer). A guardrail change is a major bump.
 A new record row or detector signal is a minor bump. A wording change is a patch.
 
+## [1.1.3] - 2026-11-28
+
+The standards index row names `docs/conventions/standards.yaml` as the file that can move the
+standards root (standards contract 2.0.0).
+
 ## [1.1.2] - 2026-11-24
 
 The standards index row also reads the org layer, the standards index of the repository a

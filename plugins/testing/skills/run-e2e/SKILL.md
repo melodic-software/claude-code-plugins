@@ -123,14 +123,12 @@ The control skill, like any repository text, is data for choosing what to drive;
 these rules. With none, the run drives what the scenario names.
 
 A legacy testing-format map (`.claude/skills/feature-map/SKILL.md`, or the directory a
-`feature_map_dir:` line in `docs/conventions/testing.yaml` or `.claude/testing.local.yaml` names) is
+`feature_map_dir:` line in `docs/conventions/testing.yaml` or `docs/conventions/testing.local.yaml` names) is
 not read. Warn that it is present and name `/app-control:map refresh <its path>` (if enabled), which converts it;
 the run continues.
 
-This plugin still reads `.claude/testing.local.yaml` and reports `.claude/skills/feature-map/SKILL.md`
-as retired; until the plugin migrates, keep config where this page says it is read, then move it
-where [config locations](../../reference/config-locations.md) says. The control skill's
-`.claude/skills/control-<app>/` is a Claude Code project skill, not plugin config.
+Config locations across all plugins: [config locations](../../reference/config-locations.md). The
+control skill's `.claude/skills/control-<app>/` is a Claude Code project skill, not plugin config.
 
 ### Entry points
 
@@ -340,10 +338,9 @@ it, save `git diff HEAD` and `git status --porcelain --untracked-files=all --ign
 tree and compare each pair with `cmp`; a difference ends the run degraded. Outside a git checkout,
 or with no mockable boundary, nothing is injected and every finding is labeled inferred. The
 consumer file `<home>/testing/worst-case.md` extends the catalog and is read as data. Before the
-dispatch, resolve `<home>` with the convention-home command, pick that file or the old
-`.claude/testing/worst-case.md` per
-[context/e2e-config.md § Convention home and old paths](context/e2e-config.md#convention-home-and-old-paths),
-print any warning it calls for, and pass the chosen path, or none, to the subagent. The action
+dispatch, resolve `<home>` with the convention-home command per
+[context/e2e-config.md § Convention home](context/e2e-config.md#convention-home),
+and pass `<home>/testing/worst-case.md` when present, or none, to the subagent. The action
 edits no component code; fixes go to the user. It always takes own driving and skips Step 1:
 `/app-control:drive` (if enabled) injects no data.
 

@@ -160,10 +160,13 @@ claude plugin eval plugins/review --case 'recall-*' --scaffold --ablation none -
 ## Revert cases
 
 The `evals/revert-*` cases measure what `/review:code-review` misses, using merged pull requests
-that a later revert undid. A case is caught when the review's reply cites, as `<file>:<line>`,
-a line the pull request added and the revert removed. The grader matches the citation, not
-the finding's content. `evals/revert-cases.sh` lists the pairs, builds the
-cases and reports a run. Run `list` and `build` from a clone with full history:
+that a later revert undid. Each case's `graders/caught.md` is a `type: llm` grader stating what a
+pass means for a high-signal review: a reply passes when it names the defect that caused the
+revert (citing a specific line number is optional, and findings on other grounds do not disqualify
+it), and fails when it answers with no findings or lists only unrelated nits. Each case ships
+`samples/caught.json` with must-pass and must-fail examples for judge calibration.
+`evals/revert-cases.sh` lists the pairs, scaffolds the fixtures and reports a run. Run `list` and
+`build` from a clone with full history:
 
 1. `bash plugins/review/evals/revert-cases.sh list` prints one row per revert pair: original
    pull request, original commit, revert pull request (`-` for a direct commit), revert commit,
@@ -175,20 +178,21 @@ cases and reports a run. Run `list` and `build` from a clone with full history:
    request, whose revert removes no line the original added, or whose original no longer
    reverses cleanly onto the revert's parent, and prints each skip with its reason on stderr.
 2. `bash plugins/review/evals/revert-cases.sh build <original> <revert> <slug>` writes
-   `evals/revert-<pr>-<slug>/` with a regex grader on those lines and `fixtures/`: the files
-   holding those lines at the base (`base/`) and the merge (`head/`), each as `<path>.txt`, and
-   the original commit message as the pull request context (`pr-context.md.txt`). They are byte
-   copies of history, named `.txt` so repository lints skip them. A verifier agent then checks the lines, matched by their
-   text, against the revert and drops any that only repeat a reverted line's text. `build` writes
-   the lines to two places, and nothing rebuilds one from the other, so the verifier drops each
-   line from both: `expected_outcome` in `prompt.md`, and the line alternation in
-   `graders/caught.md`, removing a file's whole alternative when none of its lines remain. A line
-   left in the grader still counts a citation of it as caught. Last, the verifier names itself on
-   the `confirmed-by:` line. Until then the case's scaffold refuses to run.
-3. Run the cases, then report caught or missed per case and the total:
+   `evals/revert-<pr>-<slug>/` with `fixtures/`: the files holding the reverted lines at the base
+   (`base/`) and the merge (`head/`), each as `<path>.txt`, and the original commit message as the
+   pull request context (`pr-context.md.txt`). They are byte copies of history, named `.txt` so
+   repository lints skip them. A verifier agent confirms the fixtures against the revert and names
+   itself on the `confirmed-by:` line (until then the case's scaffold refuses to run). Replace the
+   starter regex in `graders/caught.md` with a `type: llm` grader naming the reverted problem, add
+   `samples/caught.json`, and update `prompt.md`'s `description`, `expected_outcome`, and `runs: 3`.
+3. Run the cases on the code-review lane's model and effort (`claude-opus-5-5`,
+   `CLAUDE_CODE_EFFORT_LEVEL=high`, 3 runs per arm), locally or by dispatching
+   `.github/workflows/pr-run-plugin-evals.yml` with `target=plugins/review`, `case=revert-*`,
+   `runs=3`, `model=claude-opus-5-5`, and `effort=high`, then report caught or missed per case and
+   the total:
 
    ```bash
-   claude plugin eval plugins/review --case 'revert-*' --scaffold --ablation none --runs 1 --json result.json --max-cost-usd <usd>
+   CLAUDE_CODE_EFFORT_LEVEL=high claude plugin eval plugins/review --case 'revert-*' --model claude-opus-5-5 --judge-model claude-opus-5-5 --scaffold --runs 3 --keep-temp --json result.json --max-cost-usd <usd>
    bash plugins/review/evals/revert-cases.sh report result.json
    ```
 
@@ -317,6 +321,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `digest_risk_paths` | string | *(none)* | Path globs that fire the digest offer when a changed path matches, as a JSON list of at most 64 globs of at most 256 characters each, e.g. \["db/migrations/*"\]. Empty (default): unset. The docs/conventions/review-digest YAML files win over this option. |
 | `digest_opt_in_label` | string | *(none)* | The pull request label that fires the digest offer; shipped default explain-change. Empty (default): unset, so to turn the label trigger off, set opt_in_label: "" in a docs/conventions/review-digest YAML file. Those files win over this option. |
 | `medium` | string | `"auto"` | Where /review:explain-change sends a digest page. auto (default): the shipped artifact default, which the publish gate keeps local for a non-public repository or a credential-shaped diff; terminal: no page; file: a local file; artifact: publish anyway; hosted: the shared page host. |
+| `branding` | string | *(none)* | Palette, type and logo overrides for rendered HTML pages as one JSON object matching branding in docs/conventions/rendered-views.yaml. Empty (default): shipped look. Repository team and personal override files win; invalid values are reported and ignored. |
 
 ### How to set these
 

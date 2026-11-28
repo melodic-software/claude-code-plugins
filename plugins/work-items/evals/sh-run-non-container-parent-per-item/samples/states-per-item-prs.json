@@ -11,6 +11,10 @@
     {
       "answer": "The item list states per-item PRs, since #370 has no shape line.",
       "why": "list named before the shape"
+    },
+    {
+      "answer": "- It states the shape as `per-item PRs (default: #370 is not a spec container)`.\n\n**4. Compose and approve the item list**\n- It shows you the list, opening with the shape line above.",
+      "why": "real reply: shape stated, then the list opens with it a section later"
     }
   ],
   "fail": [
@@ -29,6 +33,10 @@
     {
       "answer": "Each child gets its own per-item PR, merged after you approve.",
       "why": "near miss: names PRs but states no shape in the list"
+    },
+    {
+      "answer": "Each child gets its own per-item PR.\n\nIt shows you the list and asks for approval.",
+      "why": "near miss: per-item PRs named, but the list does not carry the shape"
     }
   ]
 }

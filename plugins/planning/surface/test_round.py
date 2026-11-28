@@ -2135,6 +2135,17 @@ class TestClaudeActivity(DirCase):
         self.assertIn(waits.encode("utf-8"), p.stdout)
         self.assertEqual(self.q("Q3")["waitsOn"], waits)
 
+    def test_set_style_writes_meta_style_and_takes_only_a_known_style(self):
+        self.assertNotIn("style", self.doc()["meta"])
+        self.apply({"op": "set-style", "style": "lightning"})
+        self.assertEqual(self.doc()["meta"]["style"], "lightning")
+        for bad in ({"style": "fast"}, {}, {"style": "lightning", "id": "Q1"}):
+            with self.subTest(op=bad):
+                self.refused({"op": "set-style", **bad})
+        self.assertEqual(self.doc()["meta"]["style"], "lightning")
+        self.apply({"op": "set-style", "style": "standard"})
+        self.assertEqual(self.doc()["meta"]["style"], "standard")
+
     def test_set_status_needs_text_or_clear_not_both(self):
         for extra in (
             {},
@@ -6196,6 +6207,126 @@ SKIPPING_ROUNDS = {
     ),
     3: round_text(3, [(7, "Question 7?"), (8, "Question 8?")], []),
 }
+
+LIGHTNING = [
+    "**Round 3.** The retry budget is three tries, and a failed retry pages no one.",
+    "Scope check: 9 of 27 questions registered; round 2 added 4, settled 3; round 1 added 3, settled 3",
+    "Later: alert routing, the on-call rota",
+    "Held: Q12 (queue choice) until the queue lookup returns",
+    "",
+    "❓ Q10: **Should a failed retry write to the audit log?**",
+    "➡️ **yes, one entry per failed retry** - The log already takes one write per job, so a "
+    "retry entry fits it (verified, `src/retry.ts:12`) (or: a Log only the final failure, "
+    "b Log nothing for retries)",
+    "   Flips if: the audit log starts dropping batched writes in production.",
+    "   Second view: write only the final failure, to keep the log short.",
+    "   Departs from: Q4 (one write per job) because a retry adds a second write to a failed job.",
+    "   - one log entry per failed retry",
+    "   - keeping the retry count in the entry",
+    "",
+    "❓ Q11: **Who reads the retry entries?**",
+    "Discovery: who reads the entries settles whether they need a dashboard.",
+    "",
+    "❓ Q13: **Which store holds the entries?**",
+    "Withheld: the queue lookup has not returned, so no store can be recommended yet.",
+    "   Flips if: the lookup finds the queue already persists jobs.",
+    "",
+    'say "more Q<N>" for the full block.',
+    "You can answer in any order. Is there something else that would change these recommendations?",
+]
+
+
+class TestRoundShowLightning(unittest.TestCase):
+    """show --level lightning prints each question as a condensed entry from the full blocks."""
+
+    def show(self, path=ROUND_FULL):
+        rc, out, err = run_bytes("show", "--level", "lightning", str(path))
+        self.assertEqual(rc, 0, err)
+        return out.decode("utf-8").splitlines()
+
+    def test_lightning_prints_condensed_entries(self):
+        self.assertEqual(self.show(), LIGHTNING)
+
+    def test_lightning_keeps_every_warning_and_commitment_line(self):
+        out = self.show()
+        for line in (
+            "   Flips if: the audit log starts dropping batched writes in production.",
+            "   Departs from: Q4 (one write per job) because a retry adds a second write to a failed job.",
+            "   - keeping the retry count in the entry",
+            "Withheld: the queue lookup has not returned, so no store can be recommended yet.",
+        ):
+            self.assertIn(line, out)
+
+    def test_lightning_drops_context_and_full_alternatives(self):
+        out = self.show()
+        self.assertNotIn("Context:", out)
+        self.assertNotIn("Alternatives:", out)
+        self.assertNotIn("---", out)
+
+    def test_lightning_leaves_the_round_file_untouched(self):
+        before = ROUND_FULL.read_bytes()
+        self.show()
+        self.assertEqual(ROUND_FULL.read_bytes(), before)
+
+    def show_edited(self, old, new, *links):
+        text = ROUND_FULL.read_text(encoding="utf-8")
+        self.assertIn(old, text)
+        with tempfile.TemporaryDirectory(prefix="iv-lightning-") as tmp:
+            path = Path(tmp) / "round-3.md"
+            path.write_bytes(text.replace(old, new, 1).encode("utf-8"))
+            rc, out, err = run_bytes("show", "--level", "lightning", *links, str(path))
+        self.assertEqual(rc, 0, err)
+        return out.decode("utf-8").splitlines()
+
+    def test_lightning_keeps_a_wrapped_warning_whole(self):
+        flips = "Flips if: the audit log starts dropping batched writes in production."
+        out = self.show_edited(flips, flips + "\nor a retry storm fills the disk.")
+        self.assertIn(
+            "   Flips if: the audit log starts dropping batched writes in production. "
+            "or a retry storm fills the disk.",
+            out,
+        )
+
+    def test_lightning_keeps_every_protected_line(self):
+        protected = [
+            "*Flips if:* the guide changes its batching rule.",
+            "Second view (recommender): log both failures.",
+            "- Commits you to: no second store",
+            "Departs from: Q4 (one write per job), once more.",
+            "Withheld: until the queue lookup returns.",
+            "**Discovery** first: who reads the entries.",
+        ]
+        basis = "Basis: verified, `src/retry.ts:12` and the audit guide's Writes section\n"
+        store = "- The store depends on the queue lookup.\n"
+        text = ROUND_FULL.read_text(encoding="utf-8")
+        text = text.replace(basis, basis + "".join(x + "\n" for x in protected[:2]), 1)
+        text = text.replace(store, store + "".join(x + "\n" for x in protected[2:]), 1)
+        out = self.show_edited(ROUND_FULL.read_text(encoding="utf-8"), text)
+        hint = out.index('say "more Q<N>" for the full block.')
+        shown = [x.strip() for x in out[:hint]]
+        for line in protected + [
+            "Withheld: the queue lookup has not returned, so no store can be recommended yet."
+        ]:
+            self.assertIn(line, shown)
+
+    def test_lightning_prints_a_commitment_written_on_its_label_line(self):
+        out = self.show_edited(
+            "Withheld: the queue lookup has not returned, so no store can be recommended yet.\n",
+            "Withheld: the queue lookup has not returned, so no store can be recommended yet.\n"
+            "Commits you to: no second store\n",
+        )
+        self.assertIn("   no second store", out)
+
+    def test_lightning_links_a_citation_before_the_alternatives(self):
+        out = self.show_edited(
+            "(verified, `src/retry.ts:12`).", "(src/retry.ts:12).", "--links", "plain"
+        )
+        self.assertIn(
+            "retry entry fits it (retry.ts:12) (or: a Log only the final failure, "
+            "b Log nothing for retries)",
+            "\n".join(out),
+        )
+
 
 WAYFIND_LINE = (
     "Wayfind: the last two rounds each opened more questions than they settled; "

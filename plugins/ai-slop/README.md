@@ -61,13 +61,8 @@ The team layer is `docs/conventions/ai-slop.yaml` and the personal layer is
 convention (team, then personal, refining it per key). Every key is a convention for the
 repository's own markdown, so the plugin has no `userConfig` options. The convention
 home is the one the repository binds in its instruction file, `docs/conventions` by default. The
-audit does not read the older JSON files (the same names with a `.json` extension, under
-`.claude/`); `/ai-slop:setup` writes the YAML and offers to carry an old team file's values into it.
-
-The old user-global file `~/.claude/ai-slop.json` is still read, in the personal layer's place,
-while the repository has no personal override. Each run prints one warning naming it.
-`/ai-slop:setup apply` moves its settings into the personal override, checks they resolve the
-same, and deletes it. A later release stops reading it.
+audit does not read `.claude/ai-slop.json`, `.claude/ai-slop.local.json`, or
+`~/.claude/ai-slop.json`; `/ai-slop:setup` writes the YAML layers.
 
 ```yaml
 excluded_paths: ["docs/legacy/**"]

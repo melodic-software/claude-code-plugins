@@ -12,15 +12,16 @@ lenses, then hand the human a scored shortlist to choose from.
 ## Why blind generators
 
 The dominant trigger is a reactive retry: a name was suggested and
-rejected, and the same context that produced it will only produce more of
-the same. So the generators run BLIND to the conversation. Each is seeded with only a structured
-context brief: responsibility, firing context, scope boundaries, collision vocabulary, and a
-word-level blocklist. Rejected NAMES stay on the main thread's reject list and never enter the
-brief. Each generator works a distinct lens: responsibility-literal, moment-of-use, or
-domain-lore. Diverge widely from
-independent perspectives, then converge once, and keep the first-seen
-suggestion from anchoring the choice. The method grounding is in the
-skill's `context/sources.md`.
+rejected, and the same context that produced it will only produce more
+of the same. So the generators run BLIND to the conversation. Each is
+seeded with only a structured context brief: responsibility, firing
+context, scope boundaries, collision vocabulary, and a word-level
+blocklist. Rejected NAMES stay on the main thread's reject list and
+never enter the brief. Each generator works a distinct lens:
+responsibility-literal, moment-of-use, or domain-lore. Diverge widely
+from independent perspectives, then converge once, and keep the
+first-seen suggestion from anchoring the choice. The method grounding is
+in the skill's `context/sources.md`.
 
 **The human always picks.** The skill narrows and recommends; it never
 auto-locks a name.

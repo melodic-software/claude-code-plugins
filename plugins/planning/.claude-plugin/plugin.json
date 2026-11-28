@@ -1,6 +1,6 @@
 {
   "name": "planning",
-  "version": "6.2.3",
+  "version": "6.2.4",
   "userConfig": {
     "surface": {
       "type": "string",
@@ -32,6 +32,16 @@
         "full",
         "standard",
         "minimal"
+      ]
+    },
+    "interview_style": {
+      "type": "string",
+      "title": "Interview style",
+      "description": "How /planning:interview prints its rounds: standard (default, the full question layout) or lightning (each question as a condensed entry, major questions tagged, every gate kept). Saying \"lightning\" or \"stop lightning\" in a session overrides it; a repository's planning.yaml overrides this value.",
+      "default": "standard",
+      "options": [
+        "standard",
+        "lightning"
       ]
     },
     "questions_per_round": {

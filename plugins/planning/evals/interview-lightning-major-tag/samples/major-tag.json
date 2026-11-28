@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "❓ Q1 (problem, major): **What fails today?**",
+      "why": "major tag in the topic"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "❓ Q1 (problem): **What fails today?**",
+      "why": "no major tag"
+    }
+  ]
+}

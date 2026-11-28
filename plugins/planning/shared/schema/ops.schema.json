@@ -16,6 +16,7 @@
           {"$ref": "#/$defs/set-goal"},
           {"$ref": "#/$defs/set-repo"},
           {"$ref": "#/$defs/set-intro"},
+          {"$ref": "#/$defs/set-style"},
           {"$ref": "#/$defs/open-round"},
           {"$ref": "#/$defs/close-round"},
           {"$ref": "#/$defs/ack-round"},
@@ -69,6 +70,13 @@
       "required": ["op", "intro"],
       "additionalProperties": false,
       "properties": {"op": {"enum": ["set-intro"]}, "intro": {"type": "string", "maxLength": 600}}
+    },
+    "set-style": {
+      "description": "How the pages show each question: `standard` cards, or `lightning`, a condensed card each person can expand to the full one, with a round cap of 8. The owner's Settings change it too; guests cannot.",
+      "type": "object",
+      "required": ["op", "style"],
+      "additionalProperties": false,
+      "properties": {"op": {"enum": ["set-style"]}, "style": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/style"}}
     },
     "open-round": {
       "type": "object",
@@ -274,7 +282,8 @@
         "format": {"$ref": "#/$defs/format"},
         "answerScope": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/answerScope"},
         "references": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/references"},
-        "for": {"$ref": "#/$defs/for"}
+        "for": {"$ref": "#/$defs/for"},
+        "major": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/major"}
       }
     },
     "format": {

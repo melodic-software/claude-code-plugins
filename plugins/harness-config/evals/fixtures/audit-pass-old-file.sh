@@ -25,8 +25,3 @@ EOF
 
 mkdir -p .claude
 entry "I commit by hand in this repository." >.claude/audit-pass.local.md
-
-if [[ "${1:-}" == "conflict" ]]; then
-  mkdir -p docs/conventions
-  entry "Commits go through the release script." >docs/conventions/audit-pass.local.md
-fi
