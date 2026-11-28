@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Part 1 (deterministic): rung action-guard, a Stop hook over the turn's output.",
+      "why": "hand-written: action-guard chosen for the turn-end part"
+    },
+    {
+      "answer": "| Part | Rung |\n|---|---|\n| turn-end claim while tests run | `action-guard` |\n| flaky test called mergeable | `automated-review` |\nProof: unproven, the fixture check exited 127.",
+      "why": "hand-written: action-guard chosen in a table row while its check is unproven"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "hand-written: empty reply"
+    },
+    {
+      "answer": "Rung: instruction, one line in CLAUDE.md.",
+      "why": "hand-written: no action-guard at all"
+    },
+    {
+      "answer": "Do not use action-guard here: a hook cannot see the test run. Rung: instruction.",
+      "why": "hand-written: action-guard named only in a negated sentence"
+    },
+    {
+      "answer": "Rungs considered and rejected: action-guard (needs a hook). Chosen rung: automated-review for both parts.",
+      "why": "hand-written: action-guard only on a rejected-rung line"
+    }
+  ]
+}

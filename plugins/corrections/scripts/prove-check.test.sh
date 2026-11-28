@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/corrections/scripts/fixtures/prove-check-turn-end/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -153,6 +154,62 @@ else
   fail "plant usage errors should exit 2" "bad=$rc_bad missing=$rc_missing both=$rc_both"
 fi
 clean "no worktree left behind after a plant that does not apply"
+
+FIXTURE="$SCRIPT_DIR/fixtures/prove-check-turn-end"
+CHECK_ALL_RAN='grep -qE "([0-9]+) of \1 items ran"'
+run_outside_repo() {
+  local o="$TEST_TMPDIR/out" e="$TEST_TMPDIR/err"
+  (cd "$TMPDIR" && bash "$ENGINE" "$@") >"$o" 2>"$e"
+  RC=$?
+  OUT="$(<"$o")"
+  ERR="$(<"$e")"
+}
+
+run_outside_repo --check "$CHECK_ALL_RAN" --fixture "$FIXTURE"
+if ((RC == 0)) && [[ "$OUT" == *"with-mistake ($FIXTURE/with-mistake): exit 1 (expected non-zero)"* &&
+  "$OUT" == *"without-mistake ($FIXTURE/without-mistake): exit 0 (expected 0)"* ]]; then
+  pass "fixture check fails on with-mistake and passes on without-mistake (exit 0), outside a repository"
+else
+  fail "fixture proof should hold" "rc=$RC out=$OUT err=$ERR"
+fi
+
+run --check ': >touched; grep -qE "([0-9]+) of \1 items ran" stdin' --fixture "$FIXTURE"
+if ((RC == 0)) && [[ ! -e "$FIXTURE/with-mistake/touched" && ! -e "$FIXTURE/without-mistake/touched" ]]; then
+  pass "the check runs in a copy of each fixture input and leaves the fixture unchanged"
+else
+  fail "fixture check should run in a copy" "rc=$RC out=$OUT err=$ERR"
+fi
+
+run --check 'true' --fixture "$FIXTURE"
+if ((RC == 1)) && [[ "$ERR" == *"$FIXTURE/with-mistake"*"expected non-zero, observed 0"* ]]; then
+  pass "check that passes on with-mistake exits 1 and names the input"
+else
+  fail "pass on with-mistake should exit 1" "rc=$RC out=$OUT err=$ERR"
+fi
+
+run --check 'false' --fixture "$FIXTURE"
+if ((RC == 1)) && [[ "$ERR" == *"$FIXTURE/without-mistake"*"expected 0, observed 1"* ]]; then
+  pass "check that fails on without-mistake exits 1 and names the input"
+else
+  fail "fail on without-mistake should exit 1" "rc=$RC out=$OUT err=$ERR"
+fi
+
+mkdir -p "$TEST_TMPDIR/one-sided/with-mistake"
+run --check "$CHECK_ALL_RAN" --fixture "$TEST_TMPDIR/one-sided"
+rc_side=$RC err_side=$ERR
+run --check "$CHECK_ALL_RAN" --fixture "$TEST_TMPDIR/no-such-fixture"
+rc_dir=$RC
+run --check "$CHECK_ALL_RAN" --fixture "$FIXTURE" --old violation
+rc_old=$RC
+run --check "$CHECK_ALL_RAN" --fixture "$FIXTURE" --new HEAD
+rc_new=$RC
+if ((rc_side == 2 && rc_dir == 2 && rc_old == 2 && rc_new == 2)) &&
+  [[ "$err_side" == *"$TEST_TMPDIR/one-sided/without-mistake"* ]]; then
+  pass "unusable fixture exits 2 and names the missing input"
+else
+  fail "fixture usage errors should exit 2" "side=$rc_side dir=$rc_dir old=$rc_old new=$rc_new err=$err_side"
+fi
+clean "no temporary directory left behind after a fixture proof"
 
 worktrees="$(git -C "$REPO" worktree list | wc -l)"
 leftover="$(find "$TMPDIR" -mindepth 1 -maxdepth 1 | wc -l)"

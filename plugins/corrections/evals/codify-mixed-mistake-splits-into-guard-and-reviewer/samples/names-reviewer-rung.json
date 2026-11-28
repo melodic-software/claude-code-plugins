@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Part 2 (reasoning-only): rung automated-review, a line in the review criteria.",
+      "why": "hand-written: automated-review chosen for the judgment part"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "hand-written: empty reply"
+    },
+    {
+      "answer": "Rung: instruction, one line in CLAUDE.md.",
+      "why": "hand-written: no automated-review at all"
+    },
+    {
+      "answer": "automated-review rejected: no reviewer runs on this repo. Part 2 rung: human-review.",
+      "why": "hand-written: automated-review named only as rejected"
+    }
+  ]
+}

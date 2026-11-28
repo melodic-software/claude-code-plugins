@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: codify-loaded-ignored-rule-is-strengthened
+description: 'A rule AGENTS.md already states, loaded and ignored, with no rung above that can hold it, is strengthened in place and reported as no rung above holds it, not re-proposed as a new line.'
+tags: [codify]
+plugins: ["../.."]
+expected_outcome: 'The answer proposes strengthening the existing AGENTS.md rule, reports that no rung above holds it, edits no file and writes only under .work/codify/.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify "built on a design choice I had not approved instead of asking me first" Third time this session. AGENTS.md already says to ask, and it was loaded at session start, so it was read and ignored. Which choices I approved lives only in our conversation: no check, hook or reviewer can see it.'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 720
+graders:
+  - name: strengthens-existing-rule
+    type: 'llm'
+    criteria: 'PASS only if the reply proposes strengthening the rule AGENTS.md already states, in place, such as rewording it, moving it up or adding an example beside it. FAIL if the reply says not to strengthen it, rejects strengthening, proposes adding a new or second instruction line instead, or proposes nothing. Judge what the reply proposes, not which words appear.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: reports-no-rung-above
+    type: 'regex'
+    pattern: 'no rung above holds it'
+    flags: 'i'
+    arm: 'both'
+  - name: writes-only-under-work-codify
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?![^"]*\.work/codify/)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-edit
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

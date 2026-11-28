@@ -1,5 +1,5 @@
 ---
-enforcement-ladder: 3.4.1
+enforcement-ladder: 3.5.0
 ---
 
 <!-- GENERATED from docs/contracts/enforcement-ladder/README.md by scripts/sync-shared-copies.sh. Do not edit this copy:
@@ -24,13 +24,17 @@ is named in prose only.
 
 The tier order follows Lauren Tan's ranking of where to invest: codebase, static analysis,
 verification, prose, human review ("All Code Is Slop (Except Mine)", AI Engineer Code Summit,
-2026-11-11, <https://www.youtube.com/watch?v=ZZ19zhYnDKY&t=3618s>), and her principle "Encode
-recurring fixes in mechanisms (tools, code, metadata, automation) rather than textual instructions"
-(<https://github.com/poteto/brainmaxxing/blob/main/brain/principles/encode-lessons-in-structure.md>).
-Inside the static-analysis tier a compiler setting sits above an architecture test for the reason
-Simon Brown gives: "lean on the compiler to enforce your architectural principles, rather than
-discipline, post-compilation tooling, and automated fitness functions"
-(<https://simonbrown.je/modular-monolith>).
+2026-11-11, <https://www.youtube.com/watch?v=ZZ19zhYnDKY&t=3618s>). A lesson that recurs belongs in
+a mechanism the repository runs, not in one more line of text. Background, each on its source's
+default branch: Tan's `principle-encode-lessons-in-structure`
+(<https://github.com/cursor/plugins/tree/main/pstack/skills/principle-encode-lessons-in-structure>),
+read for the source's reasoning when weighing a mechanism against an instruction; Matt Pocock's
+`retro` (<https://github.com/mattpocock/skills/tree/main/skills/engineering/retro>), read for the
+source's reasoning when splitting a violation into a mechanical part and a judgment part. The rules
+here are this ladder's own. Inside the static-analysis tier a compiler setting sits above an
+architecture test for the reason Simon Brown gives: "lean on the compiler to enforce your
+architectural principles, rather than discipline, post-compilation tooling, and automated fitness
+functions" (<https://simonbrown.je/modular-monolith>).
 
 ### Tier 1: Codebase
 
@@ -68,7 +72,7 @@ assigns, and in CI, which is the default to aim for. The contract:
 | `architecture-test` | a test over the dependency graph or the module layout (which module may reference which, which namespace belongs to which layer), written with the repository's own architecture-test library | local stage and CI |
 | `behavior-test` | a unit, integration or end-to-end test that fails when the behavior is wrong | local stage and CI |
 | `harness-setting` | a Claude Code setting that blocks the action: permission deny rules, skill frontmatter flags | each agent action |
-| `action-guard` | a Claude Code hook on an action no file check sees, such as a force-push or a write outside the tree | each agent action |
+| `action-guard` | a Claude Code hook on an action no file check sees, such as a force-push or a write outside the tree, or a check when the agent's turn ends, over its own output: a `Stop` hook (what it receives: <https://code.claude.com/docs/en/hooks#stop-input>) | each agent action |
 | `scaffold` | a template or generator that produces the right shape, the last static-analysis rung | generation |
 
 Alias: `semgrep-rule` is read as `syntax-pattern-rule`, with a printed notice, through 3.x.
@@ -88,7 +92,8 @@ pipeline convention
 (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md>);
 this ladder only says where a check runs. A git hook or a CI job is a place a check runs, not a
 rung. A hook on code content is the same check as a linter rule or a test, so it takes that rung's
-place in the table; a hook on an action is an `action-guard`.
+place in the table; a hook on an action, or on the agent's output when its turn ends, is an
+`action-guard`.
 `/harness-config:audit-automation-gaps` decides whether an `action-guard` earns its place, when
 that skill is available.
 
@@ -112,18 +117,24 @@ meets it, or checks every state a model can reach.
 
 ### Tier 4: Guidance
 
-A model reads it and nothing blocks. Because nothing checks these rungs, state the rule where the
+A model reads it, and nothing blocks except a model-judged hook, the blocking form of
+`automated-review`. Because no deterministic check holds these rungs, state the rule where the
 reader meets it and put an example of the mistake beside it.
 
-1. **`automated-review`**: the repository's review criteria, read by the review bot on every pull
-   request. It holds a rule only a reviewer applies, or a change to how severe a finding is; its
-   findings are advisory. The rule goes in the review-criteria index (`docs/review/README.md` at
-   the repository root, and the file its rows route the concern to) when the repository has one,
-   else in a repository-owned `CODING_STANDARDS.md`, else in `REVIEW.md`. Skip a file a
-   standards-sync bot owns (its commits are that bot's): the next sync overwrites a rule written
-   there. When every candidate is skipped, write nothing in this repository and report the rule as
-   a proposal for the repository the bot copies `REVIEW.md` from, named when the file's sync
-   commits show it.
+1. **`automated-review`**: a reviewer agent applies the repository's review criteria: the review
+   bot on every pull request, or a session reviewer judging the agent's turns. It holds a rule only
+   a reviewer applies, or a change to how severe a finding is; the review bot's findings are
+   advisory. Its blocking form is a model-judged hook
+   (<https://code.claude.com/docs/en/hooks#prompt-based-hooks>): it runs at each agent action, can
+   block it, and is held to guardrail criterion item 3's bar for a blocking check, no effective
+   false positives. `/harness-config:audit-automation-gaps` decides whether such a hook earns its
+   place, when that skill is available. The rule goes in the review-criteria index
+   (`docs/review/README.md` at the repository root, and the file its rows route the concern to)
+   when the repository has one, else in a repository-owned `CODING_STANDARDS.md`, else in
+   `REVIEW.md`. Skip a file a standards-sync bot owns (its commits are that bot's): the next sync
+   overwrites a rule written there. When every candidate is skipped, write nothing in this
+   repository and report the rule as a proposal for the repository the bot copies `REVIEW.md` from,
+   named when the file's sync commits show it.
 2. **`instruction`**: a lesson for the agent or person writing the code, in a `CLAUDE.md` or
    `AGENTS.md` line, or in a rules file under `.claude/rules/` (a path-scoped rule loads when a
    covered file is read).
@@ -170,6 +181,16 @@ own:
 
 ## Guardrail criterion
 
+Classify first, by the three tiers of the organization's enforceability standard: deterministic
+(a tool decides alone), detect-then-judge (a tool flags candidates and a person or agent rules on
+each) and reasoning-only (no tool can decide). A finding that mixes tiers is split into parts, one
+tier each, and each part walks the ladder as a finding of its own: a mistake whose forbidden action
+a hook can see and whose rest needs judgment gets an `action-guard` for the first part and a
+guidance rung for the second. A deterministic part is tested against all eight items below; a part
+proposed for a model-judged hook, the blocking form of `automated-review`, is held to item 3.
+
+- Pointer: <https://github.com/melodic-software/standards/blob/main/standards/engineering/enforceability-tiers.md>, the enforceability standard that defines the three tiers.
+
 A finding earns a deterministic rung (the codebase or static-analysis tier) only if all eight hold.
 This section is the one place the readers point to for the question.
 
@@ -201,6 +222,11 @@ fix where it lives: move or reword it so the reader meets it. If it was loaded a
 up the ladder. Judge whether it was loaded by native means only: what the session's own instruction
 loading shows, not a guess about what the model remembered.
 
+If it was loaded and ignored and no rung above holds it, strengthen the existing rule where it
+lives: make it more prominent and put an example of the failure beside it. Never add a second line
+stating the same rule, and never propose it again at the tier it was loaded at. Report "no rung
+above holds it" as a problem, so the gap stays visible.
+
 ## Selection rules
 
 Each reader walks the same rungs with a different question.
@@ -208,7 +234,7 @@ Each reader walks the same rungs with a different question.
 | Reader | Question | Rule |
 |---|---|---|
 | `/harness-config:audit-automation-gaps` | Is this concern already covered, and if not, what should cover it? | the strongest rung that covers the concern; a concern a stronger rung already covers is not a gap |
-| `/corrections:codify` | Which rung should stop this recurring mistake, described in the session, in a findings file (`findings`) or in review comments (`reviews`)? | the strongest rung that can decide the mistake and passes the guardrail criterion; a mistake that fails the criterion stays on the guidance tier or `human-review`, and `make-impossible` is only proposed |
+| `/corrections:codify` | Which rung should stop this recurring mistake, described in the session, in a findings file (`findings`) or in review comments (`reviews`)? | after classifying the mistake (guardrail criterion), the strongest rung for each part that can decide that part and passes the criterion; a part that fails it stays on the guidance tier or `human-review`, a loaded and ignored rule with no rung above is strengthened as "A recurring correction" says, and `make-impossible` is only proposed |
 | `/architecture:enforce-boundaries` | Which mechanism should hold this recorded boundary rule? | the first rung, strongest first, that can express the rule's form: a build-time boundary the ecosystem already has, then the boundary tool the repository already uses, then a maintained tool researched now, then a check in the repository's own check convention; a rule that fails the guardrail criterion gets no check |
 | `/session-flow:retro` | Should this session finding be a check, and on which rung? | a finding a check could decide first wires or repairs an existing check that should have caught it; otherwise it goes to `/corrections:codify` when that skill is available; without it, the strongest rung that can decide the finding, once it meets guardrail criterion items 1, 2 and 7 as judged from the finding itself; a finding that fails one of them stays on the guidance tier |
 

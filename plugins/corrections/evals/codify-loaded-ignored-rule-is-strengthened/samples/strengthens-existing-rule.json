@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Strengthen the existing rule at AGENTS.md:3: move it to the top and put an example of the failure beside it.",
+      "why": "hand-written: strengthens the existing rule in place"
+    },
+    {
+      "answer": "Problems: no rung above holds it.\nProposal: reword AGENTS.md:3 to name the failure (\"building on a choice I did not approve\") and lead the file with it. No new line.",
+      "why": "hand-written: in-place strengthening without the word strengthen"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "hand-written: empty reply"
+    },
+    {
+      "answer": "Add a line to CLAUDE.md: ask before building on an unapproved design choice.",
+      "why": "hand-written: a second instruction line instead of strengthening"
+    },
+    {
+      "answer": "Do not strengthen AGENTS.md:3; it is already clear. Add a new line to CLAUDE.md instead.",
+      "why": "hand-written: strengthening named only in a negated sentence"
+    }
+  ]
+}

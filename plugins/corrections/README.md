@@ -29,7 +29,7 @@ many merged pull requests `reviews` reads without `--pr`. Each is a plugin optio
 
 | Script | What it does |
 |---|---|
-| `scripts/prove-check.sh` | Runs a proposed check in temporary worktrees at two refs, or at a planted violation and the new ref, and exits 0 only when it fails at the old side and passes at the new one |
+| `scripts/prove-check.sh` | Runs a proposed check in temporary worktrees at two refs, or at a planted violation and the new ref, or in copies of a fixture's `with-mistake` and `without-mistake` inputs, and exits 0 only when it fails on the mistake side and passes on the other |
 | `scripts/codify-settings.mjs` | Prints `recurrence.min_occurrences`, `ratchet_offer` and `review_mining_prs` and the layer that set each, resolved through the config cascade (schema `schemas/corrections.schema.json`) |
 | `scripts/group-findings.mjs [--by <field>[,<field>...]] [--since <UTC ISO-8601>] [--rows]` | Runs `buffer.sh read` and prints its rows grouped by the named top-level fields (default `producer`): the keys first, then each group with its row and occurrence counts (distinct `source_id`) and its members |
 | `scripts/rules-ledger.mjs <ledger.json>` | Reconciles a `rules` ledger from the repository root: every input file's declared rule count matches its rows, each rule's quoted text is at its `<file>:<line>`, and each row carries its disposition's fields (a `check` row a checking rung, an old ref or a plant whose proof exited 0, a style rule its formatter or lint label, the known cases and its prose flagged for deletion); exits 1 naming each rule left unaccounted for |
@@ -39,9 +39,11 @@ many merged pull requests `reviews` reads without `--pr`. Each is a plugin optio
 
 ```shell
 plugins/corrections/scripts/prove-check.sh --check '<command>' (--old <ref> | --plant <patch>) [--new <ref>]
+plugins/corrections/scripts/prove-check.sh --check '<command>' --fixture <dir>
 ```
 
-Run it from inside the repository the refs belong to. It runs `<command>`
+With `--old` or `--plant`, run it from inside the repository the refs belong
+to; `--fixture` needs no repository. It runs `<command>`
 through `bash -c` in a temporary worktree at `<old>`, which must exit
 non-zero, and in one at `<new>` (default `HEAD`), which must exit 0. It prints
 both exit codes, sends the check's own output to stderr, and removes both
@@ -53,13 +55,18 @@ commits it there, with hooks and signing off, so the check sees a clean
 checkout. That commit is on no branch, tag or surviving reflog and is never
 pushed; git's garbage collection prunes it like any unreachable object.
 
+`--fixture` proves a check over an agent action or turn, with no refs: it runs
+`<command>` in a copy of `<dir>/with-mistake/`, which must exit non-zero, and of
+`<dir>/without-mistake/`, which must exit 0, feeding each input's `stdin` file
+on standard input when present. `--new` does not apply to it.
+
 | Exit | Meaning |
 |---|---|
-| 0 | The proof holds: the check fails at `<old>` or the plant and passes at `<new>` |
-| 1 | The proof fails: the check passes at `<old>` or the plant, or fails at `<new>` |
-| 2 | Usage or environment error (bad argument, unknown ref, not a repository, a plant that does not apply or changes nothing) |
+| 0 | The proof holds: the check fails at `<old>`, the plant or `with-mistake` and passes at `<new>` or `without-mistake` |
+| 1 | The proof fails: the check passes at `<old>`, the plant or `with-mistake`, or fails at `<new>` or `without-mistake` |
+| 2 | Usage or environment error (bad argument, unknown ref, not a repository, a plant that does not apply or changes nothing, a fixture missing its `with-mistake` or `without-mistake` directory) |
 
-A check that exits 126 or 127 at `<old>` counts as failing, as any non-zero
+A check that exits 126 or 127 at `<old>` or `with-mistake` counts as failing, as any non-zero
 exit does, but the script warns on stderr: the command probably did not run.
 
 Run `scripts/prove-check.test.sh` to exercise it against a fixture repository.
