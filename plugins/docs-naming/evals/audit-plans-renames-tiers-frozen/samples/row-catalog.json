@@ -5,6 +5,7 @@
   ],
   "fail": [
     { "answer": "| `docs/CATALOG.md` | `docs/catalog.md` |" },
-    { "answer": "`docs/CATALOG.md` → `docs/catalog.md`: 4 sites in 3 files, 3 current and 1 released." }
+    { "answer": "`docs/CATALOG.md` → `docs/catalog.md`: 4 sites in 3 files, 3 current and 1 released." },
+    { "answer": "`docs/CATALOG.md` → `docs/catalog.md`: 4 sites, 1 current (report), 2 current (review), 1 released (edit)" }
   ]
 }

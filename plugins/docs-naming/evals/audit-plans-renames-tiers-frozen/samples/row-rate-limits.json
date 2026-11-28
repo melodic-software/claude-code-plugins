@@ -5,6 +5,7 @@
   ],
   "fail": [
     { "answer": "| `docs/Rate_Limits.md` | `docs/rate-limits.md` |" },
-    { "answer": "`docs/Rate_Limits.md` → `docs/rate-limits.md`: 12 sites in 2 files, 1 current and 1 released." }
+    { "answer": "`docs/Rate_Limits.md` → `docs/rate-limits.md`: 12 sites in 2 files, 1 current and 1 released." },
+    { "answer": "`docs/Rate_Limits.md` → `docs/rate-limits.md`: 2 sites, 1 current (report), 1 released (edit)" }
   ]
 }

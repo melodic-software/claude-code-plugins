@@ -79,17 +79,17 @@ graders:
     arm: with-only
   - name: row-release-notes
     type: regex
-    pattern: 'Release_Notes\.md[^\n]{0,40}?release-notes\.md(?=[^\n]*?(?<![\d.])5\s+(?:sites?\b|in\s+\d))(?=[^\n]*\b2\s+current)(?=[^\n]*\b1\s+historical\s*\(edit\))(?=[^\n]*\b1\s+historical\s*\(report\))(?=[^\n]*\b1\s+released)'
+    pattern: 'Release_Notes\.md[^\n]{0,40}?release-notes\.md(?=[^\n]*?(?<![\d.])5\s+(?:sites?\b|in\s+\d))(?=[^\n]*\b2\s+current\s*\(edit\))(?=[^\n]*\b1\s+historical\s*\(edit\))(?=[^\n]*\b1\s+historical\s*\(report\))(?=[^\n]*\b1\s+released\s*\(report\))'
     target: last_message
     arm: both
   - name: row-catalog
     type: regex
-    pattern: 'CATALOG\.md[^\n]{0,40}?\bcatalog\.md(?=[^\n]*?(?<![\d.])4\s+(?:sites?\b|in\s+\d))(?=[^\n]*\b1\s+current)(?=[^\n]*\b2\s+(?:current\s+\()?review)(?=[^\n]*\b1\s+released)'
+    pattern: 'CATALOG\.md[^\n]{0,40}?\bcatalog\.md(?=[^\n]*?(?<![\d.])4\s+(?:sites?\b|in\s+\d))(?=[^\n]*\b1\s+current\s*\(edit\))(?=[^\n]*\b2\s+(?:current\s+\()?review)(?=[^\n]*\b1\s+released\s*\(report\))'
     target: last_message
     arm: both
   - name: row-rate-limits
     type: regex
-    pattern: 'Rate_Limits\.md[^\n]{0,40}?rate-limits\.md(?=[^\n]*?(?<![\d.])2\s+(?:sites?\b|in\s+\d))(?=[^\n]*\b1\s+current)(?=[^\n]*\b1\s+released)'
+    pattern: 'Rate_Limits\.md[^\n]{0,40}?rate-limits\.md(?=[^\n]*?(?<![\d.])2\s+(?:sites?\b|in\s+\d))(?=[^\n]*\b1\s+current\s*\(edit\))(?=[^\n]*\b1\s+released\s*\(report\))'
     target: last_message
     arm: both
   - name: no-generated
