@@ -1,3 +1,5 @@
+// test-scope: .github/scripts/plugin-eval/last-messages.mjs .github/scripts/plugin-eval/summarize.mjs plugins/evals/skills/plugin-eval/scripts/run-validity.py
+// test-scope: plugins/evals/vendor/gitleaks/gitleaks-rules.json plugins/evals/scripts/redact.py
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -419,6 +421,60 @@ test("a compare on a pull request a bot wrote stays on the key", () => {
     assert.match(unread.stdout, /::notice::read-fault:/);
   } finally {
     rmSync(work, { recursive: true, force: true });
+  }
+});
+
+test("both legs of a compare pass upload each run's final reply under the manifest, and a hill-climb pass uploads none", () => {
+  const pass = workflowText(readFileSync(new URL("../../workflows/maintenance-measure-skill-edit-pass.yml", import.meta.url), "utf8"));
+  const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
+  const capturedTrace = join(repoRoot, "plugins/evals/skills/plugin-eval/scripts/fixtures/run-validity/traces/axyiOf.jsonl");
+  const reply = "compare-arm-reply-fixture";
+  for (const leg of ["run-eval", "run-eval-subscription"]) {
+    const read = pass.stepNamed(leg, "Read the pass");
+    assert.equal(read.env.LANE, "${{ inputs.lane }}", `${leg} passes the lane to the step`);
+    const script = /\n {8}run: \|\n((?: {10}.*\n|\n)+)/.exec(read.text)[1].replace(/^ {10}/gm, "");
+    for (const lane of ["eval-compare", "eval-hill-climb-pass"]) {
+      const work = mkdtempSync(join(tmpdir(), "compare-replies-"));
+      try {
+        symlinkSync(repoRoot, join(work, ".base"));
+        mkdirSync(join(work, "pass/run"), { recursive: true });
+        const result = JSON.parse(readFileSync(new URL("./fixtures/dispatched-results.json", import.meta.url), "utf8"));
+        const [withRun] = result.cases[0].arms.with;
+        const [withoutRun] = result.cases[0].arms.without;
+        const lines = readFileSync(capturedTrace, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+        lines.at(-1).result = reply;
+        withRun.tracePath = join(work, "pass/run/with-trace.jsonl");
+        writeFileSync(withRun.tracePath, lines.map((line) => JSON.stringify(line)).join("\n"));
+        withoutRun.tracePath = join(work, "pass/run/deleted/trace.jsonl");
+        writeFileSync(join(work, "pass/results.json"), JSON.stringify(result));
+        const run = spawnSync("bash", ["-eo", "pipefail", "-c", script], {
+          cwd: work,
+          env: { PATH: process.env.PATH, NODE_OPTIONS: "--preserve-symlinks --preserve-symlinks-main", OUT: join(work, "pass"), STAGE: join(work, "upload"), PLUGIN: "testing", PASS: "compare-before", LANE: lane, GITHUB_OUTPUT: join(work, "output") },
+          encoding: "utf8",
+        });
+        assert.equal(run.status, 0, `${leg} ${lane}: ${run.stderr}`);
+        assert.ok(!run.stdout.includes(reply) && !run.stderr.includes(reply), `${leg} ${lane} prints no reply`);
+        const kept = join(work, "upload/last-messages.jsonl");
+        const manifest = readFileSync(join(work, "upload/manifest.sha256"), "utf8");
+        if (lane === "eval-compare") {
+          assert.ok(existsSync(kept), `${leg} writes last-messages.jsonl: ${run.stdout}${run.stderr}`);
+          assert.deepEqual(
+            readFileSync(kept, "utf8").trim().split("\n").map((line) => JSON.parse(line)),
+            [
+              { case: "una-author-elevated", arm: "with", run: 1, last_message: reply },
+              { case: "una-author-elevated", arm: "without", run: 1, last_message: null },
+            ],
+            `${leg} keeps the reply`,
+          );
+          assert.match(manifest, / {2}\.\/last-messages\.jsonl\n/, `${leg} lists the replies in the manifest the verdict job checks`);
+        } else {
+          assert.ok(!existsSync(kept), `${leg} ${lane} keeps no reply`);
+          assert.doesNotMatch(manifest, /last-messages/, `${leg} ${lane}`);
+        }
+      } finally {
+        rmSync(work, { recursive: true, force: true });
+      }
+    }
   }
 });
 
