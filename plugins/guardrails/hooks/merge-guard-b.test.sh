@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/guardrails/hooks/fixtures/standards-ref-heads-main.json plugins/guardrails/hooks/fixtures/standards-trusted-actors.json
+# test-scope: plugins/guardrails/hooks/fixtures/standards-ref-heads-main.json plugins/guardrails/hooks/fixtures/standards-trusted-actors.json plugins/guardrails/hooks/fixtures/pr-verify-index-sha-artifacts.json plugins/guardrails/hooks/fixtures/pr-verify-fail-run-artifacts.json plugins/guardrails/hooks/fixtures/pr-verify-fail-run.json
 
 # shellcheck disable=SC2016
 set -uo pipefail
@@ -59,11 +59,15 @@ pv_pass fail 7003
 run "pr-verify: FAIL at the head, label already removed" 'gh pr merge 42 --auto' 2
 assert_contains "FAIL at head -> refused" "$ERR" "no pr-verify PASS or PASS-NOTES verdict at its head abc123"
 pv_scenario
-pv_pass fail-i19599 7007 '{"conclusion":"failure"}'
-pv_artifact pr-verify-index-sha-abc123 7007
-echo '{"artifacts":[{"name":"pr-verify-index-sha-abc123","expired":false},{"name":"pr-verify-42-abc123-fail-i19599","expired":false}]}' >"$FIX/run_artifacts_7007.json"
-run "pr-verify: an indexed FAIL at the head, label already removed" 'gh pr merge 42 --auto' 2
-assert_contains "indexed FAIL at head -> refused as a FAIL, with no wait" "$ERR" "pr-verify FAIL at its head abc123"
+CAP="$HOOK_DIR/fixtures"
+real_sha="$(jq -r '.artifacts[0].name | ltrimstr("pr-verify-index-sha-")' "$CAP/pr-verify-index-sha-artifacts.json")"
+fail_run="$(jq -r .id "$CAP/pr-verify-fail-run.json")"
+jq --arg sha "$real_sha" '.head.sha = $sha' "$FIX/pr.json" >"$FIX/pr.next" && mv "$FIX/pr.next" "$FIX/pr.json"
+cp "$CAP/pr-verify-index-sha-artifacts.json" "$FIX/artifacts.json"
+cp "$CAP/pr-verify-fail-run-artifacts.json" "$FIX/run_artifacts_$fail_run.json"
+jq '.repository.full_name = "acme/widgets" | .head_repository.full_name = "acme/widgets"' "$CAP/pr-verify-fail-run.json" >"$FIX/run_$fail_run.json"
+run "pr-verify: #19599's captured FAIL at the head, label already removed" 'gh pr merge 42 --auto' 2
+assert_contains "indexed FAIL at head -> refused as a FAIL, with no wait" "$ERR" "pr-verify FAIL at its head $real_sha"
 pv_scenario
 jq '.labels = [{name: "pr-verify-failed"}]' "$FIX/pr.json" >"$FIX/pr.next" && mv "$FIX/pr.next" "$FIX/pr.json"
 run "pr-verify: FAIL label on the PR" 'gh pr merge 42 --auto' 2

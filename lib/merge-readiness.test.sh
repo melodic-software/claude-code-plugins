@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/guardrails/hooks/merge-guard-fixtures.sh plugins/guardrails/hooks/guardrails-test-helpers.sh lib/merge-hold-labels.json lib/merge-guard-option.mjs lib/plugin-options.mjs plugins/guardrails/hooks/merge-guard.sh plugins/guardrails/.claude-plugin/plugin.json plugins/source-control/skills/pull-request/scripts/merge-readiness.sh plugins/guardrails/hooks/fixtures/check-runs-ci-status.json plugins/guardrails/hooks/fixtures/reviews-page1.json plugins/guardrails/hooks/fixtures/reviews-page2.json
+# test-scope: plugins/guardrails/hooks/merge-guard-fixtures.sh plugins/guardrails/hooks/guardrails-test-helpers.sh lib/merge-hold-labels.json lib/merge-guard-option.mjs lib/plugin-options.mjs plugins/guardrails/hooks/merge-guard.sh plugins/guardrails/.claude-plugin/plugin.json plugins/source-control/skills/pull-request/scripts/merge-readiness.sh plugins/guardrails/hooks/fixtures/check-runs-ci-status.json plugins/guardrails/hooks/fixtures/reviews-page1.json plugins/guardrails/hooks/fixtures/reviews-page2.json plugins/guardrails/hooks/fixtures/pr-verify-index-sha-artifacts.json plugins/guardrails/hooks/fixtures/pr-verify-fail-run-artifacts.json plugins/guardrails/hooks/fixtures/pr-verify-fail-run.json .github/scripts/pr-verify/write-verdict.mjs
 
 # shellcheck disable=SC2016
 set -uo pipefail
@@ -165,88 +165,102 @@ check acme/widgets 42 --auto
 assert_eq "no verdict, a check still running, --auto -> the wait has not started, BLOCKED no-verify-pass" \
   "BLOCKED no-verify-pass" "$(head -n 1 <<<"$OUT")"
 
-pv_run() {
-  jq -n --arg at "$2" --arg c "${3:-success}" '{status: "completed", conclusion: $c, path: ".github/workflows/pr-verify.yml",
-    event: "workflow_run", head_branch: "main", repository: {full_name: "acme/widgets"},
-    head_repository: {full_name: "acme/widgets"}, created_at: $at}' >"$FIX/run_$1.json"
+CAP="$HOOK_DIR/fixtures"
+REAL_REPO=melodic-software/claude-code-plugins
+REAL_SHA="$(jq -r '.artifacts[0].name | ltrimstr("pr-verify-index-sha-")' "$CAP/pr-verify-index-sha-artifacts.json")"
+REAL_FAIL="$(jq -r '[.artifacts[].name | select(test("^pr-verify-[0-9]+-[0-9a-f]{40}-fail"))] | first' "$CAP/pr-verify-fail-run-artifacts.json")"
+REAL_PR="$(cut -d- -f3 <<<"$REAL_FAIL")"
+FAIL_RUN="$(jq -r .id "$CAP/pr-verify-fail-run.json")"
+FAIL_AT="$(jq -r .created_at "$CAP/pr-verify-fail-run.json")"
+OTHER_SHA="$(jq -r .artifacts[0].workflow_run.head_sha "$CAP/pr-verify-index-sha-artifacts.json")"
+REAL_PASS="${REAL_FAIL%-fail-*}-pass"
+OTHER_PR_FAIL="${REAL_FAIL/pr-verify-$REAL_PR-/pr-verify-7-}"
+OTHER_HEAD_FAIL="${REAL_FAIL/$REAL_SHA/$OTHER_SHA}"
+assert_eq "the captured head is a full SHA" 40 "${#REAL_SHA}"
+assert_eq "the captured FAIL is #19599's" 19599 "$REAL_PR"
+assert_eq "every verdict name the scenarios use passes write-verdict.mjs NAME" ok "$(node --input-type=module -e '
+  const { isVerdictName } = await import(process.argv[2]);
+  console.log(process.argv.slice(3).every(isVerdictName) ? "ok" : "refused");' \
+  names "$LIB_DIR/../.github/scripts/pr-verify/write-verdict.mjs" "$REAL_FAIL" "$REAL_PASS" "$OTHER_PR_FAIL" "$OTHER_HEAD_FAIL")"
+shifted() { jq -rn --arg t "$FAIL_AT" --argjson s "$1" '$t | fromdateiso8601 + $s | todate'; }
+pv_real() {
+  pv_judged "$1"
+  jq --arg sha "$REAL_SHA" --arg repo "$REAL_REPO" '.head.sha = $sha | .head.repo.full_name = $repo | .base.repo.full_name = $repo' \
+    "$FIX/pr.json" >"$FIX/pr.next" && mv "$FIX/pr.next" "$FIX/pr.json"
 }
-pv_listed() {
-  [[ -f "$FIX/artifacts.json" ]] || echo '{"artifacts":[]}' >"$FIX/artifacts.json"
-  jq --arg n "$1" --argjson id "$2" '.artifacts += [{name: $n, expired: false, workflow_run: {id: $id, head_branch: "main"}}]' \
+pv_fail() {
+  cp "$CAP/pr-verify-index-sha-artifacts.json" "$FIX/artifacts.json"
+  cp "$CAP/pr-verify-fail-run.json" "$FIX/run_$FAIL_RUN.json"
+  jq --arg from "$REAL_FAIL" --arg to "${1-$REAL_FAIL}" \
+    '.artifacts = [.artifacts[] | if .name == $from then (if $to == "" then empty else .name = $to end) else . end] | .total_count = (.artifacts | length)' \
+    "$CAP/pr-verify-fail-run-artifacts.json" >"$FIX/run_artifacts_$FAIL_RUN.json"
+}
+pv_pass() {
+  jq --argjson id "$1" --arg at "$(shifted "$2")" '.id = $id | .created_at = $at' "$CAP/pr-verify-fail-run.json" >"$FIX/run_$1.json"
+  jq --arg n "$REAL_PASS" --argjson id "$1" '.artifacts += [.artifacts[0] | .name = $n | .workflow_run.id = $id] | .total_count += 1' \
     "$FIX/artifacts.json" >"$FIX/artifacts.next" && mv "$FIX/artifacts.next" "$FIX/artifacts.json"
 }
-pv_fail_at() {
-  pv_run "$1" "$2" failure
-  pv_listed pr-verify-index-sha-abc123 "$1"
-  jq -n --arg fail "${3-pr-verify-42-abc123-fail-i19599}" \
-    '{artifacts: ([{name: "pr-verify-index-sha-abc123", expired: false}] + if $fail == "" then [] else [{name: $fail, expired: false}] end)}' \
-    >"$FIX/run_artifacts_$1.json"
-}
-pv_pass_at() {
-  pv_run "$1" "$2"
-  pv_listed pr-verify-42-abc123-pass "$1"
-}
 VERIFY_FAIL_FIX="push a new head or get an approving review from a trusted actor, then re-queue."
-pv_judged 2026-01-01T00:00:00Z
-pv_fail_at 7101 2026-05-01T00:00:00Z
-check acme/widgets 42
+pv_real 2026-01-01T00:00:00Z
+pv_fail
+check "$REAL_REPO" "$REAL_PR"
 assert_eq "a FAIL at the head and no pass, past the wait -> BLOCKED verify-fail at once" "BLOCKED verify-fail" "$(head -n 1 <<<"$OUT")"
-assert_contains "FAIL at the head -> names the FAIL and its head" "$OUT" "pr-verify FAIL at its head abc123"
+assert_contains "FAIL at the head -> names the FAIL and its head" "$OUT" "pr-verify FAIL at its head $REAL_SHA"
 assert_contains "FAIL at the head -> says how to clear it" "$OUT" "$VERIFY_FAIL_FIX"
-pv_judged 2099-01-01T00:00:00Z
-pv_fail_at 7101 2026-05-01T00:00:00Z pr-verify-7-abc123-fail
-check acme/widgets 42
-assert_eq "a plain FAIL at the head under another number, inside the wait -> BLOCKED verify-fail" "BLOCKED verify-fail" "$(head -n 1 <<<"$OUT")"
-pv_judged 2026-01-01T00:00:00Z
-pv_fail_at 7101 2026-05-01T00:00:00Z
-pv_pass_at 7102 2026-05-01T00:10:00Z
-check acme/widgets 42
+pv_real 2099-01-01T00:00:00Z
+pv_fail "$OTHER_PR_FAIL"
+check "$REAL_REPO" "$REAL_PR"
+assert_eq "a FAIL at the head under another number, inside the wait -> BLOCKED verify-fail" "BLOCKED verify-fail" "$(head -n 1 <<<"$OUT")"
+pv_real 2026-01-01T00:00:00Z
+pv_fail
+pv_pass $((FAIL_RUN + 1)) 600
+check "$REAL_REPO" "$REAL_PR"
 assert_exit "a FAIL, then a PASS judged after it at the head -> READY" 0 "$RC"
 assert_absent "a later PASS -> no no-verdict notice" "$OUT" "NOTICE"
-pv_judged 2026-01-01T00:00:00Z
-pv_pass_at 7102 2026-05-01T00:00:00Z
-pv_fail_at 7101 2026-05-01T00:10:00Z
-check acme/widgets 42
+pv_real 2026-01-01T00:00:00Z
+pv_fail
+pv_pass $((FAIL_RUN - 1)) -600
+check "$REAL_REPO" "$REAL_PR"
 assert_eq "a PASS, then a FAIL judged after it at the head -> BLOCKED verify-fail" "BLOCKED verify-fail" "$(head -n 1 <<<"$OUT")"
-pv_judged 2026-01-01T00:00:00Z
-pv_fail_at 7101 2026-05-01T00:00:00Z ""
-check acme/widgets 42
+pv_real 2026-01-01T00:00:00Z
+pv_fail ""
+check "$REAL_REPO" "$REAL_PR"
 assert_exit "an index whose run holds no FAIL (its upload failed) -> the no-verdict path, READY past the wait" 0 "$RC"
-assert_contains "no FAIL uploaded -> the no-verdict notice" "$OUT" "NOTICE: pr-verify has no verdict at abc123"
-pv_judged 2026-01-01T00:00:00Z
-pv_fail_at 7101 2026-05-01T00:00:00Z pr-verify-42-def456-fail
-check acme/widgets 42
+assert_contains "no FAIL uploaded -> the no-verdict notice" "$OUT" "NOTICE: pr-verify has no verdict at $REAL_SHA"
+pv_real 2026-01-01T00:00:00Z
+pv_fail "$OTHER_HEAD_FAIL"
+check "$REAL_REPO" "$REAL_PR"
 assert_exit "a FAIL at another head in an index run -> not this head's, READY past the wait" 0 "$RC"
-pv_judged 2026-01-01T00:00:00Z
-pv_fail_at 7101 2026-05-01T00:00:00Z
-jq '.path = ".github/workflows/other.yml"' "$FIX/run_7101.json" >"$FIX/run.next" && mv "$FIX/run.next" "$FIX/run_7101.json"
-check acme/widgets 42
+pv_real 2026-01-01T00:00:00Z
+pv_fail
+jq '.path = ".github/workflows/other.yml"' "$FIX/run_$FAIL_RUN.json" >"$FIX/run.next" && mv "$FIX/run.next" "$FIX/run_$FAIL_RUN.json"
+check "$REAL_REPO" "$REAL_PR"
 assert_exit "a FAIL from a run that is not pr-verify -> ignored, READY past the wait" 0 "$RC"
 pv_trusted_review() {
   printf '{"data":{"repository":{"w":{"oid":"f00"},"c":{"text":"merge:\\n  verify-authors: any\\n"},"t":{"text":"{\\"actors\\":[{\\"id\\":5,\\"kind\\":\\"human\\"},{\\"id\\":6,\\"kind\\":\\"bot\\"}]}"}}}}\n' >"$FIX/graphql_scope.json"
-  jq -n --arg s "$1" --argjson id "${2:-5}" --arg c "${3:-abc123}" \
-    '[{user: {login: "amy", id: $id, type: "User"}, state: $s, commit_id: $c, submitted_at: "2026-05-02T00:00:00Z"}]' >"$FIX/reviews.json"
+  jq -n --arg s "$1" --argjson id "${2:-5}" --arg c "${3:-$REAL_SHA}" \
+    '[{user: {login: "amy", id: $id, type: "User"}, state: $s, commit_id: $c, submitted_at: "2026-11-28T11:00:00Z"}]' >"$FIX/reviews.json"
 }
-pv_judged 2026-01-01T00:00:00Z
-pv_fail_at 7101 2026-05-01T00:00:00Z
+pv_real 2026-01-01T00:00:00Z
+pv_fail
 pv_trusted_review APPROVED
-check acme/widgets 42
+check "$REAL_REPO" "$REAL_PR"
 assert_exit "a FAIL at the head, approved at the head by a trusted person -> READY, as the merge queue lifts it" 0 "$RC"
-assert_contains "approval lift -> a notice names who approved" "$OUT" "NOTICE: pr-verify failed abc123; amy approved this head"
-pv_judged 2026-01-01T00:00:00Z
-pv_fail_at 7101 2026-05-01T00:00:00Z
+assert_contains "approval lift -> a notice names who approved" "$OUT" "NOTICE: pr-verify failed $REAL_SHA; amy approved this head"
+pv_real 2026-01-01T00:00:00Z
+pv_fail
 pv_trusted_review APPROVED 9
-check acme/widgets 42
+check "$REAL_REPO" "$REAL_PR"
 assert_eq "a FAIL at the head, approved by someone off the trusted list -> BLOCKED verify-fail" "BLOCKED verify-fail" "$(head -n 1 <<<"$OUT")"
-pv_judged 2026-01-01T00:00:00Z
-pv_fail_at 7101 2026-05-01T00:00:00Z
-pv_trusted_review APPROVED 5 0ld000
-check acme/widgets 42
+pv_real 2026-01-01T00:00:00Z
+pv_fail
+pv_trusted_review APPROVED 5 "$OTHER_SHA"
+check "$REAL_REPO" "$REAL_PR"
 assert_eq "a FAIL at the head, a trusted approval of an older head -> BLOCKED verify-fail" "BLOCKED verify-fail" "$(head -n 1 <<<"$OUT")"
-pv_judged 2026-01-01T00:00:00Z
-pv_fail_at 7101 2026-05-01T00:00:00Z
+pv_real 2026-01-01T00:00:00Z
+pv_fail
 touch "$FIX/artifacts_error"
-check acme/widgets 42
+check "$REAL_REPO" "$REAL_PR"
 assert_exit "a failed FAIL-index read -> UNCHECKED" 3 "$RC"
 
 PAGED="$TEST_TMPDIR/per-page-4"
