@@ -42,7 +42,10 @@ DIFF_PARTSCHUNK_NOTE
   the skill's update procedure are outside it, and a skill's `SKILL.md` changes only its sync
   stamps and prose. A changed file inside that scope is not out of scope for this spec. An issue the
   monitoring lane opened for a red main carries `source` `main-red-incident`: its `body` is one
-  fixed text, the same for every such issue, never the issue's own text. When the pull request links
+  fixed text, the same for every such issue, never the issue's own text. Other monitoring-lane
+  signal incidents (`source` `monitor-incident`), dead-link rollups (`source` `dead-link-rollup`),
+  and post-merge demotion alerts (`source` `demotion-alert`) likewise carry a fixed repo-side spec
+  template built from their signal or marker, never the issue's own text. When the pull request links
   no issue and a trusted person or a script wrote its title and body, the file instead holds one
   entry with `source` `pull-request`: that title and body. Each entry's `spec_kind` says how it
   is linked: `closes` (an issue the pull request closes), `refs` (the one issue a `Refs:` line
@@ -108,7 +111,9 @@ Judge in this order:
    when the part is outside the issue's scope. A `refs` entry with `source` `main-red-incident` is
    the exception: fixing the failing check's cause is the whole delivery and the monitoring lane
    closes the issue itself, so judge the diff against its whole `body` and require no remaining
-   work. Every other `spec_kind` is judged against the
+   work. A `refs` entry with `source` `monitor-incident`, `dead-link-rollup` or `demotion-alert`
+   follows the same rule: its workflow or lane closes the issue on its own once resolved, so judge
+   the diff against its whole `body` and require no remaining work. Every other `spec_kind` is judged against the
    whole spec, less the items its `person_checks` and `credited_siblings` excuse. Work the spec does not ask for, or puts out
    of scope, does not block by itself: name it in a note and return `pass-notes`. It blocks only
    when it is also a correctness or safety problem, when it changes what the code is for (such as
