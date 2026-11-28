@@ -1,5 +1,5 @@
 ---
-description: "C4 component view of the modules inside one deployable, one directed arrow per internal build reference, each citing its declaration. Use when 'component diagram', 'what is inside this service', 'module dependencies', 'which way do the arrows point', 'layering of this deployable'. Skip for which repositories exist (map-landscape), all deployables (map-containers), or module-design friction (improve)."
+description: "C4 component view of a deployable's modules: one arrow per internal build reference, citing its declaration. Use for 'component diagram', 'what is inside this service', 'module dependencies', arrow direction, or layering. Not for repos (/architecture:map-landscape), deployables (/architecture:map-containers), module design (/architecture:improve)."
 argument-hint: "[container] [--group-by directory|namespace|layer] [--layers <list>] [--dialect likec4|c4-plantuml]"
 user-invocable: true
 disable-model-invocation: false
