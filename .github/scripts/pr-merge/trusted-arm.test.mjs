@@ -810,7 +810,7 @@ test("refused unarmed trusted pull requests unchanged since the last sweep read 
   assert.match(leftLine(second, 500), /left: pr-verify has no PASS or PASS-NOTES at its head$/);
   assert.match(leftLine(second, 502), /left: it carries do-not-merge$/);
   assert.deepEqual(Object.values(second.kept.entries).map(({ skips }) => skips), [1, 1, 1]);
-  assert.deepEqual([first.graphql, first.rest], [4, 0], "first sweep: the listing and three detail reads, files taken from the detail");
+  assert.deepEqual([first.graphql, first.rest], [4, 2], "first sweep: the listing and three detail reads, files by REST for the two past the label hold");
   assert.deepEqual([second.graphql, second.rest], [2, 2], "second sweep: the listing and one state read, files by REST for the two past the label hold");
 });
 
@@ -873,4 +873,16 @@ test("a trusted pull request with more comments than the state read returns keep
   const comments = (length) => Array.from({ length }, (_, i) => remark(7000 + i));
   assert.deepEqual((await sweep([refusedTrusted(500, { comments: comments(51) })])).kept.entries, {});
   assert.equal((await sweep([refusedTrusted(500, { comments: comments(50) })])).kept.entries["500"]?.reason, "trusted author: its comments held no stale lanes App pin");
+});
+
+test("a member's veto posted while the lane-source or verdict check runs refuses the trusted arm", async () => {
+  const during = clean({ comments: [] });
+  const vetoed = await run([during], { laneSource: () => { during.comments = [VETO]; return []; } });
+  assert.equal(armedHeads(vetoed), 0, vetoed.lines.join("\n"));
+  assert.match(leftLine(vetoed, 500), /left: kyle-sexton asked not to merge it/);
+  const late = clean({ comments: [] });
+  const verdicts = { get 500() { late.comments = [VETO]; return pass(CLEAN_HEAD); } };
+  const verified = await run([late], { verdicts });
+  assert.equal(armedHeads(verified), 0, verified.lines.join("\n"));
+  assert.match(leftLine(verified, 500), /left: kyle-sexton asked not to merge it/);
 });

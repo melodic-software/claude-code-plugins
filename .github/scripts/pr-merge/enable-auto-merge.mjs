@@ -1822,15 +1822,7 @@ export async function main({ env = process.env, github, actions, laneReads, veri
           }
           facts[key] =
             action === "files"
-              ? await filesOf(
-                  pull,
-                  facts.pinUnchanged
-                    ? null
-                    : await discussionOf(pull.number).catch((error) => {
-                        console.log(`enable-auto-merge: #${pull.number} trusted author: its discussion read failed, so its files are read by REST: ${describe(error)}`);
-                        return null;
-                      }),
-                )
+              ? await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number)
               : action === "cost"
                 ? await costOf(pull, facts.files.paths)
                 : action === "lane-source"
