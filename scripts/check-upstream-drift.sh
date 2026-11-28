@@ -342,8 +342,8 @@ git_tree() {
   case "${out##*$'\n'}" in
   notree) return 4 ;;
   missing) return 3 ;;
+  *) OUT_TREE="$out" ;;
   esac
-  OUT_TREE="$out"
 }
 
 read_tree() {
