@@ -76,6 +76,9 @@ Ask them across the scoped set of repositories, emitting findings incrementally.
 16. Across the whole set, does any protection or setting drift *toward the loosest* configuration
     present? In other words, is the fleet converging on the weakest sibling rather than the
     declared floor?
+17. For repositories that publish releases or distribute versioned artifacts, are immutable releases
+    enabled (at the org or repository layer) and paired with tag-protection rulesets so published
+    tags and release assets cannot be mutated or deleted after publication?
 
 ## Posture heuristics
 
@@ -92,6 +95,10 @@ exact mechanism behind each is resolved live.
 - **Enforce over evaluate for settled rules.** Evaluate/non-enforcing mode is for rules still being
   trialed. A rule that has been in evaluate mode long enough to be considered policy but never
   promoted to enforcing is protection theater. Surface it as such.
+- **Immutable releases for published artifacts.** Repositories that cut versioned releases should
+  enable immutable releases alongside tag-protection rulesets so published tags and release assets
+  stay tamper-evident; missing immutable-release enablement or unprotected release tags on a
+  release-publishing repo is governance drift.
 - **Consistency classes, not one global baseline.** Production, sandbox, and archived repos are
   legitimately held to different declared baselines. Compare each repo against its own class's
   expectation, and treat a repo that appears misclassified (a sandbox setting on a production repo)
@@ -110,8 +117,8 @@ can actually see.
 1. **Load the declared posture.** Read the layered conventions per
    [`../conventions-file.md`](../conventions-file.md) and extract every governance declaration that
    bears on this area: statements like "every production repo carries the org default ruleset",
-   review floors, required checks, signing, merge-strategy and default-branch conventions, and any
-   declared exceptions with their rationale.
+   review floors, required checks, signing, immutable-release expectations, merge-strategy and
+   default-branch conventions, and any declared exceptions with their rationale.
 2. **Enumerate the target repositories** per the ladder's org-scale scoping rule: area-scoped by
    default, confirm before an all-org sweep, emit findings incrementally, and on rate limiting stop
    cleanly and name exactly which repos were not reached. A partial fleet pass is honest; a silently
@@ -137,8 +144,9 @@ can actually see.
 
 ## Dated caveats (re-verify live)
 
-Constraints observed at research time (2026-07), from official GitHub docs and live CLI/API probes.
-Each is a starting expectation, not a current fact. The mechanics move on a weeks-scale timescale.
+Constraints observed at research time (2026-07 and 2026-11), from official GitHub docs and live
+CLI/API probes. Each is a starting expectation, not a current fact. The mechanics move on a
+weeks-scale timescale.
 
 - Some ruleset types and some enforcement behavior on private repositories appeared to be
   plan-gated, and one non-enforcing evaluation mode appeared tied to the highest tier. The exact
@@ -152,6 +160,9 @@ Each is a starting expectation, not a current fact. The mechanics move on a week
 - Some organization-governance surfaces required elevated or specific credentials, and native CLI
   coverage of this area was uneven versus the underlying API. Which operations had first-class CLI
   support was drifting release to release. Re-verify live before relying on it.
+- Immutable-release enablement and org-wide enforcement controls (and their CLI, REST API, and
+  settings-UI reachability) were newer repository-governance surfaces as of 2026-11. Resolve current
+  controls and gates live through the ladder. Re-verify live before relying on it.
 
 ## Doc pointers
 

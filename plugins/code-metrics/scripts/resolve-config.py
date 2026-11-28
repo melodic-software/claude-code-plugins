@@ -16,19 +16,10 @@ ${user_config.config_file}, is unset; a leading ~/ expands against --home; a
 value still not absolute is skipped with a warning; a file that does not exist
 supplies no layer.
 
-Dual-read window: two old paths are still read, each with one warning per run
-naming the old file and where its keys go.
-
-  ~/.claude/code-metrics.yaml         read as layer `userConfig` only while the
-                                      config_file option's file is absent or
-                                      outside the YAML subset
-  <repo>/.claude/code-metrics.local.yaml
-                                      read as layer `local` only while the
-                                      docs/conventions personal file is absent
-                                      or outside the YAML subset
-
 The team file earlier releases read from the repository's .claude directory
 is not read; /code-metrics:setup check reports it and apply moves its keys.
+Old ~/.claude/code-metrics.yaml and .claude/code-metrics.local.yaml files are
+not read.
 
 An invalid layer never stops the run. A file outside the YAML subset is named
 and read as absent. A value of the wrong shape (a scalar where a list or a
@@ -258,14 +249,6 @@ def repo_root() -> str:
     return os.getcwd().replace("\\", "/")
 
 
-def layer_paths(home: str, root: str, stem: str) -> list[tuple[str, str]]:
-    return [
-        ("user-global", os.path.join(home, ".claude", f"{stem}.yaml")),
-        ("team", os.path.join(root, ".claude", f"{stem}.yaml")),
-        ("local", os.path.join(root, ".claude", f"{stem}.local.yaml")),
-    ]
-
-
 def ecosystem_layer_paths(
     home: str, root: str, language: str, warnings: list[str]
 ) -> list[tuple[str, str]]:
@@ -280,18 +263,7 @@ def ecosystem_layer_paths(
     return paths
 
 
-def old_layer_paths(home: str, root: str) -> dict[str, str]:
-    """The pre-cascade user-global and personal override paths, by layer."""
-    return {
-        "user-global": os.path.join(home, ".claude", f"{SURFACE}.yaml"),
-        "local": os.path.join(root, ".claude", f"{SURFACE}.local.yaml"),
-    }
-
-
 USER_OPTION = "config_file"
-UNSET_USER_FILE = (
-    f"the file the {USER_OPTION} userConfig option names (set it in /config)"
-)
 
 
 def user_file(raw: str | None, home: str, warnings: list[str]) -> str | None:
@@ -310,79 +282,22 @@ def user_file(raw: str | None, home: str, warnings: list[str]) -> str | None:
     return value
 
 
-def _same_file(a: str, b: str) -> bool:
-    try:
-        return os.path.samefile(a, b)
-    except OSError:
-        return False
-
-
-def _dual_read(
-    layer: str,
-    new: str | None,
-    old: str,
-    what: str,
-    where: str,
-    warnings: list[str],
-) -> list[tuple[str, str]]:
-    has_new = new is not None and os.path.isfile(new)
-    has_old = os.path.isfile(old) and not (has_new and _same_file(old, str(new)))
-    layer_word = "personal layer" if layer == "local" else f"{layer} layer"
-    if has_new and has_old:
-        if _load_layer(str(new), []) is None:
-            warnings.append(
-                f"{old} is the old {what}, still read as the {layer_word} because "
-                f"{new} is outside the YAML subset; fix {new}, then delete the old file"
-            )
-            return [(layer, old), (layer, str(new))]
-        warnings.append(
-            f"{old} is the old {what} and is not read because {new} exists; move "
-            f"any key it still holds to {new} and delete the old file"
-        )
-    if has_new:
-        return [(layer, str(new))]
-    if has_old:
-        warnings.append(
-            f"{old} is the old {what}, still read as the {layer_word}; move it to "
-            f"{where} (/code-metrics:setup apply --copy-old)"
-        )
-        return [(layer, old)]
-    return []
-
-
 def surface_layer_paths(
     home: str,
     root: str,
     warnings: list[str] | None = None,
     user_option: str | None = None,
 ) -> list[tuple[str, str]]:
-    """The plugin's file layers, with the old paths the dual-read window keeps.
-
-    The userConfig file is the one the config_file option names; the team and
-    personal override files sit in `docs/conventions/` (config-cascade, "The
-    layers"). The older team file in the repository's `.claude` directory is
-    never read. An old user-global or personal file is read in its layer's
-    place and named in one warning each.
-    """
+    """The plugin's canonical file layers: userConfig option, team YAML, personal override."""
     warnings = [] if warnings is None else warnings
     conventions = os.path.join(root, "docs", "conventions")
-    personal = os.path.join(conventions, f"{SURFACE}.local.yaml")
-    old = old_layer_paths(home, root)
     user = user_file(user_option, home, warnings)
-    return [
-        *_dual_read(
-            "userConfig",
-            user,
-            old["user-global"],
-            "user-global file",
-            user or UNSET_USER_FILE,
-            warnings,
-        ),
-        ("team", os.path.join(conventions, f"{SURFACE}.yaml")),
-        *_dual_read(
-            "local", personal, old["local"], "personal override", personal, warnings
-        ),
-    ]
+    layers: list[tuple[str, str]] = []
+    if user is not None:
+        layers.append(("userConfig", user))
+    layers.append(("team", os.path.join(conventions, f"{SURFACE}.yaml")))
+    layers.append(("local", os.path.join(conventions, f"{SURFACE}.local.yaml")))
+    return layers
 
 
 def resolve(

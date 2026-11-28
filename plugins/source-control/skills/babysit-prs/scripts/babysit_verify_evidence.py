@@ -1403,6 +1403,7 @@ CARRIED_RECORD_SECTION = "carried-fail-head-ref"
 CARRIED_ON_BRANCH = "carried-on-branch"
 UNREAD_RECORD_SECTION = "unreadable-fail-head-ref"
 DRAFT_JUDGMENT_SECTION = "draft-judgment"
+RUN_ARTIFACTS_SECTION = "run-artifacts"
 RUN_FIELDS = (
     "id",
     "path",
@@ -3752,7 +3753,23 @@ class Reader:
         no FAIL-shaped name may still be uploading its FAIL: while it has not
         completed, `_Unreadable`; once it is seen completed, its artifacts are
         read again, since the FAIL may have uploaded between the two reads,
-        and that read decides (no FAIL then: its FAIL upload failed)."""
+        and that read decides (no FAIL then: its FAIL upload failed). A set
+        that holds a FAIL can only refuse, so the run's gate processes share
+        it for `run_cache.MAX_AGE`, each noting when it was read; a set with
+        no FAIL is read by each process, since a re-run keeps the run's id
+        and may upload one."""
+        key = f"{self.repo}|{run_id}"
+        shared = run_cache.get_dated(RUN_ARTIFACTS_SECTION, key, run_cache.MAX_AGE)
+        if (
+            shared is not None
+            and is_json_array(shared[0])
+            and all(map(_listed_entry, shared[0]))
+        ):
+            run_cache.note(shared[1])
+            return shared[0]
+
+        def holds_fail(found: list[dict[str, Any]]) -> bool:
+            return any(FAIL_PREFIX_RE.match(str(a.get("name") or "")) for a in found)
 
         def read() -> list[dict[str, Any]]:
             answer = self._api_object(
@@ -3774,8 +3791,9 @@ class Reader:
                 raise _Unreadable(f"the artifacts of run {run_id} could not be read")
             return [a for a in items if a["expired"] is False]
 
+        at = run_cache.now()
         items = read()
-        if not any(FAIL_PREFIX_RE.match(str(a.get("name") or "")) for a in items):
+        if not holds_fail(items):
             record = json_object(
                 self._actions(
                     ["api", f"repos/{self.repo}/actions/runs/{run_id}"], f"run {run_id}"
@@ -3787,6 +3805,9 @@ class Reader:
                     f"run {run_id} holds a FAIL index and is still running"
                 )
             items = read()
+        if holds_fail(items):
+            run_cache.put(RUN_ARTIFACTS_SECTION, key, items, at)
+        run_cache.note(at)
         return items
 
     def _index_hits(

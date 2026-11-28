@@ -231,9 +231,6 @@ The options below are personal, enable-time dials. The one setting that is polic
 the record of findings the operator has declined, lives on the tracked cascade surface
 `<home>/instruction-placement.yaml` (default home `docs/conventions`) instead, whose keys, layers,
 and policy-floor merge are owned by [`reference/consumer-config.md`](reference/consumer-config.md).
-A file at an old path (`.claude/instruction-placement.md`, its `.local.md`, or
-`~/.claude/instruction-placement.md`) is still read, with a warning, until
-`/instruction-placement:setup apply migrate-config` moves it.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 

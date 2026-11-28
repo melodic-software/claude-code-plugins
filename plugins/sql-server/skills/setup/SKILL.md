@@ -1,5 +1,5 @@
 ---
-description: "Check or set up the sql-server read-only MCP server: Node.js, the config file against its schema, the server copy in the plugin data directory, and a claude mcp add command per environment that names credentials by reference. Use when: 'set up sql-server', 'register a database for the agent', 'check my sql-server config', 'connect Azure SQL Database'. Actions: check (default) | apply."
+description: "Verify (check) or set up (apply) the sql-server read-only MCP server: Node.js, config schema, server copy, and per-environment registration."
 argument-hint: "[check|apply] --config <path> [--environment <name>]"
 user-invocable: true
 disable-model-invocation: true

@@ -5,78 +5,58 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Blindspot View</title>
 <style>
-:root {
-  --bg: #f4f6f8;
-  --surface: #ffffff;
-  --fg: #1b2330;
-  --muted: #566173;
-  --line: #d6dce4;
-  --accent: #2b59c3;
-  --chip: #e6ecf8;
-  --sans: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme=light]) {
-    --bg: #12161d;
-    --surface: #1a2029;
-    --fg: #e4e9f0;
-    --muted: #9aa5b5;
-    --line: #2c3542;
-    --accent: #86a8f0;
-    --chip: #233150;
-    color-scheme: dark;
-  }
-}
-:root[data-theme=dark] {
-  --bg: #12161d;
-  --surface: #1a2029;
-  --fg: #e4e9f0;
-  --muted: #9aa5b5;
-  --line: #2c3542;
-  --accent: #86a8f0;
-  --chip: #233150;
-  color-scheme: dark;
-}
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); }
 .page { max-width: 46rem; margin: 0 auto; padding: 0 16px; padding-block: 2rem 3rem; display: grid; gap: 1.5rem; }
 .eyebrow { margin: 0; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+h1, h2 { font-family: var(--serif); }
 h1 { margin: 0.25rem 0 0.5rem; font-size: 1.6rem; line-height: 1.2; text-wrap: balance; }
 h2 { margin: 0; font-size: 1.1rem; }
 .lede { margin: 0; max-width: 65ch; }
 .meta { margin: 0.5rem 0 0; color: var(--muted); font-variant-numeric: tabular-nums; }
 code { font-family: var(--mono); font-size: 0.85em; overflow-wrap: anywhere; }
-.facts { display: grid; gap: 0.5rem; padding: 0.9rem 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.facts { display: grid; gap: 0.5rem; padding: 0.9rem 1rem; background: var(--panel); border: var(--border); border-radius: var(--radius-panel); }
 .facts p { margin: 0; }
-.prompt { margin: 0; padding: 0.75rem; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; font-family: var(--mono); font-size: 0.85rem; }
+.prompt { margin: 0; padding: 0.75rem; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg); border: var(--border); border-radius: 6px; font-family: var(--mono); font-size: 0.85rem; }
 .bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
-.bar input { flex: 1 1 14rem; min-width: 0; padding: 0.5rem 0.65rem; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); font: inherit; }
+.bar input { flex: 1 1 14rem; min-width: 0; padding: 0.5rem 0.65rem; border: var(--border); border-radius: 6px; background: var(--panel); color: var(--fg); font: inherit; }
 .rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
-.row { display: grid; grid-template-columns: auto 1fr; gap: 0.75rem; padding: 0.9rem 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.row { display: grid; grid-template-columns: auto 1fr; gap: 0.75rem; padding: 0.9rem 1rem; background: var(--panel); border: var(--border); border-radius: var(--radius-row); }
 .row[hidden] { display: none; }
 .row .body { min-width: 0; display: grid; gap: 0.35rem; }
 .row p { margin: 0; }
 .pick { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; font-size: 0.75rem; color: var(--muted); }
-.pick input { width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
+.pick input { width: 1.1rem; height: 1.1rem; accent-color: var(--link); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
-.chip { padding: 0.05rem 0.5rem; border-radius: 4px; background: var(--chip); color: var(--accent); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.chip { padding: 0.05rem 0.5rem; border: var(--border); border-radius: 4px; background: var(--bg); color: var(--link); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
 .label { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; }
-.reply { display: grid; gap: 0.6rem; padding-top: 1rem; border-top: 1px solid var(--line); }
-.reply textarea { min-height: 5rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); font: inherit; resize: vertical; }
+.reply { display: grid; gap: 0.6rem; padding-top: 1rem; border-top: var(--border); }
+.reply textarea { min-height: 5rem; padding: 0.6rem; border: var(--border); border-radius: 6px; background: var(--panel); color: var(--fg); font: inherit; resize: vertical; }
 .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-button { padding: 0.5rem 0.9rem; border: 1px solid var(--accent); border-radius: 6px; background: var(--accent); color: var(--bg); font: inherit; font-weight: 600; cursor: pointer; }
-button + button { background: transparent; color: var(--accent); }
-button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button { padding: 0.5rem 0.9rem; border: 1px solid var(--link); border-radius: 6px; background: var(--link); color: var(--bg); font: inherit; font-weight: 600; cursor: pointer; }
+button + button { background: transparent; color: var(--link); }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .status { margin: 0; min-height: 1.5em; color: var(--muted); }
-.out { margin: 0; padding: 0.75rem; overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; font-family: var(--mono); font-size: 0.85rem; }
-@media (prefers-reduced-motion: reduce) { * { transition: none; animation: none; } }
+.out { margin: 0; padding: 0.75rem; overflow-x: auto; background: var(--panel); border: var(--border); border-radius: 6px; font-family: var(--mono); font-size: 0.85rem; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  /* rv-chrome:begin */
+  .rv-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: flex-end; }
+  .rv-theme { display: inline-flex; border: 1px solid var(--muted); border-radius: 8px; overflow: hidden; }
+  .rv-theme button { margin: 0; padding: 0.35rem 0.75rem; border: 0; border-radius: 0; background: transparent; color: var(--fg); font: inherit; font-weight: 500; cursor: pointer; }
+  .rv-theme button + button { border-left: 1px solid var(--muted); }
+  .rv-theme button[aria-pressed=true] { background: var(--fg); color: var(--bg); }
+  .rv-theme button:focus-visible { outline: 3px solid var(--fg); outline-offset: -3px; }
+  .rv-comment { display: grid; gap: 0.4rem; }
+  .rv-comment h2 { margin: 0; }
+  .rv-comment textarea { min-height: 5rem; padding: 0.6rem; border: 1px solid var(--muted); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; resize: vertical; }
+  .rv-comment textarea:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
+  /* rv-chrome:end */
 </style>
 </head>
 <body>
 <main class="page">
+<div class="rv-bar"><div class="rv-theme" role="group" aria-label="Theme"><button type="button" data-rv-theme="system" aria-pressed="true">System</button><button type="button" data-rv-theme="light" aria-pressed="false">Light</button><button type="button" data-rv-theme="dark" aria-pressed="false">Dark</button></div></div>
 <header>
 <p class="eyebrow">Blindspot view. The cards in the conversation are authoritative.</p>
 <h1 data-rv-text="title">Blindspots</h1>
