@@ -152,16 +152,16 @@ pre-scoring filters could not match.
    presupposes completed work fails before scoring, however accurate it is
    once work exists. Then pool the candidates, dedupe, and disqualify any
    candidate that matches the rejected incumbent (if any), that contains a
-   user-stated word-level blocklist entry (a
-   generator can miss the brief's constraint; the merge step enforces it),
-   or that collides with the existing vocabulary. The rejected-incumbent list
-   is carried by the main thread as an explicit reject list, never shared with
-   the generators. A candidate containing
-   only an agent-inferred blocklist word is not disqualified. It stays in,
-   flagged with the inferred concern, so the user's pick confirms or
-   overrides the inference (provenance rule above). Score every
-   surviving candidate against the criteria resolved above, breaking ties
-   by their declared priority order.
+   user-stated word-level blocklist entry (a generator can miss the
+   brief's constraint; the merge step enforces it), or that collides with
+   the existing vocabulary. The rejected-incumbent list is carried by the
+   main thread as an explicit reject list, never shared with the
+   generators. A candidate containing only an agent-inferred blocklist
+   word is not disqualified. It stays in, flagged with the inferred
+   concern, so the user's pick confirms or overrides the inference
+   (provenance rule above). Score every surviving candidate against the
+   criteria resolved above, breaking ties by their declared priority
+   order.
 4. **Shortlist + recommend.** Present a short ranked list with a
    one-line rationale per candidate and a single RECOMMENDED pick, marked
    and listed first. When the target already has a name, state its
@@ -213,10 +213,10 @@ The default pass's merge filters still apply before the elimination rounds
 begin, including the sentence-form and temporal-neutrality tests for
 utterance and cold-loadable names and the blocklist provenance rule: pool
 the widened candidates, fail contentless idioms and
-completed-work-presupposing names early, and disqualify any that match the rejected incumbent, contain
-a user-stated blocklisted word, or collide with the existing vocabulary
-(agent-inferred blocklist matches enter the bracket flagged, not
-disqualified).
+completed-work-presupposing names early, and disqualify any that match the
+rejected incumbent, contain a user-stated blocklisted word, or collide
+with the existing vocabulary (agent-inferred blocklist matches enter the
+bracket flagged, not disqualified).
 
 **Settle the scoring criteria before the generators return, and write them
 down.** The criteria are still resolved from the consuming project's own
