@@ -173,8 +173,15 @@ manifest_rows() {
   done <"$wt_list"
 }
 
+hash_paths() {
+  local root="$1" rel
+  shift
+  for rel; do printf '%s/%s\n' "$root" "$rel"; done | git -C "$root" hash-object --no-filters --stdin-paths 2>/dev/null
+}
+
 main_rows() {
-  local wt_top="$1" main_root="$2" wt_list="$3" rel cmp_rc
+  local wt_top="$1" main_root="$2" wt_list="$3" rel i j=0
+  local -a rows=() both=() wt_oids=() main_oids=()
   while IFS= read -r -d '' rel; do
     [[ -n "$rel" ]] || continue
     wt_seen["$rel"]=1
@@ -183,19 +190,29 @@ main_rows() {
     [[ -r "$wt_top/$rel" ]] || die "diff: unreadable worktree file: $wt_top/$rel" 3
     if [[ -e "$main_root/$rel" ]]; then
       [[ -f "$main_root/$rel" && -r "$main_root/$rel" ]] || die "diff: unreadable main file: $main_root/$rel" 3
-      cmp -s -- "$wt_top/$rel" "$main_root/$rel"
-      cmp_rc=$?
-      if ((cmp_rc == 1)); then
-        diff_status+=("MODIFIED")
-        diff_rel+=("$rel")
-      elif ((cmp_rc > 1)); then
-        die "diff: failed comparing $rel" 3
-      fi
+      both+=("$rel")
+      rows+=("")
     else
-      diff_status+=("NEW")
-      diff_rel+=("$rel")
+      rows+=("$rel")
     fi
   done <"$wt_list"
+  if ((${#both[@]} > 0)); then
+    mapfile -t wt_oids < <(hash_paths "$wt_top" "${both[@]}")
+    mapfile -t main_oids < <(hash_paths "$main_root" "${both[@]}")
+    ((${#wt_oids[@]} == ${#both[@]} && ${#main_oids[@]} == ${#both[@]})) || die "diff: failed hashing carried files" 3
+  fi
+  for i in "${!rows[@]}"; do
+    if [[ -n "${rows[$i]}" ]]; then
+      diff_status+=("NEW")
+      diff_rel+=("${rows[$i]}")
+    else
+      [[ "${wt_oids[$j]}" == "${main_oids[$j]}" ]] || {
+        diff_status+=("MODIFIED")
+        diff_rel+=("${both[$j]}")
+      }
+      ((j += 1))
+    fi
+  done
 }
 
 valid_rel_path() {

@@ -133,6 +133,14 @@ run_inc diff "$WT"
 assert_exit "diff without --main-root derives main root and exits 1" 1 "$?"
 assert_contains "diff without --main-root finds MODIFIED" "$OUT" $'MODIFIED\t.work/a/b/NOTES.md\t'
 
+printf 'amp-val\n' >"$REPO/dir with spaces/a&b.txt"
+cp -p "$REPO/dir with spaces/a&b.txt" "$WT/dir with spaces/a&b.txt"
+printf 'spaced-edit\n' >"$WT/dir with spaces/my file.txt"
+run_inc diff "$WT" --main-root "$REPO"
+assert_contains "diff compares a path with spaces by content" "$OUT" $'MODIFIED\tdir with spaces/my file.txt\t'
+assert_not_contains "diff reads an identical copy whose path holds & as clean" "$OUT" 'a&b.txt'
+cp -p "$REPO/dir with spaces/my file.txt" "$WT/dir with spaces/my file.txt"
+
 run_inc sync-back "$WT" --copy "../escape.env"
 assert_exit "sync-back rejects .. traversal (exit 2)" 2 "$?"
 assert_contains "sync-back traversal error names invalid path" "$ERR" "invalid path"
