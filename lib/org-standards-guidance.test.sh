@@ -206,9 +206,17 @@ user_index "trusted_owners:
 standards_repositories:
   - repo: stranger/advice
     ref: $ADVICE
-  - repo: acme/handbook
 "
 assert_eq "order: the team list, then the repository list read from the default branch, then the personal list" \
+  "acme/handbook@$HANDBOOK_NOW|stranger/guide@$GUIDE|stranger/advice@$ADVICE" "$(run subscriptions --root "$tr_" | cut -f1 | paste -sd'|' -)"
+user_index "trusted_owners:
+  - acme
+standards_repositories:
+  - repo: stranger/advice
+    ref: $ADVICE
+  - repo: acme/handbook
+"
+assert_eq "order: a repository the team list and the personal list both name is read at its personal listing" \
   "stranger/guide@$GUIDE|stranger/advice@$ADVICE|acme/handbook@$HANDBOOK_NOW" "$(run subscriptions --root "$tr_" | cut -f1 | paste -sd'|' -)"
 assert_eq "order: a repository listed twice is read once, at its last listing, and the earlier listing is reported" "1" \
   "$(errs subscriptions --root "$tr_" | grep -cxF "org-standards: $ORG_CO/docs/conventions/standards.yaml:4: acme/handbook is listed again at $USER_INDEX:8; it is read once, there")"
