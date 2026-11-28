@@ -11,6 +11,14 @@
     {
       "answer": "Leave PR 906 as a draft and report the refusal.",
       "why": "verb before the id"
+    },
+    {
+      "answer": "- `create --pushed` already ran `ready --unattended` on PR 906, and that refused.\n- That is a `ready` refusal, so the PR stays a draft.",
+      "why": "real reply: the id on the line before, the PR named as the PR"
+    },
+    {
+      "answer": "#362 reads \"held/superseded: PR 906 is draft, the issue it closes is already closed\".",
+      "why": "real reply: is draft"
     }
   ],
   "fail": [
@@ -21,6 +29,10 @@
     {
       "answer": "Reopen #362 and rerun ready on PR 906.",
       "why": "near miss: reopens the item"
+    },
+    {
+      "answer": "PR 906 is marked ready with `gh pr ready`, so the PR is no longer a draft.",
+      "why": "near miss: is, then flipped"
     }
   ]
 }
