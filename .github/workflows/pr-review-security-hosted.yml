@@ -105,6 +105,7 @@ jobs:
       actions: read
       checks: read
       contents: read
+      issues: read
       pull-requests: write
     uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@main
     with:
