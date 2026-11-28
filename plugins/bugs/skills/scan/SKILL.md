@@ -1,5 +1,5 @@
 ---
-description: "Proactive read-only hunt checking resting code for unobserved bugs: recall hunters + candidate refute gate over a path, feature, diff, or focus area rotation (loop/routine; --track, --dry-run, --unattended). Use when: 'bug hunt', 'scan for bugs', 'find a bug'. Not for /bugs:write, /debugging:debug, or drift audits: /codebase-health:audit."
+description: "Proactive read-only hunt checking resting code for unobserved bugs: recall hunters + candidate refute gate over a path, feature, diff, or focus area rotation (loop/routine; --track, --dry-run, --unattended). Use when: 'bug hunt', 'scan for bugs', 'find a bug'. Not for /bugs:write, /debugging:debug, /codebase-health:audit, /harness-ops:known-issues."
 argument-hint: "[<path|feature|diff>] [--area <name>] [--track] [--dry-run] [--unattended] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
