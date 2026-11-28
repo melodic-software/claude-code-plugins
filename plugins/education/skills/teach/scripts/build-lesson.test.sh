@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/education/.claude-plugin/plugin.json
 # Exit 0 clean, 1 findings, 2 environment (node missing).
 set -euo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Exit 0 clean, 1 findings, 2 environment (node missing).
-# test-scope: plugins/education/skills/quiz-me/SKILL.md
+# test-scope: plugins/education/skills/quiz-me/SKILL.md plugins/education/.claude-plugin/plugin.json
 set -euo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
@@ -162,10 +162,23 @@ check("--branding-option applies label and emits SVG omission notice on stderr",
 
 const cacheRoot = `${work}/claude-cfg`;
 const cachedPlugin = `${cacheRoot}/plugins/cache/test-mkt/education/1.0.0`;
-const { cpSync } = await import("node:fs");
-mkdirSync(cachedPlugin, { recursive: true });
-for (const rel of [".claude-plugin", "lib", "reference", "skills/quiz-me/scripts"]) {
-  cpSync(`${dir}/../../../${rel}`, `${cachedPlugin}/${rel}`, { recursive: true });
+const { copyFileSync: copyCachedFile } = await import("node:fs");
+const { dirname: cachedDirname } = await import("node:path");
+for (const rel of [
+  ".claude-plugin/plugin.json",
+  "lib/config-cascade.mjs",
+  "lib/html-escape.mjs",
+  "lib/page-kit.mjs",
+  "lib/plugin-options.mjs",
+  "lib/state-key.sh",
+  "lib/view-registry.mjs",
+  "lib/view-settings.mjs",
+  "lib/yaml-subset.mjs",
+  "reference/html-tokens.css",
+  "skills/quiz-me/scripts/build-report.mjs",
+]) {
+  mkdirSync(cachedDirname(`${cachedPlugin}/${rel}`), { recursive: true });
+  copyCachedFile(`${dir}/../../../${rel}`, `${cachedPlugin}/${rel}`);
 }
 writeFileSync(`${cacheRoot}/settings.json`, JSON.stringify({
   pluginConfigs: { "education@test-mkt": { options: { branding: JSON.stringify({ logo: { label: "Cached Quiz Brand" } }) } } },

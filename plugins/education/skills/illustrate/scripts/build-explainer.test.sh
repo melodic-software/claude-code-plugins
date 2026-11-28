@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Exit 0 clean, 1 findings, 2 environment (node missing).
-# test-scope: plugins/education/skills/illustrate/SKILL.md
+# test-scope: plugins/education/skills/illustrate/SKILL.md plugins/education/.claude-plugin/plugin.json
 set -euo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
