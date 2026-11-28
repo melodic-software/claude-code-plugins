@@ -6,6 +6,7 @@
   "fail": [
     { "answer": "| `docs/Release_Notes.md` | `docs/release-notes.md` |" },
     { "answer": "`docs/Release_Notes.md` → `docs/release-notes.md`: 5 sites in 4 files, 3 current and 2 released." },
-    { "answer": "`docs/Release_Notes.md` → `docs/release-notes.md`\n5 sites: 2 current, 1 historical, 1 released" }
+    { "answer": "`docs/Release_Notes.md` → `docs/release-notes.md`\n5 sites: 2 current, 1 historical, 1 released" },
+    { "answer": "`docs/Release_Notes.md` → `docs/release-notes.md`: 5 sites, 2 current (edit), 2 historical (edit), 1 released (report)" }
   ]
 }

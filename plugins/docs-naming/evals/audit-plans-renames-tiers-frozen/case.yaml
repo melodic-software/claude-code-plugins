@@ -73,7 +73,7 @@ graders:
     arm: with-only
   - name: row-release-notes
     type: regex
-    pattern: 'Release_Notes\.md[^\n]{0,40}?release-notes\.md(?=[^\n]*?(?<![\d.])5\s+(?:sites?\b|in\s+\d))(?=[^\n]*\b2\s+current)(?=[^\n]*\bhistorical)(?=[^\n]*\b1\s+released)'
+    pattern: 'Release_Notes\.md[^\n]{0,40}?release-notes\.md(?=[^\n]*?(?<![\d.])5\s+(?:sites?\b|in\s+\d))(?=[^\n]*\b2\s+current)(?=[^\n]*\b1\s+historical\s*\(edit\))(?=[^\n]*\b1\s+historical\s*\(report\))(?=[^\n]*\b1\s+released)'
     target: last_message
     arm: both
   - name: row-catalog
