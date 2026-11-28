@@ -15,7 +15,6 @@ PENDING=(
   discovery
   display-redaction
   fleet
-  plugin-profiles
   themes
   toolchain
 )

@@ -320,6 +320,25 @@ tree check writes them to the job summary.
 `--catalog` defaults to the `marketplace.json` of the repository the plugin sits in. In this
 repository, CI runs it through `scripts/check-plugin-profiles.sh`.
 
+## Configuration
+
+A repository can commit `plugin-profiles.yaml` in its convention home (default
+`docs/conventions`), beside the `plugin-profiles/` profiles directory, to set these keys, checked
+against [`schemas/plugin-profiles.schema.json`](schemas/plugin-profiles.schema.json):
+
+| Key | Values | Default | What it controls |
+|---|---|---|---|
+| `session_start_profile_enabled` | `true`, `false` | `true` | Whether the SessionStart hook names the folder's profile and records the profile each session runs in. Off, it prints and writes nothing, so a session started then is not recorded for `claude -c` to continue in. |
+| `plugin_profile_module_enabled` | `true`, `false` | `true` | Whether the mod registers `/plugin-profile` when a session starts. Off, the session has no `/plugin-profile` command, so typing it runs nothing of this plugin, and no switch reloads plugins at the turn's end; `profiles.mjs apply` and the other commands still work in a terminal. |
+
+Your own value of the same option wins when you set one; otherwise the repository value decides,
+then the plugin default ([hook enablement](../../docs/contracts/hook-enablement/README.md)). The
+SessionStart hook reads your value from the option Claude Code passes it. The mod reads it from
+`pluginConfigs` in your user settings, since the options a mod receives carry the default whether
+or not you set one. Both read the keys when a session starts, so a change takes effect at the next
+session start. Each resolves the layers through the shared `hooks/hook-enabled.sh` helper, which
+needs bash; without bash, both stay on.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -330,6 +349,8 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `remember_folder_profile` | boolean | `true` | When on, a profile applied to a folder holds for every later session there. When off, every session starts from the initial profile: a folder apply is refused, and the session-start notice names a folder profile left from before as not in force. Read from managed settings first, then user settings. |
+| `session_start_profile_enabled` | boolean | `true` | When on, the SessionStart hook names the folder's plugin profile and records each session's profile. Off, it does nothing. Your value wins when set; otherwise the repository's docs/conventions/plugin-profiles.yaml decides. |
+| `plugin_profile_module_enabled` | boolean | `true` | When on, the mod registers /plugin-profile, the in-session switch, and its turn-end /reload-plugins. Off, sessions start without the command; profiles.mjs still works. Your value wins when set; otherwise the repository's docs/conventions/plugin-profiles.yaml decides. |
 
 ### How to set these
 
