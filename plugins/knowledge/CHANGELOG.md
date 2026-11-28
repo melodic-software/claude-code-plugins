@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.6.5] - 2026-11-28
+
+### Changed
+
+- Trimmed `knowledge` skill frontmatter descriptions (`absorb-upstream` 445 -> 341 chars, `course-digest` 407 -> 341 chars, `distill` 490 -> 330 chars, `docpage-digest` 377 -> 332 chars, `setup` 229 -> 148 chars, `video-digest` 364 -> 313 chars; changed skills 2312 -> 1805 chars, -507 chars; total 2648 -> 2141 chars) and backfilled `probes/absorb-upstream.json` (20 queries).
+
 ## [3.6.4] - 2026-11-28
 
 ### Changed

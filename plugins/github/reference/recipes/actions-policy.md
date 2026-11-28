@@ -66,8 +66,11 @@ resolve the current mechanics live before answering any of them.
     declared cost expectation, or is expensive compute reachable without a governing convention?
 12. What is the cache usage against its limits, and is eviction pressure or an unbounded cache
     footprint contradicting a declared storage or cost posture?
-13. What are the retention settings for workflow logs and artifacts, and are they tuned to the
-    declared retention policy rather than left at the platform maximum?
+13. What are the org and repository retention settings for workflow logs and artifacts, are they tuned
+    to the declared retention policy rather than left at the platform maximum, and do workflows using
+    unarchived single-file uploads (`archive: false`) name their files to match declared retention
+    and artifact-naming rules (since unarchived uploads use the file basename rather than a logical
+    upload name)?
 14. What OIDC cloud trusts are configured, and does the subject-claim customization posture match
     what the declared conventions expect for that trust?
 15. Where OIDC could supply short-lived credentials, are long-lived cloud secrets still stored at the
@@ -77,6 +80,16 @@ resolve the current mechanics live before answering any of them.
 17. At the Actions layer, what is the secrets exposure surface by scope (org, repo, environment) at
     an inventory level, enough to flag obviously over-scoped secrets, deferring a deep secrets audit
     to its own area?
+18. Where repositories adopt workflow action lockfiles (`actions.lock`), is the lockfile present and
+    passing live verification against current workflow references, and do org allowed-actions and
+    runner/credential-action policies also cover self-repository local action shorthand (`$/...`) and
+    nested `parallel:` step blocks rather than only top-level steps?
+19. Are repository-level Actions event/actor policies active on sensitive workflows (such as
+    production deploys or privileged dispatches) with minimal actor lists, and does every workflow
+    path named in an active policy still exist as an active workflow in the repository?
+20. Which organization custom repository properties are included as OIDC token claims
+    (`repo_property_*` inclusions), and is each included custom property restricted to org-admin
+    editing so repository admins cannot self-grant OIDC trust?
 
 ## Posture heuristics
 
@@ -94,6 +107,15 @@ heuristics, not rules; the exact mechanism behind each is resolved live.
 - **OIDC over stored secrets.** Short-lived, workflow-issued cloud credentials are preferable to
   long-lived secrets sitting at the Actions layer; standing cloud secrets that OIDC could replace
   are a reducible exposure.
+- **Org-admin-only custom properties for OIDC claims.** Never expose a repository-editable custom
+  property in OIDC token claims (`repo_property_*`), or repository admins can self-escalate into
+  cloud or broker trust. Pair OIDC property inclusions with org-admin-only property editability.
+- **Active-workflow validation on Actions event policies.** An event/actor policy naming a renamed or
+  deleted workflow silently leaves the replacement workflow ungoverned. Cross-check every policy
+  target against active repository workflows on each audit.
+- **Verified action lockfiles and full step coverage.** Where `actions.lock` is adopted, verify it
+  against workflow declarations and confirm that runner, action, and credential-action checks
+  traverse nested `parallel:` step blocks and account for self-repository (`$/...`) resolution.
 - **Retention tuned down.** Log and artifact retention set below the platform maximum, toward the
   declared need, beats leaving it at the ceiling.
 - **Cost-aware runner sizing.** Larger and custom-image runners should map to a declared need;
@@ -105,11 +127,13 @@ heuristics, not rules; the exact mechanism behind each is resolved live.
    the repo root before the repo-relative reads and concatenating every layer that exists.
 2. Extract the Actions-relevant declarations: statements such as "Actions may only run from
    allow-listed actions", a required token-permission default, an ephemeral-runner rule, a retention
-   ceiling, or an OIDC-over-secrets expectation.
+   ceiling, an `actions.lock` requirement, expected Actions event/actor policies, or OIDC
+   subject-claim and custom-property inclusion rules.
 3. Compare **org-level policy first**, then each repository's **effective** state. Org policy caps
    what a repo setting can loosen, so evaluate the layering the way the freshly fetched docs define
    it rather than reading a repo value in isolation. Where an enterprise layer exists, fold its
-   inherited cap in first.
+   inherited cap in first. Cross-check active repository event policies against existing workflow
+   files so stale paths surface as drift.
 4. Run a **fleet-consistency pass** across sibling repositories: a policy honored in most repos and
    quietly absent in a few is drift even when no single repo looks wrong on its own.
 5. **Cite the expectation basis** on every finding: which declared convention it came from, or, when
@@ -125,8 +149,8 @@ fetched official docs and label each finding's basis as docs-derived rather than
 
 ## Dated caveats (re-verify live)
 
-Constraints observed at research time (2026-07). Each is qualitative and characterized by its
-source; none is a live fact today. Re-verify before relying on it.
+Constraints observed at research time (2026-07 and 2026-11). Each is qualitative and characterized
+by its source; none is a live fact today. Re-verify before relying on it.
 
 - Hosted-compute networking and custom-image surfaces were still evolving and partly plan-gated at
   research time, per the official Actions docs read that session. Re-verify live before relying on
@@ -139,6 +163,11 @@ source; none is a live fact today. Re-verify before relying on it.
 - Native `gh` coverage of this admin plane was narrow at research time, with most surfaces reachable
   only through the API rungs of the ladder, per the `gh` help output inspected that session.
   Re-verify live before relying on this.
+- Actions event/actor policies, OIDC repository-property inclusions (`repo_property_*`), workflow
+  action lockfiles (`actions.lock`), nested `parallel:` steps, self-repo local action shorthand
+  (`$/...`), and unarchived upload-artifact basename behavior were newer or evolving surfaces as of
+  2026-11. Resolve current CLI/extension commands, API routes, response fields, and plan gates live
+  through the ladder. Re-verify live before relying on this.
 
 ## Doc pointers
 

@@ -3,6 +3,12 @@
 All notable changes to the `tdd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.12] - 2026-11-28
+
+### Changed
+
+- Trimmed `/tdd:principles` frontmatter description (621 -> 418 chars) by consolidating redundant quoted triggers into prose while preserving all test-design topics and the running/filtering-tests boundary.
+
 ## [0.6.11] - 2026-11-28
 
 ### Changed

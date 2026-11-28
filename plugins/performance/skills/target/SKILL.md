@@ -1,5 +1,5 @@
 ---
-description: "Ranking of optimization targets by evidence quality, from session pain, a named path or telemetry, so an unmeasured system yields 'instrument this first' instead of a guess. Use when: 'what should we optimize', 'find the bottleneck', 'this feels slow', 'is X worth optimizing', 'our git hooks or CI checks are slow'. Skip: a whole-process sweep is /performance:go-faster. Skip when the target is already chosen and measured, or when a failure needs debugging rather than a candidate ranking."
+description: "Rank optimization targets by evidence quality (when code feels slow, session pain, named path, telemetry, slow git hooks or CI checks), yielding 'instrument this first' instead of a guess. Use when: 'what should we optimize', 'find the bottleneck', 'is X worth optimizing'. Not for whole-process sweeps: /performance:go-faster."
 user-invocable: true
 argument-hint: "[<path|component|'session'|'telemetry'>]"
 disable-model-invocation: false
