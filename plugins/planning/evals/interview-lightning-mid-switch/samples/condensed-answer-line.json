@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "❓ Q2 (quality bar, major): **Production?**\n➡️ **production** - the job ships to users (README.md:3) (or: a internal tool, b prototype)",
+      "why": "bold answer then basis after a dash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "❓ Q2: **Production?**\n\nContext:\n1. ...\n\n➡️ My recommendation: **production**\n- Why: ships to users.",
+      "why": "the full layout, no condensed answer line"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    }
+  ]
+}

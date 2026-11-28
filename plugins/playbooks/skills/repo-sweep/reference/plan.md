@@ -50,13 +50,15 @@ State the repo order rule once: alphabetical from `.github`, the chezmoi dotfile
 2. Run `S/render.sh --page C W/recs.tsv` and write its stdout to `W/plan-page.html` with the Write
    tool, not a shell redirect. Give the absolute path and open it
    (`wslview`, `xdg-open`, or `open`, whichever exists; otherwise the user opens it). The page
-   lets the user tick, untick, and drag entries, then copy one `repo-sweep-selection:` line.
+   lets the user tick, untick, and drag entries, add an optional comment, and copy the
+   `repo-sweep-selection:` line (followed by an optional `comment:` line).
 3. Fallback when the page cannot be opened: print the output of `S/render.sh --checklist C
    "repo-sweep-selection: <default checked ids, comma-separated>" W/recs.tsv` and ask the user to
    edit it in chat; convert their edited list back to a selection line.
-4. Wait for the selection line. Validate it with `S/render.sh --checklist C "<line>"
-   W/recs.tsv`, then write its stdout to `W/checklist.md` with the Write tool, not a shell
-   redirect; exit 1 names the bad id.
+4. Wait for the selection line (and any `comment:` line, which carries user feedback to address
+   before creating the sweep). Validate the selection with `S/render.sh --checklist C "<line>"
+   W/recs.tsv` (it reads the first `repo-sweep-selection:` line), then write its stdout to
+   `W/checklist.md` with the Write tool, not a shell redirect; exit 1 names the bad id.
 
 ## 4. Create the sweep (after user approval)
 

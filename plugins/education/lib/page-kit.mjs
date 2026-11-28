@@ -1,35 +1,69 @@
 
 import { readFileSync, realpathSync } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { escapeHtml, stampPage, validateRenderedPage } from "./html-escape.mjs";
+import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall } from "./plugin-options.mjs";
+import { findRoot, resolveBranding } from "./view-settings.mjs";
 
 export { stampPage };
 
-export const CSS = `
-:root {
-  --bg: #ffffff;
-  --fg: #1a1a19;
-  --muted: #5f5e58;
-  --line: #c9c7bd;
-  --focus: #a0512e;
-  --serif: ui-serif, Georgia, serif;
-  --sans: system-ui, sans-serif;
-  --mono: ui-monospace, monospace;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #141413;
-    --fg: #f1f0ea;
-    --muted: #b9b7ac;
-    --line: #4a4943;
-    --focus: #e89b7e;
+const PLUGIN_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const TOKENS_URL = new URL("../reference/html-tokens.css", import.meta.url);
+const REPORT_BRAND_CSS = [
+  ".rv-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }",
+  ".rv-brand-mark { margin: 0; display: inline-block; width: 1.5rem; height: 1.5rem; background-size: contain; background-repeat: no-repeat; background-position: center; }",
+  ".rv-brand-label { margin: 0; font-family: var(--sans); font-weight: 600; font-size: 0.95rem; color: var(--fg); }",
+].join("\n");
+
+export function readBrandingOption(explicitOption) {
+  if (typeof explicitOption === "string" && explicitOption !== "" && !/^\$\{user_config\./.test(explicitOption)) {
+    return explicitOption;
+  }
+  if (process.env.CLAUDE_PLUGIN_OPTION_BRANDING) {
+    return process.env.CLAUDE_PLUGIN_OPTION_BRANDING;
+  }
+  try {
+    return readOperatorOptions(resolveInstall(PLUGIN_ROOT), managedSettingsFiles(), ["branding"]).branding?.value ?? null;
+  } catch (err) {
+    if (err instanceof OptionsError) {
+      process.stderr.write(`notice: branding userConfig: ${err.message}\n`);
+      return null;
+    }
+    throw err;
   }
 }
+
+export function readTokensCss() {
+  return readFileSync(TOKENS_URL, "utf8").replace(/\r\n?/g, "\n").replace(/^(?:\s*\/\*[\s\S]*?\*\/\s*)+/, "").trim();
+}
+
+export function reportBranding({ brandingOption = null } = {}) {
+  const tokens = readTokensCss();
+  const branding = resolveBranding({ userConfig: readBrandingOption(brandingOption), projectRoot: findRoot() });
+  for (const notice of branding.notices) {
+    process.stderr.write(`notice: ${notice.text}\n`);
+  }
+  const logo = branding?.logo;
+  const parts = [];
+  if (logo?.kind === "image") {
+    parts.push(`<p class="rv-brand-mark rv-logo" title="${escapeHtml(logo.label || "Brand logo")}"></p>`);
+  } else if (logo?.kind === "svg") {
+    process.stderr.write("notice: branding logo: static report pages embed PNG or JPEG logos only; SVG logo omitted\n");
+  }
+  if (logo?.label) {
+    parts.push(`<p class="rv-brand-label">${escapeHtml(logo.label)}</p>`);
+  }
+  const barHtml = parts.length ? `<section class="rv-bar">${parts.join("")}</section>\n` : "";
+  const extraCss = [barHtml ? REPORT_BRAND_CSS : "", branding?.css ?? ""].filter(Boolean).join("\n");
+  return { tokens, extraCss, barHtml };
+}
+
+export const CSS = `
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
-html { color-scheme: light dark; }
 body {
   margin: 0 auto;
   max-width: 860px;
@@ -41,14 +75,15 @@ body {
 }
 h1, h2, h3 { font-family: var(--serif); font-weight: 600; }
 code { font-family: var(--mono); }
-code.block { display: block; white-space: pre; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; padding: 0.6rem 0.75rem; margin: 0.75rem 0; }
-.muted { color: var(--muted); }
+code.block { display: block; white-space: pre; overflow-x: auto; border: var(--border); border-radius: 6px; padding: 0.6rem 0.75rem; margin: 0.75rem 0; }
+.muted { color: color-mix(in srgb, var(--fg) 75%, var(--bg)); }
 table.flow { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0.25rem; margin: 1rem 0 0.5rem; }
-table.flow td { border: 2px solid var(--line); border-radius: 6px; padding: 0.6rem 0.5rem; text-align: center; overflow-wrap: anywhere; }
+table.flow td { border: 2px solid var(--gray-300); border-radius: 6px; padding: 0.6rem 0.5rem; text-align: center; overflow-wrap: anywhere; }
 table.flow td.arrow { border: 0; width: 2rem; padding: 0; color: var(--muted); font-size: 1.5rem; }
-table.stack td { border: 2px solid var(--line); border-radius: 6px; padding: 0.6rem 0.75rem; }
+table.stack td { border: 2px solid var(--gray-300); border-radius: 6px; padding: 0.6rem 0.75rem; }
 .caption { font-weight: 600; margin-top: 0; }
 ol.choices { list-style: upper-alpha; }
+summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
 `.trim();
 
 /**
@@ -119,7 +154,9 @@ export function codeBlocks(value) {
  * @param {string} [head] extra head markup built from e() calls
  * @returns {string}
  */
-export function pageShell(title, body, head = "") {
+export function pageShell(title, body, head = "", { brandingOption = null } = {}) {
+  const { tokens, extraCss, barHtml } = reportBranding({ brandingOption });
+  const style = [tokens, CSS, extraCss].filter(Boolean).join("\n");
   return stampPage(`<!doctype html>
 <html lang="en">
 <head>
@@ -128,11 +165,11 @@ export function pageShell(title, body, head = "") {
 ${head}
 <title>${e(title)}</title>
 <style>
-${CSS}
+${style}
 </style>
 </head>
 <body>
-${body}
+${barHtml}${body}
 </body>
 </html>
 `);
@@ -176,7 +213,12 @@ export function runCli(metaUrl, name, build) {
     if (!verdict.ok) fail(verdict.failures.join(","), 1);
     return;
   }
-  if (args.length > 0) fail(`usage: ${name} [< model.json] | --check <file>`, 2);
+  let brandingOption = null;
+  if (args.length === 2 && args[0] === "--branding-option") {
+    brandingOption = args[1];
+  } else if (args.length > 0) {
+    fail(`usage: ${name} [--branding-option <value>] [< model.json] | --check <file>`, 2);
+  }
   let model;
   try {
     model = JSON.parse(readFileSync(0, "utf8"));
@@ -186,7 +228,7 @@ export function runCli(metaUrl, name, build) {
   if (!model || typeof model !== "object" || Array.isArray(model)) {
     fail("JSON root must be an object", 2);
   }
-  const page = build(model);
+  const page = build(model, { brandingOption });
   const verdict = validateRenderedPage(page);
   if (!verdict.ok) fail(`refused to emit (${verdict.failures.join(",")})`, 1);
   process.stdout.write(page);

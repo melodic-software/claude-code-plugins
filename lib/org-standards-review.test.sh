@@ -72,8 +72,8 @@ assert_eq "org REVIEW.md: each dropped line is reported once" "8" \
 
 FIX="$SCRIPT_DIR/fixtures/standards-shaped"
 o="$TEST_TMPDIR/standards-shaped"
-mkdir -p "$o/.claude" "$o/standards"
-printf 'standards_dir: standards\n' >"$o/.claude/standards.yaml"
+mkdir -p "$o/docs/conventions" "$o/standards"
+printf 'standards_dir: standards\n' >"$o/docs/conventions/standards.yaml"
 cp "$FIX/index.txt" "$o/standards/README.md"
 cp "$FIX/review.txt" "$o/REVIEW.md"
 for f in standards/review/observability.md standards/review/error-handling.md components/dependabot-policy/README.md \

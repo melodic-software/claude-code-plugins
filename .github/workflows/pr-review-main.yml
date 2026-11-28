@@ -912,8 +912,9 @@ jobs:
             cp "$1" "$DATA/org/${1#"$org_real"/}"
             printf '%s\n' "$DATA/org/${1#"$org_real"/}"
           }
-          if [ -n "$org_real" ] && index=$(STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh index --root .base); then
-            mkdir -p "$DATA/org/docs/standards"
+          printed() {
+            [ -n "$org_real" ] && index=$(STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh "$1" --root .base) || return 0
+            mkdir -p "$(dirname "$2")"
             while IFS= read -r line; do
               IFS='|' read -r _ _ _ file _ <<<"$line"
               file=${file# }
@@ -922,8 +923,10 @@ jobs:
               '| Surface |'* | '|---'* | [!\|]*) printf '%s\n' "$line" ;;
               *) if dest=$(confine "$file"); then printf '%s\n' "${line%"$file |"}$dest |"; fi ;;
               esac
-            done <"$index" >"$DATA/org/docs/standards/README.md"
-          fi
+            done <"$index" >"$2"
+          }
+          printed index "$DATA/org/docs/standards/README.md"
+          printed guidance "$DATA/org/docs/guidance/README.md"
           base_real=$(cd .base && pwd -P)
           lane_copy() {
             case $1 in "$base_real"/*) ;; *) return 1 ;; esac
@@ -1636,8 +1639,9 @@ jobs:
             cp "$1" "$DATA/org/${1#"$org_real"/}"
             printf '%s\n' "$DATA/org/${1#"$org_real"/}"
           }
-          if [ -n "$org_real" ] && index=$(STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh index --root .base); then
-            mkdir -p "$DATA/org/docs/standards"
+          printed() {
+            [ -n "$org_real" ] && index=$(STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh "$1" --root .base) || return 0
+            mkdir -p "$(dirname "$2")"
             while IFS= read -r line; do
               IFS='|' read -r _ _ _ file _ <<<"$line"
               file=${file# }
@@ -1646,8 +1650,10 @@ jobs:
               '| Surface |'* | '|---'* | [!\|]*) printf '%s\n' "$line" ;;
               *) if dest=$(confine "$file"); then printf '%s\n' "${line%"$file |"}$dest |"; fi ;;
               esac
-            done <"$index" >"$DATA/org/docs/standards/README.md"
-          fi
+            done <"$index" >"$2"
+          }
+          printed index "$DATA/org/docs/standards/README.md"
+          printed guidance "$DATA/org/docs/guidance/README.md"
           base_real=$(cd .base && pwd -P)
           lane_copy() {
             case $1 in "$base_real"/*) ;; *) return 1 ;; esac
@@ -2338,8 +2344,9 @@ jobs:
             cp "$1" "$DATA/org/${1#"$org_real"/}"
             printf '%s\n' "$DATA/org/${1#"$org_real"/}"
           }
-          if [ -n "$org_real" ] && index=$(STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh index --root .base); then
-            mkdir -p "$DATA/org/docs/standards"
+          printed() {
+            [ -n "$org_real" ] && index=$(STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh "$1" --root .base) || return 0
+            mkdir -p "$(dirname "$2")"
             while IFS= read -r line; do
               IFS='|' read -r _ _ _ file _ <<<"$line"
               file=${file# }
@@ -2348,8 +2355,10 @@ jobs:
               '| Surface |'* | '|---'* | [!\|]*) printf '%s\n' "$line" ;;
               *) if dest=$(confine "$file"); then printf '%s\n' "${line%"$file |"}$dest |"; fi ;;
               esac
-            done <"$index" >"$DATA/org/docs/standards/README.md"
-          fi
+            done <"$index" >"$2"
+          }
+          printed index "$DATA/org/docs/standards/README.md"
+          printed guidance "$DATA/org/docs/guidance/README.md"
           base_real=$(cd .base && pwd -P)
           lane_copy() {
             case $1 in "$base_real"/*) ;; *) return 1 ;; esac

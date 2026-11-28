@@ -1,5 +1,5 @@
 ---
-description: "Run and read `claude plugin eval`: preflight, no-spend validation, cost estimate, the run, its validity verdict and the with-versus-without delta. Use when: a pasted validity verdict or noise-report line with a question about reporting or posting its number, 'run my plugin evals', 'evaluate this plugin', 'eval my skill', 'does my skill actually fire', 'did my change make the skill better', 'is this gain real', comparing runs or arm scores, aggregate-result.json, an eval CI gate, headless `claude -p` launches, missing socat or bubblewrap, `--allow-tools` order, worktree refusals, eval cost, measuring CLAUDE.md or rules. Load it before answering any of these. Not criteria design (/evals:design) or skill-creator JSON evals."
+description: "Run/read claude plugin eval: preflight, cost, validity verdict, noise-report, arm delta, aggregate-result.json, CI gate, headless claude -p, socat/bubblewrap, --allow-tools, worktree refusal, CLAUDE.md/rules. Load before answering: 'run my plugin evals', 'eval my skill', 'is this gain real'. Not for design: /evals:design; or skill-creator JSON."
 argument-hint: "[preflight|validate|run|read <json>|ci|init] [target]"
 user-invocable: true
 disable-model-invocation: false

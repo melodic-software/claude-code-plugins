@@ -1,5 +1,5 @@
 ---
-description: "Verify or configure the code-metrics plugin for this repository: `check` probes the interpreter, every configuration layer (userConfig, team, personal override, and the consumer's ecosystem files) for the YAML subset and the tracked-file guard, prints every reference with the layer that supplied it, and runs each collector adapter's probe and one measure on a bundled fixture (a version and the measure, or missing with its install hint); `apply` writes the tracked `docs/conventions/code-metrics.yaml` team layer per key, carrying every declared key of a retired `.claude/code-metrics.yaml`, idempotently, never installing a tool and never editing `.gitignore`. Use when: 'set up code-metrics', 'configure code metrics', 'is code-metrics configured', 'which collectors are installed', 'set the cyclomatic reference', 'change the file length reference', 'code-metrics setup', or an audit skill reports a configuration layer it could not read."
+description: "Configure code-metrics: check probes Python, config layers, and collectors; apply writes docs/conventions/code-metrics.yaml (never installs tools)."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
