@@ -1,5 +1,15 @@
 # Changelog: discovery plugin
 
+## [3.4.0] - 2026-11-28
+
+### Added
+
+- Added the `webfetch_truncation_enabled` per-hook on/off setting (default `true`) in `userConfig` and `docs/conventions/discovery.yaml` for `hooks/webfetch-truncation.mjs`, resolved through `lib/hook-enabled.mjs` with user-over-repository precedence per the hook-enablement convention.
+
+### Changed
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
 ## [3.3.1] - 2026-11-28
 
 ### Changed
