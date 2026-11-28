@@ -1,5 +1,5 @@
 ---
-description: "Manage project ubiquitous-language domain glossary: locate, lookup, seed, define, update, curate (canonical terms, synonyms), audit, prune codebase terminology and domain model vocabulary. Use when 'what does this domain term mean', 'standardize this vocabulary', 'these names conflict'. Not for dictionary definitions or bounded-context discovery."
+description: "Project ubiquitous-language glossary: locate, lookup (read terms), seed, curate (canonical terms, rejected synonyms, definitions), audit, prune. Use when domain modeling resolves vocabulary, looking up domain terms before naming, or 'what does this domain term mean', 'standardize this vocabulary', 'these names conflict'. Not for dictionary definitions or bounded-context discovery."
 argument-hint: "[locate|lookup|seed|curate|audit|prune] [term, ambiguity, or resolved vocabulary]"
 user-invocable: true
 disable-model-invocation: false
