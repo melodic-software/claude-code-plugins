@@ -1,5 +1,5 @@
 ---
-description: "When the built-in EnterWorktree or ExitWorktree tool resolves in this session, prefer ExitWorktree with action keep to leave a worktree; this skill to create one, to enter an existing one (claim check, then work by path or EnterWorktree by path), and to inventory, clean up, audit, or review kept worktrees. Manage git worktree lifecycle for parallel-session isolation: create (external root, then work by path or enter), status (PR + staleness inventory), cleanup (file-lock-aware removal), audit (infrastructure health). Use when: 'create worktree', 'worktree status', 'clean up worktrees', 'orphaned worktrees', or proactively when on main before writing code, not for PR lifecycle (use /pull-request)."
+description: "Manage git worktrees for parallel sessions: create, enter, status, cleanup, audit, and review kept worktrees (use ExitWorktree with keep to leave when EnterWorktree/ExitWorktree resolves in this session). Use when on main before editing, or for 'create worktree', 'worktree status', 'clean up worktrees'. Not for PRs: /source-control:pull-request."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[create|status|cleanup|audit|review] [args]"

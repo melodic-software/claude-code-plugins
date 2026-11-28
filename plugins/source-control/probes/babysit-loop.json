@@ -1,0 +1,31 @@
+{
+  "skill": "source-control:babysit-loop",
+  "plugin": "source-control",
+  "skill_dir": "plugins/source-control/skills/babysit-loop",
+  "competitors": [
+    "source-control:babysit-prs",
+    "source-control:pull-request"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "stand up a recurring merge lane loop for acme/api via /loop"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "keep draining the pull request queue on acme/web until empty"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "start a standing babysit loop against org/service"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "run the merge lane for melodic-software/tools continuously"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "operate a self-paced PR drain loop for owner/repo"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "launch a standing PR merge loop with telemetry for acme/core"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "drain every open PR in acme/platform using a merge lane"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "spin up the continuous PR queue runner for acme/cli"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "run a babysit loop on acme/docs at the repo's autonomy tier"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "keep cycling through owner/app pull requests as a standing lane"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "check my open PRs once right now without setting up a loop"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "open a draft pull request for the current branch"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "commit my staged edits with a conventional message"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "mark PR #412 ready for review after checking CI"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "create an isolated git worktree before editing"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "babysit my own pull requests across the org in worker mode"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "merge PR #88 now that all checks are green"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "run one single-pass fleet sweep over my open PRs"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "fetch the failing CI logs for this branch's pull request"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "configure commit conventions for this repository"}
+  ]
+}
