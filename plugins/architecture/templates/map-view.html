@@ -5,58 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Architecture Map View</title>
 <style>
-:root {
-  --ivory: #FAF9F5;
-  --slate: #141413;
-  --clay: #D97757;
-  --oat: #E3DACC;
-  --olive: #788C5D;
-  --white: #FFFFFF;
-  --gray-100: #F0EEE6;
-  --gray-300: #D1CFC5;
-  --gray-500: #87867F;
-  --gray-700: #3D3D3A;
-  --serif: ui-serif, Georgia, serif;
-  --sans: system-ui, -apple-system, sans-serif;
-  --mono: ui-monospace, 'SF Mono', Menlo, monospace;
-  --clay-deep: #A0512E;
-  --clay-soft: #E89B7E;
-  --radius-panel: 12px;
-  --radius-row: 8px;
-  --border: 1.5px solid var(--gray-300);
-  --bg: var(--ivory);
-  --fg: var(--slate);
-  --panel: var(--white);
-  --muted: var(--gray-500);
-  --accent: var(--clay);
-  --link: var(--clay-deep);
-  --focus: var(--clay-deep);
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme=light]) {
-    --bg: var(--slate);
-    --fg: var(--ivory);
-    --panel: var(--gray-700);
-    --muted: var(--gray-300);
-    --accent: var(--clay);
-    --border: 1.5px solid var(--gray-500);
-    --link: var(--clay-soft);
-    --focus: var(--clay-soft);
-    color-scheme: dark;
-  }
-}
-:root[data-theme=dark] {
-  --bg: var(--slate);
-  --fg: var(--ivory);
-  --panel: var(--gray-700);
-  --muted: var(--gray-300);
-  --accent: var(--clay);
-  --border: 1.5px solid var(--gray-500);
-  --link: var(--clay-soft);
-  --focus: var(--clay-soft);
-  color-scheme: dark;
-}
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); }
 .page { max-width: 56rem; margin: 0 auto; padding: 0 16px; padding-block: 2rem 3rem; display: grid; gap: 1.5rem; }

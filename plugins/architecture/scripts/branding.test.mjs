@@ -57,12 +57,10 @@ function makeBrandedRepo(yamlBody, assets = {}) {
 }
 
 describe("architecture token layer compliance", () => {
-  test("map-view.html opens with reference/html-tokens.css verbatim and defines no literal hex outside it", () => {
+  test("map-view.html defines no literal hex colors and receives reference/html-tokens.css at build time", () => {
     const style = /<style>([\s\S]*?)<\/style>/i.exec(MAP_TEMPLATE)?.[1] ?? "";
-    const tokens = stripTokenComment(TOKENS);
-    assert.ok(flat(style).startsWith(flat(tokens)), "map-view.html must open <style> with html-tokens.css");
-    const rest = flat(style).slice(flat(tokens).length);
-    assert.doesNotMatch(rest, /#[0-9A-Fa-f]{3,8}\b/, "no literal hex colors outside the token layer");
+    assert.ok(style.length > 0);
+    assert.doesNotMatch(style, /#[0-9A-Fa-f]{3,8}\b/, "no literal hex colors in map-view.html");
     assert.match(MAP_TEMPLATE, /data-rv-theme="system"/);
     assert.match(MAP_TEMPLATE, /class="rv-bar"/);
   });
@@ -90,6 +88,8 @@ describe("architecture branded page builds", () => {
       assert.equal(mapBuilt.status, 0, mapBuilt.stderr);
       const mapHtml = readFileSync(mapBuilt.stdout.trim(), "utf8");
       assert.equal(validateView(mapHtml).ok, true);
+      const builtStyle = /<style>([\s\S]*?)<\/style>/i.exec(mapHtml)?.[1] ?? "";
+      assert.ok(flat(builtStyle).startsWith(flat(stripTokenComment(TOKENS))), "built map-view must open <style> with html-tokens.css");
       assert.match(mapHtml, /data-rv-theme="system"/);
       assert.doesNotMatch(mapHtml, /class="rv-brand"/);
 
