@@ -2,8 +2,7 @@
 # Exit codes:
 #   0  copy/sync-back succeeded; diff found no differences (or no .worktreeinclude)
 #   1  diff found one or more differences (--worktree-only: MODIFIED or NEW against the
-#      worktree's carried.index; with none, one NO-MANIFEST row when a copy differs from main
-#      and is not older, by ctime, than the worktree's .git file)
+#      worktree's carried.index; with none, one NO-MANIFEST row when a copy differs from main)
 #   2  usage error, or sync-back rejected a path outside the intersection or one main
 #      changed since the copy
 #   3  fail-closed unreadable (missing/unreadable worktree, main root, .worktreeinclude,
@@ -242,26 +241,6 @@ main_rows() {
   done
 }
 
-ctime_ns() {
-  local t
-  t="$(stat -c '%.9Z' -- "$1" 2>/dev/null)" || return 1
-  [[ "$t" =~ ^[0-9]+\.[0-9]{9}$ ]] || return 1
-  printf '%s' "${t%.*}${t#*.}"
-}
-
-untouched_since_creation() {
-  local wt_top="$1" created c rel
-  shift
-  [[ -f "$wt_top/.git" && ! -L "$wt_top/.git" ]] || return 1
-  created="$(ctime_ns "$wt_top/.git")" || return 1
-  for rel; do
-    has_no_symlink_components "$wt_top" "$rel" || return 1
-    [[ -f "$wt_top/$rel" && ! -L "$wt_top/$rel" ]] || return 1
-    c="$(ctime_ns "$wt_top/$rel")" || return 1
-    ((10#$c < 10#$created)) || return 1
-  done
-}
-
 valid_rel_path() {
   local p="$1"
   [[ -n "$p" ]] || return 1
@@ -419,9 +398,7 @@ do_diff() {
       manifest_rows "$wt_top" "$wt_list" "$manifest"
     else
       main_rows "$wt_top" "$main_root" "$wt_list"
-      if ((${#diff_rel[@]} > 0)) && untouched_since_creation "$wt_top" "${diff_rel[@]}"; then
-        diff_rel=()
-      elif ((${#diff_rel[@]} > 0)); then
+      if ((${#diff_rel[@]} > 0)); then
         diff_status=("NO-MANIFEST")
         diff_rel=("")
       fi
