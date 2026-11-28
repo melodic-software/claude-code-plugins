@@ -1,5 +1,5 @@
 ---
-description: "Launch, run, and operate the project's app and record evidence without judging; read-only by default. Actions: drive a feature, ready (reachable), capture artifact (trace, screenshot), cleanup, affected (which features a diff touches). Use when: 'run the app', 'drive a feature', 'check the app is ready'. Not for verdicts: /verification:confirm."
+description: "Launch, run, and operate the project's app and record evidence without judging. Actions: drive a feature, ready (read-only, reachable), capture artifact (trace, screenshot), cleanup, affected (which features a diff touches). Use when: 'run the app', 'drive a feature', 'check the app is ready'. Not for verdicts: /verification:confirm."
 argument-hint: "[ready|capture --kind <kind>|cleanup|affected] [<app>] [<feature>] [--out <dir>] [--unattended…]"
 user-invocable: true
 disable-model-invocation: false
