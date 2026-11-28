@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# exits 1 naming itself, so a run cannot touch GitHub through it. `pr merge`, `pr review`, `pr comment`, `pr edit`,
-# exits 0 appends a "read" line, so a grader can tell a served call from one the real gh failed.
-# `pr comment --help` lists the flags, `--attach` among them, that the evidence step checks for.
 # shellcheck disable=SC2154 # PR_* come from the state file sourced below
 set -uo pipefail
 
