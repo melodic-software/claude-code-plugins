@@ -10,6 +10,7 @@ import { admits } from "../lib/gate-expression.mjs";
 import { heldNoted } from "../maintenance-reconcile-lost-runs/reconcile.mjs";
 import { HELD_STEP } from "../pr-verify/resolve-pr.mjs";
 import { workflowText } from "../lib/workflow-text.mjs";
+import { assertPerHeadUnlessUpstreamCancelled } from "../lib/workflow-run-group.mjs";
 import { filePatch, MIXED, MIXED_MANIFEST } from "../diff-chunking/fixtures.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8");
@@ -154,6 +155,14 @@ test("it runs only from main on pr-require-checks' completion", () => {
   assert.match(text, /github\.ref == 'refs\/heads\/main'/);
   assert.match(text, /github\.event\.workflow_run\.event == 'pull_request'/);
   assert.match(text, /github\.event\.workflow_run\.head_repository\.full_name == github\.repository/);
+});
+
+test("the concurrency group is per PR and head unless the upstream was cancelled, whose run admits no job", () => {
+  assertPerHeadUnlessUpstreamCancelled(text, "pr-review-main");
+  const skippedNeeds = Object.fromEntries(wf.ids.map((id) => [id, { result: "skipped", outputs: {} }]));
+  const context = (conclusion) => ({ github: { ...upstreamRun, event: { workflow_run: { ...upstreamRun.event.workflow_run, conclusion } } }, needs: skippedNeeds });
+  assert.equal(admits(wf.jobIf("check-trigger"), context("success")), true, "a successful upstream admits check-trigger");
+  for (const id of wf.ids) assert.equal(admits(wf.jobIf(id), context("cancelled")), false, id);
 });
 
 const grantsOf = (block) =>
