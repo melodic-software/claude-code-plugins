@@ -6,24 +6,24 @@ describe('add', () => {
     expect(add(2, 3)).toBe(5);
   });
 
-  // template literal with braces — brace masking must not truncate the block
+  // template literal containing braces
   test('renders a template greeting', () => {
     const html = renderGreeting('Ada');
     expect(html).toContain(`<p>Hello, ${'Ada'}!</p>`);
   });
 
-  // custom helper carrying an assertion token — generous matching must accept it
+  // assertion through a custom helper
   test('uses a helper assertion', () => {
     const result = add(1, 1);
     assertValidSum(result);
   });
 
-  // skipped test — not judged (the dropped skip rule belongs to the incumbent gate)
+  // skipped test
   test.skip('not implemented yet', () => {
     add(0, 0);
   });
 
-  // mock interaction PLUS a real value assertion — must not fire mock-only-oracle
+  // mock interaction and a value assertion
   test('mails and records', () => {
     const mailer = { send: jest.fn() };
     const receipt = mailAndRecord(mailer);
@@ -31,20 +31,18 @@ describe('add', () => {
     expect(receipt.total).toBe(42);
   });
 
-  // matcher on the next line — a chain the line-scoped tautology rule must not misread
+  // matcher on the next line
   test('multi-line chain', () => {
     expect(add(20, 22))
       .toBe(42);
   });
 
-  // same callee, different arguments — a comparator degraded to function names
-  // alone would wrongly call this recomputed
+  // expectation built from the same callee with different arguments
   test('fibonacci recurrence', () => {
     expect(fib(10)).toBe(fib(9) + fib(8));
   });
 
-  // regex literals: braces and slashes inside a regex are data, not code —
-  // neither may corrupt brace counting or read as a line comment
+  // regex literals containing braces and slashes
   test('strips braces via regex', () => {
     const cleaned = 'a}b}'.replace(/}/g, '');
     expect(cleaned).toBe('ab');
@@ -52,7 +50,7 @@ describe('add', () => {
   });
 });
 
-// a skipped SUITE — nothing inside runs, so nothing inside is judged
+// skipped suite
 describe.skip('unfinished suite', () => {
   test('pending work', () => {
     add(0, 0);
