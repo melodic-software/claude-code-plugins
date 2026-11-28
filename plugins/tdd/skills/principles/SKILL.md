@@ -1,5 +1,5 @@
 ---
-description: "Answer test design WHY questions from Beck and Khorikov: TDD, four pillars, resistance to refactoring, Classical vs London school, test doubles, observable behavior, Humble Object, test pyramid, integration, property-based, and characterization testing, output/state/communication tests, code coverage, legacy code, anti-patterns. Use when 'should I mock this', 'red green refactor'. Not for running tests."
+description: "Test design WHY reasoning (Beck, Khorikov, etc.): TDD, four pillars of a good test, resistance to refactoring, Classical vs London school, test doubles, observable behavior, Humble Object, test pyramid, integration/property-based/characterization testing, output/state/communication tests, code coverage, legacy code, anti-patterns. Use when 'should I mock this', 'red green refactor'. Not for running/filtering tests."
 argument-hint: "[question or concept]"
 user-invocable: true
 disable-model-invocation: false
