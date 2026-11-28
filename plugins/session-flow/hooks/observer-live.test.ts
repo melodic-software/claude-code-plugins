@@ -985,6 +985,18 @@ test('the default branch team layer adds repository guidance and wins over the u
   expect(live(w).find(r => r.answer === 'option_invalid')).toMatchObject({ key: 'team:codify_threshold' })
 })
 
+test('a team file the reader could not parse is recorded with its note, and the user options stand', { options: { observer_skill_check: false } }, async ($, on) => {
+  const w = world(on)
+  w.team = { observer: {}, guidance: '', notes: ['session-flow.yaml: unterminated flow sequence'] }
+  await start($)
+  await settle()
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  expect(live(w).find(r => r.answer === 'team_unread')).toMatchObject({ note: 'session-flow.yaml: unterminated flow sequence' })
+  expect(live(w).some(r => r.answer === 'option_invalid')).toBe(false)
+  expect(w.forks[0]).not.toContain('- skill: ')
+})
+
 test('a live finding routed to a session gets a ready command and is never auto-sent; an issue one is sent', AUTO, async ($, on) => {
   const w = world(on)
   w.replies.push(answer(`${FINDING}\nfix: session`))

@@ -49,7 +49,9 @@ each of which wins over the user option of the same name with the `observer_` pr
 `## Observer guidance` section of `session-flow.md` in the same convention home, added to every
 check before the person's `observer_guidance`, each cut to `observer_guidance_max`. An invalid
 repository value is dropped, the user's value stands, and an `option_invalid` row names it as
-`team:<key>`. An unreadable default branch leaves the user's options in force.
+`team:<key>`. An unreadable default branch or a `session-flow.yaml` that does not parse leaves the
+user's options in force, and each note the reader returns is recorded as a `team_unread` row. The module
+(`hooks/observer-team.ts`) validates the team keys and passes those notes on.
 
 **Stale and repeated replies.** A reply that arrives after the next turn started, or after the
 session ended, is dropped as `stale`; its row's `held` says whether it carried a finding. Findings already reported (the last `observer_list_max`, default 50, across sessions) and

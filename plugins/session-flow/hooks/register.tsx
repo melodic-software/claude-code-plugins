@@ -4,6 +4,7 @@ import { askedRow, band } from './observer-band.tsx'
 import { type CheckRequest, type Effect, type Event, type Options, type Rate, initial, optionalKinds, readOptions, step } from './observer-machine.ts'
 import { buildPrompt, type Finding, type FinishDetail, isKnown, ledgerHeader, ledgerLine, ledgerSection, remember, summarize, type Trigger } from './observer-live.ts'
 import { codify, commandKey, errorKey, type HarnessEvent, harness, harnessInitial, hookRunsFrom, type Platform, type RuleRow, sessionCommand } from './observer-harness.ts'
+import { teamLayer } from './observer-team.ts'
 
 const DAY_MS = 86_400_000
 const USAGE = `Usage: /observer [on|off]. Bare /observer shows this session's and the last day's checks.`
@@ -292,23 +293,15 @@ const codifyCheck = async ($: EngineInterface, rule: string) => {
   await accept($, { trigger: 'harness', turnId: '', step: -1, gen: m.gen, open: null, source: 'codify' }, f.finding)
 }
 
-const TEAM_KEYS = { skill_check: 'observer_skill_check', improvement_check: 'observer_improvement_check', defer_kinds: 'observer_defer_kinds', codify_threshold: 'observer_codify_threshold' } as const
-
 const readTeam = async ($: EngineInterface, env: Record<string, string>, user: Readonly<Record<string, unknown>>) => {
   if (!env.CLAUDE_PLUGIN_ROOT) return
   const r = await $.process.run(['node', `${env.CLAUDE_PLUGIN_ROOT}/lib/observer-team.mjs`], { cwd: st.projectDir, env, timeoutMs: 30_000 }).catch(() => undefined)
   if (r?.exitCode !== 0) return
-  const team = JSON.parse(r.stdout) as { observer?: Record<string, unknown>; guidance?: string }
-  const raw: Record<string, unknown> = {}
-  for (const [key, option] of Object.entries(TEAM_KEYS)) {
-    const v = team.observer?.[key]
-    if (v === undefined) continue
-    const value = Array.isArray(v) ? v.join(',') : v
-    if (readOptions({ [option]: value }).invalid.length === 0) raw[option] = value
-    else await record($, { at: await iso($), answer: 'option_invalid', key: `team:${key}` }).catch(() => undefined)
-  }
-  opts = readOptions({ ...user, ...raw }).options
-  st.repoGuidance = typeof team.guidance === 'string' ? team.guidance : ''
+  const team = teamLayer(r.stdout)
+  for (const note of team.notes) await record($, { at: await iso($), answer: 'team_unread', note }).catch(() => undefined)
+  for (const key of team.rejected) await record($, { at: await iso($), answer: 'option_invalid', key }).catch(() => undefined)
+  opts = readOptions({ ...user, ...team.raw }).options
+  st.repoGuidance = team.guidance
 }
 
 const hookLog = () => {
