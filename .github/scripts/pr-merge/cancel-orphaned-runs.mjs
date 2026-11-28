@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { createGitHub } from "../lib/github-client.mjs";
 
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const SHA = /^[0-9a-f]{40}$/;
 export const QUEUE_PREFIX = "gh-readonly-queue/";
 export const MIN_AGE_MS = 60_000;
 export const MAX_CANCELS = 20;
@@ -13,7 +14,7 @@ const STATUSES = ["queued", "in_progress"];
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
-export function orphans(runs, branches, nowMs, { minAgeMs = MIN_AGE_MS, max = MAX_CANCELS } = {}) {
+export function orphans(runs, branches, nowMs, { minAgeMs = MIN_AGE_MS, max = MAX_CANCELS, merged = null } = {}) {
   const live = new Set(branches);
   return runs
     .filter(
@@ -24,7 +25,8 @@ export function orphans(runs, branches, nowMs, { minAgeMs = MIN_AGE_MS, max = MA
         typeof run.head_branch === "string" &&
         run.head_branch.startsWith(QUEUE_PREFIX) &&
         !live.has(run.head_branch) &&
-        nowMs - Date.parse(run.created_at) > minAgeMs,
+        nowMs - Date.parse(run.created_at) > minAgeMs &&
+        (merged === null || (SHA.test(run.head_sha ?? "") && !merged.has(run.head_sha))),
     )
     .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at))
     .slice(0, max)
@@ -64,6 +66,14 @@ export async function listQueueBranches(github, repo) {
   return refs.map((ref) => String(ref?.ref ?? "").replace(/^refs\/heads\//, ""));
 }
 
+export async function mainShas(github, repo) {
+  const commits = await github("GET", `/repos/${repo}/commits?sha=main&per_page=100`);
+  if (!Array.isArray(commits)) {
+    throw new Error("main's commit listing is not an array");
+  }
+  return new Set(commits.map((commit) => commit?.sha));
+}
+
 export async function main({ env = process.env, github, now = Date.now } = {}) {
   let calls = 0;
   let listed = 0;
@@ -86,7 +96,12 @@ export async function main({ env = process.env, github, now = Date.now } = {}) {
       return 0;
     }
     const branches = await listQueueBranches(call, repo);
-    for (const id of orphans(runs, branches, now())) {
+    const at = now();
+    if (orphans(runs, branches, at).length === 0) {
+      return 0;
+    }
+    const merged = await mainShas(call, repo);
+    for (const id of orphans(runs, branches, at, { merged })) {
       try {
         await call("POST", `/repos/${repo}/actions/runs/${id}/cancel`);
         cancelled.push(id);

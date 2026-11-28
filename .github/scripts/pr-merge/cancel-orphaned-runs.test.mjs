@@ -8,13 +8,16 @@ const NOW = Date.parse("2026-11-28T12:00:00Z");
 const ago = (seconds) => new Date(NOW - seconds * 1000).toISOString();
 const GONE = "gh-readonly-queue/main/pr-19486-1403eabc73b7919623f2e1f401b46fcc78bb511a";
 const LIVE = "gh-readonly-queue/main/pr-19486-269c6432aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-const run = (id, head_branch, seconds = 300, event = "merge_group") => ({ id, event, head_branch, created_at: ago(seconds) });
+const sha = (id) => id.toString(16).padStart(40, "0");
+const run = (id, head_branch, seconds = 300, event = "merge_group") => ({ id, event, head_branch, head_sha: sha(id), created_at: ago(seconds) });
 const LIST_QUEUED = `GET /repos/${REPO}/actions/runs?event=merge_group&status=queued&per_page=100&page=1`;
 const LIST_RUNNING = `GET /repos/${REPO}/actions/runs?event=merge_group&status=in_progress&per_page=100&page=1`;
 const LIST_REFS = `GET /repos/${REPO}/git/matching-refs/heads/gh-readonly-queue/`;
+const LIST_COMMITS = `GET /repos/${REPO}/commits?sha=main&per_page=100`;
+const posts = (calls) => calls.filter((call) => call.startsWith("POST"));
 const cancel = (id) => `POST /repos/${REPO}/actions/runs/${id}/cancel`;
 
-async function sweep({ queued = [], running = [], branches = [], failRefs = false, failRuns = false } = {}) {
+async function sweep({ queued = [], running = [], branches = [], onMain = [], failRefs = false, failRuns = false, failCommits = false } = {}) {
   const calls = [];
   const github = async (method, path) => {
     calls.push(`${method} ${path}`);
@@ -30,6 +33,12 @@ async function sweep({ queued = [], running = [], branches = [], failRefs = fals
         throw new Error("GET matching-refs failed with status 502");
       }
       return branches.map((branch) => ({ ref: `refs/heads/${branch}` }));
+    }
+    if (path.includes("/commits?")) {
+      if (failCommits) {
+        throw new Error("GET commits failed with status 502");
+      }
+      return onMain.map((value) => ({ sha: value }));
     }
     return null;
   };
@@ -47,28 +56,28 @@ async function sweep({ queued = [], running = [], branches = [], failRefs = fals
 test("a queued run whose queue ref is gone is cancelled, after both listings and the ref read", async () => {
   const r = await sweep({ queued: [run(46110287663, GONE)], branches: [LIVE] });
   assert.equal(r.code, 0);
-  assert.deepEqual(r.calls, [LIST_QUEUED, LIST_RUNNING, LIST_REFS, cancel(46110287663)]);
-  assert.match(r.out, /::notice title=cancel-orphaned-runs::listed=1 cancelled=\[46110287663\] calls=4/);
+  assert.deepEqual(r.calls, [LIST_QUEUED, LIST_RUNNING, LIST_REFS, LIST_COMMITS, cancel(46110287663)]);
+  assert.match(r.out, /::notice title=cancel-orphaned-runs::listed=1 cancelled=\[46110287663\] calls=5/);
 });
 
 test("an in-progress run whose queue ref is gone is cancelled too", async () => {
   const r = await sweep({ running: [run(7, GONE)] });
-  assert.deepEqual(r.calls.slice(3), [cancel(7)]);
+  assert.deepEqual(posts(r.calls), [cancel(7)]);
 });
 
 test("a run whose queue ref still exists is kept", async () => {
   const r = await sweep({ queued: [run(1, LIVE), run(2, GONE)], branches: [LIVE] });
-  assert.deepEqual(r.calls.slice(3), [cancel(2)]);
+  assert.deepEqual(posts(r.calls), [cancel(2)]);
 });
 
 test("a run 60 s old or younger is kept, one 61 s old is cancelled", async () => {
   const r = await sweep({ queued: [run(1, GONE, 30), run(2, `${GONE}-b`, 60), run(3, `${GONE}-c`, 61)] });
-  assert.deepEqual(r.calls.slice(3), [cancel(3)]);
+  assert.deepEqual(posts(r.calls), [cancel(3)]);
 });
 
 test("a run whose created_at does not parse is kept", async () => {
   const r = await sweep({ queued: [{ ...run(1, GONE), created_at: "soon" }] });
-  assert.deepEqual(r.calls.slice(3), []);
+  assert.deepEqual(posts(r.calls), []);
 });
 
 test("a failed ref listing cancels nothing and ends green with a warning", async () => {
@@ -92,7 +101,7 @@ test("with no merge_group runs queued or in progress, the two listings are the o
 
 test("a run on a branch outside gh-readonly-queue/, or from another event, is never cancelled", async () => {
   const r = await sweep({ queued: [run(1, "main"), run(2, "feature/gh-readonly-queue/x"), run(3, GONE, 300, "push")] });
-  assert.deepEqual(r.calls.slice(3), []);
+  assert.deepEqual(posts(r.calls), []);
 });
 
 test("one sweep cancels at most 20 runs, the oldest first", async () => {
@@ -106,7 +115,7 @@ test("one sweep cancels at most 20 runs, the oldest first", async () => {
 
 test("a run listed both queued and in progress is cancelled once", async () => {
   const r = await sweep({ queued: [run(5, GONE)], running: [run(5, GONE)] });
-  assert.deepEqual(r.calls.slice(3), [cancel(5)]);
+  assert.deepEqual(posts(r.calls), [cancel(5)]);
 });
 
 test("a cancel the API refuses is reported and the next one still goes", async () => {
@@ -116,6 +125,7 @@ test("a cancel the API refuses is reported and the next one still goes", async (
     if (path.includes("status=queued")) return { total_count: 2, workflow_runs: [run(1, GONE, 400), run(2, `${GONE}-b`, 300)] };
     if (path.includes("/actions/runs?")) return { total_count: 0, workflow_runs: [] };
     if (path.includes("/git/matching-refs/")) return [];
+    if (path.includes("/commits?")) return [];
     if (path.endsWith("/1/cancel")) throw new Error("POST cancel failed with status 409");
     return null;
   };
@@ -127,7 +137,7 @@ test("a cancel the API refuses is reported and the next one still goes", async (
   } finally {
     console.log = log;
   }
-  assert.deepEqual(calls.slice(3), [cancel(1), cancel(2)]);
+  assert.deepEqual(posts(calls), [cancel(1), cancel(2)]);
   assert.match(lines.join("\n"), /run 1 not cancelled: POST cancel failed with status 409[\s\S]*cancelled=\[2\]/);
 });
 
@@ -169,4 +179,26 @@ test("a full page of queued runs reads the next page, up to three", async () => 
   }
   assert.equal(calls.filter((call) => call.includes("status=queued")).length, 3);
   assert.equal(calls.length, 5);
+});
+
+test("a run whose head commit is on main belongs to a merged group and is kept", async () => {
+  const r = await sweep({ queued: [run(1, GONE), run(2, `${GONE}-b`)], onMain: [sha(1)] });
+  assert.deepEqual(posts(r.calls), [cancel(2)]);
+});
+
+test("a failed read of main's commits cancels nothing", async () => {
+  const r = await sweep({ queued: [run(1, GONE)], failCommits: true });
+  assert.equal(r.code, 0);
+  assert.deepEqual(r.calls, [LIST_QUEUED, LIST_RUNNING, LIST_REFS, LIST_COMMITS]);
+  assert.match(r.out, /nothing more cancelled: GET commits failed/);
+});
+
+test("with runs but no orphan candidate, main's commits are not read", async () => {
+  const r = await sweep({ queued: [run(1, LIVE)], branches: [LIVE] });
+  assert.deepEqual(r.calls, [LIST_QUEUED, LIST_RUNNING, LIST_REFS]);
+});
+
+test("a candidate with no readable head commit is kept", async () => {
+  const r = await sweep({ queued: [{ ...run(1, GONE), head_sha: undefined }] });
+  assert.deepEqual(posts(r.calls), []);
 });
