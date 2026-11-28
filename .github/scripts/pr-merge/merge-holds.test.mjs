@@ -519,7 +519,7 @@ test("ci-status holds on no body text or member comment; a hold path still holds
   const veto = { id: 1, user: { login: "kyle", id: 7, type: "User" }, author_association: "MEMBER", created_at: "2026-10-23T10:00:00Z", body: "Please do not merge this yet." };
   const written = await ci(["docs/a.md"], { body, reviews: [veto] });
   assert.equal(written.code, 0, written.out);
-  assert.match(written.out, /^#99: no hold path\.$/m);
+  assert.match(written.out, /^#99: no member veto and no hold path\.$/m);
   const pathed = await ci(["docs/held.md"], { body, reviews: [veto], denied: ["docs/held.md"] });
   assert.equal(pathed.code, 1, pathed.out);
   assert.match(pathed.out, /it changes docs\/held\.md, a hold path/);
@@ -1195,7 +1195,7 @@ test("in the merge queue, the lanes App's configured baseline file needs no veri
   const veto = { user: { login: "owner-person", id: 5, type: "User" }, body: "do not merge", created_at: "2026-10-23T11:00:00Z", author_association: "OWNER" };
   const commented = await ci([BASELINE], { pull: lanes, reviews: [veto], queue: { verdicts: [], link: { record: null, closing: { totalCount: 0, nodes: [] } }, evidence: report(null) } });
   assert.equal(commented.code, 0, commented.out);
-  assert.match(commented.out, /^#99: no hold path\.$/m);
+  assert.match(commented.out, /^#99: no member veto and no hold path\.$/m);
 });
 
 test("in the merge queue, a pass the linked issue changed after holds until pr-verify judges the head again", async () => {
@@ -1234,7 +1234,7 @@ test("in the merge queue, a FAIL the reader counts holds a passed head", async (
   assert.match(out, /::error title=pr-verify hold::#99: pr-verify's reader refuses this head \(verify:fail: fails at the head\); push a new head/);
   assert.doesNotMatch(out, /no pr-verify FAIL hold/);
   assert.doesNotMatch(out, /^::error::/m);
-  assert.match(out, /^#99: no hold path\.$/m);
+  assert.match(out, /^#99: no member veto and no hold path\.$/m);
 });
 
 test("in the merge queue, the reader's verify:unreadable is a pr-verify hold beside a body hold", async () => {
