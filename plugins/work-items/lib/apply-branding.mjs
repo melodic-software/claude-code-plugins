@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { escapeHtml } from "./html-escape.mjs";
 import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall } from "./plugin-options.mjs";
 import { findRoot, resolveBranding } from "./view-settings.mjs";
 
-const PLUGIN_ROOT = fileURLToPath(new URL("..", import.meta.url));
+const PLUGIN_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const BRAND_CSS = [
   ".rv-brand { display: inline-flex; align-items: center; gap: 0.5rem; margin-right: auto; }",
   ".rv-brand svg { height: 1.5rem; width: auto; display: block; }",

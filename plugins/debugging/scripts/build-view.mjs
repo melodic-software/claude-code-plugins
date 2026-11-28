@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 import { chmodSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { escapeHtml } from "../lib/html-escape.mjs";
 import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall } from "../lib/plugin-options.mjs";
 import { buildView, ViewBuildError } from "../lib/view-builder.mjs";
 import { findRoot, resolveBranding } from "../lib/view-settings.mjs";
 
-const PLUGIN_ROOT = fileURLToPath(new URL("..", import.meta.url));
+const PLUGIN_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const TEMPLATE = "../skills/debug/templates/post-mortem-view.html";
 const TOKENS = "../reference/html-tokens.css";
 const BRAND_CSS = [

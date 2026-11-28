@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
-import { join, win32 } from "node:path";
+import { join, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { escapeHtml } from "../../../lib/html-escape.mjs";
 import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall } from "../../../lib/plugin-options.mjs";
 import { buildView, ViewBuildError } from "../../../lib/view-builder.mjs";
 import { findRoot, resolveBranding } from "../../../lib/view-settings.mjs";
 
-const PLUGIN_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
+const PLUGIN_ROOT = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const BRAND_CSS = [
   ".rv-brand { display: inline-flex; align-items: center; gap: 0.5rem; margin-right: auto; }",
   ".rv-brand svg { height: 1.5rem; width: auto; display: block; }",

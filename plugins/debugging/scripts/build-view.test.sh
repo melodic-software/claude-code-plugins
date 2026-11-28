@@ -186,5 +186,19 @@ const optRun = spawnSync("node", [`${dir}/build-view.mjs`, "--branding-option", 
 const optPage = optRun.status === 0 ? readFileSync(optRun.stdout.trim(), "utf8") : "";
 check("--branding-option passes userConfig branding into the built page", optRun.status === 0 && optPage.includes('<span class="rv-brand-label">CLI Brand</span>'), optRun.stderr);
 
+const cacheRoot = `${work}/claude-cfg`;
+const cachedPlugin = `${cacheRoot}/plugins/cache/test-mkt/debugging/1.0.0`;
+const { cpSync } = await import("node:fs");
+mkdirSync(cachedPlugin, { recursive: true });
+for (const rel of [".claude-plugin", "lib", "reference", "scripts", "skills/debug/templates"]) {
+  cpSync(`${dir}/../${rel}`, `${cachedPlugin}/${rel}`, { recursive: true });
+}
+writeFileSync(`${cacheRoot}/settings.json`, JSON.stringify({
+  pluginConfigs: { "debugging@test-mkt": { options: { branding: JSON.stringify({ logo: { label: "Cached Install Brand" } }) } } },
+}));
+const cachedRun = spawnSync("node", [`${cachedPlugin}/scripts/build-view.mjs`], { input: JSON.stringify(data), encoding: "utf8", env: optEnv });
+const cachedPage = cachedRun.status === 0 ? readFileSync(cachedRun.stdout.trim(), "utf8") : "";
+check("cached plugin install reads userConfig.branding from settings.json", cachedRun.status === 0 && cachedPage.includes('<span class="rv-brand-label">Cached Install Brand</span>'), cachedRun.stderr);
+
 process.exit(failed ? 1 : 0);
 NODE

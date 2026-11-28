@@ -20,7 +20,11 @@ summary { cursor: pointer; font-weight: 600; }
 .lines { list-style: none; margin: 0.75rem 0 0; padding: 0; font-size: 0.85rem; }
 .lines li { white-space: pre-wrap; overflow-wrap: anywhere; }
 code { font-family: var(--mono); }
-input:focus-visible, summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+input:focus-visible, summary:focus-visible, .actions button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+.actions button { padding: 0.45rem 0.85rem; border: var(--border); border-radius: 6px; background: var(--panel); color: var(--fg); font: inherit; font-weight: 500; cursor: pointer; }
+.status { margin: 0.4rem 0 0; font-size: 0.85rem; color: var(--muted); }
+.out { margin: 0.5rem 0 0; padding: 0.65rem; border: var(--border); border-radius: 6px; background: var(--panel); font: 0.85rem/1.45 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
   /* rv-chrome:begin */
   .rv-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: flex-end; }
@@ -60,6 +64,12 @@ input:focus-visible, summary:focus-visible { outline: 3px solid var(--focus); ou
 <h2 id="rv-comment-h">Comment</h2>
 <label for="rv-comment-text">Your comment for the session</label>
 <textarea id="rv-comment-text" data-rv-note="comment" placeholder="Say what should change, or ask a question"></textarea>
+<div class="actions">
+<button type="button" data-rv-copy="morning-brief-comment">Copy comment</button>
+<button type="button" data-rv-download="morning-brief-comment">Save as file</button>
+</div>
+<p class="status" role="status" data-rv-status=""></p>
+<pre class="out" data-rv-out="" hidden></pre>
 </section>
 </main>
 </body>
