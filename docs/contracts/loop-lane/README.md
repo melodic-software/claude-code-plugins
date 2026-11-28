@@ -571,7 +571,9 @@ real-time deadline. A hold that lands after the merge is not a hold.
   default branch with this PR and this head in its run name and its Compare Record job run to
   success (the author alone counts for nothing),
   the reason line by a listed human or the lanes App, both on a
-  line of their own outside a quote or fence, and no other reason stands
+  line of their own outside a quote or fence, no other reason stands, and the label is the eval
+  hold's own: the newest label event and an eval reason line are by the same listed human or by the
+  lanes App, the line posted within 10 minutes after the label. A label anyone else added stays
   ([`release-eval-hold.mjs`](../../../.github/scripts/pr-merge/release-eval-hold.mjs)). With no
   record at the head, the same step also removes it when, for every plugin whose skill, agent or
   context text the PR changes (or, when it changes none, every plugin it changes), the newest compare run naming this PR, its head and that plugin as
