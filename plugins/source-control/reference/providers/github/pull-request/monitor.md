@@ -56,8 +56,15 @@ its last answer, a `304 Not Modified` replays the cached body, and GitHub does n
 authorized 304 against the primary rate limit
 ([conditional requests](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests)),
 so a poll where nothing changed costs nothing. The comment reads keep `since` at the watch's start,
-because a changed query string gets a new ETag. Raise `--interval <seconds>` (default 90) only
-when the [API budget](../README.md#api-budget) arithmetic says so. `--once` exits 0 after the first poll that emits
+because a changed query string gets a new ETag. When watching (neither `--snapshot` nor `--verdict`,
+and unless `--no-events` or `MONITOR_POLL_EVENTS=0` is set), the script attaches one background
+`gh event listen` stream before the initial poll, wakes immediately on PR events (coalescing bursts
+into one conditional poll pass and running the review-thread read immediately on a submitted review),
+and runs a safety poll every `--safety-interval` seconds (default 600, clamped up to `--interval`
+when larger) for conversation-tab comments and commit statuses. When `gh event` is absent, returns
+an error, fails to attach, or exits mid-watch, the script falls back silently to `--interval`
+(default 90) polling; raise `--interval <seconds>` only when the
+[API budget](../README.md#api-budget) arithmetic says so. `--once` exits 0 after the first poll that emits
 a line, for a background Bash run where the Monitor tool is unavailable. The first arming passes no `--baseline`; a re-arm
 passes `--baseline <file>`, the file this same script wrote in a snapshot run (`--snapshot <file>`:
 one state check and checks read, the `cur_checks` lines and any `PR-VERIFY <verdict> <head-sha>`

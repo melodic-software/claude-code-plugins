@@ -174,7 +174,11 @@ The poll keeps its 90s cadence: readiness needs every check terminal, the curren
    shows. The re-arm's snapshot run adds `--snapshot <file>` and the re-armed watch
    `--baseline <file>`. Its contract:
 
-   - Polls every `--interval` seconds and exits 0 with `PR #<N> <state> — watch complete` once the PR is
+   - Attaches a persistent `gh event listen` stream on the PR before its initial poll for immediate
+     wakeups (coalescing bursts into one conditional poll pass and running a `--safety-interval`
+     safety poll, default 600s), and falls back transparently to `--interval` polling (default 90s)
+     when the event stream is unavailable, exits, or is disabled (`--no-events` or
+     `MONITOR_POLL_EVENTS=0`). Exits 0 with `PR #<N> <state> — watch complete` once the PR is
      merged or closed.
    - Exits 2 with a `RATE-LIMITED` line on a rate-limit error. Re-arm only after the wait the
      [API budget](../../../reference/providers/github/README.md#api-budget) sets.
@@ -184,10 +188,11 @@ The poll keeps its 90s cadence: readiness needs every check terminal, the curren
    - Emits a `COMMENT`, `INLINE-COMMENT` or `REVIEW` line for each new item on all three review
      surfaces (issue-level comments, inline review comments, review bodies), and advances its
      watermark only when every fetch succeeded, so a transient failure never skips a comment.
-   - Every 4th poll (about 4 minutes) runs the Gate 7 thread read through the plugin's
-     `scripts/source-control-review-threads` and emits `REVIEW-THREADS unresolved=<n>` when
-     the unresolved count, or `THREADS_UNPROVEN`, changes. Resolving a thread moves no check and
-     posts no comment, so the other reads never see it.
+   - Runs the Gate 7 thread read through the plugin's `scripts/source-control-review-threads`
+     immediately on a submitted-review event, on each safety poll, and every 4th poll in fallback
+     mode, emitting `REVIEW-THREADS unresolved=<n>` when the unresolved count, or
+     `THREADS_UNPROVEN`, changes. Resolving a thread moves no check and posts no comment, so the
+     other reads never see it.
    - It records the thread count on its first poll, and the checks as the baseline on the first poll
      whose check read succeeds, unless `--baseline` names a snapshot the script's snapshot run wrote. With one, the
      snapshot is the baseline: the first successful checks read emits a check finished in the live
