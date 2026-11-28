@@ -121,12 +121,12 @@ layers, first hit wins:
    caller declaring that nobody is present. Take it out first, then read the rest.
 2. **Resolved preference**. Run the shared medium resolver, adding `--argument <medium>`,
    `<medium>` being the argument's word, when there is one. `<option>` is this plugin's `medium`
-   option, `${user_config.medium}`; pass `""` when that reads empty or as an unsubstituted
-   placeholder. Read each option value from this text; never put a `${user_config.*}` string in a
-   shell command.
+   option, `${user_config.medium}` (`""` if empty/unsubstituted), and `<branding JSON>` is
+   `${user_config.branding}` (omit `--branding-option` when empty/unsubstituted; otherwise
+   single-quote it, escaping any `'` as `'\''`, never double-quote JSON or put `${user_config.*}` in shell):
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --producer visualization:visualize --option "<option>" [--argument <medium>]
+   node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --producer visualization:visualize --option "<option>" [--argument <medium>] [--branding-option '<branding JSON>']
    ```
 
    It prints one JSON line, then the report line naming the medium and what decided it, then any
@@ -262,16 +262,16 @@ are never rendered to HTML until this skill is wired through the rendered-views 
 never written to a diagram file. That exception overrides layer 1, the preference and
 `diagram_target`; when a page or file was asked for, say in one line why it was not produced.
 
-**Page chrome.** When authoring a rich page, take the palette, type stacks,
-radii, and accessibility floor (link/focus contrast tokens, color-scheme and
-reduced-motion behavior) from this plugin's bundled chrome reference,
-`${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`, rather than inventing a
-look per page. The chrome does not settle layout habits, so name the ones to leave
-out: italic accent words in headings, numbered "01 / 02 / 03" section labels,
-pill-shaped buttons or badges, and a hero banner above the content, plus any style
-the user names. When the user dislikes a choice in the rendered page, add it to
-that list for the rest of the session and render again. A general "avoid a generic
-look" only swaps one default for another.
+**Page chrome and branding.** When authoring a rich page, take palette and type stacks from
+`${CLAUDE_PLUGIN_ROOT}/reference/html-tokens.css` and toggle, comment box, radii and accessibility
+floor (link/focus contrast tokens, color-scheme, reduced motion) from
+`${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html` instead of inventing a look per page. Run
+`node "${CLAUDE_PLUGIN_ROOT}/lib/html-branding.mjs" --in "<page>" --out "<page>" [--option '<branding JSON>']`
+(omit `--option` if empty/unsubstituted; single-quote JSON, escaping `'` as `'\''`) to inline the token layer and resolved `branding` overrides into the one `<style>` and place any
+logo in `.rv-bar` while keeping toggle, comment box and floor unchanged (print any notices; unset
+leaves the page unchanged). Name layout habits to leave out: italic accent words in headings,
+numbered "01 / 02 / 03" section labels, pill buttons/badges, hero banners, and any style the user
+names; add disliked choices for the rest of the session and re-render.
 
 **Local-file placement.** Write the local HTML file via the platform's temp
 primitive, never into the consumer's repository tree (only the `excalidraw-file` target writes
