@@ -293,7 +293,7 @@ run_cfg "home project root skips team and personal override" \
   "$WN" "" - "12" 0 "$HOME_NOTE"
 
 new_case
-CASE_REPO="$(mktemp -d "${FIXTURES}/anc.XXXXXX")"
+CASE_REPO="$(mktemp -d "${FIXTURES}/ancestor.XXXXXX")"
 CASE_HOME="${CASE_REPO}/home"
 mkdir -p "$CASE_HOME"
 git init -q "$CASE_REPO"
