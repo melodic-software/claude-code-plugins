@@ -57,6 +57,8 @@ test("dispatch-full-run ends once it dispatches: no wait on the run it started",
       "Start the full CI run on main",
       "Scan the upload for credentials",
       "Record the dispatched run",
+      "Set up Node",
+      "Cancel merge_group runs whose queue group is gone",
       "Log the API budget at the end",
     ],
   );
@@ -325,7 +327,29 @@ test("the dispatch job's token is actions: write and contents: read, and nothing
   );
   const checkout = dispatch.split("\n      - name: Check out the api-budget library\n")[1].split("\n      - name: ")[0];
   assert.match(checkout, /^ {8}if: steps\.tip\.outputs\.sha != ''\n {8}continue-on-error: true\n/);
-  assert.match(checkout, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {12}\/lib\/publish-gate\.mjs\n {10}sparse-checkout-cone-mode: false\n/);
+  assert.match(checkout, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {12}\/lib\/publish-gate\.mjs\n {12}\/\.github\/scripts\/pr-merge\/cancel-orphaned-runs\.mjs\n {12}\/\.github\/scripts\/lib\/github-client\.mjs\n {12}\/\.node-version\n {10}sparse-checkout-cone-mode: false\n/);
+});
+
+test("dispatch-full-run's sparse checkout holds every module the orphaned-run cancel loads", () => {
+  const dispatch = job("dispatch-full-run");
+  const sparse = /\n {10}sparse-checkout: \|\n((?: {12}\S+\n)+)/.exec(dispatch)[1].trim().split(/\s+/);
+  const root = new URL("../../../", import.meta.url);
+  const seen = new Set();
+  const visit = (path) => {
+    if (seen.has(path)) return;
+    seen.add(path);
+    for (const [, spec] of readFileSync(new URL(path, root), "utf8").matchAll(/^import [^;]*? from "(\.[^"]+)";$/gm)) {
+      visit(new URL(spec, new URL(path, root)).pathname.slice(root.pathname.length));
+    }
+  };
+  visit(".github/scripts/pr-merge/cancel-orphaned-runs.mjs");
+  const missing = [...seen].filter((path) => !sparse.some((entry) => (entry.endsWith("/") ? `/${path}`.startsWith(entry) : `/${path}` === entry)));
+  assert.deepEqual(missing, []);
+  assert.ok(seen.has(".github/actions/log-api-budget/rate-guard.mjs"));
+  assert.ok(sparse.includes("/.node-version"));
+  const step = dispatch.split("\n      - name: Cancel merge_group runs whose queue group is gone\n")[1].split("\n      - name: ")[0];
+  assert.match(step, /\n {8}continue-on-error: true\n/);
+  assert.match(step, /steps\.cover\.outputs\.rate-limited != 'true' && steps\.dispatch\.outputs\.rate-limited != 'true'/);
 });
 
 test("dispatch-full-run's cover read and dispatch POST each leave one reading", () => {
