@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.3.4] - 2026-11-28
+
+### Changed
+
+- babysit-prs: the gate processes of one pr-merge run share a draft-run judgment of a FAIL (the checks-run listing, verifier run and jobs reads) through the run cache, so only the first process reads them; an answer cut short by a failed read is not shared.
+
 ## [15.3.3] - 2026-11-28
 
 ### Changed
