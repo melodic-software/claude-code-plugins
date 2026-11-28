@@ -41,6 +41,21 @@ test("a run cap below the room stops filing first", () => {
   assert.equal(plan.stop, null);
 });
 
+test("a request missing or misstating a field files nothing: the plan throws, and the command exits 2", () => {
+  const good = { label, labelExists: true, cap: 5, open: 0, candidates: ["a", "b", "c", "d", "e", "f"] };
+  for (const [name, bad] of [
+    ["no open", { ...good, open: undefined }],
+    ["open as text", { ...good, open: "0" }],
+    ["a null run cap", { ...good, runCap: null }],
+    ["a negative run cap", { ...good, runCap: -1 }],
+    ["no labelExists", { ...good, labelExists: undefined }],
+    ["candidates not a list", { ...good, candidates: "a" }],
+  ]) {
+    assert.throws(() => planFiling(bad), Error, name);
+  }
+  assert.throws(() => execFileSync(process.execPath, [SCRIPT], { input: JSON.stringify({ label, labelExists: true, candidates: ["a"] }), stdio: "pipe" }), (error) => error.status === 2);
+});
+
 test("a missing label files nothing, since neither caller creates one", () => {
   const plan = planFiling({ label, labelExists: false, cap: 5, open: 0, candidates: ["a"] });
   assert.deepEqual([plan.file, plan.stop], [[], "label-missing"]);

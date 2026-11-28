@@ -331,6 +331,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/maintenance-scan-architecture/prepare-working-tree.sh", "enforcement"],
   [".github/scripts/maintenance-scan-architecture/prompt.md", "enforcement"],
   ["plugins/improvement/lib/state-key.sh", "enforcement"],
+  ["plugins/improvement/scripts/filing-plan.mjs", "enforcement"],
   ["plugins/architecture/lib/resolve-convention-home.sh", "enforcement"],
   ["plugins/architecture/lib/read-verification.sh", "enforcement"],
   ["plugins/architecture/lib/default-branch-file.sh", "enforcement"],

@@ -30,7 +30,13 @@ export function openCap({ team, user, personal, names = { team: "team layer", us
 
 export const titleKey = (title) => title.trim().replace(/\s+/g, " ").toLowerCase();
 
+const isTitles = (value) => Array.isArray(value) && value.every((title) => typeof title === "string");
+
 export function planFiling({ label, labelExists, cap, open, existingTitles = [], candidates, runCap }) {
+  if (typeof labelExists !== "boolean") throw new Error("labelExists must be true or false");
+  if (!isCap(cap) || !isCap(open)) throw new Error("cap and open must be non-negative integers");
+  if (runCap !== undefined && !isCap(runCap)) throw new Error("runCap, when given, must be a non-negative integer");
+  if (!isTitles(candidates) || !isTitles(existingTitles)) throw new Error("candidates and existingTitles must be lists of titles");
   if (!labelExists) {
     return { file: [], skipped: candidates.map((title) => ({ title, why: `label \`${label}\` does not exist and is never created` })), room: 0, stop: "label-missing" };
   }
