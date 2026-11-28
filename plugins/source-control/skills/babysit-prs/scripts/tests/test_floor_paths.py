@@ -60,6 +60,7 @@ LANE_SCRIPTS = (
     ".github/scripts/pr-unblock/declare-test-scope.mjs",
     BABYSIT + "babysit_verify_evidence.py",
 )
+LIFT_EXEMPT_ROWS = REVIEW_SURFACE + PROMPT_TEXT + LANE_SCRIPTS
 
 
 def digest(items) -> str:
@@ -193,7 +194,7 @@ class ReviewSurfaceRowsNeverTakeTheLift(unittest.TestCase):
     """Owner decision Q11 (A): a person clears these whatever the author did."""
 
     def test_they_stay_gate_rows_marked_no_lift(self):
-        for glob in REVIEW_SURFACE + PROMPT_TEXT + LANE_SCRIPTS:
+        for glob in LIFT_EXEMPT_ROWS:
             with self.subTest(glob):
                 self.assertIn((glob, "gate", False), ROWS)
                 self.assertNotIn(glob, FLOOR.author_review)
@@ -201,12 +202,12 @@ class ReviewSurfaceRowsNeverTakeTheLift(unittest.TestCase):
     def test_only_those_rows_refuse_the_lift(self):
         self.assertEqual(
             {g for g, _, lift in ROWS if not lift},
-            {*REVIEW_SURFACE, *PROMPT_TEXT, *LANE_SCRIPTS},
+            set(LIFT_EXEMPT_ROWS),
         )
 
     def test_an_author_reviewed_path_on_one_still_holds_for_a_person(self):
         for glob, sample in zip(
-            REVIEW_SURFACE + PROMPT_TEXT + LANE_SCRIPTS,
+            LIFT_EXEMPT_ROWS,
             (
                 ".github/scripts/pr-review-main/record.mjs",
                 ".github/scripts/diff-chunking/diff_chunking.py",

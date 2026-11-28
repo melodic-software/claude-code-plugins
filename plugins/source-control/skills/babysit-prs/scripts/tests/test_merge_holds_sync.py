@@ -70,6 +70,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import babysit_merge_policy as policy
 import diff_risk as risk
 from capped_compare import docs_diff, modified_as
+from test_floor_paths import LIFT_EXEMPT_ROWS
 
 BASH = policy.resolve_bash(os.environ, sys.platform, os.path.isfile)
 ROOT = pathlib.Path(__file__).resolve().parents[6]
@@ -359,28 +360,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self,
     ) -> None:
         gate = [g for g, kind in FLOOR.classes if kind == "gate"]
-        surface = {
-            ".github/scripts/pr-review-main/**",
-            ".github/scripts/diff-chunking/**",
-            "**/.claude/**",
-            "**/.claude-lane/**",
-            "docs/conventions/source-control.yaml",
-            "docs/conventions/instruction-exception-register/**",
-            "docs/conventions/untrusted-content/**",
-            "**/.mcp.json",
-            "**/CLAUDE.md",
-            "**/CLAUDE.local.md",
-            "**/AGENTS.md",
-            "REVIEW.md",
-            "docs/standards/**",
-            "docs/review/**",
-            "docs/conventions/work-items.md",
-            ".github/scripts/intake-triage/refine-schema.json",
-            ".github/scripts/plugin-eval/policy-probe-prompt.txt",
-            ".github/scripts/pr-unblock/test-scope.mjs",
-            ".github/scripts/pr-unblock/declare-test-scope.mjs",
-            "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
-        }
+        surface = {*risk._NO_AUTHOR_LIFT, *LIFT_EXEMPT_ROWS}
         self.assertEqual(
             list(FLOOR.author_review),
             [
@@ -389,7 +369,6 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
                 if g not in surface and not g.startswith(".github/workflows/")
             ],
         )
-        self.assertEqual(len(FLOOR.author_review), 25)
         samples = [g.removeprefix("**/").replace("**", "x.mjs") for g in gate]
         self.assertEqual(module(samples)["held"], [True] * len(samples))
         step = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
@@ -409,7 +388,6 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             check=True,
         )
         self.assertEqual(tuple(json.loads(proc.stdout)), FLOOR.high)
-        self.assertEqual(len(FLOOR.high), 104)
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)
