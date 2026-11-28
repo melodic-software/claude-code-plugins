@@ -1,12 +1,14 @@
 {
   "pass": [
     {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=unresolved)\n\nThe post-edit lint run (npm run lint:md -- docs/onboarding.md) changed docs/onboarding.md; restored the compressed text from the copy taken just before that run and ran no further lint.", "why": "the summary line, then the changed target"},
-    {"answer": "The lint run after the edit changed `docs/onboarding.md` (it appended a line), so I restored the compressed text from its pre-run copy and ran no more lint.\n\n- `onboarding.md`: compressed, `lint=unresolved`", "why": "the changed target named before the field"}
+    {"answer": "The lint run after the edit changed `docs/onboarding.md` (it appended a line), so I restored the compressed text from its pre-run copy and ran no more lint.\n\n- `onboarding.md`: compressed, `lint=unresolved`", "why": "the changed target named before the field"},
+    {"answer": "onboarding.md: compressed (compression_pct=24.1%, verification: skipped (light), lint=unresolved)\n\nI did not run lint:md: its helper script appends a stamp line to each checked file whose checksum moved, so the command writes files.", "why": "declines the writing command before any run, as the hard rule allows"}
   ],
   "fail": [
     {"answer": "", "why": "empty reply"},
     {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=PASS)", "why": "ships with a pass over the change"},
     {"answer": "onboarding.md: compressed (compression_pct=21.4%, lint=unresolved)", "why": "does not say the lint run changed the target"},
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, lint=unresolved)\n\nNo lint command resolved, so lint did not run.", "why": "gives no reason tied to the command writing files"},
     {"answer": "The post-edit lint run changed docs/onboarding.md, so I stopped linting.", "why": "names the change without the lint field"},
     {"answer": "onboarding.md: reverted (lint=unresolved)\n\nThe post-edit lint run changed docs/onboarding.md; restored the original and stopped.", "why": "discards the compression instead of keeping it"}
   ]
