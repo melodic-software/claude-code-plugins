@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [5.0.3] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
 ## [5.0.2] - 2026-11-27
 
 ### Fixed
