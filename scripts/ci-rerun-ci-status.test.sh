@@ -185,15 +185,18 @@ if [[ -n "${STUB_ETAG:-}" && "$*" =~ ^api\ -i\ repos/o/r/actions/runs/[0-9]+($|\
   printf 'HTTP/2.0 200 OK\r\nEtag: %s\r\nX-Ratelimit-Remaining: 9\r\n\r\n%s\n' "$STUB_ETAG" "$body"
   exit 0
 fi
-# Answers a read of a resource whose current ETag is $1 and body $2 as GitHub
-# does: 304 with no body when If-None-Match names that ETag, else 200.
+# Answers a read of a resource whose current ETag is $1 and body $2 from gh's
+# captured output (fixtures/gh-api-conditional): when If-None-Match names that
+# ETag, the 304 headers (strong ETag), no body, gh's stderr line and exit 1;
+# else the 200 headers and the body.
 tagged() {
   if [[ "$ARGS" == *" -H If-None-Match: $1" ]]; then
-    printf 'HTTP/2.0 304 Not Modified\r\nEtag: %s\r\nX-Ratelimit-Remaining: 9\r\n\r\n' "$1"
-    echo "gh: HTTP 304" >&2
+    sed "s|^Etag: .*|Etag: ${1#W/}"$'\r'"|" "$STUB_FIXTURES/run-304.out"
+    cat "$STUB_FIXTURES/run-304.err" >&2
     exit 1
   fi
-  printf 'HTTP/2.0 200 OK\r\nEtag: %s\r\nX-Ratelimit-Remaining: 9\r\n\r\n%s\n' "$1" "$2"
+  sed "s|^Etag: .*|Etag: $1"$'\r'"|" "$STUB_FIXTURES/run-200.headers"
+  printf '%s\n' "$2"
   exit 0
 }
 ARGS="$*"
@@ -302,7 +305,7 @@ expect() {
   rm -f "$TMP_ROOT/record.json"
   rm -rf "$TMP_ROOT/rt"
   mkdir -p "$TMP_ROOT/rt"
-  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r HEAD_SHA="${HEAD_SHA-$HEAD}" \
+  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_FIXTURES="$ROOT/scripts/fixtures/gh-api-conditional" GITHUB_REPOSITORY=o/r HEAD_SHA="${HEAD_SHA-$HEAD}" \
     PR_NUMBER="${PR_NUMBER-42}" LANE_PATH="${LANE_PATH-$CODE}" LANE_DONE_AT="${LANE_DONE_AT-$LATER}" \
     GITHUB_OUTPUT="$TMP_ROOT/out" RECORD_FILE="$TMP_ROOT/record.json" GITHUB_RUN_ID=555 \
     REVIEW_ATTEMPT="${REVIEW_ATTEMPT-1}" REVIEW_RERUNNER_ID="${REVIEW_RERUNNER_ID-$KYLE}" \
@@ -561,8 +564,6 @@ W/"r3"' STUB_JOBS_ETAG='W/"j1"' \
   check_reran 0 "a changed run at the recheck hands on no job id or record"
   if [[ "$(tail -n 1 "$TMP_ROOT/log")" == 'api -i repos/o/r/actions/runs/9 -H If-None-Match: W/"r2"' ]]; then ok "the recheck asked whether the run changed"; else fail "last read: $(tail -n 1 "$TMP_ROOT/log")"; fi
 done
-STUB_RUN_SEQ="$(run 9 in_progress)
-$(run 9)"
 STUB_RUN_SEQ="$(run 9 in_progress)"
 expect "a run still going after the limit fails" 1 "::error::run 9 on $HEAD has not finished after 600s"
 check_reran 0 "nothing is re-run past the poll limit"
