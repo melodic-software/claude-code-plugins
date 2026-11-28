@@ -1,5 +1,5 @@
 ---
-description: "Post-use behavioral audit of a plugin component (skill, agent, hook, command, config) for bugs and errors, emitting a maintainer work item. Use when: 'audit this plugin/skill/hook', 'review this plugin component', 'vet this plugin'. Not for static QA: /skill-quality:check; code review: /review:quality-gate; MCP: /mcp-tools:audit (if enabled)."
+description: "Post-use behavioral audit of a plugin component (skill, agent, hook, command, config) for bugs, gaps, design, emitting a maintainer work item. Use when: 'audit this plugin/skill/hook', 'review this plugin component', 'vet this plugin'. Not for static QA: /skill-quality:check; code review: /review:quality-gate; MCP: /mcp-tools:audit (if enabled)."
 argument-hint: "[<plugin>[:<component>]...|session]"
 user-invocable: true
 disable-model-invocation: false
