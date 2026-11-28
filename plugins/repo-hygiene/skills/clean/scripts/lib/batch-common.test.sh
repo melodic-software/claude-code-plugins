@@ -7,7 +7,8 @@ source "$SCRIPT_DIR/test-helpers.sh"
 # shellcheck source=batch-common.sh
 source "$SCRIPT_DIR/batch-common.sh"
 
-TEST_TMPDIR="$(test_native_path "$(mktemp -d)")"
+PATH_TMPDIR="$(mktemp -d)"
+TEST_TMPDIR="$(test_native_path "$PATH_TMPDIR")"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 
@@ -255,17 +256,21 @@ else
 fi
 BATCH_SKIP_INPUTS=()
 
+STUB_BIN="$PATH_TMPDIR/stub-bin"
+mkdir -p "$STUB_BIN"
+cat >"$STUB_BIN/cygpath" <<'STUB'
+#!/usr/bin/env bash
+p="${!#}"
+case "$p" in
+/tmp/*) printf 'D:/Work/Temp/%s\n' "${p#/tmp/}" ;;
+*) printf '%s\n' "$p" ;;
+esac
+STUB
+chmod +x "$STUB_BIN/cygpath"
 stubbed_skip_matches() {
   (
     _CLEAN_OS="$1"
-    # shellcheck disable=SC2329  # reached through clean_path_key's command -v cygpath
-    cygpath() {
-      local p="${!#}"
-      case "$p" in
-      /tmp/*) printf 'D:/Work/Temp/%s\n' "${p#/tmp/}" ;;
-      *) printf '%s\n' "$p" ;;
-      esac
-    }
+    PATH="$STUB_BIN:$PATH"
     clean_skip_matches "$(clean_path_key 'D:/Work/Temp/x')" "$2"
   )
 }
