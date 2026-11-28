@@ -1,5 +1,5 @@
 ---
-description: "Write, check and refresh formal-area skills: bare proposes what to prove; create PROMISE writes the model and skill, proving a seeded break is caught; check gates the contract; refresh realigns checks with changed code. Use when: 'what should we formally verify', 'model-check this race', 'prove this invariant', 'check our formal skills', 'is the model still true', or a race or state machine needs more than tests."
+description: "Propose, write, check, and refresh formal-area skills: bare proposes; create PROMISE writes model and skill (catching a seeded break); check gates the contract; refresh realigns with code. Use when: 'what should we formally verify', 'prove this invariant', 'check our formal skills', or a race/state machine needs more than tests."
 argument-hint: "[create [<promise>]|check [<dir> ...]|refresh [<dir> ...] [--convert <dir>]] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
