@@ -1,5 +1,5 @@
 ---
-description: "Codebase scan for module friction (shallow modules, module seams, locality, cross-boundary leaks): HTML report, Design-It-Twice interview. Use for 'improve architecture', 'shallow modules', 'locality', deepening, compare interface, testable code, layer boundaries, which references cross a boundary. Not for cross-dimension: /improvement:find."
+description: "Codebase scan for module friction (shallow modules, module seams, locality, cross-boundary leaks): HTML report, Design-It-Twice interview. Use for 'improve architecture', 'shallow modules', 'locality', deepening, compare interface, derive conventions, layer boundaries, which references cross a boundary. Not for cross-dimension: /improvement:find."
 argument-hint: "[deepening|boundaries|conventions] [--repo <repo> ...] [--medium <value>] [--unattended]"
 user-invocable: true
 disable-model-invocation: false

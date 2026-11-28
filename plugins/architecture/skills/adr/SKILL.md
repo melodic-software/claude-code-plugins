@@ -1,5 +1,5 @@
 ---
-description: "Architecture decision records (ADR convention): record (retires reversed record on yes; if no convention, writes nothing until human picks a shape), audit unbacked records (read-only), prune accepted. Use for 'write an ADR', 'record this decision', 'prune our ADRs', why we chose X, reversing, design interview, current ADRs. Skip indices/migrations."
+description: "Architecture decision records: record (retires reversed record on yes; if no convention, writes nothing until human picks a shape), audit unbacked records (read-only), prune accepted. Use for 'write an ADR', 'record this decision', why we chose X, design interview, current ADRs. Skip if no alternative was weighed, or indices/migrations/status."
 argument-hint: "[record|audit|prune] [--repo <repo> ...] [decision and rationale, or a file holding them]"
 user-invocable: true
 disable-model-invocation: false

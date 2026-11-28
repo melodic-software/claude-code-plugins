@@ -1,5 +1,5 @@
 ---
-description: "Sequence diagram of one C# entry point, each hop citing a tracked call site (interface, service-locator, reflection hop unresolved; Publish/Send hand-off to map-events). Use for 'map flow', 'sequence diagram', 'trace this request', walk me through what happens, or dynamic endpoint diagram. Not for messages (map-events) or repos (map-landscape)."
+description: "Sequence diagram of one C# entry point, each hop citing a tracked call site (interface, service-locator, reflection hop unresolved; stops at Publish/Send). Use for 'map flow', 'sequence diagram', 'trace this request', walk me through what happens, or dynamic diagram. Not for messages (/architecture:map-events), repos (/architecture:map-landscape)."
 argument-hint: "<entry point> [--depth N] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false

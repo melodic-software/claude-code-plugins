@@ -1,5 +1,5 @@
 ---
-description: "C4 container diagram of a software system: deployables, stores and brokers their tracked configuration binds, and edges endpoints resolve to. Use for 'what actually runs', 'deployables and databases', 'modular monolith', or which services bind to which broker. Not for repos (map-landscape), one deployable (map-components), or environment topology."
+description: "C4 container diagram of a system: deployables, stores and brokers their tracked config binds, and resolved endpoint edges. Use for 'what actually runs', 'deployables and databases', 'modular monolith', or service-to-broker binding. Not for repos (/architecture:map-landscape), one deployable (/architecture:map-components), or environment topology."
 argument-hint: "[system] [--dialect likec4|c4-plantuml] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
