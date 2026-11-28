@@ -1,5 +1,5 @@
 ---
-description: "Proactive hunt for unobserved bugs in resting code: read-only, recall-biased hunter subagents per lens, then a fresh-context refute gate per candidate, reporting only verified five-field findings over a target path, feature or diff, or a rotated focus area. Use when the user asks to 'find a bug', 'bug hunt', 'scan for bugs' or 'hunt for bugs in X', or a loop or routine runs the focus area rotation. Skip when reviewing a diff (/review:code-review), security auditing (/review:security-review), root-causing an observed failure (/debugging:debug), or checking doc, config, code or architecture claim drift (/codebase-health:audit); 'scan repo for issues' is /harness-ops:known-issues, and 'file a bug' the user observed is /bugs:write."
+description: "Proactive read-only hunt checking resting code for unobserved bugs: recall hunters + candidate refute gate over a path, feature, diff, or focus area rotation (loop/routine; --track, --dry-run, --unattended). Use when: 'bug hunt', 'scan for bugs', 'find a bug'. Not for /bugs:write, /debugging:debug, or drift audits: /codebase-health:audit."
 argument-hint: "[<path|feature|diff>] [--area <name>] [--track] [--dry-run] [--unattended] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
