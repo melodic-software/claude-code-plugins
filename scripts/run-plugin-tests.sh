@@ -11,6 +11,8 @@ runner="$script_dir/${BASH_SOURCE[0]##*/}"
 . "$script_dir/lib/read-list.sh"
 # shellcheck source=lib/shard-spec.sh
 . "$script_dir/lib/shard-spec.sh"
+# shellcheck source=lib/suite-corpus.sh
+. "$script_dir/lib/suite-corpus.sh"
 SERIAL_LIST="${PLUGIN_TEST_SERIAL_LIST:-$script_dir/run-plugin-tests-serial.txt}"
 SECONDS_LIST="${PLUGIN_TEST_SECONDS_LIST:-$script_dir/suite-seconds.txt}"
 ADVISORY_LIST="${PLUGIN_TEST_ADVISORY_LIST:-$script_dir/run-plugin-tests-advisory.txt}"
@@ -182,10 +184,12 @@ else
   cd "$script_dir/.." || exit 1
 fi
 
-mapfile -t tests < <(find plugins .claude/hooks .github scripts lib -type f -name '*.test.sh' 2>/dev/null | sort)
+corpus="$(suite_corpus::shell)" || exit 2
+tests=()
+[[ -z "$corpus" ]] || mapfile -t tests <<<"$corpus"
 
 if [[ ${#tests[@]} -eq 0 ]]; then
-  echo "error: no test suites found under plugins/, .claude/hooks/, .github/, scripts/ or lib/ (*.test.sh)" >&2
+  echo "error: no test suites found (*.test.sh files git lists, tracked or untracked and not ignored)" >&2
   exit 2
 fi
 if ((list)); then

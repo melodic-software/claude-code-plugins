@@ -18,6 +18,7 @@ fixture_tree::build scratch --label run-plugin-tests
 make_root() {
   local r="$scratch/$1"
   mkdir -p "$r/plugins" "$r/.claude/hooks"
+  git_init_test_repo "$r" >/dev/null || return 1
   printf '%s' "$r"
 }
 
@@ -94,13 +95,23 @@ write_suite "$r" scripts/check-x.test.sh 'echo "ok: gate self-test"'
 write_suite "$r" scripts/lib/helper.test.sh 'echo "ok: scripts lib"'
 write_suite "$r" lib/shared.test.sh 'echo "ok: shared lib"'
 write_suite "$r" .github/scripts/x/y.test.sh 'echo "ok: github"'
-write_suite "$r" tools/elsewhere.test.sh 'echo "ok: never discovered"'
-PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "scripts/, lib/ and .github/ suites run with the corpus" --root "$r"
+write_suite "$r" tools/elsewhere.test.sh 'echo "ok: anywhere in the tree"'
+write_suite "$r" build/ignored.test.sh 'echo "FAIL: an ignored suite ran" >&2; exit 1'
+printf 'build/\n' >"$r/.gitignore"
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "every suite git lists runs with the corpus" --root "$r"
 assert_output_has "a scripts/ suite is discovered" "PASS: scripts/check-x.test.sh"
 assert_output_has "a scripts/lib/ suite is discovered" "PASS: scripts/lib/helper.test.sh"
 assert_output_has "a lib/ suite is discovered" "PASS: lib/shared.test.sh"
 assert_output_has "a .github/ suite is discovered" "PASS: .github/scripts/x/y.test.sh"
-assert_output_lacks "a suite outside the five roots is not discovered" "tools/elsewhere.test.sh"
+assert_output_has "a suite outside plugins/, .claude/hooks/, .github/, scripts/ and lib/ is discovered" "PASS: tools/elsewhere.test.sh"
+assert_output_lacks "a suite git ignores is not discovered" "build/ignored.test.sh"
+
+r="$scratch/not-a-repo"
+mkdir -p "$r/plugins/a"
+write_suite "$r" plugins/a/a.test.sh 'echo "ok: a"'
+GIT_CEILING_DIRECTORIES="$scratch" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
+  run_runner 2 "a root git cannot list is an error, not an empty corpus" --list --root "$r"
+assert_output_has "the failed listing is named" "suite-corpus: git ls-files failed"
 
 r="$(make_root fail)"
 write_suite "$r" plugins/a/a.test.sh 'echo "ok: a"'
@@ -418,7 +429,7 @@ printf 'plugins/b/b.test.sh\n' >"$serial_b"
 PLUGIN_TEST_SERIAL_LIST="$serial_b" run_runner 0 "--suites-from runs exactly the supplied selection" \
   --root "$r" --suites-from "$selection"
 assert_output_has "a listed suite runs" "PASS: plugins/a/a.test.sh"
-assert_output_has "a listed suite outside the discovered corpus runs" "PASS: tools/outside.test.sh"
+assert_output_has "a listed suite outside plugins/ runs" "PASS: tools/outside.test.sh"
 assert_output_lacks "an unlisted suite does not run" "=== plugins/b/b.test.sh ==="
 
 missing="$scratch/selection-missing.txt"

@@ -7,6 +7,8 @@ cd "$ROOT" || exit 2
 . scripts/lib/read-list.sh || exit 2
 # shellcheck source=lib/changed-files.sh
 . scripts/lib/changed-files.sh || exit 2
+# shellcheck source=lib/suite-corpus.sh
+. scripts/lib/suite-corpus.sh || exit 2
 
 SECONDS_LIST="scripts/suite-seconds.txt"
 WINDOWS_LIST="scripts/test-windows-plan.txt"
@@ -246,7 +248,8 @@ python_corpus() {
 }
 
 if ((whole)); then
-  bash scripts/run-plugin-tests.sh --list >"$WORK/bash" || die "listing the shell corpus failed"
+  suite_corpus::shell >"$WORK/bash" || die "listing the shell corpus failed"
+  [[ -s "$WORK/bash" ]] || die "the shell corpus is empty: git lists no *.test.sh file"
   python_corpus >"$WORK/python"
 else
   printf '%s\n' ${BASH_SET[@]+"${!BASH_SET[@]}"} | LC_ALL=C sort -u | grep . >"$WORK/bash"
