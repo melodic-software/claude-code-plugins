@@ -16,7 +16,6 @@ PENDING=(
   display-redaction
   fleet
   themes
-  toolchain
 )
 
 f=""
