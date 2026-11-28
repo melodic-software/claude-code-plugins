@@ -1,5 +1,5 @@
 ---
-description: "Read-only audit of a docs tree's file names against a configured casing rule: proposes a name per offender, classifies every reference to it, refuses case-only collisions, and writes the plan realign-file-names applies. Use when: 'audit file names', 'are our doc filenames consistent', 'plan a docs rename', 'which files break the naming rule', 'find every reference to this doc', 'rename the docs tree', 'lower-kebab the docs folder', 'what would a docs rename touch'. Renames nothing."
+description: "Read-only audit of a docs tree's file names against a casing/naming rule (lower-kebab): proposes names, classifies every reference, refuses case-only collisions, and writes a rename plan (renames nothing). Use when: 'audit file names', 'which files break the naming rule', 'plan a docs rename'. Not for applying: /docs-naming:realign-file-names."
 argument-hint: "[audit] [root ...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

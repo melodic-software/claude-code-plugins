@@ -16,14 +16,14 @@ verb skills, never skills of their own. Routing rules:
 
 | Area key | Tier | Intent (one line) | Doc entry pointer |
 |---|---|---|---|
-| `rulesets` | primary ([recipe](recipes/rulesets-repo-drift.md)) | Repo/org rulesets and repo-settings drift: protection rules, bypass lists, consistency across repos | <https://docs.github.com/en/repositories> |
+| `rulesets` | primary ([recipe](recipes/rulesets-repo-drift.md)) | Repo/org rulesets, immutable releases, and repo-settings drift: protection rules, bypass lists, release integrity, consistency across repos | <https://docs.github.com/en/repositories> |
 | `custom-properties` | standard | Org custom properties: schema, required values, repo classification | <https://docs.github.com/en/organizations> |
 | `billing` | primary ([recipe](recipes/billing.md)) | Billing and licensing: monitoring, budgets, alerts, usage, cost control | <https://docs.github.com/en/billing> |
 | `security-model` | standard | Organization security model: org/repo roles, member privileges, base permissions | <https://docs.github.com/en/organizations> |
 | `codespaces` | standard | Codespaces: org policies, machine types, spending, access | <https://docs.github.com/en/codespaces> |
 | `cloud-sandboxes` | standard | Cloud sandboxes for agents: availability, policy, spend (no stable docs hub, so resolve live via docs search; recheck when docs.github.com gains a cloud-sandboxes hub) | <https://docs.github.com/en/search> |
-| `projects-and-issues` | standard | Projects, issue types, issue fields, and templates: planning-surface configuration | <https://docs.github.com/en/issues> |
-| `actions` | primary ([recipe](recipes/actions-policy.md)) | Actions policy: allowed actions/workflows, runners, runner groups, custom images, caches, OIDC | <https://docs.github.com/en/actions> |
+| `projects-and-issues` | primary ([recipe](recipes/projects-and-issues.md)) | Projects, repository boards, native issue statuses, issue artifacts, issue links, issue types, fields, templates, and label archiving | <https://docs.github.com/en/issues> |
+| `actions` | primary ([recipe](recipes/actions-policy.md)) | Actions policy: allowed actions/workflows, action lockfiles, event policies, runners, runner groups, custom images, caches, retention, OIDC | <https://docs.github.com/en/actions> |
 | `webhooks` | standard | Webhooks: org/repo hooks, delivery health, secret hygiene, dead endpoints | <https://docs.github.com/en/webhooks> |
 | `discussions` | standard | Discussions: enablement, categories, moderation posture | <https://docs.github.com/en/discussions> |
 | `packages` | standard | Packages: registries, visibility, retention, access | <https://docs.github.com/en/packages> |

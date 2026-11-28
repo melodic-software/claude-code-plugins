@@ -3,6 +3,12 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0] - 2026-11-28
+
+### Added
+
+- Add the `peer_list_enabled` hook-enablement setting (default `false`) in `plugin.json`, `schemas/fleet.schema.json`, and `hooks/peer-list.mjs` via the shared in-process `lib/hook-enabled.mjs` helper so the SessionStart peer-list hook is opt-in and configurable per user or per repository.
+
 ## [0.6.2] - 2026-11-28
 
 ### Changed

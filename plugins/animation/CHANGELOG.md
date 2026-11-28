@@ -3,6 +3,14 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.1] - 2026-11-28
+
+### Changed
+
+- The shared hook library's physical-path cache answers a lookup in the order its paths were primed from the next slot, and rules out an uncached path with one string match, so a plugins sync read no longer rescans the cache for every catalog entry; results are unchanged.
+
+- Trimmed `animation` skill frontmatter descriptions to <=350 chars (`learn-style`: 452 -> 341 chars; `produce`: 439 -> 331 chars; `rotoscope`: 507 -> 347 chars; total 1,398 -> 1,019 chars, -379 chars) with zero body changes.
+
 ## [1.1.0] - 2026-11-27
 
 ### Added

@@ -4,6 +4,7 @@ import { readFileSync, realpathSync } from 'node:fs'
 import { homedir, hostname } from 'node:os'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { isHookEnabled } from '../lib/hook-enabled.mjs'
 
 let predicate = { sessionAttended: () => false, sessionExecPath: () => null }
 try {
@@ -513,6 +514,7 @@ function readStdin() {
  */
 async function main(argv) {
   const preview = argv.includes('--preview')
+  if (!preview && !isHookEnabled('fleet', 'peer_list_enabled', false)) return
   const at = argv.indexOf('--manifest')
   const payload = preview ? { cwd: process.cwd() } : JSON.parse(await readStdin())
   if (!isObject(payload)) return
