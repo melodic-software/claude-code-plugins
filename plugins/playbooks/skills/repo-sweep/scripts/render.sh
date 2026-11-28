@@ -95,10 +95,43 @@ awk -v tok="$token" -v jf="$tmp/json" '
   printf 'render.sh: template must hold exactly one %s: %s\n' "$token" "$template" >&2
   exit 1
 }
-if grep -q '<style>' "$tmp/page" && command -v node >/dev/null 2>&1; then
-  brand_args=()
-  [[ -n ${CLAUDE_PLUGIN_OPTION_BRANDING-} ]] && brand_args=(--option "$CLAUDE_PLUGIN_OPTION_BRANDING")
-  node "$dir/apply-branding.mjs" ${brand_args[@]+"${brand_args[@]}"} <"$tmp/page"
+tokens=$dir/../../../reference/html-tokens.css
+if grep -q '<style>' "$tmp/page"; then
+  if command -v node >/dev/null 2>&1; then
+    brand_args=()
+    [[ -n ${CLAUDE_PLUGIN_OPTION_BRANDING-} ]] && brand_args=(--branding-option "$CLAUDE_PLUGIN_OPTION_BRANDING")
+    node "$dir/apply-branding.mjs" ${brand_args[@]+"${brand_args[@]}"} <"$tmp/page"
+  elif [[ -f $tokens ]] && ! grep -q -- '--ivory:' "$tmp/page"; then
+    awk -v tf="$tokens" '
+      BEGIN {
+        in_c = 0; started = 0; css = ""
+        while ((getline l < tf) > 0) {
+          sub(/\r$/, "", l)
+          if (!started) {
+            if (in_c) {
+              if (match(l, /\*\//)) { l = substr(l, RSTART + 2); in_c = 0 } else continue
+            }
+            while (!in_c && match(l, /^[[:space:]]*\/\*/)) {
+              l = substr(l, RSTART + RLENGTH)
+              if (match(l, /\*\//)) { l = substr(l, RSTART + 2) } else { in_c = 1; l = "" }
+            }
+            if (in_c || l ~ /^[[:space:]]*$/) continue
+            started = 1
+          }
+          css = css l "\n"
+        }
+        close(tf)
+      }
+      !done && (i = index($0, "<style>")) > 0 {
+        print substr($0, 1, i + 6) "\n" css substr($0, i + 7)
+        done = 1
+        next
+      }
+      { print }
+    ' "$tmp/page"
+  else
+    cat "$tmp/page"
+  fi
 else
   cat "$tmp/page"
 fi

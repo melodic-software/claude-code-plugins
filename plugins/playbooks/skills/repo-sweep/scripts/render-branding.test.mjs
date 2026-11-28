@@ -1,12 +1,12 @@
 import { strict as assert } from "node:assert";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { resolveBranding } from "../../../lib/view-settings.mjs";
-import { applyBrandingToHtml } from "./apply-branding.mjs";
+import { applyBrandingToHtml, readConfiguredBranding } from "./apply-branding.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RENDER_SH = join(HERE, "render.sh");
@@ -37,14 +37,16 @@ function withTempRepo(fn) {
   }
 }
 
-function renderPage(root, { brandingOption = "" } = {}) {
+function renderPage(root, { brandingOption = "", configDir = join(root, "empty-claude-config"), pathOverride = null } = {}) {
   const recs = join(root, "recs.tsv");
   writeFileSync(recs, RECS_TSV);
   const env = {
     ...process.env,
     CLAUDE_PROJECT_DIR: root,
+    CLAUDE_CONFIG_DIR: configDir,
     CLAUDE_PLUGIN_OPTION_BRANDING: brandingOption,
   };
+  if (pathOverride !== null) env.PATH = pathOverride;
   return execFileSync("bash", [RENDER_SH, "--page", CATALOG, recs], { encoding: "utf8", env });
 }
 
@@ -199,4 +201,45 @@ test("theme toggle handler pins data-theme on light/dark and removes it on syste
   listeners[0]({ target: buttons[0] });
   assert.equal(attrs.has("data-theme"), false);
   assert.equal(buttons[0].getAttribute("aria-pressed"), "true");
+});
+
+test("reads userConfig.branding from Claude settings without CLAUDE_PLUGIN_OPTION_BRANDING", () => {
+  withTempRepo((root) => {
+    const configDir = join(root, "claude-config");
+    const cachedPluginRoot = join(configDir, "plugins", "cache", "test-mkt", "playbooks", "1.0.0");
+    mkdirSync(cachedPluginRoot, { recursive: true });
+    const configured = JSON.stringify({
+      palette: { light: { bg: "#FFFFFF", fg: "#101828", muted: "#595959" } },
+      type: { sans: "IBM Plex Sans, system-ui, sans-serif" },
+    });
+    writeFileSync(
+      join(configDir, "settings.json"),
+      JSON.stringify({ pluginConfigs: { "playbooks@test-mkt": { options: { branding: configured } } } }),
+    );
+    const cached = readConfiguredBranding({ pluginRoot: cachedPluginRoot, env: {}, managedFiles: [] });
+    assert.equal(cached.value, configured);
+    assert.deepEqual(cached.notices, []);
+
+    const html = renderPage(root, { configDir });
+    assert.match(html, /:root \{ --bg: #FFFFFF; --fg: #101828; --muted: #595959; --sans: IBM Plex Sans, system-ui, sans-serif; \}/);
+  });
+});
+
+test("render.sh without node on PATH still inlines stripped html-tokens.css", () => {
+  withTempRepo((root) => {
+    const binDir = join(root, "bin-no-node");
+    mkdirSync(binDir, { recursive: true });
+    for (const tool of ["bash", "awk", "jq", "sed", "tr", "mktemp", "basename", "dirname", "grep", "rm", "cat"]) {
+      const resolved = execFileSync("bash", ["-c", `command -v ${tool}`], { encoding: "utf8" }).trim();
+      symlinkSync(resolved, join(binDir, tool));
+    }
+    const html = renderPage(root, { pathOverride: binDir });
+    assert.match(html, /--ivory:\s*#FAF9F5;/);
+    assert.match(html, /--bg:\s*var\(--ivory\);/);
+    assert.match(html, /--fg:\s*var\(--slate\);/);
+    assert.match(html, /\[data-theme=dark\]/);
+    assert.doesNotMatch(html, /GENERATED/);
+    assert.doesNotMatch(html, /Provenance:/);
+    assert.match(html, /data-rv-theme="dark"/);
+  });
 });

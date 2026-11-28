@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { buildChartStyle } from "../render-theme.mjs";
+import { buildChartStyle, readConfiguredBranding } from "../render-theme.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCRIPT_PATH = join(HERE, "../render-theme.mjs");
@@ -86,9 +86,39 @@ test("CLI render-theme.mjs drops below-floor contrast overrides and reports noti
       join(root, "docs/conventions/rendered-views.yaml"),
       ["branding:", "  palette:", "    light:", '      bg: "#FAF9F5"', '      fg: "#EAE8E1"', ""].join("\n"),
     );
-    const run = spawnSync("node", [SCRIPT_PATH, "--project-root", root], { encoding: "utf8" });
+    const run = spawnSync("node", [SCRIPT_PATH, "--project-root", root], {
+      encoding: "utf8",
+      env: { ...process.env, CLAUDE_CONFIG_DIR: join(root, "empty-claude-config"), CLAUDE_PLUGIN_OPTION_BRANDING: "" },
+    });
     assert.equal(run.status, 0);
     assert.doesNotMatch(run.stdout, /--fg:\s*#EAE8E1/i);
     assert.match(run.stderr, /notice:.*light fg:.*4\.5/);
+  });
+});
+
+test("CLI render-theme.mjs reads userConfig.branding from Claude settings without env var or --option", () => {
+  withTempRepo((root) => {
+    const configDir = join(root, "claude-config");
+    const cachedPluginRoot = join(configDir, "plugins", "cache", "test-mkt", "formal-verification", "1.0.0");
+    mkdirSync(cachedPluginRoot, { recursive: true });
+    const configured = JSON.stringify({
+      palette: { light: { bg: "#FFFFFF", fg: "#101828", muted: "#595959" } },
+      type: { sans: "IBM Plex Sans, system-ui, sans-serif" },
+    });
+    writeFileSync(
+      join(configDir, "settings.json"),
+      JSON.stringify({ pluginConfigs: { "formal-verification@test-mkt": { options: { branding: configured } } } }),
+    );
+    const cached = readConfiguredBranding({ pluginRoot: cachedPluginRoot, env: {}, managedFiles: [] });
+    assert.equal(cached.value, configured);
+    assert.deepEqual(cached.notices, []);
+
+    const run = spawnSync("node", [SCRIPT_PATH, "--project-root", root], {
+      encoding: "utf8",
+      env: { ...process.env, CLAUDE_CONFIG_DIR: configDir, CLAUDE_PLUGIN_OPTION_BRANDING: "" },
+    });
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(run.stderr, "");
+    assert.match(run.stdout, /:root \{ --bg: #FFFFFF; --fg: #101828; --muted: #595959; --sans: IBM Plex Sans, system-ui, sans-serif; \}/);
   });
 });
