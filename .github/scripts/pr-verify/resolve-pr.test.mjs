@@ -1031,11 +1031,11 @@ test("a run that is not a passing pr-require-checks pull_request run of this rep
 });
 
 const HOLD_FILES = ["plugins/x/scripts/risk.py"];
-const PATH_HOLD = holds("", [], HOLD_FILES, ["plugins/x/**"])[0];
-const COST = holds("", [], ["infra/main.tf"], [])[0];
-const BODY = holds("Hold: wait", [], [], [])[0];
+const PATH_HOLD = holds(HOLD_FILES, ["plugins/x/**"])[0];
+const COST = holds(["infra/main.tf"], [])[0];
+const BASE_BODY_HOLD = "its body holds it (a line opening with 'Hold:', or 'do not merge'); removing that text lifts it";
 const LIFT = "; an approving review of this head by a person on the trusted-actor list lifts it, and the approval carries over later merges that bring only the base's changes; then re-run ci-status";
-const COST_NAMED = holds("", [], [`infra/x${LIFT}.tf`], [])[0];
+const COST_NAMED = holds([`infra/x${LIFT}.tf`], [])[0];
 const OLD_WORDING = "#41: it changes plugins/x/scripts/risk.py, a hold path; an approving review of this head by a person on the trusted-actor list lifts it, and the approval carries over later merges of the base that leave its net change the same; then re-run ci-status.";
 const CI_STEPS = [
   ["Set up job", "success"],
@@ -1090,7 +1090,7 @@ test("a run that failed on anything but a hold an approval lifts starts nothing"
     "a cost hold whose path carries the lift clause": [logOf(COST_NAMED)],
     "a hold path and a cost hold whose path carries the lift clause": [logOf(PATH_HOLD, COST_NAMED)],
     "a line with text after the lift clause": [logOf(`${PATH_HOLD} and more`)],
-    "a body hold": [logOf(BODY)],
+    "a body hold an older base merge-holds.mjs writes": [logOf(BASE_BODY_HOLD)],
     "another pull request's hold": [logOf(`#42: ${PATH_HOLD}.`)],
     "no hold logged": [logOf()],
     "a second failed step's exit": [`${logOf(PATH_HOLD)}\n2026-10-28T16:21:46.0000000Z ##[error]Process completed with exit code 1.`],

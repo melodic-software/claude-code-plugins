@@ -3098,6 +3098,34 @@ else
   fail "physical_builtin: $PB_OUT"
 fi
 
+PC="$(mktemp -d)"
+mkdir -p "$PC/a" "$PC/b" "$PC/c" "$PC/d"
+# shellcheck disable=SC2016  # the child's script is literal, expanded by the child
+PC_OUT=$(bash -c '
+  source "$1"
+  PC=$2
+  hook::_physical_prime "$PC/a" "$PC/b" "$PC/c"
+  for p in a b c c a b b d d a; do
+    v=""
+    hook::_physical_cached_to v "$PC/$p" || echo "rc on $p"
+    [[ "$v" == "$(realpath -- "$PC/$p")" ]] || echo "wrong value for $p: $v"
+  done
+  ((${#_HOOK_PHYS_KEYS[@]} == 4)) || echo "cached ${#_HOOK_PHYS_KEYS[@]} keys for 4 paths"
+  hook::_phys_cache_forget "$PC/b"
+  hook::_phys_cache_index "$PC/b" && echo "forgotten key still indexed"
+  hook::_physical_cached_to v "$PC/b"
+  [[ "$v" == "$(realpath -- "$PC/b")" ]] || echo "wrong value after forget: $v"
+  _HOOK_PHYS_KEYS=() _HOOK_PHYS_VALS=() _HOOK_PHYS_RCS=()
+  hook::_phys_cache_index "$PC/a" && echo "hit after reset"
+  echo pc-ok
+' _ "$HOOK_DIR/hook-utils.sh" "$PC")
+rm -rf "$PC"
+if [[ "$PC_OUT" == pc-ok ]]; then
+  ok "phys cache: in-order, out-of-order, repeat, forget and reset lookups return the right slot"
+else
+  fail "phys cache: $PC_OUT"
+fi
+
 repo_root_resolved() {
   local hint="$1"
   probe_lib hook::repo_root HOOK_REPO_ROOT_UNRESOLVED "$hint"

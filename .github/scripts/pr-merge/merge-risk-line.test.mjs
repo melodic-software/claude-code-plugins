@@ -51,13 +51,9 @@ test("the unrated line names its reason, and only a reason from the closed set",
   assert.throws(() => unratedLine("do not merge"), InvalidRating);
 });
 
-test("no line or marker comment the builder writes trips a hold or a committer row", async () => {
-  const { BODY_HOLD, HUMAN_VETO, LANE_HOLD } = await import("./merge-holds.mjs");
+test("no line or marker comment the builder writes trips a committer row", async () => {
   const lines = [ratedLine(rating({ max: "CRITICAL", demote: true })), ...REASONS.map(unratedLine)];
   for (const line of [...lines, ...lines.flatMap((text) => [markerBody(HEAD, text), markerBody(HEAD, text, { lane: "work-resolve-issue", run: "43643331000" })])]) {
-    assert.equal(BODY_HOLD.test(line), false, line);
-    assert.equal(HUMAN_VETO.test(line), false, line);
-    assert.equal(LANE_HOLD.test(line), false, line);
     assert.equal(/(^|\s)committer /.test(line), false, line);
   }
 });
@@ -452,6 +448,6 @@ test("ci-status's sparse hold config holds every module clear-escalations.mjs lo
   visit(join(root, ".github/scripts/pr-merge/clear-escalations.mjs"));
   const missing = [...seen].filter((path) => !sparse.has(`/${path}`));
   assert.deepEqual(missing, []);
-  assert.ok(seen.has(".github/scripts/pr-merge/enable-auto-merge.mjs"));
+  assert.ok(seen.has(".github/scripts/pr-merge/verifier.mjs"));
   assert.ok(!seen.has(".github/scripts/pr-merge/merge-risk-line.mjs"));
 });

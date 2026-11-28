@@ -113,7 +113,6 @@ FIXTURES: list[tuple[str, dict[str, Any], str, Any]] = [
     ("conflicting", fixtures._pr(mergeable="CONFLICTING"), HEAD, None),
     ("blocked", fixtures._pr(mergeStateStatus="BLOCKED"), HEAD, None),
     ("changes requested", fixtures._pr(reviewDecision="CHANGES_REQUESTED"), HEAD, None),
-    ("body hold", fixtures._pr(body="Do not merge yet"), HEAD, None),
     ("hold label", fixtures._pr(labels=[{"name": "do-not-merge"}]), HEAD, None),
     (
         "dependency author",
@@ -383,11 +382,9 @@ def _comment(
     }
 
 
-class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
-    """The pr-merge lane enqueues with no person present, so a person whose
-    newest comment with text says "do not merge" (`HUMAN_MERGE_VETO_RE` only)
-    holds it before the enqueue, until a later comment of theirs. A bare "wait
-    for CI" or a blocking word such as "regression" holds nothing."""
+class PrMergeHoldsOnTheLabelNotOnComments(unittest.TestCase):
+    """The pr-merge lane holds on the `do-not-merge` label: a person's
+    comment, review or inline comment saying "do not merge" holds nothing."""
 
     PR_MERGE = policy.UnattendedPolicy(
         None,
@@ -396,223 +393,52 @@ class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
         promoted=True,
         inputs={"authority": policy.PR_MERGE},
     )
-    LOCAL = policy.UnattendedPolicy(
-        None,
-        IDENTITY,
-        enabled=True,
-        promoted=True,
-        inputs={"authority": policy.LOCAL_BABYSIT},
-    )
 
-    def _vetoes(self, result: dict[str, Any]) -> list[str]:
-        return [
-            b
-            for b in result["blockers"]
-            if "human blocking comment" in b or "human merge veto" in b
-        ]
-
-    def test_a_human_do_not_merge_comment_holds(self) -> None:
-        result = _evaluate(
-            fixtures._pr(),
-            HEAD,
-            None,
-            self.PR_MERGE,
-            issue_comments=[_comment("maintainer", "Please don't merge this yet.")],
-        )
-        self.assertFalse(result["ready"])
-        self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
-        self.assertIn("maintainer", self._vetoes(result)[0])
-
-    def test_a_human_inline_veto_holds(self) -> None:
-        inline = {
-            "user": {"login": "maintainer", "type": "User"},
-            "author_association": "MEMBER",
-            "body": "Do not merge: this is a regression.",
+    def test_a_members_do_not_merge_text_holds_nothing_but_the_label_does(
+        self,
+    ) -> None:
+        review = {
+            "author": {"login": "maintainer"},
+            "authorAssociation": "MEMBER",
+            "body": "Do not merge yet.",
+            "state": "COMMENTED",
+            "submittedAt": "2026-10-12T10:01:00Z",
+            "commit": {"oid": HEAD},
         }
-        result = _evaluate(
-            fixtures._pr(), HEAD, None, self.PR_MERGE, review_comments=[inline]
-        )
-        self.assertFalse(result["ready"])
-        self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
-
-    def test_naming_the_do_not_merge_label_holds_nothing(self) -> None:
-        for body in (
-            "Apply the `do-not-merge` label before writing any explanation.",
-            "Removed the do-not-merge label; the hold reason is gone.",
-        ):
-            with self.subTest(body):
-                result = _evaluate(
-                    fixtures._pr(),
-                    HEAD,
-                    None,
-                    self.PR_MERGE,
-                    issue_comments=[_comment("maintainer", body)],
-                )
-                self.assertEqual(self._vetoes(result), [], result["blockers"])
-
-    def test_a_do_not_merge_veto_still_holds(self) -> None:
-        for body in (
-            "do-not-merge: waiting on #10954",
-            "Not ready, do-not-merge until Friday.",
-            "The checks are failing, do-not-merge until they pass.",
-            "`do-not-merge` label please",
-            "Hold on, do-not-merge, I'm still reviewing.",
-            "Every hold stays: ci-status, gitleaks, do-not-merge, cost holds.",
-        ):
-            with self.subTest(body):
-                result = _evaluate(
-                    fixtures._pr(),
-                    HEAD,
-                    None,
-                    self.PR_MERGE,
-                    issue_comments=[_comment("maintainer", body)],
-                )
-                self.assertFalse(result["ready"])
-                self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
-
-    def test_a_bare_wait_holds_nothing(self) -> None:
-        result = _evaluate(
-            fixtures._pr(),
-            HEAD,
-            None,
-            self.PR_MERGE,
-            issue_comments=[_comment("maintainer", "Wait for CI, then it can go.")],
-        )
-        self.assertEqual(result["blockers"], [])
-
-    def test_blocking_words_without_a_veto_hold_nothing(self) -> None:
-        for body in (
-            "Fixed the regression you flagged.",
-            "Pushed a fix, this is no longer blocking.",
-        ):
-            with self.subTest(body):
-                result = _evaluate(
-                    fixtures._pr(),
-                    HEAD,
-                    None,
-                    self.PR_MERGE,
-                    issue_comments=[_comment("maintainer", body)],
-                )
-                self.assertEqual(result["blockers"], [])
-
-    def test_a_later_comment_from_the_same_person_lifts_the_veto(self) -> None:
-        veto = _comment(
-            "maintainer",
-            "Do not merge until the release is cut.",
-            at="2026-10-12T10:00:00Z",
-        )
-        lifted = _comment(
-            "maintainer", "Release is out, go ahead.", at="2026-10-12T11:00:00Z"
-        )
-        result = _evaluate(
-            fixtures._pr(), HEAD, None, self.PR_MERGE, issue_comments=[veto, lifted]
-        )
-        self.assertEqual(result["blockers"], [])
-
-    def test_an_empty_review_after_the_veto_does_not_lift_it(self) -> None:
-        def empty_review(state: str) -> dict[str, Any]:
-            return {
-                "author": {"login": "maintainer"},
-                "authorAssociation": "MEMBER",
-                "body": "",
-                "state": state,
-                "submittedAt": "2026-10-12T10:01:00Z",
-                "commit": {"oid": HEAD},
-            }
-
         inline = {
             "user": {"login": "maintainer", "type": "User"},
             "author_association": "COLLABORATOR",
-            "body": "Do not merge until X.",
+            "body": "Do not merge: this is a regression.",
             "created_at": "2026-10-12T10:00:00Z",
         }
         cases = {
-            "inline veto, empty review summary": {
-                "review_comments": [inline],
-                "reviews": [empty_review("COMMENTED")],
+            "issue comment": {
+                "issue_comments": [
+                    _comment("maintainer", "Please don't merge this yet.")
+                ]
             },
-            "issue-comment veto, approve with no text": {
-                "issue_comments": [_comment("maintainer", "Do not merge yet.")],
-                "reviews": [empty_review("APPROVED")],
+            "do-not-merge word": {
+                "issue_comments": [_comment("maintainer", "do-not-merge: waiting")]
             },
+            "review summary": {"reviews": [review]},
+            "inline comment": {"review_comments": [inline]},
         }
         for name, kwargs in cases.items():
             with self.subTest(name):
                 result = _evaluate(fixtures._pr(), HEAD, None, self.PR_MERGE, **kwargs)
-                self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
-
-    def test_only_owner_member_or_collaborator_can_veto(self) -> None:
-        for association, holds in (
-            ("NONE", False),
-            ("CONTRIBUTOR", False),
-            ("FIRST_TIME_CONTRIBUTOR", False),
-            ("", False),
-            ("MEMBER", True),
-            ("OWNER", True),
-            ("COLLABORATOR", True),
-        ):
-            with self.subTest(association):
-                veto = _comment("someone", "Do not merge.", association=association)
-                inline = {
-                    "user": {"login": "someone", "type": "User"},
-                    "author_association": association,
-                    "body": "Do not merge.",
-                    "created_at": "2026-10-12T10:00:00Z",
-                }
-                for kwargs in (
-                    {"issue_comments": [veto]},
-                    {"review_comments": [inline]},
-                ):
-                    result = _evaluate(
-                        fixtures._pr(), HEAD, None, self.PR_MERGE, **kwargs
-                    )
-                    self.assertEqual(
-                        len(self._vetoes(result)), int(holds), result["blockers"]
-                    )
-
-    def test_another_persons_later_comment_does_not_lift_it(self) -> None:
-        veto = _comment("maintainer", "Do not merge yet.", at="2026-10-12T10:00:00Z")
-        other = _comment("someone", "Looks good to me.", at="2026-10-12T11:00:00Z")
-        result = _evaluate(
-            fixtures._pr(), HEAD, None, self.PR_MERGE, issue_comments=[veto, other]
-        )
-        self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
-        self.assertIn("maintainer", self._vetoes(result)[0])
-
-    def test_a_bot_or_the_lane_identity_holds_nothing(self) -> None:
-        for comment in (
-            _comment("reviewer[bot]", "Do not merge: blocking regression.", bot=True),
-            _comment(IDENTITY, "Do not merge until the queue drains."),
-        ):
-            with self.subTest(comment["author"]["login"]):
-                result = _evaluate(
-                    fixtures._pr(),
+                self.assertEqual(result["blockers"], [])
+                labeled = _evaluate(
+                    fixtures._pr(labels=[{"name": "do-not-merge"}]),
                     HEAD,
                     None,
                     self.PR_MERGE,
-                    issue_comments=[comment],
+                    **kwargs,
                 )
-                self.assertEqual(result["blockers"], [])
-
-    def test_another_authority_does_not_scan(self) -> None:
-        result = _evaluate(
-            fixtures._pr(),
-            HEAD,
-            None,
-            self.LOCAL,
-            issue_comments=[_comment("maintainer", "Do not merge.")],
-        )
-        self.assertEqual(result["blockers"], [])
-
-    def test_the_tier_scan_is_not_repeated(self) -> None:
-        result = _evaluate(
-            fixtures._pr(),
-            HEAD,
-            fixtures.TIER,
-            self.PR_MERGE,
-            issue_comments=[_comment("maintainer", "Do not merge.")],
-        )
-        self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
+                self.assertFalse(labeled["ready"])
+                self.assertTrue(
+                    any("'do-not-merge' label" in b for b in labeled["blockers"]),
+                    labeled["blockers"],
+                )
 
 
 class EvaluateWithoutPolicyIsUnchanged(unittest.TestCase):
@@ -1423,7 +1249,7 @@ class LaneMode(Unattended):
                     [f"<!-- babysit-merge-pin sha={HEAD} rung={expected} -->"],
                 )
 
-    def test_a_human_do_not_merge_comment_holds_the_enqueue(self) -> None:
+    def test_a_do_not_merge_comment_holds_nothing_but_the_label_does(self) -> None:
         self.comments = [
             {
                 "id": 93,
@@ -1434,9 +1260,14 @@ class LaneMode(Unattended):
             }
         ]
         code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertTrue(out["enqueued"])
+        self.log = []
+        self.pr_view = fixtures._pr(labels=[{"name": "do-not-merge"}])
+        code, out = self.lane()
         self.assert_no_merge(code)
         self.assertTrue(
-            any("human merge veto from maintainer" in b for b in out["blockers"]),
+            any("'do-not-merge' label" in b for b in out["blockers"]),
             out["blockers"],
         )
         self.assertNotIn(f"enqueue:{HEAD}:merge_queue", self.log)
@@ -1782,21 +1613,21 @@ class DependabotLane(Unattended):
         self.assert_no_merge(code)
         self.assertEqual(out["unattended"]["reason"], f"ineligible:{reason}")
 
-    def test_the_hold_label_or_a_body_hold_refuses(self) -> None:
-        for view in (
-            fixtures._pr(
-                author={"login": "app/dependabot"}, labels=[{"name": "do-not-merge"}]
-            ),
-            fixtures._pr(
-                author={"login": "app/dependabot"}, body="Hold: a human merges this"
-            ),
-        ):
-            with self.subTest(view=view.get("labels") or view.get("body")):
-                self.log = []
-                self.pr_view = view
-                code, out = self.lane()
-                self.assert_no_merge(code)
-                self.assertFalse(out["ready"])
+    def test_the_hold_label_refuses_and_body_hold_text_does_not(self) -> None:
+        body = "Hold: a human merges this"
+        self.pr_view = fixtures._pr(
+            author={"login": "app/dependabot"},
+            labels=[{"name": "do-not-merge"}],
+            body=body,
+        )
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertFalse(out["ready"])
+        self.log = []
+        self.pr_view = fixtures._pr(author={"login": "app/dependabot"}, body=body)
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertTrue(out["ready"], out["blockers"])
 
     def test_a_hold_comment_before_the_enqueue_refuses(self) -> None:
         self.dependabot_reads = [

@@ -1,0 +1,32 @@
+{
+  "skill": "playbooks:fable-5",
+  "plugin": "playbooks",
+  "skill_dir": "plugins/playbooks/skills/fable-5",
+  "ranking_note": "Backfilled probe set for playbooks:fable-5 (Fable 5.2 operating doctrine and per-model adaptation chapters). playbooks:update sets disable-model-invocation: true and does not compete.",
+  "competitors": [
+    "playbooks:boris",
+    "playbooks:skill-authoring"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "arm this session with Fable's operating doctrine before we tackle this refactor"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "load the Fable 5.2 playbook for calibration and verification discipline"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "pull up the adaptation chapter for Opus 5.5 so we calibrate for this model"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "operate like Fable on this debugging and planning session"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "open the Sonnet 5.5 model delta chapter to adapt our prompts"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "load the doctrine chapters for trust boundaries and recovery"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "arm this session with Fable's per-model adaptation rules before multi-step engineering"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "load the full Fable playbook for an autonomous engineering run"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "show the model adaptation chapter for Haiku 5.5"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "bring in Fable's standing reasoning and problem-framing doctrine"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "what does Boris Cherny say about running parallel Claude worktrees"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "what are the 9 skill types in Anthropic's skill authoring guide"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "plan a hygiene sweep PR across this repository"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "what is the current API price per million tokens for Sonnet"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "check whether the vendored boris pack drifted from upstream"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "write unit tests for the payment retry handler"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "show me Boris's tips on CLAUDE.md and custom hooks"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "how should I write a SKILL.md gotchas section and progressive disclosure"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "audit our Claude API client's current model IDs and spend"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "run the next unticked hygiene step on this repo"}
+  ]
+}

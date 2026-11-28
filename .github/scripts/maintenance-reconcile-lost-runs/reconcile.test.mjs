@@ -1407,7 +1407,10 @@ test("a newer failed checks run leaves out a lost verify run, which it starts ag
 
 test("pr-verify and pr-review-main still start on the checks conclusions LANE_TRIGGERS names", () => {
   for (const [lanePath, conclusions] of LANE_TRIGGERS) {
-    const workflow = readFileSync(new URL(`../../../${lanePath}`, import.meta.url), "utf8");
+    const text = readFileSync(new URL(`../../../${lanePath}`, import.meta.url), "utf8");
+    const concurrency = /^concurrency:\n(?: .*\n)+/m.exec(text)?.[0] ?? "";
+    assert.match(concurrency, /github\.event\.workflow_run\.conclusion == 'cancelled'/, `${lanePath} routes a cancelled upstream's run out of the head's group`);
+    const workflow = text.replace(concurrency, "");
     const tests = [...workflow.matchAll(/github\.event\.workflow_run\.conclusion == '([a-z_]+)'/g)].map((m) => m[1]);
     assert.ok(tests.length > 0, `${lanePath} tests the upstream conclusion`);
     assert.deepEqual([...new Set(tests)].sort(), [...conclusions].sort(), lanePath);

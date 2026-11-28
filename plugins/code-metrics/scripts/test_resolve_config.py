@@ -383,15 +383,15 @@ class DiscoveredLayerTests(unittest.TestCase):
             home = Path(tmp) / "home"
             root = Path(tmp) / "repo"
             (home / ".claude" / "ecosystems").mkdir(parents=True)
+            (home / "cfg").mkdir(parents=True)
             (root / ".claude" / "ecosystems").mkdir(parents=True)
             (root / "docs" / "conventions").mkdir(parents=True)
-            (home / ".claude" / "code-metrics.yaml").write_text(
-                "size:\n  file_lines: 700\n", encoding="utf-8"
-            )
+            user_cfg = home / "cfg" / "code-metrics.yaml"
+            user_cfg.write_text("size:\n  file_lines: 700\n", encoding="utf-8")
             (root / "docs" / "conventions" / "code-metrics.yaml").write_text(
                 "complexity:\n  cyclomatic:\n    reference: 12\n", encoding="utf-8"
             )
-            (root / ".claude" / "code-metrics.local.yaml").write_text(
+            (root / "docs" / "conventions" / "code-metrics.local.yaml").write_text(
                 "size:\n  file_lines: 650\n", encoding="utf-8"
             )
             ecosystems = root / ".claude" / "ecosystems"
@@ -405,7 +405,14 @@ class DiscoveredLayerTests(unittest.TestCase):
             (ecosystems / (golang + ".local.yaml")).write_text(
                 "enabled: false\n", encoding="utf-8"
             )
-            result = run("--home", str(home), "--repo-root", str(root))
+            result = run(
+                "--home",
+                str(home),
+                "--repo-root",
+                str(root),
+                "--user-file",
+                str(user_cfg),
+            )
             self.assertEqual(result.returncode, 0, result.stderr)
             d = json.loads(result.stdout)
             self.assertEqual(d["size"]["file_lines"], 650)
@@ -644,65 +651,27 @@ class DiscoveredLayerTests(unittest.TestCase):
             self.assertEqual(d["_files"], [paths["new"].as_posix()])
             self.assertEqual(err, "")
 
-    def test_an_old_personal_file_alone_applies_with_a_warning(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            d, err, paths = self._personal(tmp, None, "size:\n  file_lines: 620\n", None)
-            self.assertEqual(
-                d["_provenance"]["size.file_lines"], {"value": 620, "layer": "local"}
-            )
-            warnings = [w for w in d["_warnings"] if str(paths["old"]) in w]
-            self.assertEqual(len(warnings), 1, d["_warnings"])
-            self.assertIn(str(paths["new"]), warnings[0])
-            self.assertEqual(err.count(str(paths["old"])), 1)
-
-    def test_with_both_personal_files_the_new_one_wins_and_both_are_named(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            d, _, paths = self._personal(
-                tmp, "size:\n  file_lines: 610\n", "size:\n  file_lines: 620\n", None
-            )
-            self.assertEqual(d["size"]["file_lines"], 610)
-            self.assertNotIn(paths["old"].as_posix(), d["_files"])
-            self.assertTrue(
-                any(
-                    str(paths["old"]) in w and str(paths["new"]) in w
-                    for w in d["_warnings"]
-                ),
-                d["_warnings"],
-            )
-
-    def test_an_unparsable_new_personal_file_leaves_the_old_one_applied(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            d, _, paths = self._personal(
-                tmp, "size: { file_lines: 610 }\n", "size:\n  file_lines: 620\n", None
-            )
-            self.assertEqual(d["size"]["file_lines"], 620)
-            self.assertTrue(
-                any(
-                    str(paths["old"]) in w and "outside the YAML subset" in w
-                    for w in d["_warnings"]
-                ),
-                d["_warnings"],
-            )
-
-    def test_an_old_user_global_file_alone_applies_as_userconfig_with_a_warning(
-        self,
-    ) -> None:
+    def test_old_personal_and_user_global_files_are_not_read(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             d, err, paths = self._personal(
-                tmp, None, None, "size:\n  file_lines: 700\n  mode: iso-8.2.115\n"
+                tmp,
+                None,
+                "size:\n  file_lines: 620\n",
+                "size:\n  file_lines: 700\n  mode: iso-8.2.115\n",
             )
             self.assertEqual(
                 d["_provenance"]["size.file_lines"],
-                {"value": 700, "layer": "userConfig"},
+                {"value": 1000, "layer": "bundled default"},
             )
-            warnings = [w for w in d["_warnings"] if str(paths["user"]) in w]
-            self.assertEqual(len(warnings), 1, d["_warnings"])
-            self.assertIn("still read as the userConfig layer", warnings[0])
-            self.assertIn(
-                "the file the config_file userConfig option names", warnings[0]
+            self.assertEqual(
+                d["_provenance"]["size.mode"],
+                {"value": "file-lines", "layer": "bundled default"},
             )
-            self.assertNotIn(str(paths["new"]), warnings[0])
-            self.assertEqual(err.count(str(paths["user"])), 1)
+            self.assertEqual(d["_files"], [])
+            self.assertEqual(d["_warnings"], [])
+            self.assertEqual(err, "")
+            self.assertNotIn(paths["old"].as_posix(), d["_files"])
+            self.assertNotIn(paths["user"].as_posix(), d["_files"])
 
     def test_the_userconfig_layer_reads_the_file_the_option_names(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -738,50 +707,6 @@ class DiscoveredLayerTests(unittest.TestCase):
                 d["_provenance"]["size.mode"],
                 {"value": "iso-8.2.115", "layer": "userConfig"},
             )
-
-    def test_the_option_names_a_missing_file_so_the_old_file_applies(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            d, _, paths = self._personal(
-                tmp,
-                None,
-                None,
-                "size:\n  file_lines: 700\n",
-                None,
-                "~/cfg/code-metrics.yaml",
-            )
-            self.assertEqual(
-                d["_provenance"]["size.file_lines"],
-                {"value": 700, "layer": "userConfig"},
-            )
-            warnings = [w for w in d["_warnings"] if str(paths["user"]) in w]
-            self.assertEqual(len(warnings), 1, d["_warnings"])
-            self.assertIn(f"move it to {paths['config_file']}", warnings[0])
-
-    def test_with_both_user_files_the_option_file_wins_and_both_are_named(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            d, err, paths = self._personal(
-                tmp,
-                None,
-                None,
-                "size:\n  file_lines: 700\n  mode: iso-8.2.115\n",
-                "size:\n  file_lines: 710\n",
-                str(Path(tmp) / "home" / "cfg" / "code-metrics.yaml"),
-            )
-            self.assertEqual(
-                d["_provenance"]["size.file_lines"],
-                {"value": 710, "layer": "userConfig"},
-            )
-            self.assertEqual(
-                d["_provenance"]["size.mode"],
-                {"value": "file-lines", "layer": "bundled default"},
-            )
-            self.assertNotIn(paths["user"].as_posix(), d["_files"])
-            warnings = [w for w in d["_warnings"] if str(paths["user"]) in w]
-            self.assertEqual(len(warnings), 1, d["_warnings"])
-            self.assertIn(
-                f"is not read because {paths['config_file']} exists", warnings[0]
-            )
-            self.assertEqual(err.count(str(paths["user"])), 1)
 
     def test_an_unset_or_relative_option_supplies_no_userconfig_file(self) -> None:
         for option, warned in (

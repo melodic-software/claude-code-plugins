@@ -5,6 +5,15 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [21.0.0] - 2026-11-27
+
+Major. The Cross-lane PR hold narrows to one mechanism; no topology, escalation-contract mechanism
+or capability-tier changed.
+
+- **One hold.** The `do-not-merge` label is the only cross-lane PR hold. A body hold line, a
+  "do not merge" phrase and a member's veto comment hold nothing; a lane that needs a hold labels
+  the pull request, at creation where it opens one.
+
 ## [20.5.0] - 2026-11-24
 
 Minor. Additive guidance; no topology, escalation-contract mechanism, capability-tier or §4

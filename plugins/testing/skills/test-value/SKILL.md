@@ -1,5 +1,5 @@
 ---
-description: "What makes a test worth keeping: where each expected value must come from, when call-count and database checks are legitimate, and the can't-fail and change-detector taxonomy keyed to /testing:audit rule ids. Use when writing, reviewing or fixing tests, or asking 'is this test worth keeping', 'where should the expected value come from', 'is this test tautological', 'should I assert this mock call'."
+description: "Reference on what makes a test worth keeping: expected-value provenance, legitimate call-count and database checks, and the can't-fail/change-detector taxonomy keyed to /testing:audit rule ids. Use when writing/reviewing tests or asking 'is this test worth keeping', 'is this test tautological', or 'should I assert this mock call'."
 user-invocable: false
 disable-model-invocation: false
 metadata:

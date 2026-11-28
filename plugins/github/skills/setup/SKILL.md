@@ -1,5 +1,5 @@
 ---
-description: "Verify the github plugin's prerequisites (gh CLI present and authenticated, credential-modality picture, consumer config layers) and write the consumer's .claude/github/ config (change routing + conventions stub). Actions: check (report-only) and apply (idempotent, interview-driven)."
+description: "Verify gh CLI prerequisites and auth scope (check, read-only) or write .claude/github/ routing and conventions config (apply)."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true

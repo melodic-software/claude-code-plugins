@@ -3,6 +3,12 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.8] - 2026-11-28
+
+### Changed
+
+- Trimmed `context7` skill frontmatter description (`lookup`: 491 -> 347 chars, -144 chars) with zero body changes; the exclusion names `ctx7`/MCP setup so third-party CLI and SDK config questions still route to lookup.
+
 ## [1.1.7] - 2026-11-28
 
 ### Changed

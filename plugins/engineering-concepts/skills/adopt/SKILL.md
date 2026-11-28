@@ -1,5 +1,5 @@
 ---
-description: "Adopts chosen shipped engineering concepts into a personal or team standards file: each concept as a line with its id and official source, and the file's index row, written only after an explicit yes. Use when asked to adopt a concept or a topic's concepts as a standard, or to make them load in every design, plan and review. Not for a one-off question: /engineering-concepts:lookup; not for this session only: /engineering-concepts:load."
+description: "Adopt chosen shipped engineering concepts (id, official source, index row) into a personal or team standards file, written only after an explicit yes. Use when: 'adopt a concept as a standard', 'make concepts load in every review'. Not for one-off queries: /engineering-concepts:lookup; not for this session: /engineering-concepts:load."
 argument-hint: "<topic|concept...> [personal|team]"
 user-invocable: true
 disable-model-invocation: false

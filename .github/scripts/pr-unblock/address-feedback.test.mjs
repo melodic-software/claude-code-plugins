@@ -2246,13 +2246,13 @@ test("on an adopted owner PR an untaken thread skips with no stop; elsewhere it 
   assert.equal((await run(fakeApi({ ...threads, opener: HUMAN }))).escalationReason, "feedback-untaken-threads", "an owner PR with no adoption section");
 });
 
-test("on an adopted owner PR a Hold: body line added after dispatch skips awaiting-human before any thread is kept", async () => {
+test("on an adopted owner PR a do-not-merge label added after dispatch skips awaiting-human before any thread is kept; body text holds nothing", async () => {
   const adoption = { ownerIds: new Set([HUMAN]), idleHours: 4 };
   const adopted = (api) => select({ api, pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]), adoption });
-  const held = await adopted(fakeApi({ opener: HUMAN, body: "Closes #1\r\n  HOLD: still on this" }));
+  const held = await adopted(fakeApi({ opener: HUMAN, body: "Closes #1", labels: ["do-not-merge"] }));
   assert.deepEqual(held, { decision: "skip", skipReason: "awaiting-human", threads: [] });
-  assert.equal((await adopted(fakeApi({ opener: HUMAN, body: "Closes #1\n\nNo hold here." }))).decision, "proceed", "an owner PR with no Hold: line");
-  assert.equal((await adopted(fakeApi({ body: "Closes #1\n\nHold: a human merges this" }))).decision, "proceed", "a lanes App PR's Hold: line");
+  assert.equal((await adopted(fakeApi({ opener: HUMAN, body: "Closes #1\r\n  HOLD: still on this" }))).decision, "proceed", "an owner PR's body hold phrase");
+  assert.equal((await adopted(fakeApi({ body: "Closes #1\n\nHold: a human merges this" }))).decision, "proceed", "a lanes App PR's hold line");
 });
 
 test("on an adopted owner PR a lane escalation's needs-human lets the round work only as fix-ci's prHold does", async () => {

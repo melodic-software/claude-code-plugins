@@ -1,5 +1,5 @@
 ---
-description: "Drawing-by-drawing copy of a reference animation clip: decode it into distinct drawings, trace each to vector paths, render them through the ink.js brush engine, measure each against its source, and fit brush overrides until every drawing passes. Use when: 'rotoscope this', 'trace this clip', 'copy this animation one to one', 'replicate this video exactly', 'match the reference frame by frame', 'measure the replica against the source'. Not for an original film or a style study without a reference clip."
+description: "Copy a reference animation clip drawing by drawing: decode drawings, trace vectors, render via ink.js, measure replica against source, fit overrides. Use when asked to replicate or match a video frame by frame: 'rotoscope this', 'trace this clip', 'copy this animation one to one'. Not for films: /animation:produce; style: /animation:learn-style."
 argument-hint: "<reference video> <work dir>"
 user-invocable: true
 disable-model-invocation: false
