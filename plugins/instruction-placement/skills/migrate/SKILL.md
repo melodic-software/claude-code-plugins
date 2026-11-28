@@ -321,9 +321,9 @@ Root and nested shims come out **together**, since a root `CLAUDE.md` decides wh
 `AGENTS.md` is read ([when Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md)):
 removing one without the other leaves files that review as correct and load nothing.
 
-**The nested canary runs from the nested directory, and its line has to be unique.** A session
-started there loads that directory's `AGENTS.md` and every ancestor's, measured on 2.1.278 with no
-tools available: running from the directory is itself the trigger, so no Read is needed. It also
+**The nested canary runs from the nested directory, and its line has to be unique.** Running from
+that directory loads its `AGENTS.md` and every ancestor's (probe record:
+[`reference/sources.md`](reference/sources.md), "The nested write trigger"), so no Read is needed. It also
 means a line the nested file shares with the root file is answered by the **root** file, so the
 nested surface would pass while loading nothing of its own. The canary line is therefore the longest
 plain line **contained in** no line of any other `AGENTS.md` that loads beside it, ancestors above

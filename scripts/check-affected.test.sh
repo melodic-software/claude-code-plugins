@@ -20,7 +20,7 @@ patterns_lib=plugins/guardrails/lib/path-detection/machine-path-patterns.sh
 mkdir -p "$repo/${patterns_lib%/*}"
 cp "$SELF_DIR/../$patterns_lib" "$repo/$patterns_lib"
 for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests \
-  check-spoke-plugin-root check-as-of-recheck check-cost-figures check-cross-plugin-source-drift check-plugin-imports check-changelog-parity check-changed-skills \
+  check-spoke-plugin-root check-as-of-recheck check-cost-figures check-cross-plugin-source-drift check-plugin-imports check-token-literals check-changelog-parity check-changed-skills \
   check-comment-hygiene setup-env; do
   var="STUB_$(printf '%s' "$s" | tr 'a-z-' 'A-Z_')"
   printf '#!/usr/bin/env bash\necho "%s ran: $*" >&2\nexit "${%s:-0}"\n' "$s" "$var" >"$repo/scripts/$s.sh"
@@ -249,6 +249,12 @@ check "a comment-hygiene that could not fetch its patterns is a skip, not a fail
   '[[ $RC == 0 && $ERR == *"SKIP comment-hygiene (could not run, exit 2"* ]]'
 run STUB_CHECK_SPOKE_PLUGIN_ROOT=1 -- --base base
 check "a failing spoke-plugin-root fails the check" '[[ $RC == 1 && $ERR == *"FAIL spoke-plugin-root"* ]]'
+run STUB_CHECK_TOKEN_LITERALS=1 -- --base base
+check "a failing token-literals fails the check" '[[ $RC == 1 && $ERR == *"FAIL token-literals"* ]]'
+ahead_sha="$(git_test_config "$repo" commit-tree "base^{tree}" -p base -m "base moved on")"
+run STUB_CHECK_TOKEN_LITERALS=1 -- --base "$ahead_sha"
+check "token-literals compares growth against the merge-base, not a base tip the branch is behind" \
+  '[[ $ERR == *"check-token-literals ran: --base $base_sha"* ]]'
 run STUB_SYNC_PLUGIN_OPTIONS_DOCS=1 -- --base base
 check "a failing plugin-options-docs fails the check" '[[ $RC == 1 && $ERR == *"FAIL plugin-options-docs"* ]]'
 run STUB_CHECK_CHANGELOG_PARITY=1 -- --base base
@@ -623,7 +629,7 @@ mkdir -p "$tools/scripts/lib"
 cp "$SELF_DIR/check-affected.sh" "$tools/scripts/"
 cp "$SELF_DIR/lib/markdownlint-config-data.mjs" "$tools/scripts/lib/"
 for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests \
-  check-spoke-plugin-root check-as-of-recheck check-cost-figures check-cross-plugin-source-drift check-plugin-imports check-changelog-parity check-changed-skills \
+  check-spoke-plugin-root check-as-of-recheck check-cost-figures check-cross-plugin-source-drift check-plugin-imports check-token-literals check-changelog-parity check-changed-skills \
   check-comment-hygiene; do
   printf '#!/usr/bin/env bash\necho "copy of %s read $CHECK_DATA_ROOT" >&2\nexit "${COPY_STUB_RC:-1}"\n' "$s" >"$tools/scripts/$s.sh"
 done
@@ -643,6 +649,8 @@ check "a copy run elsewhere runs its own comment-hygiene against the checked tre
   '[[ $ERR == *"copy of check-comment-hygiene read $repo"* && $ERR != *"check-comment-hygiene ran"* ]]'
 check "a copy run elsewhere points plugin-imports at the checked tree" \
   '[[ $ERR == *"copy of check-plugin-imports read $repo"* && $ERR != *"check-plugin-imports ran"* ]]'
+check "a copy run elsewhere points token-literals at the checked tree" \
+  '[[ $ERR == *"copy of check-token-literals read $repo"* && $ERR != *"check-token-literals ran"* ]]'
 check "a copy run elsewhere runs its own size check in the checked tree" \
   '[[ $ERR == *"copy of audit-size read "*"$repo"* && $ERR != *"audit-size ran"* ]]'
 check "a copy run elsewhere skips the checked tree's tests" \

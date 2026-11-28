@@ -1,5 +1,5 @@
 ---
-description: "Evaluate raw intake, any untriaged item whoever filed it (bug reports, feature requests, unsolicited PRs, dogfood issues): raw, verified, briefed, autonomous-eligible, with exits to needs-info, human-gated, close. Use when: 'triage', 'what needs triage', 'triage this issue', 'triage this PR', 'evaluate this bug report', 'is this bug real', 'should we merge this unsolicited PR', 'attention view', 'what intake needs attention', 'sweep needs-human'. No number: the attention view. Escalations: /work-items:attend-queue."
+description: "Evaluate raw intake (untriaged bugs, requests, unsolicited PRs, dogfood issues): raw, verified, briefed, autonomous-eligible, or exit to needs-info/human-gated/close; bare shows attention view; sweep audits needs-human. Use when: 'triage this issue', 'triage this PR', 'what needs triage'. Not for escalations: /work-items:attend-queue."
 argument-hint: "[sweep] [--config-ref <ref>] [<number>]"
 user-invocable: true
 disable-model-invocation: false

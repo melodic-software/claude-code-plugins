@@ -3,6 +3,12 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1] - 2026-11-28
+
+### Changed
+
+- Fixed a missing space in the setup skill's config-file list (no behavior change).
+
 ## [0.6.0] - 2026-11-28
 
 ### Added

@@ -1,5 +1,5 @@
 ---
-description: "Read-only report of the five DORA delivery metrics (deployment frequency, change lead time, change fail rate, failed deployment recovery time, deployment rework rate) as a team trend from the default branch's history, never per person. Use when: 'measure delivery', 'DORA metrics', 'deployment frequency', 'change lead time', 'change fail rate', 'how fast do we ship', 'delivery trend'. Backlog counts are /work-items:track stats."
+description: "Read-only report of the five DORA delivery metrics (deployment frequency, change lead time, change fail rate, failed deployment recovery time, rework rate) as a team trend from default-branch history, never per person. Use when: 'measure delivery', 'DORA metrics', 'how fast do we ship'. Not for backlog counts: /work-items:track stats."
 argument-hint: "[--since YYYY-MM-DD] [--until YYYY-MM-DD] [--bucket week|month] [--branch <ref>] [--merge-risk]"
 user-invocable: true
 disable-model-invocation: false
