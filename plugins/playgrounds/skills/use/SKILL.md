@@ -1,5 +1,5 @@
 ---
-description: "Invoke Anthropic's upstream playground plugin for interactive HTML explorers (controls balancing parameters, prompt to paste back), or emit install commands and tips; this wrapper generates nothing. Use when: 'make me a playground', 'interactive explorer for X', 'install the playground plugin'. Not for UI mockups: /prototype:explore-directions."
+description: "Invoke Anthropic's upstream playground plugin for interactive HTML explorers (controls balancing parameters, prompt to paste back), or emit install commands; this wrapper generates nothing. Use when: 'make me a playground', 'interactive explorer for X', 'install the playground plugin'. Not for UI mockups: /prototype:explore-directions. Not for conversation visuals: /visualization:visualize."
 argument-hint: "[what to explore]"
 user-invocable: true
 disable-model-invocation: false
