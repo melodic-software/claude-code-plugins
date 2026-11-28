@@ -1,5 +1,5 @@
 ---
-description: "Read-only progressive-disclosure audit of agent-facing instruction markdown: grades each file against always-loaded, invocation-loaded, and on-demand tiers and flags split and disclosure defects. Use when: 'progressive disclosure', 'split this file', 'this file is too long', 'too much context', 'mixed concerns', 'hub and spoke', 'is my CLAUDE.md too big', 'audit context loading', 'what should always be loaded'. In-page noise is /docs-hygiene:audit-noise; frontmatter QA is /skill-quality:check."
+description: "Read-only progressive-disclosure audit of agent instruction doc/markdown: grades file and audits context loading across always-loaded, invocation-loaded, on-demand tiers (what should always be loaded); flags split, hub-and-spoke, disclosure defect. Use when 'progressive disclosure', 'split this file', 'too much context', too long, CLAUDE.md."
 argument-hint: "[audit] [target] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
