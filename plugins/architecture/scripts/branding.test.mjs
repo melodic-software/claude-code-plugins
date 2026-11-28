@@ -277,6 +277,12 @@ describe("architecture branded page builds", () => {
       const smuggledComment = deepHtml.replace("</body>", "<!-- <style> --><b>ok</b></style> --></body>");
       assert.equal(validateDeepeningPage(smuggledComment).ok, false);
 
+      const abruptComment = deepHtml.replace("</body>", "<!--><img src=x onerror=alert(1)>--></body>");
+      assert.equal(validateDeepeningPage(abruptComment).ok, false);
+
+      const bangCloseComment = deepHtml.replace("</body>", "<!-- a --!><img src=x onerror=alert(1)> --></body>");
+      assert.equal(validateDeepeningPage(bangCloseComment).ok, false);
+
       const badXmlns = deepHtml.replace('xmlns="http://www.w3.org/2000/svg"', 'xmlns="http://evil.example/svg"');
       assert.equal(validateDeepeningPage(badXmlns).ok, false);
     } finally {

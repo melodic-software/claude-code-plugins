@@ -632,7 +632,7 @@ export function validateDeepeningPage(html) {
     rest = rest.replace(script, "");
   }
   if (/<script|<\/script/i.test(rest)) failures.push("script-extra");
-  rest = rest.replace(/<!--[\s\S]*?-->/g, "");
+  if (rest.includes("<!--")) failures.push("comment");
   const styles = [...rest.matchAll(/<style\b[^>]*>([\s\S]*?)(?:<\/style[\s/>]|$)/gi)];
   if (styles.length !== 1 || styleRefused(styles[0][1]) || styles[0][1].includes("<")) failures.push("style");
   rest = rest.replace(/<style>[\s\S]*?<\/style>/, "");
