@@ -39,13 +39,13 @@ mkdir -p "$STUB_DIR"
 printf '#!/usr/bin/env bash\ncat %q\n' "$TEST_TMPDIR/pr.json" >"$STUB_DIR/gh"
 chmod +x "$STUB_DIR/gh"
 holds() {
-  jq -n --arg b "$1" '{title: "feat: x", body: $b, labels: [], closingIssuesReferences: []}' >"$TEST_TMPDIR/pr.json"
+  jq -n --arg b "$1" --arg t "${2:-feat: x}" '{title: $t, body: $b, labels: [], closingIssuesReferences: []}' >"$TEST_TMPDIR/pr.json"
   PATH="$STUB_DIR:$PATH" bash "$HOLDS" 7 >/dev/null 2>&1
 }
 holds "$(build --reason "don't merge, do not merge" --step verify)"
 assert_exit "a reason naming the hold phrase holds nothing" 0 "$?"
-holds "Do not merge yet."
-assert_exit "the hold phrase itself, unsanitized, holds" 3 "$?"
+holds "$(build --reason "don't merge, do not merge" --step verify)" "WIP: x"
+assert_exit "the same body beside a WIP title holds, so the check ran" 3 "$?"
 
 check_usage() {
   local label="$1" out code

@@ -543,7 +543,6 @@ class Toggle(unittest.TestCase):
             "already a draft": (pr_state(draft=True), "already-draft"),
             "do-not-merge": (pr_state(labels=("ci", "do-not-merge")), "hold-label"),
             "pr-verify-failed": (pr_state(labels=("pr-verify-failed",)), "hold-label"),
-            "a body hold": (pr_state(body="Wait.\nHold: owner review"), "body-hold"),
             "labels past the read": (pr_state(total=101), "hold-state-unread"),
             "no answer": ({"data": {"node": None}}, "hold-state-unread"),
             "a failed read": ("not json", "hold-state-unread"),
@@ -553,6 +552,18 @@ class Toggle(unittest.TestCase):
                 out, writes = self.run_toggle([], state)
                 self.assertEqual(out, {"toggled": False, "skipped": skipped})
                 self.assertEqual(writes, [])
+
+    def test_body_hold_text_alone_is_no_hold(self) -> None:
+        body = "Wait.\nHold: owner review. Do not merge."
+        self.assertEqual(
+            self.run_toggle([0, 0], pr_state(body=body)),
+            ({"toggled": True}, ["draft", "ready"]),
+        )
+        out, writes = self.run_toggle(
+            [], pr_state(labels=("do-not-merge",), body=body)
+        )
+        self.assertEqual(out, {"toggled": False, "skipped": "hold-label"})
+        self.assertEqual(writes, [])
 
     def test_draft_then_ready(self) -> None:
         self.assertEqual(

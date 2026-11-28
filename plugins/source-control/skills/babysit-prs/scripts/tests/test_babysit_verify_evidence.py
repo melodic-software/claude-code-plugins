@@ -4111,7 +4111,7 @@ class RunArtifactsGitHub(FakeGitHub):
         of_run = re.fullmatch(
             rf"repos/{REPO}/actions/runs/([0-9]+)/artifacts\?per_page=100", path
         )
-        if of_run:
+        if of_run and not any(k in path for k in self.fail):
             held = [
                 a for a in self.artifacts if a["workflow_run"]["id"] == int(of_run[1])
             ]
@@ -4133,8 +4133,8 @@ class OneRunSharesARunsFinalArtifacts(unittest.TestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        path = str(pathlib.Path(tmp.name, "run.json"))
-        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path})
+        self.path = pathlib.Path(tmp.name, "run.json")
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": str(self.path)})
         patcher.start()
         self.addCleanup(patcher.stop)
         self.fake = RunArtifactsGitHub(
@@ -4226,6 +4226,50 @@ class OneRunSharesARunsFinalArtifacts(unittest.TestCase):
                 self.process(self.DONE)
         self.assertEqual(self.reads(self.FAILED), (2, 0))
         self.assertEqual(self.reads(self.DONE), (4, 2))
+
+    def stored(self) -> dict[str, Any]:
+        """The run-artifacts entries the run cache file holds."""
+        if not self.path.exists():
+            return {}
+        return json.loads(self.path.read_text()).get(ve.RUN_ARTIFACTS_SECTION, {})
+
+    def test_a_stored_set_of_another_shape_is_read_again(self) -> None:
+        fail = named(HEAD, "fail", 90)
+        listed = artifact(fail, self.FAILED)
+        for label, value in (
+            ("an object", {"artifacts": [listed]}),
+            ("a string", fail),
+            ("an entry with no id", [{"name": fail, "expired": False}]),
+            ("an entry with a non-boolean expired", [listed | {"expired": "no"}]),
+            ("an entry with an unzoned time", [listed | {"created_at": "2026-10-01"}]),
+        ):
+            with self.subTest(label):
+                self.fake.calls.clear()
+                ve.run_cache.put(
+                    ve.RUN_ARTIFACTS_SECTION, f"{REPO}|{self.FAILED}", value
+                )
+                self.assertIn(fail, self.process(self.FAILED))
+                self.assertEqual(self.reads(self.FAILED), (1, 0), "listed again")
+
+    def test_a_stored_set_without_a_fail_is_read_again(self) -> None:
+        index = artifact(f"{ve.INDEX_PREFIX}pr-90", self.FAILED) | {"id": 31}
+        ve.run_cache.put(ve.RUN_ARTIFACTS_SECTION, f"{REPO}|{self.FAILED}", [index])
+        self.assertIn(named(HEAD, "fail", 90), self.process(self.FAILED))
+        self.assertEqual(self.reads(self.FAILED), (1, 0), "listed again")
+
+    def test_a_failed_listing_stores_nothing(self) -> None:
+        self.fake.fail = {f"runs/{self.FAILED}/artifacts"}
+        for status in (403, 502):
+            with self.subTest(status):
+                self.fake.fail_status = status
+                with self.assertRaises(ve._Unreadable):
+                    self.process(self.FAILED)
+                self.assertEqual(self.stored(), {}, "nothing stored")
+        self.fake.fail = set()
+        self.process(self.FAILED)
+        self.assertEqual(
+            list(self.stored()), [f"{REPO}|{self.FAILED}"], "a read stores"
+        )
 
 
 class ACarriedHeadServesOnlyAFail(unittest.TestCase):
@@ -6603,7 +6647,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
                 )
 
     def test_a_hold_the_gate_reads_on_the_pull_request_closes_nothing(self) -> None:
-        for hold in ("body-hold", "human-blocking-comment:kyle-sexton", "unreadable"):
+        for hold in ("do-not-merge", "needs-human", "unreadable"):
             with self.subTest(hold):
                 self.verdicts[unattended.PR] = evidence("verify:repeated-fail")
                 self.holds[unattended.PR] = hold
@@ -8697,6 +8741,178 @@ class AFailJudgedFromADraftRunCountsAsNone(unittest.TestCase):
                 self.assertEqual(read(fake).refusal, "verify:fail")
 
 
+class OneRunSharesADraftJudgmentReadWhole(unittest.TestCase):
+    """Two gate processes of one pr-merge run judging the same FAIL at the
+    head: the second lists no checks runs, reads no jobs and no verifier run
+    when the first judged it from whole reads. A judgment cut short by a
+    failed read is judged again by the next process, and with no run cache
+    named every process reads as before."""
+
+    def setUp(self) -> None:
+        self.dir = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(mock.patch.dict(os.environ, {}))
+        self.runs = 0
+
+    def new_run(self) -> None:
+        self.runs += 1
+        os.environ[run_cache.ENV] = str(self.dir / f"run-{self.runs}.json")
+
+    @staticmethod
+    def reads(fake: FakeGitHub) -> tuple[int, int, int]:
+        joined = [" ".join(c) for c in fake.calls]
+        return (
+            sum("/pr-require-checks.yml/runs?head_sha=" in c for c in joined),
+            sum("/jobs?filter=latest" in c for c in joined),
+            sum(c.endswith(f"repos/{REPO}/actions/runs/2") for c in joined),
+        )
+
+    def two_processes(
+        self, fake: FakeGitHub, refusal: str | None
+    ) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+        self.assertEqual(read(fake).refusal, refusal, "first process")
+        first = self.reads(fake)
+        fake.calls.clear()
+        self.assertEqual(read(fake).refusal, refusal, "second process")
+        return first, self.reads(fake)
+
+    def test_a_draft_judgment_is_read_once_per_run(self) -> None:
+        fail_at = AFailJudgedFromADraftRunCountsAsNone.fail_at
+        for label, jobs, refusal in (
+            ("judged a draft", DRAFT_JOBS, None),
+            ("judged a ready run", READY_JOBS, "verify:fail"),
+        ):
+            with self.subTest(label):
+                self.new_run()
+                fake = draft_race(fail_at(HEAD), HEAD, jobs)
+                first, second = self.two_processes(fake, refusal)
+                self.assertEqual(first, (1, 1, 1), "first process reads")
+                self.assertEqual(second, (0, 0, 0), "second process reads")
+
+    def test_a_judgment_cut_short_is_judged_again(self) -> None:
+        fail_at = AFailJudgedFromADraftRunCountsAsNone.fail_at
+        def listed_short(fake: FakeGitHub) -> None:
+            fake.checks_total[HEAD] = 3
+
+        def verifier_creation_unreadable(fake: FakeGitHub) -> None:
+            fake.runs[2]["created_at"] = "not a time"
+
+        def checks_creation_unreadable(fake: FakeGitHub) -> None:
+            fake.checks_runs[HEAD].append(
+                {"id": 41273000002, "created_at": "not a time"}
+            )
+
+        def checks_id_not_an_integer(fake: FakeGitHub) -> None:
+            fake.checks_runs[HEAD].append(
+                {"id": "41273000003", "created_at": "2026-11-01T04:25:00Z"}
+            )
+
+        def unchanged(fake: FakeGitHub) -> None:
+            pass
+
+        cases = [
+            (label, jobs, unchanged) for label, jobs in UNREADABLE_DRAFT_STATE.items()
+        ]
+        cases += [
+            (change.__name__, DRAFT_JOBS, change)
+            for change in (
+                listed_short,
+                verifier_creation_unreadable,
+                checks_creation_unreadable,
+                checks_id_not_an_integer,
+            )
+        ]
+        for label, jobs, change in cases:
+            with self.subTest(label):
+                self.new_run()
+                fake = draft_race(fail_at(HEAD), HEAD, jobs)
+                change(fake)
+                first, second = self.two_processes(fake, "verify:fail")
+                self.assertEqual(second[0], 1, "second process lists again")
+                self.assertEqual(second[:2], first[:2], "jobs read again")
+
+    def test_with_no_run_cache_every_process_reads(self) -> None:
+        os.environ.pop(run_cache.ENV, None)
+        fail_at = AFailJudgedFromADraftRunCountsAsNone.fail_at
+        fake = draft_race(fail_at(HEAD), HEAD)
+        first, second = self.two_processes(fake, None)
+        self.assertEqual(first, (1, 1, 1), "first process reads")
+        self.assertEqual(second, (1, 1, 1), "second process reads")
+
+
+class AStoredDraftJudgmentServesOnlyItsHeadAndRun(unittest.TestCase):
+    """A draft judgment one gate process stored answers another process only
+    for the same head and verifier run; a stored value that is not a boolean
+    is judged again, and a judgment a failed read cut short is not stored."""
+
+    LATER = 3
+
+    def setUp(self) -> None:
+        self.path = pathlib.Path(
+            self.enterContext(tempfile.TemporaryDirectory()), "run.json"
+        )
+        self.enterContext(mock.patch.dict(os.environ, {run_cache.ENV: str(self.path)}))
+        self.fake = draft_race(
+            FakeGitHub(
+                [],
+                {
+                    2: judged(2, FAIL_JUDGED),
+                    self.LATER: judged(self.LATER, "2026-11-01T04:27:00Z"),
+                },
+            ),
+            HEAD,
+        )
+        self.fake.checks_runs[EARLIER] = [
+            {"id": 41273000009, "created_at": "2026-11-01T04:25:00Z"}
+        ]
+        self.fake.jobs[41273000009] = READY_JOBS
+
+    def process(self, sha: str, run_id: int) -> bool:
+        """One gate process's reader judging the FAIL run `run_id` left at `sha`."""
+        with mock.patch.object(postmerge, "gh_capture", side_effect=self.fake):
+            return ve.Reader(REPO, "main", now=NOW)._draft_judged(sha, run_id)
+
+    def listings(self, sha: str) -> int:
+        return sum(f"head_sha={sha}&" in " ".join(c) for c in self.fake.calls)
+
+    def stored(self) -> dict[str, Any]:
+        if not self.path.exists():
+            return {}
+        return json.loads(self.path.read_text()).get(ve.DRAFT_JUDGMENT_SECTION, {})
+
+    def test_another_run_or_head_is_judged_by_its_own_reads(self) -> None:
+        self.assertIs(self.process(HEAD, 2), True, "run 2 judged a draft at HEAD")
+        self.fake.calls.clear()
+        self.assertIs(self.process(HEAD, 2), True, "same head and run: shared")
+        self.assertEqual(self.listings(HEAD), 0, "shared with no listing")
+        self.assertIs(self.process(HEAD, self.LATER), False, "a later run at HEAD")
+        self.assertEqual(self.listings(HEAD), 1, "another run lists its own")
+        self.assertIs(self.process(EARLIER, 2), False, "run 2 at another head")
+        self.assertEqual(self.listings(EARLIER), 1, "another head lists its own")
+
+    def test_a_stored_value_that_is_not_a_boolean_is_judged_again(self) -> None:
+        for value in (1, 0, "true", "false", None, [True], {"judged": True}):
+            with self.subTest(value=value):
+                self.fake.calls.clear()
+                run_cache.put(
+                    ve.DRAFT_JUDGMENT_SECTION, f"{REPO}|{HEAD}|{self.LATER}", value
+                )
+                self.assertIs(self.process(HEAD, self.LATER), False)
+                self.assertEqual(self.listings(HEAD), 1, "judged again")
+
+    def test_a_failed_listing_stores_nothing(self) -> None:
+        self.fake.fail = {"pr-require-checks.yml/runs"}
+        for status in (403, 502):
+            with self.subTest(status):
+                self.fake.fail_status = status
+                self.assertIs(self.process(HEAD, 2), False, "the FAIL counts")
+                self.assertEqual(self.stored(), {}, "nothing stored")
+        self.fake.fail = set()
+        self.assertIs(self.process(HEAD, 2), True)
+        self.assertEqual(
+            self.stored(), {f"{REPO}|{HEAD}|2": {"at": mock.ANY, "value": True}}
+        )
+
+
 class EvidenceCommandTakesWhatTheQueueJobHolds(unittest.TestCase):
     """ci-status's merge-queue step runs `evidence --base-sha` with the
     default branch from the event (`merge_policy.DEFAULT_BRANCH_ENV`) and the
@@ -8870,6 +9086,26 @@ class TheTrustedListMustBeTheJudgedOne(unittest.TestCase):
             self.refusal(LIST_V1, copy=None, changed="2026-10-20T00:00:00Z"), ve.SPEC_CHANGED
         )
         self.assertEqual(self.refusal(LIST_V1, copy=None, changed=RUN_STARTED), ve.SPEC_CHANGED)
+
+    def test_a_copy_the_tip_checkout_lacks_reads_no_contents_for_it(self) -> None:
+        copy_reads = (
+            f"repos/{REPO}/contents/{ve.TRUSTED_ACTORS_PATH}?ref={MAIN_SHA}",
+            f"repos/{REPO}/contents?ref={MAIN_SHA}",
+        )
+        for lacks, expected_reads in ((True, []), (False, list(copy_reads))):
+            with self.subTest(lacks=lacks):
+                fake = passing()
+                fake.records[named(HEAD, "pass")] = record()
+                fake.team_yaml, fake.actors, fake.standards_actors = OPTED_IN, None, LIST_V1
+                fake.standards_list_changed = "2026-10-20T00:00:00Z"
+                with (
+                    mock.patch.object(policy, "_STANDARDS_SHA", {}),
+                    mock.patch.object(policy, "_STANDARDS_TEXT", {}),
+                    mock.patch.object(policy, "checkout_lacks", return_value=lacks),
+                ):
+                    self.assertEqual(read(fake).refusal, ve.SPEC_CHANGED)
+                reads = [c[-1] for c in fake.calls if c[-1] in copy_reads]
+                self.assertEqual(reads, expected_reads)
 
     def test_a_repository_that_does_not_opt_in_compares_no_blob(self) -> None:
         stale = ve.git_blob(json.dumps(LIST_V2).encode())

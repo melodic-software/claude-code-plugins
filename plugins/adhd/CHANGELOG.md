@@ -3,6 +3,12 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.4] - 2026-11-28
+
+### Changed
+
+- Trimmed `adhd` skill frontmatter descriptions to <=350 chars (`clarify`: 627 -> 346 chars; `shape`: 618 -> 347 chars; total 1,245 -> 693 chars, -552 chars) with zero body changes.
+
 ## [1.0.3] - 2026-11-28
 
 ### Changed

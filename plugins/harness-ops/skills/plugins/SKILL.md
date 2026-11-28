@@ -1,5 +1,5 @@
 ---
-description: "Bring a machine's plugin fleet current on demand: marketplace refresh, update the plugins that actually load (including in-repo project/local-scope installs), install new catalog plugins per policy, detect scope divergence, and surface (never silently fix) drift, with a terse actionable report; refuses to downgrade by default. Actions: sync (default, mutating), converge (explicit scope consolidation); the read-only dry run is /harness-ops:plugins-audit. Use when: 'sync plugins', 'update my plugins', 'converge plugin scopes'."
+description: "Sync (mutating default) or converge installed plugins and marketplaces, surfacing scope drift without silent downgrades."
 argument-hint: "[sync|converge] [<marketplace>|all] [--allow-downgrade] [--update-other-paths]"
 user-invocable: true
 disable-model-invocation: true

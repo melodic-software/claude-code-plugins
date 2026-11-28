@@ -723,11 +723,11 @@ pr-unblock's elements 3 and 4 script row is kept on evidence; nothing in it is l
 The two `etag` rows are kept as not worth doing:
 
 - **pr-require-checks, element 6: the review wait.** It reads each review run still going once a
-  poll, `REVIEW_WAIT_SECONDS / REVIEW_POLL_SECONDS` = 480 / 60 = 8 polls at most per lane, and at
-  most two lanes wait, so a `ci-status` run sends at most 16 such reads
+  poll, `REVIEW_WAIT_SECONDS / REVIEW_POLL_SECONDS` = 900 / 60 = 15 polls at most per lane, and at
+  most two lanes wait, so a `ci-status` run sends at most 30 such reads
   ([`.github/workflows/pr-require-checks.yml`:7323](https://github.com/melodic-software/claude-code-plugins/blob/d4d5c4939c10ecc0939b76f9d4346762293ab2bf/.github/workflows/pr-require-checks.yml#L7323), [`:7337`](https://github.com/melodic-software/claude-code-plugins/blob/d4d5c4939c10ecc0939b76f9d4346762293ab2bf/.github/workflows/pr-require-checks.yml#L7337)). There were 586 `pull_request` runs of
   the workflow in the 24 hours to 2026-11-06T12:00Z, about 24 an hour, and a label or edit run
-  waits 0 s ([`:7005`](https://github.com/melodic-software/claude-code-plugins/blob/d4d5c4939c10ecc0939b76f9d4346762293ab2bf/.github/workflows/pr-require-checks.yml#L7005)). If every run waited the whole cap, that is about 390 reads an hour; how
+  waits 0 s ([`:7005`](https://github.com/melodic-software/claude-code-plugins/blob/d4d5c4939c10ecc0939b76f9d4346762293ab2bf/.github/workflows/pr-require-checks.yml#L7005)). If every run waited the whole cap, that is about 720 reads an hour; how
   many runs wait, and for how long, is UNVERIFIED.
   GitHub counts a `304` answer to an authorized conditional request against no primary rate limit
   ([best practices](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api):

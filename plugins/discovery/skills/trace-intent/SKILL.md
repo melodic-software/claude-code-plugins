@@ -1,5 +1,5 @@
 ---
-description: "Reconstruct WHY something was built the way it was from evidence outside the code, and report what could not be found. Use when: 'why was this built this way', 'why did we pick X over Y', 'what were they thinking', 'design rationale', 'what problem was this solving', 'why does this still exist', 'archaeology on this decision'. Skip what the code does ('/discovery:explore'); whether a convention should still hold ('/discipline:reason-dont-recite'); a current external fact ('/discovery:research')."
+description: "Reconstruct why a decision was built this way from evidence outside code (design rationale, archaeology), reporting unknowns; persists INTENT.md. Use when: 'why did we pick X over Y', 'what were they thinking', 'what problem was this solving'. Not for code: /discovery:explore, facts: /discovery:research, or rules: /discipline:reason-dont-recite."
 argument-hint: "<target>"
 user-invocable: true
 disable-model-invocation: false

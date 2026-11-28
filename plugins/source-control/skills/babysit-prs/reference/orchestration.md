@@ -82,8 +82,7 @@ rather than recomputing it, so the untriaged-material clause applies there too.
   dispatch that re-fires every cycle. The bot arms get this self-filter structurally (the engine
   never comments as a bot); the human arm needs it explicitly, matching the self-reply exclusion
   `review-discipline.md` §1 already mandates for the worker. A self-authored item still sets the
-  human stop and triage blocker. Only the worker-dispatch delta is suppressed, so a genuine
-  "do not merge" comment the maintainer posts under their own login still halts the merge gate.
+  human stop and triage blocker. Only the worker-dispatch delta is suppressed.
 - **`resolved_human_blocking`** (suppressible): the PR previously required a human stop
   (`CHANGES_REQUESTED` or a blocking/unresolved human item), and now requires none, with no other
   delta. Symmetric to `resolved_blocking_feedback` below: without this arm a PR that just cleared

@@ -1,5 +1,5 @@
 ---
-description: "Configure the source-control plugin. check (read-only, default) reports the effective commit-subject / PR-title convention merged across the team and personal-override layers, plus old-location files and the babysit-prs userConfig surface; apply interviews the repo, writes the convention config to a chosen layer, moves old-location config, and walks the sanctioned babysit reconfigure paths. Use when setting up or inspecting this plugin's configuration, choosing or overriding a commit convention at any layer, configuring or checking babysit, when a run names an old config location, or when /commit, /pull-request, or /babysit-prs report missing configuration. Re-runnable and safe."
+description: "Inspect (check, read-only default) or configure (apply) commit/PR conventions, old config migration, and babysit-prs settings."
 argument-hint: "[check|apply] [layer=team|local] [subject_pattern=<pattern>] [branch_issue_pattern=<ERE>]"
 user-invocable: true
 disable-model-invocation: true

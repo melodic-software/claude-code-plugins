@@ -63,8 +63,18 @@ fails() {
   assert_contains "$label names the line" "$out" "$want"
 }
 
+passes() {
+  propose "$2" "$3"
+  run
+  assert_exit "$1 passes" 0 "$code"
+}
+
+passes "a removed Hold: line" "Hold: waiting on vendor" ""
+passes "a hold phrase added" "- \`bats tests/\` passed." "- \`bats tests/\` passed. Do not merge until the vendor ships."
+passes "a quoted hold line added" "Closes #42" $'Closes #42\n> hold: owner review'
+passes "a split hold phrase added" "- \`bats tests/\` passed." $'- `bats tests/` passed. Do not\nmerge yet.'
+
 fails "a changed closing line" "Closes #42" "Closes #43" "removed: Closes #42"
-fails "a removed Hold: line" "Hold: waiting on vendor" "" "removed: Hold: waiting on vendor"
 fails "a changed Draft: line" "Draft: requested early look" "Draft: ready soon" "added: Draft: ready soon"
 fails "a changed Siblings: line" "Siblings: #40, #41" "Siblings: #40" "removed: Siblings: #40, #41"
 fails "a changed Merge-Risk: line" "Merge-Risk: max=LOW demote=false" "Merge-Risk: max=HIGH demote=true" "added: Merge-Risk: max=HIGH demote=true"
@@ -72,33 +82,26 @@ fails "a dropped Follow-ups entry" "- Pre-existing (advisory): retry the flaky u
   "removed: - Pre-existing (advisory): retry the flaky upload"
 fails "a closing line added in What changed" "- Parses dates with the standard library." "- Parses dates. Fixes #77" "added: - Parses dates. Fixes #77"
 fails "a Refs: line added" "Closes #42" $'Closes #42\nRefs: #50' "added: Refs: #50"
-fails "a hold phrase added" "- \`bats tests/\` passed." "- \`bats tests/\` passed. Do not merge until the vendor ships." \
-  "added: - \`bats tests/\` passed. Do not merge until the vendor ships."
-fails "a quoted hold line added" "Closes #42" $'Closes #42\n> hold: owner review' "added: > hold: owner review"
+fails "a quoted Draft: line added" "Closes #42" $'Closes #42\n> draft: owner review' "added: > draft: owner review"
 
 URL_CLOSE="Closes https://github.com/o/r/issues/42"
 fails "a URL-form closing line added" "Closes #42" $'Closes #42\n'"$URL_CLOSE" "added: $URL_CLOSE"
 
-cp "$CURRENT" "$TEST_TMPDIR/base.md"
-propose "- Parses dates with the standard library." $'- Parses dates with the standard library.\n'"$URL_CLOSE"$'\n- Ship it after review; do not\nmerge before the vendor fix.'
+propose "- Parses dates with the standard library." $'- Parses dates with the standard library.\n'"$URL_CLOSE"
 cp "$PROPOSED" "$CURRENT"
 fails "a changed URL-form closing line" "$URL_CLOSE" "Closes https://github.com/o/r/issues/43" "removed: $URL_CLOSE"
 fails "a removed URL-form closing line" "$URL_CLOSE" "" "removed: $URL_CLOSE"
-fails "a removed split hold" "merge before the vendor fix." "ship before the vendor fix." "removed: hold wording across lines: do not merge"
-fails "a changed split hold" "- Ship it after review; do not" "- Ship it after review; don't" "added: hold wording across lines: don't merge"
 propose "- Left out: nothing" "- Left out: the timezone table"
 run
-assert_exit "rewriting another section keeps a split hold and a URL-form closing line" 0 "$code"
-cp "$TEST_TMPDIR/base.md" "$CURRENT"
-fails "a split hold added" "- \`bats tests/\` passed." $'- `bats tests/` passed. Do not\nmerge yet.' "added: hold wording across lines: do not merge"
+assert_exit "rewriting another section keeps a URL-form closing line" 0 "$code"
 
 cp "$CURRENT" "$PROPOSED"
-printf 'Hold: waiting on vendor\n' >>"$PROPOSED"
+printf 'Draft: requested early look\n' >>"$PROPOSED"
 run
-assert_exit "a repeated Hold: line fails" 1 "$code"
+assert_exit "a repeated Draft: line fails" 1 "$code"
 
-printf 'Closes #42\r\nHold: waiting on vendor\r\n' >"$TEST_TMPDIR/crlf.md"
-printf 'Closes #42\nHold: waiting on vendor\n## What changed\n- new\n' >"$PROPOSED"
+printf 'Closes #42\r\nDraft: requested early look\r\n' >"$TEST_TMPDIR/crlf.md"
+printf 'Closes #42\nDraft: requested early look\n## What changed\n- new\n' >"$PROPOSED"
 out=$(bash "$SCRIPT" "$TEST_TMPDIR/crlf.md" "$PROPOSED" 2>&1)
 assert_exit "CRLF line endings alone change no gate line" 0 "$?"
 
