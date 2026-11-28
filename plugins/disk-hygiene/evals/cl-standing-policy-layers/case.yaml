@@ -20,6 +20,11 @@ graders:
     pattern: 'hygiene\.py\W{1,12}scan\b(?:[^\n]*\\\n)*[^\n]*--project-dir\W+(?:/opt/eval/work/proj\b|\$\{?CLAUDE_PROJECT_DIR\b)'
     target: last_message
     arm: both
+  - name: scan-with-user-policy
+    type: regex
+    pattern: 'hygiene\.py\W{1,12}scan\b(?:[^\n]*\\\n)*[^\n]*--user-policy\W+["'']?/opt/eval/home/\.config/disk-hygiene/policy\.json["'']?'
+    target: last_message
+    arm: both
   - name: scan-without-policy
     type: regex
     pattern: 'hygiene\.py\W{1,12}scan\b(?:[^\n]*\\\n)*[^\n]*--policy\b'
@@ -54,6 +59,6 @@ graders:
     arm: both
   - name: layers-additively
     type: llm
-    criteria: 'Pass only if all hold. Legacy clean 9: "Runs scan without --policy and the output''s policy_sources lists baseline plus both standing files" (here: the reply runs, or states, the scan without --policy and says policy_sources in its output will show the baseline plus both standing files); "Treats standing policy input as additive: added protections and hints only" (no layer can weaken a hard guard); "An explicit --policy file replaces the standing layers instead of stacking on them" (so passing --policy with the user-global file would drop the project hint, which answers the user''s question). Fail if the reply recommends passing --policy to get both files applied.'
+    criteria: 'Pass only if all hold. Legacy clean 9: "Runs scan without --policy (passing --user-policy for the policy_file option and --project-dir for the repository) and the output''s policy_sources lists baseline plus both standing files" (here: the reply states the scan with --user-policy and --project-dir and without --policy, and says policy_sources in its output will show the baseline plus both standing files); "Treats standing policy input as additive: added protections and hints only" (no layer can weaken a hard guard); "An explicit --policy file replaces the standing layers instead of stacking on them" (so passing --policy with the user-global file would drop the project hint, which answers the user''s question). Fail if the reply recommends passing --policy to get both files applied or omits --user-policy.'
     focus: last_message
     arm: both

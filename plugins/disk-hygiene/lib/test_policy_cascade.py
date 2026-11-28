@@ -116,24 +116,30 @@ class PolicyCascadeTests(unittest.TestCase):
             ):
                 policy_cascade.load_policy(None, project, None)
 
-    def test_retired_claude_policy_files_are_ignored_quietly(self) -> None:
+    def test_retired_claude_policy_files_are_not_read_and_warn(self) -> None:
         home = self.base / "home"
         project = self.base / "project"
         (home / ".claude").mkdir(parents=True)
         (project / ".claude").mkdir(parents=True)
-        (home / ".claude" / "disk-hygiene.json").write_text(
+        old_user = home / ".claude" / "disk-hygiene.json"
+        old_project = project / ".claude" / "disk-hygiene.json"
+        old_user.write_text(
             json.dumps({"version": 1, "additional_protected_path_globs": ["old-u/**"]}),
             encoding="utf-8",
         )
-        (project / ".claude" / "disk-hygiene.json").write_text(
+        old_project.write_text(
             json.dumps({"version": 1, "additional_protected_path_globs": ["old-p/**"]}),
             encoding="utf-8",
         )
         with mock.patch.object(Path, "home", return_value=home):
             policy = policy_cascade.load_policy(None, project, None)
         self.assertEqual(["baseline"], policy["policy_sources"])
-        self.assertEqual([], policy["policy_warnings"])
         self.assertEqual([], policy["additional_protected_path_globs"])
+        self.assertEqual(2, len(policy["policy_warnings"]))
+        joined = "\n".join(policy["policy_warnings"])
+        self.assertIn(str(old_user), joined)
+        self.assertIn(str(old_project), joined)
+        self.assertIn("is not read", joined)
 
 
 if __name__ == "__main__":

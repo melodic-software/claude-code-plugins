@@ -358,17 +358,31 @@ def standing_policy_paths(
     home: Path | None = None,
 ) -> list[Path]:
     warnings = [] if warnings is None else warnings
-    _ = home
+    home_dir = Path.home() if home is None else home
     layers: list[Path] = []
     user = user_policy_path(user_policy, warnings)
     if user is not None and user.is_file():
         layers.append(user)
+    old_user = home_dir / ".claude" / "disk-hygiene.json"
+    if old_user.is_file():
+        warnings.append(
+            f"retired policy file {old_user} is not read; protections in it no longer apply "
+            f"(configure the {POLICY_FILE_OPTION} option and remove the old file)"
+        )
     if project_dir is not None:
         conv_home = convention_home(project_dir)
         for name in (TEAM_POLICY_NAME, PERSONAL_POLICY_NAME):
             candidate = conv_home / name
             if candidate.is_file():
                 layers.append(candidate)
+        old_project = project_dir / ".claude" / "disk-hygiene.json"
+        if old_project.is_file() and not (
+            old_user.is_file() and same_file(old_user, old_project)
+        ):
+            warnings.append(
+                f"retired policy file {old_project} is not read; protections in it no longer apply "
+                f"(move entries you still want to {conv_home / TEAM_POLICY_NAME} and remove the old file)"
+            )
     unique: dict[Path, Path] = {}
     for path in layers:
         if path.is_file():

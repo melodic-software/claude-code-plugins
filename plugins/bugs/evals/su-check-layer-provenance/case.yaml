@@ -17,7 +17,7 @@ graders:
   - name: 'ran-override-ignore-probe'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: 'check-ignore(?:(?!\\n)[^"])*bugs\.local\.md'
+    input_match: 'check-ignore(?:(?!\\n)[^"])*docs/conventions/bugs\.local\.md'
     min: 1
     arm: 'with-only'
   - name: 'names-retirement'

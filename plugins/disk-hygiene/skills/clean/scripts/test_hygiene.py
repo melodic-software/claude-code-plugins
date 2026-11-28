@@ -6088,14 +6088,14 @@ class StandingPolicyTests(unittest.TestCase):
             )
             self.assertEqual([], policy["policy_warnings"])
 
-    def test_retired_old_files_alone_are_ignored_without_warnings(self) -> None:
+    def test_retired_old_files_alone_are_not_read_and_each_warns_once(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary) / "home"
             project = Path(temporary) / "project"
-            self.write_old_policy(
+            old_user = self.write_old_policy(
                 home, {"additional_hints": [self.hint("user-hint", "u-*")]}
             )
-            self.write_old_policy(
+            old_project = self.write_old_policy(
                 project, {"additional_hints": [self.hint("team-hint", "t-*")]}
             )
             with mock.patch.object(hygiene.Path, "home", return_value=home):
@@ -6104,13 +6104,30 @@ class StandingPolicyTests(unittest.TestCase):
             self.assertNotIn("user-hint", ids)
             self.assertNotIn("team-hint", ids)
             self.assertEqual(["baseline"], policy["policy_sources"])
-            self.assertEqual([], policy["policy_warnings"])
+            self.assertEqual(2, len(policy["policy_warnings"]))
+            joined = "\n".join(policy["policy_warnings"])
+            self.assertIn(str(old_user), joined)
+            self.assertIn(str(old_project), joined)
+            self.assertIn("is not read", joined)
 
-    def test_new_layer_applies_quietly_beside_retired_old_file(self) -> None:
+    def test_project_dir_equal_to_home_emits_retired_warning_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary) / "home"
+            old_file = self.write_old_policy(
+                home, {"additional_hints": [self.hint("user-hint", "u-*")]}
+            )
+            with mock.patch.object(hygiene.Path, "home", return_value=home):
+                policy = hygiene.load_policy(None, home)
+            self.assertEqual(["baseline"], policy["policy_sources"])
+            self.assertEqual(1, len(policy["policy_warnings"]))
+            self.assertIn(str(old_file), policy["policy_warnings"][0])
+            self.assertIn("is not read", policy["policy_warnings"][0])
+
+    def test_new_layer_applies_beside_retired_old_file(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary) / "home"
             project = Path(temporary) / "project"
-            self.write_old_policy(
+            old_project = self.write_old_policy(
                 project, {"additional_hints": [self.hint("old-hint", "o-*")]}
             )
             team = self.write_yaml(
@@ -6123,7 +6140,9 @@ class StandingPolicyTests(unittest.TestCase):
             self.assertIn("team-hint", ids)
             self.assertNotIn("old-hint", ids)
             self.assertEqual(["baseline", str(team)], policy["policy_sources"])
-            self.assertEqual([], policy["policy_warnings"])
+            self.assertEqual(1, len(policy["policy_warnings"]))
+            self.assertIn(str(old_project), policy["policy_warnings"][0])
+            self.assertIn("is not read", policy["policy_warnings"][0])
 
     def test_only_the_user_policy_file_may_opt_into_elevation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

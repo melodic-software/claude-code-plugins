@@ -11,13 +11,11 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. Targets and modes arrive as `/disk-hygiene:clean` arguments. The
 tunables are two `userConfig` options, the `disk_hygiene_enabled` toggle and `policy_file`,
-plus the standing policy layers. `apply` writes only when it moves an old policy file (step 7),
-and only after a yes; the old file is then removed only through `/disk-hygiene:clean`'s gated
-apply.
+plus the standing policy layers. `apply` writes nothing and installs nothing; it points at
+the remediation for each FAIL.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
-points at each remediation. Neither prompts, except for the yes `apply` asks before step 7
-moves a file and the clean skill's own confirmation before it removes the old one.
+points at each remediation. Neither prompts.
 
 ## `check` (read-only)
 

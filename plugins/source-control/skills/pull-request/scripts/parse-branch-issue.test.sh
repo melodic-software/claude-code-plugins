@@ -286,15 +286,19 @@ HOME_NOTE='team and personal override not applicable: project root is the home d
 
 new_case
 git init -q "$CASE_HOME"
+CASE_REPO="$CASE_HOME"
 yaml_layer "${CASE_HOME}/$TEAM_YAML_REL" '-([0-9]+)$'
 write_personal_yaml "${CASE_HOME}/$PERSONAL_YAML_REL" '-([0-9]+)$'
-CASE_REPO="$CASE_HOME"
 run_cfg "home project root skips team and personal override" \
   "$WN" "" - "12" 0 "$HOME_NOTE"
 
 new_case
-write_personal_yaml "${CASE_HOME}/$PERSONAL_YAML_REL" '-([0-9]+)$'
-CASE_REPO="$(dirname "$CASE_HOME")"
+CASE_REPO="$(mktemp -d "${FIXTURES}/anc.XXXXXX")"
+CASE_HOME="${CASE_REPO}/home"
+mkdir -p "$CASE_HOME"
+git init -q "$CASE_REPO"
+yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '-([0-9]+)$'
 run_cfg "an ancestor of home also skips team and personal override" \
   "$WN" "" - "12" 0 "$HOME_NOTE"
 
