@@ -1357,6 +1357,7 @@ planted+=$'\n'"$second"
 third="$(grep -rhoE 'zqx[a-z0-9]*|xa[0-9]{2}|zqy[0-9]{3}|zqg[a-z0-9]*|zqh[a-z0-9]*' --include='*.json' "$FIX" | LC_ALL=C sort -u)"
 assert_eq "re-gate lower-case tokens were collected" "yes" "$([[ "$third" == *zqxb01* && "$third" == *xa31* && "$third" == *zqy220* && "$third" == *zqgleak1* && "$third" == *zqgtilde* && "$third" == *zqh083* ]] && echo yes)"
 planted+=$'\n'"$third"
+ALL="${ALL//"$TEST_TMPDIR"/}"
 while IFS= read -r secret; do
   [[ -z "$secret" ]] && continue
   assert_not_contains "secret $secret never emitted" "$ALL" "$secret"

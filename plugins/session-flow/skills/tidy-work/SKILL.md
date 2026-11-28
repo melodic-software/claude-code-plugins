@@ -1,5 +1,5 @@
 ---
-description: "Inventory and tidy the gitignored `.work` memory tiers (the repo's memory root and `~/.work`): report what is stale and what is in flight, normalize misplaced handoffs and retros, and remove stale known items behind one confirmation. Opt-in only; nothing runs unless invoked. Use when: 'tidy .work', 'clean up .work', 'what is piling up in .work', 'prune old handoffs', 'clear stale save-points', 'normalize my memory folder'. Handing off is /session-flow:handoff; making work durable before shutdown is /session-flow:clean-stop."
+description: "Opt-in inventory/tidy of gitignored .work memory tiers (repo and ~/.work): report stale/in-flight items, normalize, or clean after confirmation."
 argument-hint: "[report|normalize|clean] [--days N] [--offline] [--memory-dir DIR] [--scope all|repo|home]"
 user-invocable: true
 disable-model-invocation: true

@@ -1,5 +1,5 @@
 ---
-description: "Reach Claude Code on another host or platform in the fleet to run, prompt, query, message or start a session. Use when: 'run this on HOST', 'ask the desktop to', 'cross-machine', 'remote agent', 'reach the fleet', 'message the Windows session', 'from WSL to Windows', 'share one account across platforms'. Not for: a session on THIS host and platform (ListAgents/SendMessage), a detached local background session (/session-flow:continue-in-background), or repository fleets (repo-fleet-hygiene)."
+description: "Reach Claude Code on another fleet host or platform (WSL/Windows) to run, prompt, query, message, or start a session. Use when: 'run this on HOST', 'from WSL to Windows', 'remote agent'. Not for this host and platform (ListAgents/SendMessage), local background (/session-flow:continue-in-background), or repo fleets: /repo-fleet-hygiene:audit."
 argument-hint: "[relay]"
 user-invocable: true
 disable-model-invocation: false

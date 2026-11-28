@@ -1,5 +1,5 @@
 ---
-description: "Model-check a TLA+ spec with TLC and draw it as a Mermaid statechart of how a system moves between states, such as a product flow, a protocol or a service; the report gives the shortest path to each state that breaks a rule, for a person to judge. Use when a formal-area skill's Run names it, or to show a bug as a path through states. TLA+ with TLC only."
+description: "Model-check a TLA+ spec with TLC and render a Mermaid statechart of system states, reporting the shortest path to each rule violation for a person to judge. Use when a formal-area skill's Run names it, or to show a bug as a path through states. TLA+ with TLC only."
 argument-hint: "<SPEC.tla> [--view FILE] [--out DIR] [--chart-states N] [--rerun-states N] [--image…]"
 user-invocable: true
 disable-model-invocation: false

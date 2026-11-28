@@ -1,0 +1,32 @@
+{
+  "skill": "architecture:improve-layout",
+  "plugin": "architecture",
+  "skill_dir": "plugins/architecture/skills/improve-layout",
+  "competitors": [
+    "architecture:improve",
+    "architecture:enforce-boundaries",
+    "architecture:map-components"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "check our folder layout using git co-change history"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "find clusters of files edited in the same commits that sit far apart"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "see if frequently co-changed files belong in the same directory"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "measure how widely co-change clusters scatter across our folders"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "propose a target folder layout for our coupled git history files without moving anything"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "judge whether our repo directory tree matches how files evolve together"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "which files keep changing together across distant folders"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "run a co-change layout review on src/ without modifying files"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "are these co-edited source files living in the right directories"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "group commit co-changes into layout cards and interview me on target folders"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "scan the codebase for shallow modules and seam leaks"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "set up a build check that fails when our layer boundaries are violated"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "draw a C4 component diagram of the modules inside this service"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "write an ADR documenting why we chose PostgreSQL over MongoDB"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "what is a deep module vs a shallow module"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "map the async message publishers and consumers in this C# service"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "find deepening opportunities and run a Design-It-Twice interview"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "add an architecture test to enforce our recorded boundary rules"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "trace a request sequence diagram from this HTTP endpoint"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "show our C4 system landscape and portfolio table"}
+  ]
+}

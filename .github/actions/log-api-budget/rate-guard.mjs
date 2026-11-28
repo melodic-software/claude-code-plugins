@@ -67,7 +67,7 @@ const DEFAULTS = new URL("./rate-limits.json", import.meta.url);
 
 const SHARES = { plan: 0.7, "writer-pause": 0.4, breaker: 0.2, "read-floor": 0.1, "stop-floor": 0.02 };
 export const BUILT_IN_LIMITS = Object.freeze({
-  "github-token": { ...SHARES, pace: 0.2, "pace-pr-merge": 0.3, "start-gate": 0.1, "start-project": 0.3, "start-run-minutes": 21, "defer-project": 0.3, "defer-run-minutes": 15, "defer-run-minutes-pr-merge": 6, "defer-run-minutes-review": 8 },
+  "github-token": { ...SHARES, pace: 0.2, "pace-pr-merge": 0.3, "start-gate": 0.1, "start-project": 0.3, "start-run-minutes": 21, "defer-project": 0.3, "defer-run-minutes": 15, "defer-run-minutes-pr-merge": 6, "defer-run-minutes-review": 8, "sweep-hold": 0.2, "sweep-hold-minutes": 15 },
   "lanes-app": SHARES,
   graphql: SHARES,
   "owner-token": SHARES,
@@ -76,9 +76,9 @@ export const BUILT_IN_LIMITS = Object.freeze({
 
 const SHARE = (value) => typeof value === "number" && value >= 0 && value <= 1;
 const COUNT = (value) => Number.isInteger(value) && value >= 1;
-const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "stop-floor": SHARE, pace: SHARE, "pace-pr-merge": SHARE, "start-gate": SHARE, "start-project": SHARE, "start-run-minutes": COUNT, "defer-project": SHARE, "defer-run-minutes": COUNT, "defer-run-minutes-pr-merge": COUNT, "defer-run-minutes-review": COUNT };
+const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "stop-floor": SHARE, pace: SHARE, "pace-pr-merge": SHARE, "start-gate": SHARE, "start-project": SHARE, "start-run-minutes": COUNT, "defer-project": SHARE, "defer-run-minutes": COUNT, "defer-run-minutes-pr-merge": COUNT, "defer-run-minutes-review": COUNT, "sweep-hold": SHARE, "sweep-hold-minutes": COUNT };
 const CONTENT_FIELDS = { ...FIELDS, "per-minute": COUNT, "per-hour": COUNT };
-export const FILE_ONLY_FIELDS = Object.freeze(["pace-pr-merge", "start-gate", "start-project", "start-run-minutes"]);
+export const FILE_ONLY_FIELDS = Object.freeze(["pace-pr-merge", "start-gate", "start-project", "start-run-minutes", "sweep-hold", "sweep-hold-minutes"]);
 const REQUIRED = ["plan", "writer-pause", "breaker", "read-floor"];
 
 function readDefaults(path) {

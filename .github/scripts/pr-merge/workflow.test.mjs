@@ -13,7 +13,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
+import { LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS } from "./enable-auto-merge.mjs";
+import { VERIFY_TIMEOUT_MS } from "./verifier.mjs";
 import { classify, resetLabel } from "../../actions/log-api-budget/rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
@@ -544,15 +545,14 @@ test("the eval-release wake dispatches only an unarmed, unheld lanes App or trus
   assert.equal(run.status, 0);
   assert.deepEqual(
     run.calls.map((call) => call.replace(/ --jq .*$/, "")),
-    [read(7), dispatch(7), read(8), dispatch(8), read(9), read(10), read(11), read(12), read(13), read(14), read(15), read(16), dispatch(16), read(17)],
-    "the trusted person's 8 and a lanes App draft wake; 12's failed read fails closed with no dispatch",
+    [read(7), dispatch(7), read(8), dispatch(8), read(9), read(10), read(11), read(12), read(13), read(14), read(15), dispatch(15), read(16), dispatch(16), read(17)],
+    "the trusted person's 8 and 15, whose body text holds nothing, and a lanes App draft wake; 12's failed read fails closed with no dispatch",
   );
   assert.match(run.stdout, /::warning::wake-eval-released: pr=12 pull request could not be read; nothing woken/);
   assert.match(run.stdout, /::notice title=eval-release wake::pr=9 already armed; nothing woken/);
   assert.match(run.stdout, /::notice title=eval-release wake::pr=10 held \(do-not-merge\); nothing woken/);
   for (const pr of [11, 13, 17]) assert.match(run.stdout, new RegExp(`::notice title=eval-release wake::pr=${pr} not a lanes App or trusted person pull request; nothing woken`), String(pr));
   assert.match(run.stdout, /::notice title=eval-release wake::pr=14 a draft; nothing woken/);
-  assert.match(run.stdout, /::notice title=eval-release wake::pr=15 held \(body Hold: line\); nothing woken/);
   const unread = runEvalWake("7 8 13 11", { appId: "5", answers, trusted: "/nonexistent/trusted-actors.json" });
   assert.deepEqual(unread.calls.filter((call) => call.startsWith("workflow")), [dispatch(7)], "when the trusted-actor list does not read, User pull requests fail closed while lanes App still wakes");
   for (const pr of [8, 13, 11]) assert.match(unread.stdout, new RegExp(`::warning::wake-eval-released: pr=${pr} trusted-actor list could not be read; nothing woken`), String(pr));

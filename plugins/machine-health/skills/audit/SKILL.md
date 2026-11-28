@@ -1,5 +1,5 @@
 ---
-description: "Audits local workstation health and emits a findings report: runs OS-specific checks (disk, OS updates, security posture, CISA KEV) from a versioned catalog with trend-aware severity; remediation only when pre-approved. Use when: 'machine health check', 'audit my machine', 'system health', 'workstation status report', or when the scheduled monthly task fires. Outputs a dated markdown report; updates append-only history state. Windows fully implemented; macOS/Linux scaffolded (reports UNKNOWN and stops)."
+description: "Audit workstation/system health: OS-specific checks (disk, updates, security posture, CISA KEV), versioned catalog, trend severity; pre-approved remediation only. Dated markdown report + append-only history (Windows; macOS/Linux UNKNOWN). Use when: 'machine health check', 'audit my machine', 'workstation status report', or scheduled monthly task."
 argument-hint: "[weekly|on-demand|first-run] [--dry-run] [--scheduled]"
 user-invocable: true
 disable-model-invocation: false

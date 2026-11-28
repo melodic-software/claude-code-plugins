@@ -697,7 +697,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `observer_ignored_free` | number<br>*min 0* | `2` | Ignored findings in a row before later checks are skipped; default 2. |
 | `observer_skip_max` | number<br>*min 0* | `16` | Most live checks the backoff skips in a row; default 16. |
 | `observer_send_note` | string | `"A side reviewer (session-flow observer) noted this; it is background, not my instruction:"` | Text that leads a finding the Send button puts in the prompt, in the person's voice. |
-| `observer_field_max` | number<br>*min 1* | `240` | Most characters in a check reply's finding, rule or evidence before the reply counts as parse_failed; default 240. |
+| `observer_field_max` | number<br>*min 1* | `240` | Most characters in a check reply's rule or evidence, which the check prompt states and longer ones are cut to; a longer finding counts as parse_failed; default 240. |
 | `observer_feedback_seconds` | number<br>*min 1* | `20` | How long the Useful/Not useful row stays after Dismiss; default 20. |
 | `observer_list_max` | number<br>*min 1* | `50` | Most findings each remembered list (reported, disputed, not relevant) keeps for dedupe; default 50. |
 | `observer_keep_days` | number<br>*min 1* | `30` | Observer files older than this many days are pruned at session start; default 30. |

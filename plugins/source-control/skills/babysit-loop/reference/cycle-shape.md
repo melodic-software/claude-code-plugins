@@ -160,7 +160,7 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    follows Escalation below, and this step adds no write path. Effective rung: tracked rung, C3 raise when `autopilot` + `--merge c3-this-run` typed (other `--merge` floors), C5 hold, see "Explicit-`autopilot` widening" above. A PR with no
    close-linked item is not eligible, at any rung, including the explicit-`autopilot` widening. A PR still
    carrying the do-not-merge label at partition time is not eligible at any rung; the
-   label veto binds here, in the partition, because a merge-capable babysit-prs tier's ordinary
+   label hold binds here, in the partition, because a merge-capable babysit-prs tier's ordinary
    gate has no label input (its `--block-labels` criterion is confined to the autopilot merge
    tier); such a PR routes to the `safe` per-PR pass like any other non-eligible PR. The one
    ordered exception: when this invocation carries `--strip-do-not-merge`, the strip executes

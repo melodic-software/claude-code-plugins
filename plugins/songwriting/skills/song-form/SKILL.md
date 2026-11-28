@@ -1,5 +1,5 @@
 ---
-description: "Song structure with Pat Pattison's methods: section identification, forms (AABA, verse/chorus, verse/refrain), the candy-bar rewrite, hook placement and hot spots, repetition and repainting (You-I-We, Past-Present-Future, hidden questions/commands), verse development, the box model, bridges, and Essential Guide to Lyric Form and Structure worked examples. Use when: 'is this verse/chorus or AABA', 'where should the title go', 'my chorus does not land', 'my second verse repeats the first', 'what goes in verse 2/3', 'write me a bridge', 'do I need a bridge'. For stability/scansion use /songwriting:meter-prosody."
+description: "Song structure (Pat Pattison): section ID, forms (AABA, verse/chorus, verse/refrain), hook/title placement, repetition/repainting, verse 2/3, box model, bridges (architecture only, no finished lines). Use when: 'do I need a bridge', 'where should the title go', 'my chorus does not land'. Not for scansion: /songwriting:meter-prosody."
 argument-hint: "[form|song-forms|hook|repetition|verse|box-model|bridge|section-building] [args]"
 user-invocable: true
 disable-model-invocation: false

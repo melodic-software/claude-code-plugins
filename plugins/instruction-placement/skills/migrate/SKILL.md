@@ -1,5 +1,5 @@
 ---
-description: "Move instruction content to AGENTS.md as the one content home, keeping a one-line CLAUDE.md shim while a shim is what makes it load. Plans first; every write is operator-gated. Use when: 'migrate to AGENTS.md', 'plan the AGENTS.md migration', 'move CLAUDE.md content to AGENTS.md', 'add the AGENTS.md shim', 'our CLAUDE.md should be one line', 'share instructions with Codex and Cursor', 'can we drop the CLAUDE.md shims yet'. Not the placement sweep (audit) or applying findings (realign)."
+description: "Move instructions to AGENTS.md with a one-line CLAUDE.md shim (plan, apply, cutover-check, remove-shims; writes operator-gated). Use when: 'migrate to AGENTS.md', 'share instructions with Codex and Cursor', 'can we drop the CLAUDE.md shims yet'. Not for sweeps (/instruction-placement:audit) or findings (/instruction-placement:realign)."
 argument-hint: "[plan|apply|cutover-check|remove-shims] [path ...]"
 user-invocable: true
 disable-model-invocation: false

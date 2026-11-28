@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [2.1.11] - 2026-11-28
+
+### Changed
+
+- Trimmed `context-budget` skill frontmatter descriptions (`audit`: 439 -> 348 chars; `setup`: 167 -> 145 chars; total 606 -> 493 chars, -113 chars) with zero body changes.
+
 ## [2.1.10] - 2026-11-26
 
 ### Changed

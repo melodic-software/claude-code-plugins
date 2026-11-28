@@ -1,5 +1,5 @@
 ---
-description: "Co-writing sessions under the No-Free-Zone protocol and feedback discipline, the Title Game (chained vowel-cascade title generation), title generation from an idea, and high-volume option dumps for one line or one section, with Pat Pattison's methods. Use when: 'co-write tonight', 'co-write rules', 'no-free-zone', 'Title Game', '10 titles fast', 'title candidates for X', 'give me 30 options for this line', 'brainstorm the whole chorus'. For blank-page/idea/fragment starts use /songwriting:workflow; for rhyme dumps use /songwriting:rhyme."
+description: "Co-writing sessions with Pat Pattison's methods: No-Free-Zone feedback discipline, Title Game (vowel-cascade titles), title generation from an idea, and high-volume line/chorus brainstorm options. Use when: 'co-write tonight', 'Title Game', 'brainstorm the whole chorus'. Not for blank starts: /songwriting:workflow; rhymes: /songwriting:rhyme."
 argument-hint: "[co-write|title-game|title|line-brainstorm|section-brainstorm] [args]"
 user-invocable: true
 disable-model-invocation: false
