@@ -37,7 +37,7 @@ or names any folder holding it (the evals folder and those above included) or a 
 outside `$(dirname ...)` and outside an `awk`, `sed`, `grep` or `jq` program in single quotes, or its own name). Only these
 forms are set aside: a top-level `plugins: [...]` entry
 of `case.yaml` or `prompt.md` naming the suite's own plugin, a `(cd <dir> && bash <script> <args>)` run whose `<dir>` names nothing in or above the
-suite, and an `echo` or `${1:?message}` message that only prints the name. A file that pipes into a shell,
+suite, and `$0` inside a single-quoted `awk`, `sed`, `grep` or `jq` program. A line that prints the script's name or path still names it. A file that pipes into a shell,
 runs a string (`eval`, `bash -c`, `trap`, `alias`) or sources a stream (`/dev/stdin`, `<(...)`, a here-string) gets no single-quote
 reading. A case file that `cd`s or `pushd`es into the suite, or finds its own folder any other way than `$(dirname ...)` (`${0%/*}`,
 `realpath "$0"`, `__file__`), makes the script visible, and a case script naming `case.yaml` makes `case.yaml`

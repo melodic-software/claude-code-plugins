@@ -118,33 +118,27 @@ class SelectCasesHiddenTest(unittest.TestCase):
         block = self._select(CASE, " # two", "")
         self.assert_runs(block, "check-runs.sh matches the whole line")
 
-    def test_usage_line_naming_the_helper_is_no_run(self):
-        self._base(setup="echo 'usage: setup.sh a|b' >&2\n")
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_free(block, "printing its own name prints no comment")
-
-    def test_unset_message_naming_the_helper_is_no_run(self):
-        self._base(setup='n="${1:?setup.sh needs a count}"\n')
-        block = self._select(SETUP, "# Prints the fixture.\n", "")
-        self.assert_free(block, "the :? message prints only the name")
-
     def test_helper_that_cats_itself_still_runs(self):
         self._base(setup='cat "$0" >copy.txt\n')
         block = self._select(SETUP, "# Prints the fixture.\n", "")
         self.assert_runs(block, "the helper writes its own source")
 
-    def test_helper_naming_itself_in_printf_still_runs(self):
+    def test_helper_printing_its_own_name_still_runs(self):
         for setup in (
             'printf -v self %s "$0"\ncp "$self" ws/\n',
             'printf -v self %s setup.sh\ncp "$self" ws/\n',
             'printf \'-v\' self %s "$0"\ncp "$self" ws/\n',
             'printf "-v" self %s setup.sh\ncp "$self" ws/\n',
             "printf 'usage: setup.sh a|b\\n' >&2\n",
+            "echo 'usage: setup.sh a|b' >&2\n",
+            'n="${1:?setup.sh needs a count}"\n',
+            'echo "$0"\n',
+            '{\n  echo "cat setup.sh > ws/x"\n} | bash\n',
         ):
             with self.subTest(setup=setup):
                 self._base(setup=setup)
                 block = self._select(SETUP, "# Prints the fixture.\n", "")
-                self.assert_runs(block, "printf can store its text in a variable, so it is read as code")
+                self.assert_runs(block, "a printed name or path can reach a caller or a shell, so it is read as code")
 
     def test_helper_naming_itself_in_a_heredoc_it_runs_still_runs(self):
         self._base(

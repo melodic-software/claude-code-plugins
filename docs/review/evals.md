@@ -86,8 +86,7 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   or a `case.yaml` counts like a whole comment line under that rule, in `case.yaml` only when the
   file parses the same without it, and a `case.yaml` edit that drops one is never a
   description-only edit. The static check sets aside only these reference forms: a `plugins: [...]` entry naming the suite's own
-  plugin, a `(cd <dir> && bash <script>)` run whose `<dir>` is outside the suite, a line that only prints the
-  script's name, and `$0` inside an `awk`, `sed`, `grep` or `jq` program. A file that pipes into a shell, runs a string or
+  plugin, a `(cd <dir> && bash <script>)` run whose `<dir>` is outside the suite, and `$0` inside an `awk`, `sed`, `grep` or `jq` program. A file that pipes into a shell, runs a string or
   sources a stream gets no quote reading, and a case file that `cd`s or `pushd`es into the suite or
   finds its own folder in an unresolved form keeps the script visible (owner, 2026-11-27, "Go with
   recommendations": extend the tooling so more eval comment deletions are proven hidden, sweep

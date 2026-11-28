@@ -27,26 +27,11 @@ no_run_text = select_mapping.no_run_text
 WILD_PATH_RE = re.compile(r"[*?[$`{]")
 QUOTED_TOKEN_RE = re.compile(r"""(['"])([^'"\n]+)\1""")
 SELF_REF_RE = re.compile(r"BASH_SOURCE|\$\{?0(?![0-9])")
-PRINT_ONLY_RE = re.compile(
-    r"""^(?:[^\s()]*\)\s*)?echo\s[^;&|<>`]*?(?:\s*[12]?>&[12])?"""
-    r"""\s*(?:;\s*exit(?:\s+\d+)?\s*)?(?:;;)?\s*$"""
-)
 SELF_LOCATE_RE = re.compile(
     r"__file__|__dirname|__filename|import\.meta|PSScriptRoot|PSCommandPath|MyInvocation"
     r"|\$0|BASH_SOURCE|os\.Executable|runtime\.Caller"
 )
-UNSET_MESSAGE_RE = re.compile(r"\$\{(\w+):?\?[^}$`]*\}")
 TEXT_TOOL_RE = re.compile(r"\b(?:awk|gawk|mawk|sed|grep|jq)\b(?:[^;&|()`$]|\$(?!\())*$")
-
-
-def _printed_text_cut(line):
-    """`line` without what it only prints: nothing for an `echo` line with no command
-    substitution or redirect into a file, and no `${name:?message}` message. A script naming
-    itself there prints its name, never its source."""
-    stripped = UNSET_MESSAGE_RE.sub(r"${\1}", line.strip())
-    shape = re.sub(r"""'[^']*'|"(?:[^"\\$`]|\\.)*\"""", "''", stripped)
-    printed = PRINT_ONLY_RE.match(shape) and "$(" not in stripped and "`" not in stripped
-    return "" if printed else stripped
 
 
 def _code_lines(text):
@@ -99,9 +84,9 @@ def _names_in_code(text, name_re=None):
     for raw, code in zip(text.splitlines(), _code_lines(text)):
         if code is None or not raw.strip() or raw.strip().startswith("#"):
             continue
-        if SELF_REF_RE.search(_printed_text_cut(select_mapping.DIRNAME_INNER_RE.sub("", code))):
+        if SELF_REF_RE.search(select_mapping.DIRNAME_INNER_RE.sub("", code).strip()):
             return True
-        if name_re is not None and name_re.search(_printed_text_cut(raw)):
+        if name_re is not None and name_re.search(raw.strip()):
             return True
     return False
 
@@ -199,7 +184,7 @@ def _case_yaml_hidden(target, cases, eval_norm, deleted):
         if fpath != target and _locates_itself(fpath, text or ""):
             return False
         if os.path.splitext(fpath)[1].lower() in select_mapping.SCRIPT_EXTENSIONS and any(
-            case_yaml_re.search(_printed_text_cut(line))
+            case_yaml_re.search(line.strip())
             for line in (text or "").splitlines()
             if not line.lstrip().startswith("#")
         ):
@@ -253,6 +238,6 @@ def hidden_from_agent(eval_abs, target_abs, cases, owning_case=None, deleted=())
                 stripped = line.strip()
                 if line in run_lines or not stripped or stripped.startswith("#"):
                     continue
-                if name_re.search(_printed_text_cut(line)):
+                if name_re.search(line.strip()):
                     return False
     return run
