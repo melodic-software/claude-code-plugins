@@ -143,7 +143,7 @@ for authors in lane any lane-or-owner; do
   case $authors in
   lane) unjudged='dependabot[bot] renovate[bot] other[bot] someone kyle-sexton melodic-standards-sync[bot] claude[bot]' ;;
   lane-or-owner) unjudged='dependabot[bot] renovate[bot] other[bot] someone' ;;
-  any) unjudged='dependabot[bot] renovate[bot]' ;;
+  *) unjudged='dependabot[bot] renovate[bot]' ;;
   esac
   for author in '49699333 Bot dependabot[bot]' '12345 Bot renovate[bot]' '999 Bot other[bot]' '12345 User someone' \
     '153232337 User kyle-sexton' '337595936 Bot melodic-automation-lanes[bot]' '300666570 Bot melodic-standards-sync[bot]' '209825114 Bot claude[bot]'; do

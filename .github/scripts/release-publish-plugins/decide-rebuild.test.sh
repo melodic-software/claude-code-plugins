@@ -280,8 +280,7 @@ check 'verify: failure' failure "$(pr_verify "[$(status pr-verify failure)]")"
 check 'verify: the newest status decides' failure "$(pr_verify "[$(status pr-verify failure),$(status pr-verify success)]")"
 check 'verify: another creator is ignored' failure "$(pr_verify "[$(status pr-verify success 12345),$(status pr-verify failure)]")"
 check 'verify: only another creator is empty' '' "$(pr_verify "[$(status pr-verify success 583231)]")"
-RC=0
-pr_verify fail >/dev/null 2>&1 || RC=$?
+RC=$(pr_verify fail >/dev/null 2>&1; echo $?)
 check 'verify: a failed read exits non-zero' 1 "$RC"
 
 echo '# gate error'
