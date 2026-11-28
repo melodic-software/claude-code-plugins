@@ -127,10 +127,7 @@ report, with no diff anywhere to show it happened.
 
 Configuration therefore rides a tracked file in the consuming repo, layered per the config-cascade
 convention: `<home>/overengineering.yaml` (default `docs/conventions/overengineering.yaml`), with a
-gitignored personal override beside it at `<home>/overengineering.local.yaml`. Files at the old
-paths (`~/.claude/overengineering.md`, `.claude/overengineering.md` and
-`.claude/overengineering.local.md`) are still read until the new file for their layer exists, with
-a warning on every run naming where to move them, as `reference/consumer-config.md` says. The file carries
+gitignored personal override beside it at `<home>/overengineering.local.yaml`. The file carries
 
 - the **protected-categories set**. Extend, narrow, or empty it;
 - **threshold overrides** for the analogical rows, each of which can also be switched off entirely;

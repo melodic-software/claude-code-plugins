@@ -1,5 +1,5 @@
 ---
-description: "Check the multi-agent role map (model and effort per role and the layer behind each value) or write confirmed keys into the user, team or local multi-agent.yaml layer."
+description: "Inspect the multi-agent role map or write confirmed overrides to user, team, or local config layers (including `--migrate`)."
 argument-hint: "[check|apply] [--layer user|team|local|--migrate] [<key>=<value> ...] [session=<alias>]"
 user-invocable: true
 disable-model-invocation: true

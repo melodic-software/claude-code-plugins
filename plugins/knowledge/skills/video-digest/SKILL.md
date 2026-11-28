@@ -1,5 +1,5 @@
 ---
-description: "Transcript, links and repository-applicability recommendations from one public YouTube or X (Twitter) video. Use when the user gives a youtube.com, youtu.be, x.com or twitter.com video URL or asks to watch or digest a video or talk, to fetch only its transcript, to queue videos for later, or to resume a digest. Auth-walled courses go to /knowledge:course-digest."
+description: "Transcript, links, and repository recommendations from one public YouTube or X/Twitter video. Use when: 'digest this video', 'fetch only its transcript', 'queue videos for later', given a youtube.com/youtu.be/x.com/twitter.com URL, or resuming a talk digest. Not for auth-walled courses: /knowledge:course-digest."
 argument-hint: "<watch [<url>|<n>]|<url>|queue <url>...|queue list|transcript <url>|resume <slug>>"
 user-invocable: true
 disable-model-invocation: false

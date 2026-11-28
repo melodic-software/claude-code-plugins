@@ -1,5 +1,5 @@
 ---
-description: "Verify spelling's prerequisites and whether its lint entry runs typos here, and register its git pre-commit entry. Use when: 'set up spelling', 'configure spelling', 'is spelling working', spelling findings never show up, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply | apply install-git-hooks [scope=local|shared]. Re-runnable."
+description: "Verify spelling prerequisites and typos lint hooks (check [inspect]), or resolve and register its git pre-commit entry (apply [install-git-hooks])."
 argument-hint: "[check|apply] [inspect|install-git-hooks [scope=local|shared]]"
 user-invocable: true
 disable-model-invocation: true

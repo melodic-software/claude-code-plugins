@@ -9,6 +9,12 @@ graders:
     input_match: 'onboarding\.md'
     min: 1
     arm: with-only
+  - name: ran-repo-lint
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|&(`]|(?<!\\\\)\\n|\b(?:bash|zsh|dash|sh)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:-\S+(?:\s|\\t|\\\\(?:\\r)?\\n)+)*?-\w*c(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:\\"|\x27)))?(?:\s|\\t|\\\\(?:\\r)?\\n)*(?:(?:if|elif|while|until|then|do|else|!|\{)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:(?:[^\s"\\;&|()]*/)?(?:sudo|npx|exec|time|env|nohup|command|xargs|timeout|nice|stdbuf)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:(?:-\S+(?:(?:\s|\\t|\\\\(?:\\r)?\\n)+[^-\s"\\;&|()]\S*)?|\d\S*)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*)?(?:[^\s"\\;&|()]*/)?(?:(?:npm|pnpm|yarn)\s+(?:run(?:-script)?\s+)?lint:md\b|(?:(?:bash|sh)\s+(?:[^\s"\\;&|()]*/)?)?lint-md\.sh\b)'
+    min: 1
+    arm: with-only
   - name: named-changed-target
     type: regex
     pattern: '(?=[\s\S]*\bchanged\b[^\n]*onboarding\.md|[\s\S]*onboarding\.md[^\n]*\bchanged\b)[\s\S]*\bcompressed\b[^\n]*\blint\W{1,4}unresolved\b'

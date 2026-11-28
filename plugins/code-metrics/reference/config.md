@@ -2,8 +2,7 @@
 
 Every tunable value in this plugin resolves through one set of config layers. This document is their
 contract: the layers, the merge form, the YAML subset, and every key with its default and
-provenance. `/code-metrics:setup` writes the team layer, and the `userConfig` file and the
-personal override only when it copies old files there; every audit skill reads the resolved
+provenance. `/code-metrics:setup` writes the team layer; every audit skill reads the resolved
 document at run time and prints the layer that supplied any value a personal layer changed. The
 JSON Schema for every layer's keys is [`schemas/code-metrics.schema.json`](../schemas/code-metrics.schema.json).
 
@@ -26,25 +25,13 @@ same nested keys as the team file, which no scalar option can carry, so the `con
 value means unset, a leading `~/` expands against the home directory, a value still not absolute is
 skipped with a warning, and a file that does not exist supplies no layer.
 
-**Dual-read window.** Two old paths are still read, and each run prints one warning naming the
-old file and its new location:
-
-| Old path | Read as | When |
-|---|---|---|
-| `~/.claude/code-metrics.yaml` | layer `userConfig` | only while the `config_file` option's file is absent or outside the YAML subset; with both present the option's file wins and the warning names both |
-| `<repo>/.claude/code-metrics.local.yaml` | layer `local` | only while `docs/conventions/code-metrics.local.yaml` is absent or outside the YAML subset; with both present the new file wins and the warning names both |
-
-`/code-metrics:setup check` names each old file it finds, and `/code-metrics:setup apply
---copy-old` offers to copy each one's keys into its new location after a preview and a yes,
-leaving the old files in place: the old user-global file into the `config_file` option's file
-(while the option is unset it copies none and says to set it), the old personal file into
-`docs/conventions/code-metrics.local.yaml`. A later release stops reading the old paths.
-
-The team layer is `docs/conventions/code-metrics.yaml` alone. The team file earlier releases read
-from the repository's `.claude/` directory is retired and never read. `/code-metrics:setup check`
-reports it, and `/code-metrics:setup apply`, run while the docs file is absent, carries every
-declared key of the retired file into the docs file in one write and drops and names any other
-key; then delete the retired file.
+The team layer is `docs/conventions/code-metrics.yaml` alone, and the personal override is
+`docs/conventions/code-metrics.local.yaml` alone. Old `~/.claude/code-metrics.yaml`,
+`.claude/code-metrics.yaml`, and `.claude/code-metrics.local.yaml` files are not read.
+`/code-metrics:setup check` reports a leftover `.claude/code-metrics.yaml`, and
+`/code-metrics:setup apply`, run while the docs file is absent, carries every declared key of the
+retired team file into the docs file in one write and drops and names any other key; then delete
+the retired file.
 
 **An invalid layer never stops the run.** A file outside the YAML subset is named with its line
 and read as absent. A value of the wrong shape is named with its file, key and value, and that
@@ -91,7 +78,7 @@ warning. The files the globs match form the `rust` language. With no shipped col
 measure on that language reads `unavailable` with the reason `no shipped collector for the rust language`,
 except `file_lines`, which walks the `other` language's collectors so the files keep their line count.
 
-The old user-global file and the ecosystem files' home layer are looked up under `$HOME`;
+`~/` in `config_file` and the ecosystem files' home layer resolve under `$HOME`;
 `CODE_METRICS_HOME`, when set, replaces that directory for one run (the plugin's own suites use it
 to point at a scratch home). `CODE_METRICS_USER_FILE` stands in for `--user-file` when a script is
 run without it. These are the only environment variables the cascade reads; no key is settable

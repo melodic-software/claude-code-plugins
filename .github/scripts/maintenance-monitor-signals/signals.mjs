@@ -285,18 +285,24 @@ export function platformFindings({ windowStart, status = null }) {
   return out;
 }
 
-export function throughputFindings({ now, sweep = null, laneMerges = null }) {
-  if (!sweep || !laneMerges || sweep.live !== true || !(sweep.candidates > 0)) return [];
+export function throughputFindings({ now, sweep = null, laneMerges = null, openLanePrs = null }) {
+  if (!sweep || !laneMerges || sweep.live !== true) return [];
   if (now.getTime() - Date.parse(sweep.startedAt) > SWEEP_MAX_AGE_MINUTES * 60_000) return [];
+  const count = openLanePrs !== null ? openLanePrs : sweep.candidates;
+  if (!(count > 0)) return [];
   const last = laneMerges.lastMergedAt;
   if (last && now.getTime() - Date.parse(last) < STALL_HOURS * 3600_000) return [];
+  const waiting =
+    openLanePrs !== null
+      ? `while ${openLanePrs} open unheld lane PR${openLanePrs === 1 ? "" : "s"} wait (newest pr-merge sweep: ${sweep.url})`
+      : `while pr-merge's newest sweep counts ${sweep.candidates} candidates: ${sweep.url}`;
   return [
     finding({
       key: "throughput-zero",
       signal: "8 throughput",
       title: `Throughput: no lane merge for ${STALL_HOURS} hours or more`,
       area: "Merge lane (pr-merge)",
-      summary: `No lane PR merged since ${last ?? "before the listed window"} while pr-merge's newest sweep counts ${sweep.candidates} candidates: ${sweep.url}`,
+      summary: `No lane PR merged since ${last ?? "before the listed window"} ${waiting}`,
       facts: Object.entries(sweep.refusalCounts ?? {}).map(([reason, n]) => `refused ${n}: ${reason}`),
       evidence: ["throughput-zero", last],
     }),

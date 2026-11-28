@@ -1,0 +1,32 @@
+{
+  "skill": "review:security-review",
+  "plugin": "review",
+  "skill_dir": "plugins/review/skills/security-review",
+  "competitors": [
+    "review:code-review",
+    "review:quality-gate",
+    "review:fanout"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "run our automated CI security audit on PR #812"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "execute the automated security lane against pull request #405"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "invoke /review:security-review for this workflow run on PR #91"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "hunt for workflow Actions and trust-boundary bugs in CI on PR #304"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "run the reusable workflow's security-review lane on PR #77"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "check logic and GitHub Actions security vulnerabilities in CI for PR #615"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "trigger the claude-security-review CI lane for PR #518"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "run the automated org security-review lane on this GitHub PR"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "audit PR #229 with our CI security workflow lane"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "find logic and trust-boundary security issues static tools miss on PR #640"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "run the CI code-review lane for correctness and maintainability"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "run a local quality gate self-review on my current branch"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "run every reviewer at once and merge findings into one ranked report"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "walk me through this pull request with an annotated digest"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "rate how risky PR #331 is to merge unattended"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "run a multi-model council review for a second opinion"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "run the claude-review lane on PR #518"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "check what could break from this change's blast radius"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "build a walkthrough video storyboard for this PR"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "apply fixes for the persisted fanout review findings"}
+  ]
+}
