@@ -1,5 +1,6 @@
 
 import { readFileSync, realpathSync } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { escapeHtml, stampPage, validateRenderedPage } from "./html-escape.mjs";
@@ -8,7 +9,7 @@ import { findRoot, resolveBranding } from "./view-settings.mjs";
 
 export { stampPage };
 
-const PLUGIN_ROOT = fileURLToPath(new URL("..", import.meta.url));
+const PLUGIN_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const TOKENS_URL = new URL("../reference/html-tokens.css", import.meta.url);
 const REPORT_BRAND_CSS = [
   ".rv-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }",

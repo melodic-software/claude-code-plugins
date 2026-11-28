@@ -160,6 +160,20 @@ const optCli = spawnSync(process.execPath, [builderPath, "--branding-option", '{
 check("--branding-option applies label and emits SVG omission notice on stderr",
   optCli.status === 0 && validateRenderedPage(optCli.stdout).ok && optCli.stdout.includes("CLI Quiz") && optCli.stderr.includes("notice:") && optCli.stderr.includes("PNG or JPEG"), optCli.stderr);
 
+const cacheRoot = `${work}/claude-cfg`;
+const cachedPlugin = `${cacheRoot}/plugins/cache/test-mkt/education/1.0.0`;
+const { cpSync } = await import("node:fs");
+mkdirSync(cachedPlugin, { recursive: true });
+for (const rel of [".claude-plugin", "lib", "reference", "skills/quiz-me/scripts"]) {
+  cpSync(`${dir}/../../../${rel}`, `${cachedPlugin}/${rel}`, { recursive: true });
+}
+writeFileSync(`${cacheRoot}/settings.json`, JSON.stringify({
+  pluginConfigs: { "education@test-mkt": { options: { branding: JSON.stringify({ logo: { label: "Cached Quiz Brand" } }) } } },
+}));
+const cachedCli = spawnSync(process.execPath, [`${cachedPlugin}/skills/quiz-me/scripts/build-report.mjs`], { input: JSON.stringify(model), encoding: "utf8", env: optEnv });
+check("cached plugin install reads userConfig.branding from settings.json",
+  cachedCli.status === 0 && validateRenderedPage(cachedCli.stdout).ok && cachedCli.stdout.includes("Cached Quiz Brand"), cachedCli.stderr);
+
 const cli = spawnSync(process.execPath, [builderPath], { input: JSON.stringify(model), encoding: "utf8" });
 check("the CLI emits the same page as the function", cli.status === 0 && cli.stdout === page, cli.stderr);
 check("invalid JSON exits 2", spawnSync(process.execPath, [builderPath], { input: "{", encoding: "utf8" }).status === 2);

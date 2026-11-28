@@ -10,7 +10,7 @@ import { buildView, validateView } from "../../../lib/view-builder.mjs";
 import { findRoot, resolveBranding } from "../../../lib/view-settings.mjs";
 
 const selfDir = dirname(fileURLToPath(import.meta.url));
-const PLUGIN_ROOT = join(selfDir, "../../..");
+const PLUGIN_ROOT = resolve(selfDir, "../../..");
 export const TEMPLATE_PATH = join(selfDir, "../templates/digest.html");
 const TOKENS_PATH = join(selfDir, "../../../reference/html-tokens.css");
 const BRAND_CSS = [
