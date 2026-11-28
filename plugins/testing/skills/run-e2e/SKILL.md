@@ -1,5 +1,5 @@
 ---
-description: "When the bundled run skill resolves in this session, prefer it to launch the app for a quick look; this skill for evidenced verification flows. End-to-end live app verification. Check prerequisites, start the app, drive UI/API flows, and capture evidence (screenshots, responses, logs); includes a non-UI smoke-test playbook for libraries, MCP servers, hooks, and scripts. Use when: the user wants the running app verified end to end (e2e, smoke test, 'does it actually work'), the UI clicked through, or UI/API changes need runtime verification; for comprehensive build+test+lint use /verification:confirm."
+description: "When bundled run resolves in this session, prefer it for quick launch; else end-to-end live app verification: start app, drive UI/API or non-UI smoke tests (libs, MCP, hooks, scripts), capture screenshots/logs. Use when verifying running app end to end ('e2e', 'smoke test', 'does it actually work'). Not for build/test/lint: /verification:confirm."
 argument-hint: "[map|worst-case…] [--unattended] [app=<app>] [base=<ref>] [trusted-root=<dir>] [scenario|<target>]"
 user-invocable: true
 disable-model-invocation: false
