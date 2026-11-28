@@ -206,13 +206,17 @@ const themes = {
   "dark by preference": resolveTokens(rootRaw, rawTokens(themeBlock(":root:not([data-theme=light]) {"))),
   "dark by choice": resolveTokens(rootRaw, rawTokens(themeBlock(":root[data-theme=dark] {"))),
 };
-const BANDS = ["var(--link)", "var(--olive)", "var(--accent)", "var(--fg)", "var(--muted)"];
+const BANDS = ["link", "olive", "accent", "fg", "muted"];
 const bandRule = (n) => (n === 1 ? rule(".picture") : rule(`.picture:nth-child(${n === 5 ? "5n" : `5n+${n}`})`));
 check(
   "each of five card positions takes its own token-layer band",
-  BANDS.every((token, i) => bandRule(i + 1).includes(`--band: ${token};`)) && new Set(BANDS).size === 5,
+  BANDS.every((token, i) => bandRule(i + 1).includes(`--band: var(--${token});`)),
   BANDS.map((_, i) => bandRule(i + 1)).join(" | "),
 );
+for (const [name, t] of Object.entries(themes)) {
+  const values = BANDS.map((token) => t[token]);
+  check(`adjacent cards differ in band color in the ${name} theme`, values.every(Boolean) && new Set(values).size === 5, values.join(","));
+}
 const luminance = (hex) => {
   const [r, g, b] = hex.slice(1).match(/../g).map((h) => parseInt(h, 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
@@ -221,6 +225,10 @@ const contrast = (a, b) => {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (hi + 0.05) / (lo + 0.05);
 };
+check(
+  "no text rule in explainer template uses the low-contrast light --muted token",
+  !/(?:^|[;{][ \t]*)color:[ \t]*var\(--muted\)/m.test(css),
+);
 for (const [name, t] of Object.entries(themes)) {
   const low = [];
   for (const [fg, bg] of [["fg", "panel"], ["fg", "bg"], ["link", "bg"], ["link", "panel"]]) {

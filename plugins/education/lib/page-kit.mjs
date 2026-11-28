@@ -76,7 +76,7 @@ body {
 h1, h2, h3 { font-family: var(--serif); font-weight: 600; }
 code { font-family: var(--mono); }
 code.block { display: block; white-space: pre; overflow-x: auto; border: var(--border); border-radius: 6px; padding: 0.6rem 0.75rem; margin: 0.75rem 0; }
-.muted { color: var(--muted); }
+.muted { color: color-mix(in srgb, var(--fg) 75%, var(--bg)); }
 table.flow { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0.25rem; margin: 1rem 0 0.5rem; }
 table.flow td { border: 2px solid var(--gray-300); border-radius: 6px; padding: 0.6rem 0.5rem; text-align: center; overflow-wrap: anywhere; }
 table.flow td.arrow { border: 0; width: 2rem; padding: 0; color: var(--muted); font-size: 1.5rem; }

@@ -28,7 +28,7 @@ check() {
   fi
 }
 
-for t in ivory slate clay-deep gray-300 gray-500; do
+for t in ivory slate clay-deep clay-soft gray-300 gray-500; do
   check "--$t" "$(value "$t" "$CHROME")" "$(value "$t" "$TOKENS")"
 done
 
